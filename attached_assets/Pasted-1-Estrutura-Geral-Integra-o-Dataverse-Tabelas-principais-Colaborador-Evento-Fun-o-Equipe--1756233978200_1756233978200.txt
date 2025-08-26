@@ -1,0 +1,215 @@
+1. Estrutura Geral
+
+Integração: Dataverse
+
+Tabelas principais: Colaborador, Evento, Função, Equipe, Passagem, Financeiro, Comentários
+
+Perfis de usuário:
+
+Administrador: acesso total
+
+Área de Produção: cadastrar na Tela 1 e editar na Tela 4
+
+Área responsável por função: selecionar colaboradores na Tela 2
+
+Área de Compras/Viagem: registrar dados na Tela 3
+
+Área Financeira: aprovar na Tela 5
+
+Funcionalidade geral: comentários por registro, histórico completo, notificações automáticas, filtros por evento/função/colaborador/status/passagem
+
+2. Telas de Cadastro Rápido (in-line)
+2.1 Colaborador (Tela 2)
+
+Campos:
+
+Nome completo
+
+CPF
+
+RG
+
+Data de nascimento
+
+Área
+
+Tipo (Casa/Freela/Local)
+
+Telefone
+
+Cidade
+
+Status (ativo/inativo)
+
+Funcionalidade:
+
+Botão “Adicionar Novo Colaborador” na dropdown do lookup
+
+Validação de CPF único
+
+Salva diretamente na tabela Colaborador do Dataverse
+
+Colaborador aparece imediatamente na lista de seleção
+
+2.2 Evento (Tela 1)
+
+Campos:
+
+Nome do evento
+
+Local
+
+Data início
+
+Data fim
+
+Observações (opcional)
+
+Status (planejado/em andamento/concluído)
+
+Funcionalidade:
+
+Botão “Adicionar Novo Evento” na dropdown do lookup
+
+Validação de datas (fim ≥ início)
+
+Evento aparece imediatamente na lista de seleção
+
+2.3 Função (Tela 1)
+
+Campos:
+
+Nome da função
+
+Descrição
+
+Área responsável
+
+Quantidade mínima/máxima de colaboradores (opcional)
+
+Funcionalidade:
+
+Botão “Adicionar Nova Função” na dropdown do lookup
+
+Validação de nome único
+
+Função aparece imediatamente na lista de seleção
+
+3. Telas de Processo
+Tela 1 – Inclusão de Equipe
+
+Usuário: Área de Produção ou Administrador
+
+Campos:
+
+Evento (lookup com botão +)
+
+Função (lookup com botão +)
+
+Data início/fim da escala
+
+Data voo ida + horário sugerido
+
+Data voo volta + horário sugerido
+
+Indicação se precisa de passagem (sim/não)
+
+Cálculo automático: quantidade de diárias = data fim – data início + 1
+
+Filtros: evento, função, status, passagem
+
+Fluxo: registros passam para Tela 2
+
+Tela 2 – Escalação
+
+Usuário: Área responsável pela função ou Administrador
+
+Campos editáveis:
+
+Colaborador (lookup com botão +)
+
+Observação
+
+Campos somente leitura: datas, horários, função, quantidade de diárias
+
+Após confirmação: registro bloqueado para esta área
+
+Fluxo: registros confirmados aparecem na Tela 3
+
+Filtros: evento, função, status, passagem
+
+Tela 3 – Compra de Passagem
+
+Usuário: Área de Compras/Viagem ou Administrador
+
+Campos:
+
+Nome, CPF, RG, Data nascimento (somente leitura)
+
+Data voo ida/volta sugerido
+
+Data real da compra
+
+Horário real
+
+Aeroporto saída/destino
+
+Valor
+
+Número da ordem de compra
+
+Upload de arquivo (associável a múltiplos colaboradores)
+
+Fluxo: após compra, registros vão para Tela 4
+
+Filtros: evento, função, status, colaborador
+
+Tela 4 – Fechamento Financeiro
+
+Usuário: Área de Produção ou Administrador
+
+Campos:
+
+Datas, quantidade de diárias/cachê (editáveis)
+
+Observações
+
+Possibilidade de incluir novos registros emergenciais
+
+Fluxo: registros fechados aparecem na Tela 5
+
+Filtros: evento, função, colaborador, status
+
+Incremento: comparativo planejado x realizado em tempo real
+
+Tela 5 – Aprovação Financeira
+
+Usuário: Área Financeira ou Administrador
+
+Ações:
+
+Selecionar evento
+
+Aprovar individual ou em lote
+
+Comparativo Planejado x Realizado
+
+Filtros: evento, função, colaborador, status
+
+Incrementos: dashboard resumido por evento/função, log de aprovação
+
+4. Funcionalidades Gerais
+
+Comentários por registro (múltiplos, cronológicos)
+
+Histórico completo de todas as fases
+
+Notificações automáticas ao mudar de fase
+
+Validações: datas, diárias, CPF único, campos obrigatórios
+
+Exportação de relatórios (Excel/PDF)
+
+Botões de cadastro rápido integrados às dropdowns (Evento, Colaborador, Função)
+
+Fluxo automático entre telas: Tela 1 → Tela 2 → Tela 3 → Tela 4 → Tela 5
