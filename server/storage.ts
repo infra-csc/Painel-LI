@@ -178,7 +178,13 @@ export class MemStorage implements IStorage {
 
   async createCollaborator(insertCollaborator: InsertCollaborator): Promise<Collaborator> {
     const id = randomUUID();
-    const collaborator: Collaborator = { ...insertCollaborator, id, createdAt: new Date(), status: insertCollaborator.status || 'ativo' };
+    const collaborator: Collaborator = { 
+      ...insertCollaborator, 
+      id, 
+      createdAt: new Date(), 
+      status: insertCollaborator.status || 'ativo',
+      phone: insertCollaborator.phone || null
+    };
     this.collaborators.set(id, collaborator);
     return collaborator;
   }
@@ -209,7 +215,7 @@ export class MemStorage implements IStorage {
       updatedAt: new Date(),
       status: insertInclusion.status || 'planejado',
       phase: insertInclusion.phase || 'inclusao',
-      area: insertInclusion.area || null,
+      area: insertInclusion.area,
       observations: insertInclusion.observations || null,
       actualObservations: insertInclusion.actualObservations || null,
       collaboratorId: insertInclusion.collaboratorId || null,

@@ -210,7 +210,7 @@ export default function Tickets() {
                             {getEventName(inclusion.eventId)} - {getFunctionName(inclusion.functionId)}
                           </h3>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Colaborador: {getCollaboratorName(inclusion.collaboratorId)}
+                            Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
                         </div>
                         <StatusBadge status={inclusion.status} />

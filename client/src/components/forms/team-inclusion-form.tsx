@@ -23,10 +23,10 @@ import type { Event, Function } from "@shared/schema";
 const teamInclusionSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   functionId: z.string().min(1, "Função é obrigatória"),
-  area: z.string().optional(),
+  area: z.string().min(1, "Área é obrigatória"),
   scheduleStartDate: z.string().min(1, "Data de início é obrigatória"),
   scheduleEndDate: z.string().min(1, "Data de fim é obrigatória"),
-  dailyValue: z.number().min(0, "Valor da diária deve ser maior que zero"),
+  dailyValue: z.number().min(0.01, "Valor da diária deve ser maior que zero"),
   needsTicket: z.boolean().default(false),
   flightDepartureDate: z.string().optional(),
   flightDepartureSuggestedTime: z.string().optional(),
@@ -249,21 +249,14 @@ export default function TeamInclusionForm() {
                 name="area"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Área</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-area">
-                          <SelectValue placeholder="Selecione uma área" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {getAvailableAreas().map((area) => (
-                          <SelectItem key={area} value={area}>
-                            {area}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Área *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Digite uma área (ex: Som, Iluminação, Cenografia...)"
+                        {...field}
+                        data-testid="input-area"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -277,12 +270,19 @@ export default function TeamInclusionForm() {
                     <FormItem>
                       <FormLabel>Valor da Diária (R$) *</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                          data-testid="input-daily-value" 
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Digite o valor (ex: 150.00)"
+                          value={field.value > 0 ? field.value.toString() : ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            // Remove leading zeros but preserve decimal part
+                            const numericValue = value === '' ? 0 : parseFloat(value);
+                            field.onChange(numericValue);
+                          }}
+                          data-testid="input-daily-value"
                         />
                       </FormControl>
                       <FormMessage />

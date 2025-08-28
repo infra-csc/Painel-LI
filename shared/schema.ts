@@ -32,7 +32,6 @@ export const functions = pgTable("functions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   description: text("description"),
-  responsibleArea: text("responsible_area").notNull(),
   quantity: integer("quantity").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -41,12 +40,12 @@ export const functions = pgTable("functions", {
 export const collaborators = pgTable("collaborators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fullName: text("full_name").notNull(),
-  cpf: text("cpf").notNull().unique(),
-  rg: text("rg").notNull(),
+  officialDocument: text("official_document").notNull().unique(), // CPF or RG
+  documentType: text("document_type").notNull(), // "cpf" or "rg"
   birthDate: date("birth_date").notNull(),
   area: text("area").notNull(),
   type: text("type").notNull(), // casa, freela, local
-  phone: text("phone").notNull(),
+  phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
   status: text("status").notNull().default("ativo"), // ativo, inativo
   createdAt: timestamp("created_at").defaultNow(),
@@ -58,7 +57,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   eventId: varchar("event_id").notNull().references(() => events.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
-  area: text("area"), // área selecionada
+  area: text("area").notNull(), // área selecionada - now required
   scheduleStartDate: date("schedule_start_date").notNull(),
   scheduleEndDate: date("schedule_end_date").notNull(),
   actualStartDate: date("actual_start_date"), // data real de início de trabalho

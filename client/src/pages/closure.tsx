@@ -215,7 +215,7 @@ export default function Closure() {
                             {getEventName(inclusion.eventId)} - {getFunctionName(inclusion.functionId)}
                           </h3>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Colaborador: {getCollaboratorName(inclusion.collaboratorId)}
+                            Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
                         </div>
                         <StatusBadge status={inclusion.status} />
@@ -266,7 +266,7 @@ export default function Closure() {
                             </div>
                             <div>
                               <Label className="text-xs text-muted-foreground">Taxa Planejada</Label>
-                              <p className="font-medium">{formatCurrency(inclusion.fee)}</p>
+                              <p className="font-medium">R$ 0,00</p>
                             </div>
                             <div>
                               <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>

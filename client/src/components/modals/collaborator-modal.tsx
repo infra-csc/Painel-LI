@@ -12,12 +12,12 @@ import { apiRequest } from "@/lib/queryClient";
 
 const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
-  cpf: z.string().min(11, "CPF é obrigatório").max(14, "CPF deve ter no máximo 14 caracteres"),
-  rg: z.string().min(1, "RG é obrigatório"),
+  officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
+  documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
   area: z.string().min(1, "Área é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
-  phone: z.string().min(1, "Telefone é obrigatório"),
+  phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
 });
 
@@ -36,8 +36,8 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
     resolver: zodResolver(collaboratorSchema),
     defaultValues: {
       fullName: "",
-      cpf: "",
-      rg: "",
+      officialDocument: "",
+      documentType: "cpf" as const,
       birthDate: "",
       area: "",
       type: "",
@@ -106,41 +106,46 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
                 )}
               />
               
-              <FormField
-                control={form.control}
-                name="cpf"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CPF *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="000.000.000-00" 
-                        {...field}
-                        data-testid="input-collaborator-cpf"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="rg"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>RG *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="00.000.000-0" 
-                        {...field}
-                        data-testid="input-collaborator-rg"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="flex gap-2">
+                <FormField
+                  control={form.control}
+                  name="documentType"
+                  render={({ field }) => (
+                    <FormItem className="w-24">
+                      <FormLabel>Tipo *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-document-type">
+                            <SelectValue placeholder="Tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="cpf">CPF</SelectItem>
+                          <SelectItem value="rg">RG</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="officialDocument"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>Documento Oficial *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder={form.watch("documentType") === "cpf" ? "000.000.000-00" : "00.000.000-0"} 
+                          {...field}
+                          data-testid="input-collaborator-document"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               
               <FormField
                 control={form.control}
@@ -213,7 +218,7 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefone *</FormLabel>
+                    <FormLabel>Telefone</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="(11) 99999-9999" 

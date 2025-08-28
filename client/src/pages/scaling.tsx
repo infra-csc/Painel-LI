@@ -70,9 +70,6 @@ export default function Scaling() {
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
   };
 
-  const getFunctionArea = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.responsibleArea || "";
-  };
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "";
@@ -111,13 +108,18 @@ export default function Scaling() {
       return;
     }
 
+    // If the inclusion doesn't need a ticket, skip ticket phase and go directly to closure
+    const needsTicket = inclusion.needsTicket;
+    const nextStatus = needsTicket ? "passagem" : "fechamento";
+    const nextPhase = needsTicket ? "passagem" : "fechamento";
+
     updateTeamInclusionMutation.mutate({
       id: inclusion.id,
       data: {
         collaboratorId,
         observations: observation,
-        status: "passagem",
-        phase: "passagem"
+        status: nextStatus,
+        phase: nextPhase
       }
     });
   };
@@ -201,7 +203,7 @@ export default function Scaling() {
                             {getEventName(inclusion.eventId)}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {getFunctionName(inclusion.functionId)} • {getFunctionArea(inclusion.functionId)}
+                            {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -213,13 +215,13 @@ export default function Scaling() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="relative max-w-xs">
+                          <div className="flex gap-2 items-center max-w-xs">
                             <Select 
                               value={selectedCollaborators[inclusion.id] || inclusion.collaboratorId || ""} 
                               onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
                               disabled={inclusion.status === "escalacao"}
                             >
-                              <SelectTrigger data-testid={`select-collaborator-${inclusion.id}`}>
+                              <SelectTrigger className="flex-1" data-testid={`select-collaborator-${inclusion.id}`}>
                                 <SelectValue placeholder="Selecione um colaborador" />
                               </SelectTrigger>
                               <SelectContent>
@@ -234,7 +236,7 @@ export default function Scaling() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="absolute right-8 top-1/2 transform -translate-y-1/2 p-1 h-auto"
+                              className="p-1 h-8 w-8 shrink-0"
                               onClick={() => setShowCollaboratorModal(true)}
                               data-testid={`button-add-collaborator-${inclusion.id}`}
                             >
