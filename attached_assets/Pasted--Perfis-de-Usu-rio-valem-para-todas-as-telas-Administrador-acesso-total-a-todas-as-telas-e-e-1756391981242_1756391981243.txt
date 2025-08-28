@@ -1,0 +1,89 @@
+🔹 Perfis de Usuário (valem para todas as telas)
+
+Administrador: acesso total a todas as telas e edição de todos os campos.
+
+Área de Produção: pode cadastrar registros na Tela 1 e editar na Tela 4.
+
+Áreas responsáveis por funções: podem selecionar colaboradores na Tela 2 apenas.
+
+Área de Compras/Viagem: pode registrar dados na Tela 3.
+
+Área Financeira: aprovar registros na Tela 5.
+
+🔹 Tela 1
+
+Substituir os campos de quantidade mínima e quantidade máxima por um único campo de quantidade.
+
+Adicionar campo para selecionar Área (sem áreas pré-selecionadas).
+
+Remover o texto explicativo em quantidade de diárias: "Calculado automaticamente: data fim - data início + 1".
+
+Corrigir os botões de ações: atualmente apenas o botão de comentário funciona → corrigir os demais.
+
+Corrigir os campos de totais (incluídos, em escalação, aguardando passagem e aprovados) para exibir números reais e não fictícios.
+
+Adicionar campo para valor da diária e cálculo automático: valor da diária × quantidade de diárias.
+
+🔹 Tela 2
+
+Sem mudanças específicas além dos filtros gerais.
+
+🔹 Tela 3
+
+Sem mudanças específicas além dos filtros gerais.
+
+🔹 Tela 4
+
+Ajustar para que a Área de Produção registre o que foi realmente realizado no evento.
+
+Deve puxar os registros da tela de escalação e permitir edição:
+
+Data de início de trabalho
+
+Data final
+
+Quantidade de diárias/cachê a ser pago
+
+Campo de observação para explicações adicionais
+
+Permitir inclusão de novos registros emergenciais (colaboradores que trabalharam mas não estavam no planejamento).
+
+🔹 Tela 5
+
+Exibir todos os registros da tela de fechamento financeiro para aprovação.
+
+Permitir aprovação individual ou em lote (vários registros).
+
+Exibir comparação Planejado x Realizado:
+
+Número de diárias por função agrupada
+
+Número de diárias por colaborador
+
+Totais por evento
+
+🔹 Tela 6 (nova)
+
+Criar uma tela de consulta geral com todas as fases e registros, disponível para todos os usuários.
+
+Deve mostrar o andamento e o status em cada fase (à medida que mudam).
+
+🔹 Comentários
+
+Adicionar campo de comentários múltiplos em todos os registros, para permitir troca de informações entre áreas.
+
+Comentários devem estar disponíveis tanto na compra de passagem (Tela 3) quanto na aprovação financeira (Tela 5), além das demais etapas.
+
+🔹 Filtros (aplicáveis em todas as telas)
+
+Todas as telas devem conter filtros por:
+
+Evento
+
+Função
+
+Colaborador
+
+Status (ex: aguardando, aprovado, etc.)
+
+Se possui passagem ou não
