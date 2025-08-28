@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, UserCheck, Plane, Calculator, CheckCircle, Search } from "lucide-react";
+import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -12,6 +12,13 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
   const { user } = useAuth();
 
   const allTabs = [
+    {
+      id: "user-registration",
+      path: "/user-registration",
+      label: "Tela 0 - Cadastro de Usuários",
+      icon: UserPlus,
+      permission: "canAccessScreen0" as const,
+    },
     {
       id: "team-inclusion",
       path: "/team-inclusion",

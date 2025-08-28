@@ -16,7 +16,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
-      const user = await storage.getUserByUsername(username);
+      let user = await storage.getUserByUsername(username);
+      
+      // If not found by username, try by email
+      if (!user) {
+        user = await storage.getUserByEmail(username);
+      }
       
       if (!user || user.password !== password) {
         return res.status(401).json({ message: "Credenciais inválidas" });
@@ -26,6 +31,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ user: { ...user, password: undefined } });
     } catch (error) {
       res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
+  // User management routes
+  app.post("/api/users", async (req, res) => {
+    try {
+      const userData = req.body;
+      
+      // Check if username already exists
+      const existingByUsername = await storage.getUserByUsername(userData.username);
+      if (existingByUsername) {
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+
+      // Check if email already exists
+      const existingByEmail = await storage.getUserByEmail(userData.email);
+      if (existingByEmail) {
+        return res.status(400).json({ message: "E-mail já cadastrado" });
+      }
+
+      const user = await storage.createUser(userData);
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao criar usuário" });
+    }
+  });
+
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      const safeUsers = users.map(user => ({ ...user, password: undefined }));
+      res.json(safeUsers);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar usuários" });
     }
   });
 

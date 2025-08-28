@@ -3,6 +3,8 @@ import type { User } from "@shared/schema";
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
 
 export interface RolePermissions {
+  canAccessScreen0: boolean;  // user registration - admin only
+  canEditScreen0: boolean;
   canAccessScreen1: boolean;
   canEditScreen1: boolean;
   canAccessScreen2: boolean;
@@ -20,6 +22,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
   switch (role) {
     case "admin":
       return {
+        canAccessScreen0: true,
+        canEditScreen0: true,
         canAccessScreen1: true,
         canEditScreen1: true,
         canAccessScreen2: true,
@@ -34,6 +38,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case "production":
       return {
+        canAccessScreen0: false,
+        canEditScreen0: false,
         canAccessScreen1: true,
         canEditScreen1: true,
         canAccessScreen2: false,
@@ -48,6 +54,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case "function_area":
       return {
+        canAccessScreen0: false,
+        canEditScreen0: false,
         canAccessScreen1: false,
         canEditScreen1: false,
         canAccessScreen2: true,
@@ -62,6 +70,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case "purchasing":
       return {
+        canAccessScreen0: false,
+        canEditScreen0: false,
         canAccessScreen1: false,
         canEditScreen1: false,
         canAccessScreen2: false,
@@ -76,6 +86,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case "financial":
       return {
+        canAccessScreen0: false,
+        canEditScreen0: false,
         canAccessScreen1: false,
         canEditScreen1: false,
         canAccessScreen2: false,
@@ -90,6 +102,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     default:
       return {
+        canAccessScreen0: false,
+        canEditScreen0: false,
         canAccessScreen1: false,
         canEditScreen1: false,
         canAccessScreen2: false,
