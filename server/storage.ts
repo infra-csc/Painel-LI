@@ -142,8 +142,7 @@ export class MemStorage implements IStorage {
       id, 
       createdAt: new Date(), 
       description: insertFunction.description || null,
-      minCollaborators: insertFunction.minCollaborators || null,
-      maxCollaborators: insertFunction.maxCollaborators || null
+      quantity: insertFunction.quantity || 1
     };
     this.functions.set(id, func);
     return func;
@@ -199,8 +198,15 @@ export class MemStorage implements IStorage {
       updatedAt: new Date(),
       status: insertInclusion.status || 'planejado',
       phase: insertInclusion.phase || 'inclusao',
+      area: insertInclusion.area || null,
       observations: insertInclusion.observations || null,
+      actualObservations: insertInclusion.actualObservations || null,
       collaboratorId: insertInclusion.collaboratorId || null,
+      actualStartDate: insertInclusion.actualStartDate || null,
+      actualEndDate: insertInclusion.actualEndDate || null,
+      actualDailyRates: insertInclusion.actualDailyRates || null,
+      emergencyRecord: insertInclusion.emergencyRecord || false,
+      dailyValue: insertInclusion.dailyValue || 0,
       flightDepartureDate: insertInclusion.flightDepartureDate || null,
       flightDepartureSuggestedTime: insertInclusion.flightDepartureSuggestedTime || null,
       flightReturnDate: insertInclusion.flightReturnDate || null,
@@ -273,8 +279,12 @@ export class MemStorage implements IStorage {
       id, 
       createdAt: new Date(),
       observations: insertFinancial.observations || null,
+      plannedDailyRates: insertFinancial.plannedDailyRates || null,
       actualDailyRates: insertFinancial.actualDailyRates || null,
+      plannedValue: insertFinancial.plannedValue || null,
+      actualValue: insertFinancial.actualValue || null,
       actualFee: insertFinancial.actualFee || null,
+      approved: insertFinancial.approved || false,
       approvedAt: insertFinancial.approvedAt || null,
       approvedBy: insertFinancial.approvedBy || null
     };

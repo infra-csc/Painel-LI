@@ -14,17 +14,8 @@ import { apiRequest } from "@/lib/queryClient";
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
   responsibleArea: z.string().min(1, "Área responsável é obrigatória"),
-  minCollaborators: z.number().min(1, "Quantidade mínima deve ser pelo menos 1").optional(),
-  maxCollaborators: z.number().min(1, "Quantidade máxima deve ser pelo menos 1").optional(),
+  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
-}).refine((data) => {
-  if (data.minCollaborators && data.maxCollaborators) {
-    return data.maxCollaborators >= data.minCollaborators;
-  }
-  return true;
-}, {
-  message: "Quantidade máxima deve ser maior ou igual à mínima",
-  path: ["maxCollaborators"],
 });
 
 type FunctionFormData = z.infer<typeof functionSchema>;
@@ -43,8 +34,7 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     defaultValues: {
       name: "",
       responsibleArea: "",
-      minCollaborators: undefined,
-      maxCollaborators: undefined,
+      quantity: 1,
       description: "",
     },
   });
@@ -133,51 +123,26 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
               )}
             />
             
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="minCollaborators"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Qtd. Mínima</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number"
-                        placeholder="1"
-                        min="1"
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                        value={field.value || ""}
-                        data-testid="input-function-min"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="maxCollaborators"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Qtd. Máxima</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number"
-                        placeholder="10"
-                        min="1"
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                        value={field.value || ""}
-                        data-testid="input-function-max"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantidade *</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number"
+                      placeholder="1"
+                      min="1"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      data-testid="input-function-quantity"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             
             <FormField
               control={form.control}

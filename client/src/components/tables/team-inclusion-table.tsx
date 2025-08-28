@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Edit, MessageCircle, History, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
 import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
+import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 
 export default function TeamInclusionTable() {
@@ -13,8 +17,13 @@ export default function TeamInclusionTable() {
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
+    collaboratorId: "all",
     status: "all",
+    hasTicket: "all",
   });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -63,8 +72,50 @@ export default function TeamInclusionTable() {
     setShowCommentsModal(true);
   };
 
-  const clearFilters = () => {
-    setFilters({ eventId: "all", functionId: "all", status: "all" });
+  const deleteTeamInclusionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Inclusão removida com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao remover inclusão",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = (inclusionId: string) => {
+    if (window.confirm('Tem certeza que deseja remover esta inclusão?')) {
+      deleteTeamInclusionMutation.mutate(inclusionId);
+    }
+  };
+
+  // Filter inclusions based on current filters
+  const filteredInclusions = teamInclusions?.filter(inclusion => {
+    if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+    if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+    if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+    if (filters.status !== "all" && inclusion.status !== filters.status) return false;
+    if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
+    if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+    return true;
+  }) || [];
+
+  // Calculate real totals
+  const totals = {
+    incluidos: filteredInclusions.length,
+    em_escalacao: filteredInclusions.filter(i => i.status === 'escalacao').length,
+    aguardando_passagem: filteredInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
+    aprovados: filteredInclusions.filter(i => i.status === 'aprovado').length,
   };
 
   if (isLoading) {
@@ -84,68 +135,28 @@ export default function TeamInclusionTable() {
 
   return (
     <>
-      {/* Filters */}
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="min-w-0 flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-foreground mb-1">Evento</label>
-              <Select value={filters.eventId} onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value === 'all' ? '' : value }))}>
+      <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
-                <SelectTrigger data-testid="filter-event">
-                  <SelectValue placeholder="Todos os eventos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {events?.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="min-w-0 flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-foreground mb-1">Função</label>
-              <Select value={filters.functionId} onValueChange={(value) => setFilters(prev => ({ ...prev, functionId: value === 'all' ? '' : value }))}>
-
-                <SelectTrigger data-testid="filter-function">
-                  <SelectValue placeholder="Todas as funções" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as funções</SelectItem>
-                  {functions?.map((func) => (
-                    <SelectItem key={func.id} value={func.id}>
-                      {func.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="min-w-0 flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-              <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === 'all' ? '' : value }))}>
-
-                <SelectTrigger data-testid="filter-status">
-                  <SelectValue placeholder="Todos os status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="planejado">Planejado</SelectItem>
-                  <SelectItem value="escalacao">Em Escalação</SelectItem>
-                  <SelectItem value="passagem">Aguardando Passagem</SelectItem>
-                  <SelectItem value="fechamento">Fechamento</SelectItem>
-                  <SelectItem value="aprovado">Aprovado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Totals Summary */}
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Resumo dos Totais</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary" data-testid="total-incluidos">{totals.incluidos}</div>
+            <div className="text-sm text-muted-foreground">Incluídos</div>
           </div>
-          
-          <Button variant="secondary" onClick={clearFilters} data-testid="button-clear-filters">
-            Limpar Filtros
-          </Button>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600" data-testid="total-escalacao">{totals.em_escalacao}</div>
+            <div className="text-sm text-muted-foreground">Em Escalação</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600" data-testid="total-aguardando">{totals.aguardando_passagem}</div>
+            <div className="text-sm text-muted-foreground">Aguardando Passagem</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600" data-testid="total-aprovados">{totals.aprovados}</div>
+            <div className="text-sm text-muted-foreground">Aprovados</div>
+          </div>
         </div>
       </div>
 
@@ -166,13 +177,16 @@ export default function TeamInclusionTable() {
                   Função
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Área
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Colaborador
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Data da Escala
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Diárias
+                  Diárias / Valor
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Passagem
@@ -186,14 +200,14 @@ export default function TeamInclusionTable() {
               </tr>
             </thead>
             <tbody className="bg-card divide-y divide-border">
-              {teamInclusions?.length === 0 ? (
+              {filteredInclusions?.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
               ) : (
-                teamInclusions?.map((inclusion) => (
+                filteredInclusions?.map((inclusion) => (
                   <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-inclusion-${inclusion.id}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-foreground">
@@ -213,6 +227,11 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-foreground">
+                        {inclusion.area || 'Não definida'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-foreground">
                         {getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado"}
                       </div>
                     </td>
@@ -221,42 +240,64 @@ export default function TeamInclusionTable() {
                         {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                      {inclusion.dailyRates} diárias
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        inclusion.needsTicket 
-                          ? "bg-green-100 text-green-800" 
-                          : "bg-red-100 text-red-800"
-                      }`}>
-                        {inclusion.needsTicket ? <Check className="w-3 h-3 mr-1" /> : <X className="w-3 h-3 mr-1" />}
-                        {inclusion.needsTicket ? "Sim" : "Não"}
-                      </span>
+                      <div className="text-sm text-foreground">
+                        {inclusion.dailyRates} diárias
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        R$ {((inclusion.dailyValue || 0) / 100).toFixed(2)} / Total: R$ {((inclusion.dailyValue || 0) * inclusion.dailyRates / 100).toFixed(2)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {inclusion.needsTicket ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Sim
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          Não
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge status={inclusion.status} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
                           size="sm"
-                          data-testid={`button-edit-${inclusion.id}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
+                          variant="ghost"
                           onClick={() => handleViewComments(inclusion.id)}
+                          className="text-blue-600 hover:text-blue-900"
                           data-testid={`button-comments-${inclusion.id}`}
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
+                        {hasPermission(user, 'canEditScreen1') && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-green-600 hover:text-green-900"
+                              data-testid={`button-edit-${inclusion.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(inclusion.id)}
+                              className="text-red-600 hover:text-red-900"
+                              data-testid={`button-delete-${inclusion.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button
                           size="sm"
+                          variant="ghost"
+                          className="text-purple-600 hover:text-purple-900"
                           data-testid={`button-history-${inclusion.id}`}
                         >
                           <History className="w-4 h-4" />
@@ -269,19 +310,9 @@ export default function TeamInclusionTable() {
             </tbody>
           </table>
         </div>
-        
-        {teamInclusions && teamInclusions.length > 0 && (
-          <div className="px-6 py-4 border-t border-border">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Mostrando <span className="font-medium">1</span> a <span className="font-medium">{teamInclusions.length}</span> de <span className="font-medium">{teamInclusions.length}</span> resultados
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
-      <CommentsModal 
+      <CommentsModal
         open={showCommentsModal}
         onClose={() => setShowCommentsModal(false)}
         teamInclusionId={selectedInclusion || ""}

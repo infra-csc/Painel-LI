@@ -32,8 +32,7 @@ export const functions = pgTable("functions", {
   name: text("name").notNull().unique(),
   description: text("description"),
   responsibleArea: text("responsible_area").notNull(),
-  minCollaborators: integer("min_collaborators"),
-  maxCollaborators: integer("max_collaborators"),
+  quantity: integer("quantity").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -58,15 +57,22 @@ export const teamInclusions = pgTable("team_inclusions", {
   eventId: varchar("event_id").notNull().references(() => events.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  area: text("area"), // área selecionada
   scheduleStartDate: date("schedule_start_date").notNull(),
   scheduleEndDate: date("schedule_end_date").notNull(),
+  actualStartDate: date("actual_start_date"), // data real de início de trabalho
+  actualEndDate: date("actual_end_date"), // data real final
   flightDepartureDate: date("flight_departure_date"),
   flightDepartureSuggestedTime: text("flight_departure_suggested_time"),
   flightReturnDate: date("flight_return_date"),
   flightReturnSuggestedTime: text("flight_return_suggested_time"),
   needsTicket: boolean("needs_ticket").default(false),
-  dailyRates: integer("daily_rates").notNull(),
+  dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
+  dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
+  actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
   observations: text("observations"),
+  actualObservations: text("actual_observations"), // observações do que realmente aconteceu
+  emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
   status: text("status").notNull().default("planejado"), // planejado, escalacao, passagem, fechamento, aprovado
   phase: text("phase").notNull().default("inclusao"), // inclusao, escalacao, passagem, fechamento, aprovacao
   createdAt: timestamp("created_at").defaultNow(),
@@ -94,9 +100,13 @@ export const tickets = pgTable("tickets", {
 export const financial = pgTable("financial", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
-  actualDailyRates: integer("actual_daily_rates"),
+  plannedDailyRates: integer("planned_daily_rates"), // diárias planejadas
+  actualDailyRates: integer("actual_daily_rates"), // diárias realizadas
+  plannedValue: integer("planned_value"), // valor planejado em centavos
+  actualValue: integer("actual_value"), // valor real em centavos
   actualFee: integer("actual_fee"), // cachê em centavos
   observations: text("observations"),
+  approved: boolean("approved").default(false),
   approvedAt: timestamp("approved_at"),
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

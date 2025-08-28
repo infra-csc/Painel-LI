@@ -13,6 +13,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
+import { getAvailableAreas } from "@/lib/role-utils";
 import EventModal from "@/components/modals/event-modal";
 import FunctionModal from "@/components/modals/function-modal";
 import type { Event, Function } from "@shared/schema";
@@ -20,8 +23,10 @@ import type { Event, Function } from "@shared/schema";
 const teamInclusionSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   functionId: z.string().min(1, "Função é obrigatória"),
+  area: z.string().optional(),
   scheduleStartDate: z.string().min(1, "Data de início é obrigatória"),
   scheduleEndDate: z.string().min(1, "Data de fim é obrigatória"),
+  dailyValue: z.number().min(0, "Valor da diária deve ser maior que zero"),
   needsTicket: z.boolean().default(false),
   flightDepartureDate: z.string().optional(),
   flightDepartureSuggestedTime: z.string().optional(),
@@ -37,14 +42,26 @@ export default function TeamInclusionForm() {
   const [showFunctionModal, setShowFunctionModal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // Check if user can edit this screen
+  if (!hasPermission(user, 'canEditScreen1')) {
+    return (
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <p className="text-muted-foreground text-center">Você não tem permissão para cadastrar registros nesta tela.</p>
+      </div>
+    );
+  }
 
   const form = useForm<TeamInclusionFormData>({
     resolver: zodResolver(teamInclusionSchema),
     defaultValues: {
       eventId: "",
       functionId: "",
+      area: "",
       scheduleStartDate: "",
       scheduleEndDate: "",
+      dailyValue: 0,
       needsTicket: false,
       flightDepartureDate: "",
       flightDepartureSuggestedTime: "",
@@ -73,6 +90,7 @@ export default function TeamInclusionForm() {
       const payload = {
         ...data,
         dailyRates: diffDays,
+        dailyValue: data.dailyValue * 100, // Convert to cents
         status: "planejado",
         phase: "inclusao",
       };
@@ -226,12 +244,64 @@ export default function TeamInclusionForm() {
                 />
               </div>
 
-              <div className="bg-muted p-4 rounded-lg">
-                <Label className="block text-sm font-medium text-foreground mb-2">Quantidade de Diárias</Label>
-                <div className="text-lg font-semibold text-primary" data-testid="text-daily-rates">
-                  {calculateDailyRates()} diárias
+              <FormField
+                control={form.control}
+                name="area"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Área</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-area">
+                          <SelectValue placeholder="Selecione uma área" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {getAvailableAreas().map((area) => (
+                          <SelectItem key={area} value={area}>
+                            {area}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="dailyValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor da Diária (R$) *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          data-testid="input-daily-value" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="bg-muted p-4 rounded-lg">
+                  <Label className="block text-sm font-medium text-foreground mb-2">Quantidade de Diárias</Label>
+                  <div className="text-lg font-semibold text-primary" data-testid="text-daily-rates">
+                    {calculateDailyRates()} diárias
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">Calculado automaticamente: data fim - data início + 1</p>
+              </div>
+
+              <div className="bg-muted p-4 rounded-lg">
+                <Label className="block text-sm font-medium text-foreground mb-2">Valor Total Estimado</Label>
+                <div className="text-lg font-semibold text-primary" data-testid="text-total-value">
+                  R$ {(form.watch('dailyValue') * calculateDailyRates()).toFixed(2)}
+                </div>
               </div>
             </div>
 

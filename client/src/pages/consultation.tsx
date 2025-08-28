@@ -1,0 +1,284 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import Header from "@/components/layout/header";
+import NavigationTabs from "@/components/layout/navigation-tabs";
+import WorkflowIndicator from "@/components/layout/workflow-indicator";
+import UniversalFilters from "@/components/common/universal-filters";
+import StatusBadge from "@/components/common/status-badge";
+import { Eye, MessageCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import CommentsModal from "@/components/modals/comments-modal";
+import type { TeamInclusion, Event, Function, Collaborator, Ticket, Financial } from "@shared/schema";
+
+export default function Consultation() {
+  const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [filters, setFilters] = useState({
+    eventId: "all",
+    functionId: "all",
+    collaboratorId: "all",
+    status: "all",
+    hasTicket: "all",
+  });
+
+  const { data: teamInclusions } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions"],
+  });
+
+  const { data: events } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+  });
+
+  const { data: functions } = useQuery<Function[]>({
+    queryKey: ["/api/functions"],
+  });
+
+  const { data: collaborators } = useQuery<Collaborator[]>({
+    queryKey: ["/api/collaborators"],
+  });
+
+  const { data: tickets } = useQuery<Ticket[]>({
+    queryKey: ["/api/tickets"],
+  });
+
+  const { data: financial } = useQuery<Financial[]>({
+    queryKey: ["/api/financial"],
+  });
+
+  // Filter inclusions based on current filters
+  const filteredInclusions = teamInclusions?.filter(inclusion => {
+    if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+    if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+    if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+    if (filters.status !== "all" && inclusion.status !== filters.status) return false;
+    if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
+    if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+    return true;
+  }) || [];
+
+  const getEventName = (eventId: string) => {
+    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+  };
+
+  const getFunctionName = (functionId: string) => {
+    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+  };
+
+  const getCollaboratorName = (collaboratorId?: string) => {
+    if (!collaboratorId) return "Não escalado";
+    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("pt-BR");
+  };
+
+  const getPhaseIcon = (phase: string) => {
+    const phases = {
+      inclusao: "👥",
+      escalacao: "✅", 
+      passagem: "✈️",
+      fechamento: "📊",
+      aprovacao: "✔️"
+    };
+    return phases[phase as keyof typeof phases] || "📋";
+  };
+
+  const getPhaseLabel = (phase: string) => {
+    const labels = {
+      inclusao: "Inclusão",
+      escalacao: "Escalação",
+      passagem: "Passagem",
+      fechamento: "Fechamento",
+      aprovacao: "Aprovação"
+    };
+    return labels[phase as keyof typeof labels] || phase;
+  };
+
+  const handleViewComments = (inclusionId: string) => {
+    setSelectedInclusion(inclusionId);
+    setShowCommentsModal(true);
+  };
+
+  // Group inclusions by phase for progress visualization
+  const inclusionsByPhase = filteredInclusions.reduce((acc, inclusion) => {
+    if (!acc[inclusion.phase]) {
+      acc[inclusion.phase] = [];
+    }
+    acc[inclusion.phase].push(inclusion);
+    return acc;
+  }, {} as Record<string, TeamInclusion[]>);
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <NavigationTabs activeTab="consultation" />
+        
+        <div className="space-y-6">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Consulta Geral</h2>
+            <p className="text-muted-foreground">Acompanhe o andamento e status de todos os registros em todas as fases.</p>
+          </div>
+
+          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+
+          {/* Phase Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'].map((phase) => {
+              const count = inclusionsByPhase[phase]?.length || 0;
+              return (
+                <Card key={phase} className="text-center">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">
+                      {getPhaseIcon(phase)} {getPhaseLabel(phase)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary" data-testid={`phase-count-${phase}`}>
+                      {count}
+                    </div>
+                    <div className="text-xs text-muted-foreground">registros</div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Detailed Table */}
+          <div className="bg-card rounded-lg shadow-sm border border-border">
+            <div className="px-6 py-4 border-b border-border">
+              <h3 className="text-lg font-semibold text-foreground">Todos os Registros - Visão Geral</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Evento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Função
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Colaborador
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Fase Atual
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Valor Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Progresso
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-card divide-y divide-border">
+                  {filteredInclusions?.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                        Nenhum registro encontrado
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInclusions?.map((inclusion) => {
+                      const phases = ['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'];
+                      const currentPhaseIndex = phases.indexOf(inclusion.phase);
+                      const progress = ((currentPhaseIndex + 1) / phases.length) * 100;
+
+                      return (
+                        <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`consultation-row-${inclusion.id}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-foreground">
+                              {getEventName(inclusion.eventId)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-foreground">
+                              {getFunctionName(inclusion.functionId)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-foreground">
+                              {getCollaboratorName(inclusion.collaboratorId || undefined)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <span className="mr-2">{getPhaseIcon(inclusion.phase)}</span>
+                              <span className="text-sm text-foreground">{getPhaseLabel(inclusion.phase)}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <StatusBadge status={inclusion.status} />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-foreground">
+                              R$ {((inclusion.dailyValue || 0) * inclusion.dailyRates / 100).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {inclusion.dailyRates} diárias
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-primary h-2 rounded-full" 
+                                style={{ width: `${progress}%` }}
+                                data-testid={`progress-${inclusion.id}`}
+                              ></div>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {Math.round(progress)}% completo
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleViewComments(inclusion.id)}
+                                className="text-blue-600 hover:text-blue-900"
+                                data-testid={`button-comments-${inclusion.id}`}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-green-600 hover:text-green-900"
+                                data-testid={`button-view-${inclusion.id}`}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CommentsModal
+        open={showCommentsModal}
+        onClose={() => setShowCommentsModal(false)}
+        teamInclusionId={selectedInclusion || ""}
+      />
+    </div>
+  );
+}

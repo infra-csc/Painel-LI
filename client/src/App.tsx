@@ -10,6 +10,7 @@ import Scaling from "@/pages/scaling";
 import Tickets from "@/pages/tickets";
 import Closure from "@/pages/closure";
 import Approval from "@/pages/approval";
+import Consultation from "@/pages/consultation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/tickets" component={Tickets} />
       <Route path="/closure" component={Closure} />
       <Route path="/approval" component={Approval} />
+      <Route path="/consultation" component={Consultation} />
       <Route component={NotFound} />
     </Switch>
   );
