@@ -292,7 +292,7 @@ export default function Tickets() {
                                   <span className="text-sm text-muted-foreground">R$</span>
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-1">
-                                  {inclusion.dailyRates} diárias × {formatCurrency((data.dailyValue || inclusion.dailyValue / 100 || 0))} = {formatCurrency((data.dailyValue || inclusion.dailyValue / 100 || 0) * inclusion.dailyRates)}
+                                  {inclusion.dailyRates} diárias × {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)))} = {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
                                 </div>
                               </div>
                             </div>

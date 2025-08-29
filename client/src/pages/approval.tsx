@@ -207,10 +207,15 @@ export default function Approval() {
                 </p>
               </div>
               {approvalInclusions.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedInclusions.size} de {approvalInclusions.length} selecionados
-                  </span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">
+                      {selectedInclusions.size} de {approvalInclusions.length} selecionados
+                    </span>
+                    <div className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
+                      {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} aprovados
+                    </div>
+                  </div>
                   <Button
                     onClick={handleBulkApproval}
                     disabled={selectedInclusions.size === 0 || updateFinancialMutation.isPending}

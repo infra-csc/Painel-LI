@@ -15,7 +15,6 @@ const collaboratorSchema = z.object({
   officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
   documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
-  area: z.string().min(1, "Área é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
@@ -39,7 +38,6 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
       officialDocument: "",
       documentType: "cpf" as const,
       birthDate: "",
-      area: "",
       type: "",
       phone: "",
       city: "",
@@ -160,31 +158,6 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
                         data-testid="input-collaborator-birth-date"
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Área *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-collaborator-area">
-                          <SelectValue placeholder="Selecione uma área" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="tecnica">Área Técnica</SelectItem>
-                        <SelectItem value="seguranca">Área de Segurança</SelectItem>
-                        <SelectItem value="producao">Área de Produção</SelectItem>
-                        <SelectItem value="financeiro">Área Financeira</SelectItem>
-                        <SelectItem value="compras">Área de Compras/Viagem</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
