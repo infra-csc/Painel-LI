@@ -61,6 +61,52 @@ export default function Scaling() {
     },
   });
 
+  const createEscalationMutation = useMutation({
+    mutationFn: async (baseInclusion: TeamInclusion) => {
+      // Calculate daily rates
+      const startDate = new Date(baseInclusion.scheduleStartDate);
+      const endDate = new Date(baseInclusion.scheduleEndDate);
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const payload = {
+        eventId: baseInclusion.eventId,
+        functionId: baseInclusion.functionId,
+        area: baseInclusion.area,
+        scheduleStartDate: baseInclusion.scheduleStartDate,
+        scheduleEndDate: baseInclusion.scheduleEndDate,
+        dailyRates: diffDays,
+        dailyValue: baseInclusion.dailyValue,
+        needsTicket: baseInclusion.needsTicket,
+        flightDepartureDate: baseInclusion.flightDepartureDate,
+        flightDepartureSuggestedTime: baseInclusion.flightDepartureSuggestedTime,
+        flightReturnDate: baseInclusion.flightReturnDate,
+        flightReturnSuggestedTime: baseInclusion.flightReturnSuggestedTime,
+        status: "planejado",
+        phase: "escalacao",
+        collaboratorId: null,
+        observations: null
+      };
+
+      const response = await apiRequest("POST", "/api/team-inclusions", payload);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Nova escalação adicionada com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao adicionar nova escalação",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Filter inclusions that are in planning phase or scaling phase
   const scalingInclusions = teamInclusions?.filter(
     inclusion => inclusion.status === "planejado" || inclusion.status === "escalacao"
@@ -300,20 +346,12 @@ export default function Scaling() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  // Copy this inclusion for adding another escalation
-                                  const newInclusion = {
-                                    ...inclusion,
-                                    collaboratorId: null,
-                                    observations: null
-                                  };
-                                  console.log('Adding another escalation for team:', newInclusion);
-                                  // TODO: Implement functionality to duplicate escalation
-                                }}
+                                onClick={() => createEscalationMutation.mutate(inclusion)}
+                                disabled={createEscalationMutation.isPending}
                                 data-testid={`button-add-escalation-${inclusion.id}`}
                               >
                                 <Plus className="w-4 h-4 mr-1" />
-                                Adicionar Escalação
+                                {createEscalationMutation.isPending ? "Adicionando..." : "Adicionar Escalação"}
                               </Button>
                               <Button
                                 size="sm"
@@ -449,20 +487,12 @@ export default function Scaling() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => {
-                                        // Copy this inclusion for adding another escalation
-                                        const newInclusion = {
-                                          ...inclusion,
-                                          collaboratorId: null,
-                                          observations: null
-                                        };
-                                        console.log('Adding another escalation for team:', newInclusion);
-                                        // TODO: Implement functionality to duplicate escalation
-                                      }}
+                                      onClick={() => createEscalationMutation.mutate(inclusion)}
+                                      disabled={createEscalationMutation.isPending}
                                       data-testid={`button-add-escalation-${inclusion.id}`}
                                     >
                                       <Plus className="w-4 h-4 mr-1" />
-                                      Adicionar Escalação
+                                      {createEscalationMutation.isPending ? "Adicionando..." : "Adicionar Escalação"}
                                     </Button>
                                     <Button
                                       size="sm"
