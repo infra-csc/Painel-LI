@@ -17,6 +17,7 @@ export default function Scaling() {
   const [selectedCollaborators, setSelectedCollaborators] = useState<Record<string, string>>({});
   const [observations, setObservations] = useState<Record<string, string>>({});
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [currentArea, setCurrentArea] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -237,7 +238,10 @@ export default function Scaling() {
                               size="sm"
                               variant="ghost"
                               className="p-1 h-8 w-8 shrink-0"
-                              onClick={() => setShowCollaboratorModal(true)}
+                              onClick={() => {
+                                setCurrentArea(inclusion.area);
+                                setShowCollaboratorModal(true);
+                              }}
                               data-testid={`button-add-collaborator-${inclusion.id}`}
                             >
                               <Plus className="w-4 h-4" />
@@ -245,15 +249,23 @@ export default function Scaling() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <Textarea
-                            rows={2}
-                            placeholder="Observações da escalação..."
-                            value={observations[inclusion.id] || inclusion.observations || ""}
-                            onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
-                            disabled={inclusion.status === "escalacao"}
-                            className="min-w-0 max-w-xs"
-                            data-testid={`textarea-observation-${inclusion.id}`}
-                          />
+                          <div className="space-y-2">
+                            {inclusion.observations && (
+                              <div className="p-2 bg-muted rounded text-sm">
+                                <span className="text-xs text-muted-foreground block mb-1">Observação da Tela 1:</span>
+                                {inclusion.observations}
+                              </div>
+                            )}
+                            <Textarea
+                              rows={2}
+                              placeholder="Nova observação da escalação..."
+                              value={observations[inclusion.id] || ""}
+                              onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
+                              disabled={inclusion.status === "escalacao"}
+                              className="min-w-0 max-w-xs"
+                              data-testid={`textarea-observation-${inclusion.id}`}
+                            />
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge status={inclusion.status} />
@@ -286,7 +298,8 @@ export default function Scaling() {
 
       <CollaboratorModal 
         open={showCollaboratorModal} 
-        onClose={() => setShowCollaboratorModal(false)} 
+        onClose={() => setShowCollaboratorModal(false)}
+        defaultArea={currentArea}
       />
     </>
   );

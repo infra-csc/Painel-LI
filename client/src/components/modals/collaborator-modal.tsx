@@ -15,6 +15,7 @@ const collaboratorSchema = z.object({
   officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
   documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
+  area: z.string().min(1, "Área é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
@@ -25,9 +26,10 @@ type CollaboratorFormData = z.infer<typeof collaboratorSchema>;
 interface CollaboratorModalProps {
   open: boolean;
   onClose: () => void;
+  defaultArea?: string;
 }
 
-export default function CollaboratorModal({ open, onClose }: CollaboratorModalProps) {
+export default function CollaboratorModal({ open, onClose, defaultArea }: CollaboratorModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -38,6 +40,7 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
       officialDocument: "",
       documentType: "cpf" as const,
       birthDate: "",
+      area: defaultArea || "",
       type: "",
       phone: "",
       city: "",
@@ -156,6 +159,25 @@ export default function CollaboratorModal({ open, onClose }: CollaboratorModalPr
                         type="date" 
                         {...field}
                         data-testid="input-collaborator-birth-date"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="area"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Área (vinculada ao evento) *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field}
+                        readOnly
+                        className="bg-muted cursor-not-allowed"
+                        data-testid="input-collaborator-area"
                       />
                     </FormControl>
                     <FormMessage />
