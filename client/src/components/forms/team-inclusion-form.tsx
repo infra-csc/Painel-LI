@@ -100,41 +100,33 @@ export default function TeamInclusionForm() {
       return response.json();
     },
     onSuccess: () => {
-      if (isAddingEscalation) {
-        toast({
-          title: "Sucesso",
-          description: "Nova escalação adicionada para o mesmo evento",
-        });
-        // Reset only specific fields, keep event data
-        const currentEventId = form.getValues("eventId");
-        const currentArea = form.getValues("area");
-        const currentNeedsTicket = form.getValues("needsTicket");
-        const currentFlightDates = {
-          flightDepartureDate: form.getValues("flightDepartureDate"),
-          flightReturnDate: form.getValues("flightReturnDate"),
-          flightDepartureSuggestedTime: form.getValues("flightDepartureSuggestedTime"),
-          flightReturnSuggestedTime: form.getValues("flightReturnSuggestedTime")
-        };
-        
-        form.reset({
-          eventId: currentEventId,
-          functionId: "",
-          area: currentArea,
-          scheduleStartDate: "",
-          scheduleEndDate: "",
-          dailyValue: undefined,
-          needsTicket: currentNeedsTicket,
-          ...currentFlightDates,
-          observations: "",
-        });
-        setIsAddingEscalation(false);
-      } else {
-        toast({
-          title: "Sucesso",
-          description: "Inclusão de equipe criada com sucesso",
-        });
-        form.reset();
-      }
+      toast({
+        title: "Sucesso",
+        description: "Nova escalação adicionada para o mesmo evento",
+      });
+      // Reset only specific fields, keep event data
+      const currentEventId = form.getValues("eventId");
+      const currentArea = form.getValues("area");
+      const currentNeedsTicket = form.getValues("needsTicket");
+      const currentFlightDates = {
+        flightDepartureDate: form.getValues("flightDepartureDate"),
+        flightReturnDate: form.getValues("flightReturnDate"),
+        flightDepartureSuggestedTime: form.getValues("flightDepartureSuggestedTime"),
+        flightReturnSuggestedTime: form.getValues("flightReturnSuggestedTime")
+      };
+      
+      form.reset({
+        eventId: currentEventId,
+        functionId: "",
+        area: currentArea,
+        scheduleStartDate: "",
+        scheduleEndDate: "",
+        dailyValue: undefined,
+        needsTicket: currentNeedsTicket,
+        ...currentFlightDates,
+        observations: "",
+      });
+      setIsAddingEscalation(false);
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
     onError: () => {
@@ -145,10 +137,6 @@ export default function TeamInclusionForm() {
       });
     },
   });
-
-  const onSubmit = (data: TeamInclusionFormData) => {
-    createTeamInclusionMutation.mutate(data);
-  };
 
   const onAddEscalation = (data: TeamInclusionFormData) => {
     setIsAddingEscalation(true);
@@ -458,20 +446,12 @@ export default function TeamInclusionForm() {
               </Button>
               <Button 
                 type="button" 
-                variant="outline"
                 onClick={form.handleSubmit(onAddEscalation)}
-                disabled={createTeamInclusionMutation.isPending || !form.watch("eventId")}
+                disabled={createTeamInclusionMutation.isPending}
                 data-testid="button-add-escalation"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                {createTeamInclusionMutation.isPending && isAddingEscalation ? "Adicionando..." : "Adicionar Escalação"}
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={createTeamInclusionMutation.isPending}
-                data-testid="button-submit"
-              >
-                {createTeamInclusionMutation.isPending && !isAddingEscalation ? "Salvando..." : "Salvar e Enviar para Escalação"}
+                {createTeamInclusionMutation.isPending ? "Adicionando..." : "Adicionar Escalação"}
               </Button>
             </div>
           </form>
