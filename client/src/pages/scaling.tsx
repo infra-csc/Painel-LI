@@ -296,15 +296,35 @@ export default function Scaling() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           {inclusion.status === "planejado" && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleConfirmScaling(inclusion)}
-                              disabled={updateTeamInclusionMutation.isPending}
-                              data-testid={`button-confirm-${inclusion.id}`}
-                            >
-                              <Save className="w-4 h-4 mr-1" />
-                              {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                            </Button>
+                            <div className="flex gap-2 items-center justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  // Copy this inclusion for adding another escalation
+                                  const newInclusion = {
+                                    ...inclusion,
+                                    collaboratorId: null,
+                                    observations: null
+                                  };
+                                  console.log('Adding another escalation for team:', newInclusion);
+                                  // TODO: Implement functionality to duplicate escalation
+                                }}
+                                data-testid={`button-add-escalation-${inclusion.id}`}
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                Adicionar Escalação
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleConfirmScaling(inclusion)}
+                                disabled={updateTeamInclusionMutation.isPending}
+                                data-testid={`button-confirm-${inclusion.id}`}
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                              </Button>
+                            </div>
                           )}
                           {inclusion.status === "escalacao" && (
                             <span className="text-sm text-muted-foreground">Escalado</span>
@@ -425,15 +445,35 @@ export default function Scaling() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right">
                                 {inclusion.status === "planejado" && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleConfirmScaling(inclusion)}
-                                    disabled={updateTeamInclusionMutation.isPending}
-                                    data-testid={`button-confirm-${inclusion.id}`}
-                                  >
-                                    <Save className="w-4 h-4 mr-1" />
-                                    {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                                  </Button>
+                                  <div className="flex gap-2 items-center justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        // Copy this inclusion for adding another escalation
+                                        const newInclusion = {
+                                          ...inclusion,
+                                          collaboratorId: null,
+                                          observations: null
+                                        };
+                                        console.log('Adding another escalation for team:', newInclusion);
+                                        // TODO: Implement functionality to duplicate escalation
+                                      }}
+                                      data-testid={`button-add-escalation-${inclusion.id}`}
+                                    >
+                                      <Plus className="w-4 h-4 mr-1" />
+                                      Adicionar Escalação
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleConfirmScaling(inclusion)}
+                                      disabled={updateTeamInclusionMutation.isPending}
+                                      data-testid={`button-confirm-${inclusion.id}`}
+                                    >
+                                      <Save className="w-4 h-4 mr-1" />
+                                      {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                                    </Button>
+                                  </div>
                                 )}
                                 {inclusion.status === "escalacao" && (
                                   <span className="text-sm text-muted-foreground">Escalado</span>

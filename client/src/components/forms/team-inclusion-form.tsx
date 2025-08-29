@@ -23,10 +23,10 @@ import type { Event, Function } from "@shared/schema";
 const teamInclusionSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   functionId: z.string().min(1, "Função é obrigatória"),
-  area: z.string().min(1, "Área é obrigatória"),
+  area: z.string().optional(),
   scheduleStartDate: z.string().min(1, "Data de início é obrigatória"),
   scheduleEndDate: z.string().min(1, "Data de fim é obrigatória"),
-  dailyValue: z.number().min(0.01, "Valor da diária deve ser maior que zero"),
+  dailyValue: z.number().optional(),
   needsTicket: z.boolean().default(false),
   flightDepartureDate: z.string().optional(),
   flightDepartureSuggestedTime: z.string().optional(),
@@ -61,7 +61,7 @@ export default function TeamInclusionForm() {
       area: "",
       scheduleStartDate: "",
       scheduleEndDate: "",
-      dailyValue: 0,
+      dailyValue: undefined,
       needsTicket: false,
       flightDepartureDate: "",
       flightDepartureSuggestedTime: "",
@@ -90,7 +90,7 @@ export default function TeamInclusionForm() {
       const payload = {
         ...data,
         dailyRates: diffDays,
-        dailyValue: data.dailyValue * 100, // Convert to cents
+        dailyValue: (data.dailyValue || 0) * 100, // Convert to cents
         status: "planejado",
         phase: "inclusao",
       };
@@ -249,7 +249,7 @@ export default function TeamInclusionForm() {
                 name="area"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Área *</FormLabel>
+                    <FormLabel>Área</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Digite uma área (ex: Som, Iluminação, Cenografia...)"
@@ -268,18 +268,18 @@ export default function TeamInclusionForm() {
                   name="dailyValue"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Valor da Diária (R$) *</FormLabel>
+                      <FormLabel>Valor da Diária (R$)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
                           step="0.01"
                           min="0.01"
                           placeholder="Digite o valor (ex: 150.00)"
-                          value={field.value > 0 ? field.value.toString() : ''}
+                          value={field.value ? field.value.toString() : ''}
                           onChange={(e) => {
                             const value = e.target.value;
                             // Remove leading zeros but preserve decimal part
-                            const numericValue = value === '' ? 0 : parseFloat(value);
+                            const numericValue = value === '' ? undefined : parseFloat(value);
                             field.onChange(numericValue);
                           }}
                           data-testid="input-daily-value"
@@ -300,7 +300,7 @@ export default function TeamInclusionForm() {
               <div className="bg-muted p-4 rounded-lg">
                 <Label className="block text-sm font-medium text-foreground mb-2">Valor Total Estimado</Label>
                 <div className="text-lg font-semibold text-primary" data-testid="text-total-value">
-                  R$ {(form.watch('dailyValue') * calculateDailyRates()).toFixed(2)}
+                  R$ {((form.watch('dailyValue') || 0) * calculateDailyRates()).toFixed(2)}
                 </div>
               </div>
             </div>
@@ -352,9 +352,9 @@ export default function TeamInclusionForm() {
                   name="flightDepartureSuggestedTime"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Horário Sugerido</FormLabel>
+                      <FormLabel>Sugestão Ida (Texto Livre)</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} data-testid="input-departure-time" />
+                        <Input type="text" placeholder="Ex: Preferencialmente pela manhã, após 10h..." {...field} data-testid="input-departure-time" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -381,9 +381,9 @@ export default function TeamInclusionForm() {
                   name="flightReturnSuggestedTime"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Horário Sugerido</FormLabel>
+                      <FormLabel>Sugestão Volta (Texto Livre)</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} data-testid="input-return-time" />
+                        <Input type="text" placeholder="Ex: Final da tarde, evitar horário de pico..." {...field} data-testid="input-return-time" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
