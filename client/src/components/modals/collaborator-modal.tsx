@@ -18,6 +18,8 @@ const collaboratorSchema = z.object({
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
+  actualStartDate: z.string().optional(),
+  actualEndDate: z.string().optional(),
 });
 
 type CollaboratorFormData = z.infer<typeof collaboratorSchema>;
@@ -28,9 +30,10 @@ interface CollaboratorModalProps {
   defaultArea?: string;
   eventName?: string;
   functionName?: string;
+  isEmergency?: boolean;
 }
 
-export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName }: CollaboratorModalProps) {
+export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName, isEmergency = false }: CollaboratorModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -44,6 +47,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       type: "",
       phone: "",
       city: "",
+      actualStartDate: "",
+      actualEndDate: "",
     },
   });
 
@@ -237,6 +242,49 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                 )}
               />
             </div>
+            
+            {isEmergency && (
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium text-foreground mb-3">Período de Trabalho Emergencial</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="actualStartDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data de Início do Trabalho *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="date"
+                            {...field}
+                            data-testid="input-emergency-start-date"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="actualEndDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data Final do Trabalho *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="date"
+                            {...field}
+                            data-testid="input-emergency-end-date"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-end space-x-3 pt-4">
               <Button 

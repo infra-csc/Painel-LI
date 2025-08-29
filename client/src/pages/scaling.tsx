@@ -6,6 +6,7 @@ import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
@@ -64,6 +65,18 @@ export default function Scaling() {
   const scalingInclusions = teamInclusions?.filter(
     inclusion => inclusion.status === "planejado" || inclusion.status === "escalacao"
   ) || [];
+
+  // Group inclusions by event
+  const groupedByEvent = scalingInclusions.reduce((acc, inclusion) => {
+    const eventId = inclusion.eventId;
+    if (!acc[eventId]) {
+      acc[eventId] = [];
+    }
+    acc[eventId].push(inclusion);
+    return acc;
+  }, {} as Record<string, TeamInclusion[]>);
+
+  const eventIds = Object.keys(groupedByEvent);
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -173,40 +186,47 @@ export default function Scaling() {
                   Todas as inclusões de equipe já foram escaladas ou não há registros para escalar.
                 </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Evento / Função
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Datas / Diárias
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Colaborador
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Observação
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-card divide-y divide-border">
-                    {scalingInclusions.map((inclusion) => (
+            ) : eventIds.length === 1 ? (
+              // Single event - show directly without tabs
+              <div>
+                <div className="px-6 py-4 border-b border-border bg-muted/30">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {getEventName(eventIds[0])}
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Função
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Datas / Diárias
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Colaborador
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Observação
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-card divide-y divide-border">
+                      {groupedByEvent[eventIds[0]].map((inclusion) => (
                       <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-foreground">
-                            {getEventName(inclusion.eventId)}
+                            {getFunctionName(inclusion.functionId)}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {getFunctionName(inclusion.functionId)}
+                            Área: {inclusion.area}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -292,9 +312,141 @@ export default function Scaling() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            ) : (
+              // Multiple events - show tabs
+              <Tabs defaultValue={eventIds[0]} className="w-full">
+                <div className="px-6 py-4 border-b border-border">
+                  <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {eventIds.map((eventId) => (
+                      <TabsTrigger key={eventId} value={eventId} className="text-sm">
+                        {getEventName(eventId)}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
+                {eventIds.map((eventId) => (
+                  <TabsContent key={eventId} value={eventId} className="mt-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Função
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Datas / Diárias
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Colaborador
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Observação
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Ações
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                          {groupedByEvent[eventId].map((inclusion) => (
+                            <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-foreground">
+                                  {getFunctionName(inclusion.functionId)}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Área: {inclusion.area}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-foreground">
+                                  {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {inclusion.dailyRates} diárias
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex gap-2 items-center max-w-xs">
+                                  <Select 
+                                    value={selectedCollaborators[inclusion.id] || inclusion.collaboratorId || ""} 
+                                    onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
+                                    disabled={inclusion.status === "escalacao"}
+                                  >
+                                    <SelectTrigger className="flex-1 min-w-[180px]" data-testid={`select-collaborator-${inclusion.id}`}>
+                                      <SelectValue placeholder="Selecione Colaborador" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {collaborators?.map((collaborator) => (
+                                        <SelectItem key={collaborator.id} value={collaborator.id}>
+                                          {collaborator.fullName}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="p-1 h-8 w-8 shrink-0"
+                                    onClick={() => {
+                                      setCurrentArea(inclusion.area);
+                                      setCurrentEventName(getEventName(inclusion.eventId));
+                                      setCurrentFunctionName(getFunctionName(inclusion.functionId));
+                                      setShowCollaboratorModal(true);
+                                    }}
+                                    data-testid={`button-add-collaborator-${inclusion.id}`}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="space-y-2">
+                                  <Textarea
+                                    placeholder="Observações sobre a escalação (opcional)"
+                                    value={observations[inclusion.id] || inclusion.observations || ""}
+                                    onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
+                                    className="w-full h-20 text-sm resize-none"
+                                    disabled={inclusion.status === "escalacao"}
+                                    data-testid={`textarea-observation-${inclusion.id}`}
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <StatusBadge status={inclusion.status} />
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right">
+                                {inclusion.status === "planejado" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleConfirmScaling(inclusion)}
+                                    disabled={updateTeamInclusionMutation.isPending}
+                                    data-testid={`button-confirm-${inclusion.id}`}
+                                  >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                                  </Button>
+                                )}
+                                {inclusion.status === "escalacao" && (
+                                  <span className="text-sm text-muted-foreground">Escalado</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
             )}
           </div>
         </div>

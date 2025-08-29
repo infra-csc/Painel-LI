@@ -11,11 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
+import CollaboratorModal from "@/components/modals/collaborator-modal";
 import { Calculator, Save, DollarSign, Plus } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
 export default function Closure() {
   const [financialData, setFinancialData] = useState<Record<string, any>>({});
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -198,6 +200,7 @@ export default function Closure() {
               <Button 
                 variant="outline" 
                 className="ml-4"
+                onClick={() => setShowEmergencyModal(true)}
                 data-testid="button-add-emergency"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -276,8 +279,8 @@ export default function Closure() {
                         <div className="space-y-4">
                           {/* Work Period Information */}
                           <div className="p-4 bg-accent/50 rounded-lg">
-                            <h4 className="font-medium text-foreground mb-3">Período de Trabalho Planejado</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <h4 className="font-medium text-foreground mb-3">Informações do Trabalho</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                               <div>
                                 <Label className="text-xs text-muted-foreground">Data Início Planejada</Label>
                                 <p className="font-medium">{formatDate(inclusion.scheduleStartDate)}</p>
@@ -289,6 +292,15 @@ export default function Closure() {
                               <div>
                                 <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
                                 <p className="font-medium">{inclusion.dailyRates} diárias</p>
+                              </div>
+                              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded border-l-4 border-blue-500">
+                                <Label className="text-xs font-medium text-blue-700 dark:text-blue-300">Valor da Diária</Label>
+                                <p className="font-bold text-lg text-blue-800 dark:text-blue-200">
+                                  {formatCurrency(inclusion.dailyValue / 100)}
+                                </p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  Total: {formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -371,6 +383,15 @@ export default function Closure() {
           )}
         </div>
       </div>
+
+      <CollaboratorModal 
+        open={showEmergencyModal} 
+        onClose={() => setShowEmergencyModal(false)}
+        defaultArea=""
+        eventName="Colaborador Emergencial"
+        functionName="Emergência"
+        isEmergency={true}
+      />
     </div>
   );
 }
