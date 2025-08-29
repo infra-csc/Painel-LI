@@ -15,7 +15,7 @@ const collaboratorSchema = z.object({
   officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
   documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
-  area: z.string().min(1, "Área é obrigatória"),
+  area: z.string().optional(),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
@@ -49,7 +49,12 @@ export default function CollaboratorModal({ open, onClose, defaultArea }: Collab
 
   const createCollaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
-      const response = await apiRequest("POST", "/api/collaborators", data);
+      // Ensure area is set from defaultArea if not provided
+      const collaboratorData = {
+        ...data,
+        area: data.area || defaultArea || ""
+      };
+      const response = await apiRequest("POST", "/api/collaborators", collaboratorData);
       return response.json();
     },
     onSuccess: () => {
