@@ -260,25 +260,54 @@ export default function Closure() {
                           {/* Planned vs Actual Analysis */}
                           <div className="p-4 bg-accent/50 rounded-lg mb-4">
                             <h4 className="font-medium text-foreground mb-3">Análise Planejado x Realizado</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
-                                <p className="font-medium">{inclusion.dailyRates} diárias</p>
-                                <p className="text-sm text-muted-foreground">{formatCurrency(inclusion.dailyValue * inclusion.dailyRates)}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-3">
+                                <h5 className="text-sm font-medium text-blue-700">Valores Planejados</h5>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Diárias:</span>
+                                    <span className="font-medium">{inclusion.dailyRates} × {formatCurrency(inclusion.dailyValue / 100)} = {formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Passagem:</span>
+                                    <span className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t pt-2">
+                                    <span className="text-sm font-medium">Total Planejado:</span>
+                                    <span className="font-medium text-blue-700">{formatCurrency(calculateTotalValue(inclusion))}</span>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Valor Diária Planejado</Label>
-                                <p className="font-medium">{formatCurrency(inclusion.dailyValue)}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                                <p className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Total Planejado</Label>
-                                <p className="font-medium text-lg">{formatCurrency(calculateTotalValue(inclusion))}</p>
+                              <div className="space-y-3">
+                                <h5 className="text-sm font-medium text-green-700">Valores Realizados</h5>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Diárias:</span>
+                                    <span className="font-medium">{data.actualDailyRates ? formatCurrency(parseFloat(data.actualDailyRates)) : "Não informado"}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-sm text-muted-foreground">Passagem:</span>
+                                    <span className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t pt-2">
+                                    <span className="text-sm font-medium">Total Realizado:</span>
+                                    <span className="font-medium text-green-700">{data.actualDailyRates ? formatCurrency(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) : "Não informado"}</span>
+                                  </div>
+                                </div>
                               </div>
                             </div>
+                            {data.actualDailyRates && (
+                              <div className="mt-4 p-3 bg-orange-50 rounded-lg border">
+                                <h5 className="text-sm font-medium text-orange-700 mb-2">Diferença</h5>
+                                <div className="flex justify-between">
+                                  <span className="text-sm text-muted-foreground">Diferença Total:</span>
+                                  <span className={`font-medium ${(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    {formatCurrency((parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion))}
+                                    {(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion) >= 0 ? ' (acima)' : ' (economia)'}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Input fields for actual values */}

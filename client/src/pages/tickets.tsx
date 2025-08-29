@@ -284,12 +284,15 @@ export default function Tickets() {
                                     step="0.01"
                                     min="0.01"
                                     placeholder="0.00"
-                                    value={data.dailyValue || inclusion.dailyValue || ""}
+                                    value={data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "") || ""}
                                     onChange={(e) => handleTicketDataChange(inclusion.id, "dailyValue", parseFloat(e.target.value) || 0)}
                                     className="max-w-[120px]"
                                     data-testid={`input-daily-value-${inclusion.id}`}
                                   />
                                   <span className="text-sm text-muted-foreground">R$</span>
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  {inclusion.dailyRates} diárias × {formatCurrency((data.dailyValue || inclusion.dailyValue / 100 || 0))} = {formatCurrency((data.dailyValue || inclusion.dailyValue / 100 || 0) * inclusion.dailyRates)}
                                 </div>
                               </div>
                             </div>

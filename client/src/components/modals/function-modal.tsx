@@ -13,7 +13,6 @@ import { apiRequest } from "@/lib/queryClient";
 
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
-  responsibleArea: z.string().min(1, "Área responsável é obrigatória"),
   quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
 });
@@ -33,7 +32,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     resolver: zodResolver(functionSchema),
     defaultValues: {
       name: "",
-      responsibleArea: "",
       quantity: 1,
       description: "",
     },
@@ -93,31 +91,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                       data-testid="input-function-name"
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="responsibleArea"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Área Responsável *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-function-area">
-                        <SelectValue placeholder="Selecione uma área" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="tecnica">Área Técnica</SelectItem>
-                      <SelectItem value="seguranca">Área de Segurança</SelectItem>
-                      <SelectItem value="producao">Área de Produção</SelectItem>
-                      <SelectItem value="financeiro">Área Financeira</SelectItem>
-                      <SelectItem value="compras">Área de Compras/Viagem</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

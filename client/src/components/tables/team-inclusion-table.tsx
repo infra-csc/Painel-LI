@@ -54,7 +54,7 @@ export default function TeamInclusionTable() {
   };
 
   const getFunctionArea = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.responsibleArea || "";
+    return "Área definida no cadastro"; // Simplified since responsibleArea was removed
   };
 
   const getCollaboratorName = (collaboratorId?: string) => {
@@ -274,34 +274,16 @@ export default function TeamInclusionTable() {
                           <MessageCircle className="w-4 h-4" />
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-green-600 hover:text-green-900"
-                              data-testid={`button-edit-${inclusion.id}`}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(inclusion.id)}
-                              className="text-red-600 hover:text-red-900"
-                              data-testid={`button-delete-${inclusion.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(inclusion.id)}
+                            className="text-red-600 hover:text-red-900"
+                            data-testid={`button-delete-${inclusion.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-purple-600 hover:text-purple-900"
-                          data-testid={`button-history-${inclusion.id}`}
-                        >
-                          <History className="w-4 h-4" />
-                        </Button>
                       </div>
                     </td>
                   </tr>
