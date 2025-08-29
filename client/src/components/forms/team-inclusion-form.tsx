@@ -163,7 +163,7 @@ export default function TeamInclusionForm() {
         <h3 className="text-lg font-semibold text-foreground mb-6">Inclusão de Equipe</h3>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <form className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
               <FormField
                 control={form.control}
