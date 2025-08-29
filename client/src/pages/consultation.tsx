@@ -119,8 +119,15 @@ export default function Consultation() {
         
         <div className="space-y-6">
           <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Consulta Geral</h2>
-            <p className="text-muted-foreground">Acompanhe o andamento e status de todos os registros em todas as fases.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground mb-2">Tela 6 - Consulta Geral</h2>
+                <p className="text-muted-foreground">Acompanhe o andamento e status de todos os registros em todas as fases.</p>
+              </div>
+              <div className="text-sm font-medium text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} registros aprovados
+              </div>
+            </div>
           </div>
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} />
@@ -193,8 +200,13 @@ export default function Consultation() {
                   ) : (
                     filteredInclusions?.map((inclusion) => {
                       const phases = ['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'];
-                      const currentPhaseIndex = phases.indexOf(inclusion.phase);
-                      const progress = ((currentPhaseIndex + 1) / phases.length) * 100;
+                      let progress;
+                      if (inclusion.status === "aprovado") {
+                        progress = 100;
+                      } else {
+                        const currentPhaseIndex = phases.indexOf(inclusion.phase);
+                        progress = ((currentPhaseIndex + 1) / phases.length) * 100;
+                      }
 
                       return (
                         <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`consultation-row-${inclusion.id}`}>

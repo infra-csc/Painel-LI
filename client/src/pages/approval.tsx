@@ -240,26 +240,74 @@ export default function Approval() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="px-6 py-3 text-left">
-                      <Checkbox
-                        checked={selectedInclusions.size === approvalInclusions.length}
-                        onCheckedChange={handleSelectAll}
-                        data-testid="checkbox-select-all"
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Evento / Função
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Colaborador
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Datas / Diárias
-                    </th>
+            <div className="space-y-6">
+              {/* Planned vs Actual Analysis Summary */}
+              <div className="p-4 bg-accent/50 rounded-lg">
+                <h3 className="font-medium text-foreground mb-3">Análise Planejado x Realizado</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatCurrency(approvalInclusions.reduce((total, inclusion) => 
+                        total + ((inclusion.dailyValue / 100) * inclusion.dailyRates), 0
+                      ))}
+                    </div>
+                    <div className="text-muted-foreground">Total Planejado</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(approvalInclusions.reduce((total, inclusion) => {
+                        const financial = getFinancial(inclusion.id);
+                        const ticket = getTicket(inclusion.id);
+                        return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
+                      }, 0))}
+                    </div>
+                    <div className="text-muted-foreground">Total Realizado</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${
+                      (approvalInclusions.reduce((total, inclusion) => {
+                        const financial = getFinancial(inclusion.id);
+                        const ticket = getTicket(inclusion.id);
+                        return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
+                      }, 0)) - (approvalInclusions.reduce((total, inclusion) => 
+                        total + ((inclusion.dailyValue / 100) * inclusion.dailyRates), 0
+                      )) >= 0 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {formatCurrency(
+                        (approvalInclusions.reduce((total, inclusion) => {
+                          const financial = getFinancial(inclusion.id);
+                          const ticket = getTicket(inclusion.id);
+                          return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
+                        }, 0)) - (approvalInclusions.reduce((total, inclusion) => 
+                          total + ((inclusion.dailyValue / 100) * inclusion.dailyRates), 0
+                        ))
+                      )}
+                    </div>
+                    <div className="text-muted-foreground">Diferença</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-6 py-3 text-left">
+                        <Checkbox
+                          checked={selectedInclusions.size === approvalInclusions.length}
+                          onCheckedChange={handleSelectAll}
+                          data-testid="checkbox-select-all"
+                        />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Evento / Função
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Colaborador
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Datas / Diárias
+                      </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Valores Realizados
                     </th>
@@ -336,7 +384,8 @@ export default function Approval() {
                     );
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           )}
         </div>

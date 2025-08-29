@@ -117,7 +117,9 @@ export default function Tickets() {
   const handlePurchaseTicket = (inclusion: TeamInclusion) => {
     const data = ticketData[inclusion.id] || {};
     
-    if (!data.value || !data.departureAirport || !data.destinationAirport) {
+    if (!data.value || !data.departureAirport || !data.destinationAirport || 
+        !data.purchaseDate || !data.actualDepartureDate || !data.actualDepartureTime || 
+        !data.actualReturnTime || !data.purchaseOrderNumber) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios da passagem",
@@ -312,7 +314,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`purchaseDate-${inclusion.id}`}>Data da Compra</Label>
+                            <Label htmlFor={`purchaseDate-${inclusion.id}`}>Data da Compra *</Label>
                             <Input
                               id={`purchaseDate-${inclusion.id}`}
                               type="date"
@@ -342,7 +344,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualDepartureDate-${inclusion.id}`}>Data de Ida</Label>
+                            <Label htmlFor={`actualDepartureDate-${inclusion.id}`}>Data de Ida *</Label>
                             <Input
                               id={`actualDepartureDate-${inclusion.id}`}
                               type="date"
@@ -352,7 +354,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualDepartureTime-${inclusion.id}`}>Horário de Ida</Label>
+                            <Label htmlFor={`actualDepartureTime-${inclusion.id}`}>Horário de Ida *</Label>
                             <Input
                               id={`actualDepartureTime-${inclusion.id}`}
                               type="time"
@@ -372,7 +374,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualReturnTime-${inclusion.id}`}>Horário de Volta</Label>
+                            <Label htmlFor={`actualReturnTime-${inclusion.id}`}>Horário de Volta *</Label>
                             <Input
                               id={`actualReturnTime-${inclusion.id}`}
                               type="time"
@@ -382,7 +384,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`purchaseOrderNumber-${inclusion.id}`}>Ordem de Compra</Label>
+                            <Label htmlFor={`purchaseOrderNumber-${inclusion.id}`}>Ordem de Compra *</Label>
                             <Input
                               id={`purchaseOrderNumber-${inclusion.id}`}
                               placeholder="Número da OC"

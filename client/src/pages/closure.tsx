@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import { Calculator, Save, DollarSign } from "lucide-react";
+import { Calculator, Save, DollarSign, Plus } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
 export default function Closure() {
@@ -100,6 +100,11 @@ export default function Closure() {
     }).format(value);
   };
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("pt-BR");
+  };
+
   const getTicket = (inclusionId: string) => {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
@@ -183,10 +188,22 @@ export default function Closure() {
         
         <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-2xl font-bold text-foreground">Tela 4 - Fechamento Financeiro</h2>
-            <p className="text-muted-foreground mt-1">
-              Calcule os valores finais realizados para cada colaborador
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">Tela 4 - Produção/Realizado</h2>
+                <p className="text-muted-foreground mt-1">
+                  Registre os dados reais de trabalho executado para cada colaborador
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                className="ml-4"
+                data-testid="button-add-emergency"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Adicionar Colaborador Emergencial
+              </Button>
+            </div>
           </div>
 
           {closureInclusions.length === 0 ? (
@@ -257,86 +274,83 @@ export default function Closure() {
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {/* Planned vs Actual Analysis */}
-                          <div className="p-4 bg-accent/50 rounded-lg mb-4">
-                            <h4 className="font-medium text-foreground mb-3">Análise Planejado x Realizado</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="space-y-3">
-                                <h5 className="text-sm font-medium text-blue-700">Valores Planejados</h5>
-                                <div className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Diárias:</span>
-                                    <span className="font-medium">{inclusion.dailyRates} × {formatCurrency(inclusion.dailyValue / 100)} = {formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Passagem:</span>
-                                    <span className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</span>
-                                  </div>
-                                  <div className="flex justify-between border-t pt-2">
-                                    <span className="text-sm font-medium">Total Planejado:</span>
-                                    <span className="font-medium text-blue-700">{formatCurrency(calculateTotalValue(inclusion))}</span>
-                                  </div>
-                                </div>
+                          {/* Work Period Information */}
+                          <div className="p-4 bg-accent/50 rounded-lg">
+                            <h4 className="font-medium text-foreground mb-3">Período de Trabalho Planejado</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Data Início Planejada</Label>
+                                <p className="font-medium">{formatDate(inclusion.scheduleStartDate)}</p>
                               </div>
-                              <div className="space-y-3">
-                                <h5 className="text-sm font-medium text-green-700">Valores Realizados</h5>
-                                <div className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Diárias:</span>
-                                    <span className="font-medium">{data.actualDailyRates ? formatCurrency(parseFloat(data.actualDailyRates)) : "Não informado"}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Passagem:</span>
-                                    <span className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</span>
-                                  </div>
-                                  <div className="flex justify-between border-t pt-2">
-                                    <span className="text-sm font-medium">Total Realizado:</span>
-                                    <span className="font-medium text-green-700">{data.actualDailyRates ? formatCurrency(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) : "Não informado"}</span>
-                                  </div>
-                                </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Data Fim Planejada</Label>
+                                <p className="font-medium">{formatDate(inclusion.scheduleEndDate)}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
+                                <p className="font-medium">{inclusion.dailyRates} diárias</p>
                               </div>
                             </div>
-                            {data.actualDailyRates && (
-                              <div className="mt-4 p-3 bg-orange-50 rounded-lg border">
-                                <h5 className="text-sm font-medium text-orange-700 mb-2">Diferença</h5>
-                                <div className="flex justify-between">
-                                  <span className="text-sm text-muted-foreground">Diferença Total:</span>
-                                  <span className={`font-medium ${(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                    {formatCurrency((parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion))}
-                                    {(parseFloat(data.actualDailyRates) + (ticket?.value || 0)) - calculateTotalValue(inclusion) >= 0 ? ' (acima)' : ' (economia)'}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
                           </div>
                           
-                          {/* Input fields for actual values */}
-                          <div className="grid grid-cols-1 gap-4">
+                          {/* Actual work data input fields */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label htmlFor={`actualDailyRates-${inclusion.id}`}>Valor Total das Diárias Realizadas *</Label>
+                              <Label htmlFor={`actualStartDate-${inclusion.id}`}>Data de Início do Trabalho *</Label>
+                              <Input
+                                id={`actualStartDate-${inclusion.id}`}
+                                type="date"
+                                value={data.actualStartDate || inclusion.scheduleStartDate || ""}
+                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualStartDate", e.target.value)}
+                                data-testid={`input-actual-start-date-${inclusion.id}`}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`actualEndDate-${inclusion.id}`}>Data Final do Trabalho *</Label>
+                              <Input
+                                id={`actualEndDate-${inclusion.id}`}
+                                type="date"
+                                value={data.actualEndDate || inclusion.scheduleEndDate || ""}
+                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualEndDate", e.target.value)}
+                                data-testid={`input-actual-end-date-${inclusion.id}`}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`actualDailyRates-${inclusion.id}`}>Quantidade de Diárias / Cachê a Pagar *</Label>
                               <Input
                                 id={`actualDailyRates-${inclusion.id}`}
+                                type="number"
+                                min="0"
+                                placeholder={`Planejado: ${inclusion.dailyRates}`}
+                                value={data.actualDailyRatesCount || ""}
+                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRatesCount", e.target.value)}
+                                data-testid={`input-daily-rates-count-${inclusion.id}`}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`actualDailyValue-${inclusion.id}`}>Valor Total das Diárias Realizadas *</Label>
+                              <Input
+                                id={`actualDailyValue-${inclusion.id}`}
                                 type="number"
                                 step="0.01"
                                 placeholder="0,00"
                                 value={data.actualDailyRates || ""}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRates", e.target.value)}
                                 data-testid={`input-daily-rates-${inclusion.id}`}
-                                className="max-w-md"
                               />
                             </div>
-                            <div>
-                              <Label htmlFor={`observations-${inclusion.id}`}>Observações do Fechamento</Label>
+                            <div className="md:col-span-2">
+                              <Label htmlFor={`observations-${inclusion.id}`}>Observações sobre o Realizado</Label>
                               <Textarea
                                 id={`observations-${inclusion.id}`}
                                 rows={3}
-                                placeholder="Observações sobre valores realizados, diferenças, etc..."
+                                placeholder="Explicações adicionais sobre o que foi realizado, mudanças, etc..."
                                 value={data.observations || ""}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "observations", e.target.value)}
                                 data-testid={`textarea-observations-${inclusion.id}`}
                               />
                             </div>
-                            <div className="flex justify-end">
+                            <div className="md:col-span-2 flex justify-end">
                               <Button
                                 onClick={() => handleFinancialClosure(inclusion)}
                                 disabled={createFinancialMutation.isPending}
