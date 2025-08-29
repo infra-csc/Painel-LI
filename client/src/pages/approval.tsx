@@ -74,9 +74,6 @@ export default function Approval() {
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
   };
 
-  const getFunctionArea = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.responsibleArea || "";
-  };
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
@@ -159,7 +156,8 @@ export default function Approval() {
         id: inclusionId,
         data: {
           status: "aprovado",
-          phase: "concluido"
+          phase: "concluido",
+          progress: 100 // Set progress to 100% after approval
         }
       });
     });
@@ -294,12 +292,12 @@ export default function Approval() {
                             {getEventName(inclusion.eventId)}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {getFunctionName(inclusion.functionId)} • {getFunctionArea(inclusion.functionId)}
+                            {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-foreground">
-                            {getCollaboratorName(inclusion.collaboratorId)}
+                            {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

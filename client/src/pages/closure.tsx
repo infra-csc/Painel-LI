@@ -111,8 +111,8 @@ export default function Closure() {
   const calculateTotalValue = (inclusion: TeamInclusion) => {
     const ticket = getTicket(inclusion.id);
     const ticketValue = ticket?.value || 0;
-    const dailyRateValue = inclusion.dailyRates * inclusion.dailyRates; // This is incorrect, should be actual daily rate
-    return ticketValue + dailyRateValue;
+    const plannedDailyValue = inclusion.dailyValue * inclusion.dailyRates;
+    return ticketValue + plannedDailyValue;
   };
 
   const handleFinancialDataChange = (inclusionId: string, field: string, value: any) => {
@@ -128,10 +128,10 @@ export default function Closure() {
   const handleFinancialClosure = (inclusion: TeamInclusion) => {
     const data = financialData[inclusion.id] || {};
     
-    if (!data.actualDailyRates || !data.actualFee) {
+    if (!data.actualDailyRates) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios do fechamento financeiro",
+        description: "Preencha o valor total das diárias realizadas",
         variant: "destructive",
       });
       return;
@@ -140,7 +140,7 @@ export default function Closure() {
     createFinancialMutation.mutate({
       teamInclusionId: inclusion.id,
       actualDailyRates: parseFloat(data.actualDailyRates),
-      actualFee: parseFloat(data.actualFee),
+      actualFee: 0, // Fee field removed as per user request
       observations: data.observations || null
     });
 
@@ -257,25 +257,32 @@ export default function Closure() {
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {/* Current values summary */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-accent/50 rounded-lg">
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
-                              <p className="font-medium">{inclusion.dailyRates} diárias</p>
-                              <p className="text-sm text-muted-foreground">{formatCurrency(inclusion.dailyRates * 300)}</p>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Taxa Planejada</Label>
-                              <p className="font-medium">R$ 0,00</p>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                              <p className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</p>
+                          {/* Planned vs Actual Analysis */}
+                          <div className="p-4 bg-accent/50 rounded-lg mb-4">
+                            <h4 className="font-medium text-foreground mb-3">Análise Planejado x Realizado</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
+                                <p className="font-medium">{inclusion.dailyRates} diárias</p>
+                                <p className="text-sm text-muted-foreground">{formatCurrency(inclusion.dailyValue * inclusion.dailyRates)}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Valor Diária Planejado</Label>
+                                <p className="font-medium">{formatCurrency(inclusion.dailyValue)}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
+                                <p className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Total Planejado</Label>
+                                <p className="font-medium text-lg">{formatCurrency(calculateTotalValue(inclusion))}</p>
+                              </div>
                             </div>
                           </div>
                           
                           {/* Input fields for actual values */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4">
                             <div>
                               <Label htmlFor={`actualDailyRates-${inclusion.id}`}>Valor Total das Diárias Realizadas *</Label>
                               <Input
@@ -286,21 +293,10 @@ export default function Closure() {
                                 value={data.actualDailyRates || ""}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRates", e.target.value)}
                                 data-testid={`input-daily-rates-${inclusion.id}`}
+                                className="max-w-md"
                               />
                             </div>
                             <div>
-                              <Label htmlFor={`actualFee-${inclusion.id}`}>Taxa/Honorário Realizado *</Label>
-                              <Input
-                                id={`actualFee-${inclusion.id}`}
-                                type="number"
-                                step="0.01"
-                                placeholder="0,00"
-                                value={data.actualFee || ""}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualFee", e.target.value)}
-                                data-testid={`input-fee-${inclusion.id}`}
-                              />
-                            </div>
-                            <div className="md:col-span-2">
                               <Label htmlFor={`observations-${inclusion.id}`}>Observações do Fechamento</Label>
                               <Textarea
                                 id={`observations-${inclusion.id}`}
@@ -311,7 +307,7 @@ export default function Closure() {
                                 data-testid={`textarea-observations-${inclusion.id}`}
                               />
                             </div>
-                            <div className="md:col-span-2 flex justify-end">
+                            <div className="flex justify-end">
                               <Button
                                 onClick={() => handleFinancialClosure(inclusion)}
                                 disabled={createFinancialMutation.isPending}

@@ -263,7 +263,39 @@ export default function Tickets() {
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="space-y-4">
+                          {/* Work Period Information */}
+                          <div className="p-4 bg-accent/50 rounded-lg">
+                            <h4 className="font-medium text-foreground mb-3">Período de Trabalho</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Data Início</Label>
+                                <p className="font-medium">{formatDate(inclusion.scheduleStartDate)}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                                <p className="font-medium">{formatDate(inclusion.scheduleEndDate)}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Valor da Diária</Label>
+                                <div className="flex gap-2 items-center">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    placeholder="0.00"
+                                    value={data.dailyValue || inclusion.dailyValue || ""}
+                                    onChange={(e) => handleTicketDataChange(inclusion.id, "dailyValue", parseFloat(e.target.value) || 0)}
+                                    className="max-w-[120px]"
+                                    data-testid={`input-daily-value-${inclusion.id}`}
+                                  />
+                                  <span className="text-sm text-muted-foreground">R$</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
                             <Label htmlFor={`value-${inclusion.id}`}>Valor da Passagem *</Label>
                             <Input
@@ -375,6 +407,7 @@ export default function Tickets() {
                               <Save className="w-4 h-4 mr-2" />
                               {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
                             </Button>
+                          </div>
                           </div>
                         </div>
                       )}
