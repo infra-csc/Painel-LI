@@ -18,6 +18,8 @@ export default function Scaling() {
   const [observations, setObservations] = useState<Record<string, string>>({});
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [currentArea, setCurrentArea] = useState<string>("");
+  const [currentEventName, setCurrentEventName] = useState<string>("");
+  const [currentFunctionName, setCurrentFunctionName] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -240,6 +242,8 @@ export default function Scaling() {
                               className="p-1 h-8 w-8 shrink-0"
                               onClick={() => {
                                 setCurrentArea(inclusion.area);
+                                setCurrentEventName(getEventName(inclusion.eventId));
+                                setCurrentFunctionName(getFunctionName(inclusion.functionId));
                                 setShowCollaboratorModal(true);
                               }}
                               data-testid={`button-add-collaborator-${inclusion.id}`}
@@ -300,6 +304,8 @@ export default function Scaling() {
         open={showCollaboratorModal} 
         onClose={() => setShowCollaboratorModal(false)}
         defaultArea={currentArea}
+        eventName={currentEventName}
+        functionName={currentFunctionName}
       />
     </>
   );

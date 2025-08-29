@@ -15,7 +15,6 @@ const collaboratorSchema = z.object({
   officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
   documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
-  area: z.string().optional(),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
@@ -27,9 +26,11 @@ interface CollaboratorModalProps {
   open: boolean;
   onClose: () => void;
   defaultArea?: string;
+  eventName?: string;
+  functionName?: string;
 }
 
-export default function CollaboratorModal({ open, onClose, defaultArea }: CollaboratorModalProps) {
+export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName }: CollaboratorModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -40,7 +41,6 @@ export default function CollaboratorModal({ open, onClose, defaultArea }: Collab
       officialDocument: "",
       documentType: "cpf" as const,
       birthDate: "",
-      area: defaultArea || "",
       type: "",
       phone: "",
       city: "",
@@ -49,10 +49,10 @@ export default function CollaboratorModal({ open, onClose, defaultArea }: Collab
 
   const createCollaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
-      // Ensure area is set from defaultArea if not provided
+      // Ensure area is set from defaultArea
       const collaboratorData = {
         ...data,
-        area: data.area || defaultArea || ""
+        area: defaultArea || ""
       };
       const response = await apiRequest("POST", "/api/collaborators", collaboratorData);
       return response.json();
@@ -89,6 +89,13 @@ export default function CollaboratorModal({ open, onClose, defaultArea }: Collab
       <DialogContent className="max-w-2xl" data-testid="modal-collaborator">
         <DialogHeader>
           <DialogTitle>Adicionar Novo Colaborador</DialogTitle>
+          {(eventName || functionName || defaultArea) && (
+            <div className="text-sm text-muted-foreground space-y-1">
+              {eventName && <p><strong>Evento:</strong> {eventName}</p>}
+              {functionName && <p><strong>Função:</strong> {functionName}</p>}
+              {defaultArea && <p><strong>Área:</strong> {defaultArea}</p>}
+            </div>
+          )}
         </DialogHeader>
         
         <Form {...form}>
@@ -164,25 +171,6 @@ export default function CollaboratorModal({ open, onClose, defaultArea }: Collab
                         type="date" 
                         {...field}
                         data-testid="input-collaborator-birth-date"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Área (vinculada ao evento) *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field}
-                        readOnly
-                        className="bg-muted cursor-not-allowed"
-                        data-testid="input-collaborator-area"
                       />
                     </FormControl>
                     <FormMessage />

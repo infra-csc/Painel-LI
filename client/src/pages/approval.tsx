@@ -354,22 +354,58 @@ export default function Approval() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-foreground">
-                            {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {inclusion.dailyRates} diárias
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-blue-600">Planejado:</div>
+                            <div className="text-sm text-foreground">
+                              {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {inclusion.dailyRates} diárias × {formatCurrency(inclusion.dailyValue / 100)}
+                            </div>
+                            {inclusion.actualStartDate && (
+                              <>
+                                <div className="text-xs font-medium text-green-600 mt-2">Realizado:</div>
+                                <div className="text-sm text-foreground">
+                                  {formatDate(inclusion.actualStartDate)} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {financial?.actualDailyRates || inclusion.dailyRates} diárias
+                                </div>
+                              </>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-foreground">
-                            Diárias: {formatCurrency(financial?.actualDailyRates || 0)}
-                          </div>
-                          <div className="text-sm text-foreground">
-                            Taxa: {formatCurrency(financial?.actualFee || 0)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Passagem: {formatCurrency(ticket?.value || 0)}
+                          <div className="space-y-2">
+                            <div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-blue-600">Planejado:</span>
+                                <span className="text-sm font-medium">{formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-green-600">Realizado:</span>
+                                <span className="text-sm font-medium">{formatCurrency(financial?.actualDailyRates || 0)}</span>
+                              </div>
+                              <div className="flex justify-between items-center border-t pt-1">
+                                <span className="text-xs text-muted-foreground">Diferença:</span>
+                                <span className={`text-sm font-medium ${
+                                  ((financial?.actualDailyRates || 0) - ((inclusion.dailyValue / 100) * inclusion.dailyRates)) >= 0 
+                                    ? 'text-red-600' : 'text-green-600'
+                                }`}>
+                                  {formatCurrency((financial?.actualDailyRates || 0) - ((inclusion.dailyValue / 100) * inclusion.dailyRates))}
+                                </span>
+                              </div>
+                            </div>
+                            {ticket && (ticket.value || 0) > 0 && (
+                              <div className="pt-1 border-t">
+                                <div className="text-xs text-muted-foreground">Passagem: {formatCurrency(ticket.value || 0)}</div>
+                              </div>
+                            )}
+                            {financial?.observations && (
+                              <div className="pt-1 border-t">
+                                <div className="text-xs text-muted-foreground">Obs: {financial.observations.substring(0, 30)}{financial.observations.length > 30 ? '...' : ''}</div>
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
