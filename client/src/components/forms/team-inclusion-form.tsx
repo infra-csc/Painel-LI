@@ -388,7 +388,7 @@ export default function TeamInclusionForm() {
                   name="flightDepartureSuggestedTime"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sugestão Ida (Texto Livre)</FormLabel>
+                      <FormLabel>Sugestão Ida</FormLabel>
                       <FormControl>
                         <Input type="text" placeholder="Ex: Preferencialmente pela manhã, após 10h..." {...field} data-testid="input-departure-time" />
                       </FormControl>
@@ -417,7 +417,7 @@ export default function TeamInclusionForm() {
                   name="flightReturnSuggestedTime"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Sugestão Volta (Texto Livre)</FormLabel>
+                      <FormLabel>Sugestão Volta</FormLabel>
                       <FormControl>
                         <Input type="text" placeholder="Ex: Final da tarde, evitar horário de pico..." {...field} data-testid="input-return-time" />
                       </FormControl>
