@@ -61,51 +61,6 @@ export default function Scaling() {
     },
   });
 
-  const createEscalationMutation = useMutation({
-    mutationFn: async (baseInclusion: TeamInclusion) => {
-      // Calculate daily rates
-      const startDate = new Date(baseInclusion.scheduleStartDate);
-      const endDate = new Date(baseInclusion.scheduleEndDate);
-      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-      const payload = {
-        eventId: baseInclusion.eventId,
-        functionId: baseInclusion.functionId,
-        area: baseInclusion.area,
-        scheduleStartDate: baseInclusion.scheduleStartDate,
-        scheduleEndDate: baseInclusion.scheduleEndDate,
-        dailyRates: diffDays,
-        dailyValue: baseInclusion.dailyValue,
-        needsTicket: baseInclusion.needsTicket,
-        flightDepartureDate: baseInclusion.flightDepartureDate,
-        flightDepartureSuggestedTime: baseInclusion.flightDepartureSuggestedTime,
-        flightReturnDate: baseInclusion.flightReturnDate,
-        flightReturnSuggestedTime: baseInclusion.flightReturnSuggestedTime,
-        status: "planejado",
-        phase: "escalacao",
-        collaboratorId: null,
-        observations: null
-      };
-
-      const response = await apiRequest("POST", "/api/team-inclusions", payload);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Nova escalação adicionada com sucesso",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Erro ao adicionar nova escalação",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Filter inclusions that are in planning phase or scaling phase
   const scalingInclusions = teamInclusions?.filter(
@@ -342,27 +297,15 @@ export default function Scaling() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           {inclusion.status === "planejado" && (
-                            <div className="flex gap-2 items-center justify-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => createEscalationMutation.mutate(inclusion)}
-                                disabled={createEscalationMutation.isPending}
-                                data-testid={`button-add-escalation-${inclusion.id}`}
-                              >
-                                <Plus className="w-4 h-4 mr-1" />
-                                {createEscalationMutation.isPending ? "Adicionando..." : "Adicionar Escalação"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleConfirmScaling(inclusion)}
-                                disabled={updateTeamInclusionMutation.isPending}
-                                data-testid={`button-confirm-${inclusion.id}`}
-                              >
-                                <Save className="w-4 h-4 mr-1" />
-                                {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirmScaling(inclusion)}
+                              disabled={updateTeamInclusionMutation.isPending}
+                              data-testid={`button-confirm-${inclusion.id}`}
+                            >
+                              <Save className="w-4 h-4 mr-1" />
+                              {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                            </Button>
                           )}
                           {inclusion.status === "escalacao" && (
                             <span className="text-sm text-muted-foreground">Escalado</span>
@@ -483,27 +426,15 @@ export default function Scaling() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right">
                                 {inclusion.status === "planejado" && (
-                                  <div className="flex gap-2 items-center justify-end">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => createEscalationMutation.mutate(inclusion)}
-                                      disabled={createEscalationMutation.isPending}
-                                      data-testid={`button-add-escalation-${inclusion.id}`}
-                                    >
-                                      <Plus className="w-4 h-4 mr-1" />
-                                      {createEscalationMutation.isPending ? "Adicionando..." : "Adicionar Escalação"}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleConfirmScaling(inclusion)}
-                                      disabled={updateTeamInclusionMutation.isPending}
-                                      data-testid={`button-confirm-${inclusion.id}`}
-                                    >
-                                      <Save className="w-4 h-4 mr-1" />
-                                      {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                                    </Button>
-                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleConfirmScaling(inclusion)}
+                                    disabled={updateTeamInclusionMutation.isPending}
+                                    data-testid={`button-confirm-${inclusion.id}`}
+                                  >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                                  </Button>
                                 )}
                                 {inclusion.status === "escalacao" && (
                                   <span className="text-sm text-muted-foreground">Escalado</span>
