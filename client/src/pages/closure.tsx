@@ -113,14 +113,45 @@ export default function Closure() {
     return ticketValue + plannedDailyValue;
   };
 
+  const calculateDailyRates = (startDate: string, endDate: string): number => {
+    if (!startDate || !endDate) return 0;
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (start > end) return 0;
+    
+    // Calculate difference in days (inclusive)
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    return diffDays;
+  };
+
   const handleFinancialDataChange = (inclusionId: string, field: string, value: any) => {
-    setFinancialData(prev => ({
-      ...prev,
-      [inclusionId]: {
-        ...prev[inclusionId],
-        [field]: value
+    setFinancialData(prev => {
+      const currentData = prev[inclusionId] || {};
+      const updatedData = {
+        ...prev,
+        [inclusionId]: {
+          ...currentData,
+          [field]: value
+        }
+      };
+      
+      // Auto-calculate daily rates when dates change
+      if (field === 'actualStartDate' || field === 'actualEndDate') {
+        const startDate = field === 'actualStartDate' ? value : currentData.actualStartDate;
+        const endDate = field === 'actualEndDate' ? value : currentData.actualEndDate;
+        
+        if (startDate && endDate) {
+          const calculatedDays = calculateDailyRates(startDate, endDate);
+          updatedData[inclusionId].actualDailyRatesCount = calculatedDays.toString();
+        }
       }
-    }));
+      
+      return updatedData;
+    });
   };
 
   const handleFinancialClosure = async (inclusion: TeamInclusion) => {
@@ -351,7 +382,13 @@ export default function Closure() {
                                 value={data.actualDailyRatesCount || ""}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRatesCount", e.target.value)}
                                 data-testid={`input-daily-rates-count-${inclusion.id}`}
+                                className="bg-muted/30"
                               />
+                              {data.actualStartDate && data.actualEndDate && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Calculado automaticamente: {calculateDailyRates(data.actualStartDate, data.actualEndDate)} dias
+                                </p>
+                              )}
                             </div>
                             <div>
                               <Label htmlFor={`actualDailyValue-${inclusion.id}`}>Valor Total das Diárias Realizadas *</Label>
