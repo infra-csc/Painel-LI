@@ -24,8 +24,8 @@ const teamInclusionSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   functionId: z.string().min(1, "Função é obrigatória"),
   area: z.string().optional(),
-  scheduleStartDate: z.string().min(1, "Data de início é obrigatória"),
-  scheduleEndDate: z.string().min(1, "Data de fim é obrigatória"),
+  scheduleStartDate: z.string().optional(),
+  scheduleEndDate: z.string().optional(),
   dailyValue: z.number().optional(),
   needsTicket: z.boolean().default(false),
   flightDepartureDate: z.string().optional(),
@@ -83,10 +83,13 @@ export default function TeamInclusionForm() {
   const createTeamInclusionMutation = useMutation({
     mutationFn: async (data: TeamInclusionFormData) => {
       // Calculate daily rates
-      const startDate = new Date(data.scheduleStartDate);
-      const endDate = new Date(data.scheduleEndDate);
-      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      let diffDays = 1; // default to 1 day
+      if (data.scheduleStartDate && data.scheduleEndDate) {
+        const startDate = new Date(data.scheduleStartDate);
+        const endDate = new Date(data.scheduleEndDate);
+        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+        diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      }
 
       const payload = {
         ...data,

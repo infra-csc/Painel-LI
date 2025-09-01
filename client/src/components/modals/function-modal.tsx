@@ -14,7 +14,6 @@ import { apiRequest } from "@/lib/queryClient";
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
   quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
-  responsibleArea: z.string().min(1, "Área responsável é obrigatória"),
   description: z.string().optional(),
 });
 
@@ -34,7 +33,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     defaultValues: {
       name: "",
       quantity: 1,
-      responsibleArea: "",
       description: "",
     },
   });
@@ -113,32 +111,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                       onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                       data-testid="input-function-quantity"
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="responsibleArea"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Área Responsável *</FormLabel>
-                  <FormControl>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger data-testid="select-responsible-area">
-                        <SelectValue placeholder="Selecione a área responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Produção">Produção</SelectItem>
-                        <SelectItem value="Técnica">Técnica</SelectItem>
-                        <SelectItem value="Arte">Arte</SelectItem>
-                        <SelectItem value="Logística">Logística</SelectItem>
-                        <SelectItem value="Financeiro">Financeiro</SelectItem>
-                        <SelectItem value="Comercial">Comercial</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

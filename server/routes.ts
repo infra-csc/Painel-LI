@@ -314,7 +314,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/team-inclusions", async (req, res) => {
     try {
-      const inclusionData = insertTeamInclusionSchema.parse(req.body);
+      // Clean empty date strings before validation
+      const cleanedData = { ...req.body };
+      
+      // Convert empty date strings to null
+      if (cleanedData.scheduleStartDate === "") cleanedData.scheduleStartDate = null;
+      if (cleanedData.scheduleEndDate === "") cleanedData.scheduleEndDate = null;
+      if (cleanedData.actualStartDate === "") cleanedData.actualStartDate = null;
+      if (cleanedData.actualEndDate === "") cleanedData.actualEndDate = null;
+      if (cleanedData.flightDepartureDate === "") cleanedData.flightDepartureDate = null;
+      if (cleanedData.flightReturnDate === "") cleanedData.flightReturnDate = null;
+      
+      const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
       const inclusion = await storage.createTeamInclusion(inclusionData);
       res.json(inclusion);
     } catch (error) {

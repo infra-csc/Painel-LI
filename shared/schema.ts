@@ -37,7 +37,7 @@ export const functions = pgTable("functions", {
   functionNumber: integer("function_number").notNull().default(sql`nextval('function_sequence')`),
   name: text("name").notNull().unique(),
   description: text("description"),
-  responsibleArea: text("responsible_area").notNull(),
+  responsibleArea: text("responsible_area"),
   quantity: integer("quantity").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -66,8 +66,8 @@ export const teamInclusions = pgTable("team_inclusions", {
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
   area: text("area").notNull(), // área selecionada - now required
-  scheduleStartDate: date("schedule_start_date").notNull(),
-  scheduleEndDate: date("schedule_end_date").notNull(),
+  scheduleStartDate: date("schedule_start_date"),
+  scheduleEndDate: date("schedule_end_date"),
   actualStartDate: date("actual_start_date"), // data real de início de trabalho
   actualEndDate: date("actual_end_date"), // data real final
   flightDepartureDate: date("flight_departure_date"),
