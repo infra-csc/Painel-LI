@@ -21,6 +21,7 @@ export const users = pgTable("users", {
 // Events table
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventNumber: integer("event_number").notNull().default(sql`nextval('event_sequence')`),
   name: text("name").notNull(),
   location: text("location").notNull(),
   startDate: date("start_date").notNull(),
@@ -33,6 +34,7 @@ export const events = pgTable("events", {
 // Functions table
 export const functions = pgTable("functions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  functionNumber: integer("function_number").notNull().default(sql`nextval('function_sequence')`),
   name: text("name").notNull().unique(),
   description: text("description"),
   quantity: integer("quantity").notNull().default(1),
@@ -42,6 +44,7 @@ export const functions = pgTable("functions", {
 // Collaborators table
 export const collaborators = pgTable("collaborators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collaboratorNumber: integer("collaborator_number").notNull().default(sql`nextval('collaborator_sequence')`),
   fullName: text("full_name").notNull(),
   officialDocument: text("official_document").notNull().unique(), // CPF or RG
   documentType: text("document_type").notNull(), // "cpf" or "rg"
@@ -57,6 +60,7 @@ export const collaborators = pgTable("collaborators", {
 // Team inclusions table
 export const teamInclusions = pgTable("team_inclusions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  inclusionNumber: integer("inclusion_number").notNull().default(sql`nextval('inclusion_sequence')`),
   eventId: varchar("event_id").notNull().references(() => events.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),

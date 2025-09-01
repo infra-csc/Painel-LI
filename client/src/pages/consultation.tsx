@@ -59,8 +59,10 @@ export default function Consultation() {
 
   // Filter inclusions based on current filters
   const filteredInclusions = teamInclusions?.filter(inclusion => {
-    // Apply ID search filter first
-    const idMatch = !searchId || inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+    // Apply ID search filter first (using inclusion number)
+    const idMatch = !searchId || 
+      (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(searchId)) ||
+      inclusion.id.toLowerCase().includes(searchId.toLowerCase());
     if (!idMatch) return false;
     
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -188,7 +190,7 @@ export default function Consultation() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <input
                   type="text"
-                  placeholder="Buscar por ID..."
+                  placeholder="Buscar por número..."
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -294,13 +296,13 @@ export default function Consultation() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <div className="text-sm font-mono text-foreground">
-                                {inclusion.id.substring(0, 8)}...
+                                #{inclusion.inclusionNumber || 'N/A'}
                               </div>
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="p-1 h-6 w-6"
-                                onClick={() => copyToClipboard(inclusion.id, "ID")}
+                                onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
                                 data-testid={`button-copy-id-${inclusion.id}`}
                               >
                                 <Copy className="w-3 h-3" />
