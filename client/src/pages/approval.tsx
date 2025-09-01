@@ -634,15 +634,15 @@ export default function Approval() {
                               </div>
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-green-600">Realizado:</span>
-                                <span className="text-sm font-medium">{formatCurrency(financial?.actualDailyRates || 0)}</span>
+                                <span className="text-sm font-medium">{formatCurrency((financial?.actualValue || 0) / 100)}</span>
                               </div>
                               <div className="flex justify-between items-center border-t pt-1">
                                 <span className="text-xs text-muted-foreground">Diferença:</span>
                                 <span className={`text-sm font-medium ${
-                                  ((financial?.actualDailyRates || 0) - ((inclusion.dailyValue / 100) * inclusion.dailyRates)) >= 0 
+                                  (((financial?.actualValue || 0) / 100) - ((inclusion.dailyValue / 100) * inclusion.dailyRates)) >= 0 
                                     ? 'text-red-600' : 'text-green-600'
                                 }`}>
-                                  {formatCurrency((financial?.actualDailyRates || 0) - ((inclusion.dailyValue / 100) * inclusion.dailyRates))}
+                                  {formatCurrency(((financial?.actualValue || 0) / 100) - ((inclusion.dailyValue / 100) * inclusion.dailyRates))}
                                 </span>
                               </div>
                             </div>
