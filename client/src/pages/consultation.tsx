@@ -433,8 +433,18 @@ export default function Consultation() {
                               <div className="text-sm">{formatDate(inclusion.actualStartDate)} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}</div>
                             </div>
                             <div>
-                              <label className="text-sm font-medium text-muted-foreground">Diárias</label>
-                              <div className="text-sm">{financialRecord?.actualDailyRates || inclusion.dailyRates}</div>
+                              <label className="text-sm font-medium text-muted-foreground">Quantidade de Diárias</label>
+                              <div className="text-sm font-medium text-green-600">
+                                {(() => {
+                                  if (inclusion.actualStartDate && inclusion.actualEndDate) {
+                                    const startDate = new Date(inclusion.actualStartDate);
+                                    const endDate = new Date(inclusion.actualEndDate);
+                                    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                                    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                  }
+                                  return inclusion.dailyRates;
+                                })()} diárias realizadas
+                              </div>
                             </div>
                             <div>
                               <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
@@ -493,16 +503,10 @@ export default function Consultation() {
                           <div className="text-lg font-medium text-blue-600">{formatCurrency(ticket.value || 0)}</div>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-muted-foreground">Status da Passagem</label>
-                          <div className="text-sm">{ticket.status || "Não informado"}</div>
+                          <label className="text-sm font-medium text-muted-foreground">Data de Compra</label>
+                          <div className="text-sm">{ticket.purchaseDate || "Não informado"}</div>
                         </div>
                       </div>
-                      {ticket.observations && (
-                        <div className="mt-4">
-                          <label className="text-sm font-medium text-muted-foreground">Observações da Passagem</label>
-                          <div className="text-sm mt-1 p-2 bg-muted rounded">{ticket.observations}</div>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 )}
@@ -515,7 +519,21 @@ export default function Consultation() {
                   <CardContent>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm">Diárias:</span>
+                        <span className="text-sm">Quantidade de Diárias:</span>
+                        <span className="font-medium text-blue-600">
+                          {(() => {
+                            if (inclusion.actualStartDate && inclusion.actualEndDate) {
+                              const startDate = new Date(inclusion.actualStartDate);
+                              const endDate = new Date(inclusion.actualEndDate);
+                              const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                              return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                            }
+                            return inclusion.dailyRates;
+                          })()} diárias
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Valor das Diárias:</span>
                         <span className="font-medium">{formatCurrency(financialRecord?.actualDailyRates || (inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
                       </div>
                       <div className="flex justify-between items-center">
