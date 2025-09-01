@@ -37,6 +37,7 @@ export const functions = pgTable("functions", {
   functionNumber: integer("function_number").notNull().default(sql`nextval('function_sequence')`),
   name: text("name").notNull().unique(),
   description: text("description"),
+  responsibleArea: text("responsible_area").notNull(),
   quantity: integer("quantity").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
