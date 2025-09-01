@@ -432,14 +432,14 @@ export default function Consultation() {
                             <div className="text-sm">
                               {inclusion.actualStartDate 
                                 ? `${formatDate(inclusion.actualStartDate)} - ${formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}`
-                                : "Não informado"
+                                : (financialRecord ? "Período em fechamento" : "Não informado")
                               }
                             </div>
                           </div>
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Diárias</label>
                             <div className="text-sm">
-                              {inclusion.actualStartDate ? (
+                              {financialRecord ? (
                                 <span className="font-medium text-green-600">
                                   {(() => {
                                     if (inclusion.actualStartDate && inclusion.actualEndDate) {
@@ -447,9 +447,14 @@ export default function Consultation() {
                                       const endDate = new Date(inclusion.actualEndDate);
                                       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
                                       const actualDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                      return `${actualDays} × ${formatCurrency((financialRecord?.actualDailyRates || 0) / actualDays)}`;
+                                      const dailyValue = (financialRecord.actualDailyRates || 0) / actualDays;
+                                      return `${actualDays} × ${formatCurrency(dailyValue)}`;
+                                    } else {
+                                      // Se não há datas, usar os dados financeiros diretamente
+                                      const estimatedDays = inclusion.dailyRates;
+                                      const dailyValue = (financialRecord.actualDailyRates || 0) / estimatedDays;
+                                      return `${estimatedDays} × ${formatCurrency(dailyValue)}`;
                                     }
-                                    return `${inclusion.dailyRates} × ${formatCurrency(inclusion.dailyValue / 100)}`;
                                   })()}
                                 </span>
                               ) : (
@@ -460,8 +465,8 @@ export default function Consultation() {
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
                             <div className="text-sm font-medium">
-                              {inclusion.actualStartDate 
-                                ? formatCurrency(financialRecord?.actualDailyRates || 0)
+                              {financialRecord 
+                                ? formatCurrency(financialRecord.actualDailyRates || 0)
                                 : "R$ 0,00"
                               }
                             </div>
