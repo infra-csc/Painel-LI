@@ -324,7 +324,7 @@ export default function Closure() {
                               <Input
                                 id={`actualStartDate-${inclusion.id}`}
                                 type="date"
-                                value={data.actualStartDate || inclusion.scheduleStartDate || ""}
+                                value={data.actualStartDate || (inclusion.scheduleStartDate ? inclusion.scheduleStartDate : "")}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "actualStartDate", e.target.value)}
                                 data-testid={`input-actual-start-date-${inclusion.id}`}
                               />
@@ -334,7 +334,7 @@ export default function Closure() {
                               <Input
                                 id={`actualEndDate-${inclusion.id}`}
                                 type="date"
-                                value={data.actualEndDate || inclusion.scheduleEndDate || ""}
+                                value={data.actualEndDate || (inclusion.scheduleEndDate ? inclusion.scheduleEndDate : "")}
                                 onChange={(e) => handleFinancialDataChange(inclusion.id, "actualEndDate", e.target.value)}
                                 data-testid={`input-actual-end-date-${inclusion.id}`}
                               />
