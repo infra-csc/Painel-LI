@@ -16,7 +16,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   
   // Events
   getEvents(): Promise<Event[]>;
@@ -75,15 +77,18 @@ export class MemStorage implements IStorage {
   }
 
   private initializeDemoData() {
-    // Create demo user
+    // Create demo user with hashed password
     const demoUser: User = {
       id: "demo-user-1",
       username: "admin",
       email: "admin@sistema.com",
-      password: "admin123",
+      password: "$2b$10$s39R6A1cSe6scFn/rIfPL.4LDZZGSXwDEw8Sf/TXXbiXihRLVfQJy", // admin123
       name: "João Pedro Silva",
       role: "admin",
       area: "Administração",
+      resetToken: null,
+      resetTokenExpiry: null,
+      isActive: true,
       createdAt: new Date(),
     };
     this.users.set(demoUser.id, demoUser);
@@ -106,11 +111,31 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(user => user.email === email);
   }
 
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.resetToken === token);
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, createdAt: new Date(), area: insertUser.area || null };
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt: new Date(), 
+      area: insertUser.area || null,
+      resetToken: null,
+      resetTokenExpiry: null,
+      isActive: true
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates };
+    this.users.set(id, updated);
+    return updated;
   }
 
   // Events

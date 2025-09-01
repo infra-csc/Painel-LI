@@ -8,14 +8,22 @@ import {
   insertTeamInclusionSchema,
   insertTicketSchema,
   insertFinancialSchema,
-  insertCommentSchema
+  insertCommentSchema,
+  insertUserSchema
 } from "@shared/schema";
+import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
+      }
+      
       let user = await storage.getUserByUsername(username);
       
       // If not found by username, try by email
@@ -23,21 +31,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user = await storage.getUserByEmail(username);
       }
       
-      if (!user || user.password !== password) {
+      if (!user || !user.isActive) {
+        return res.status(401).json({ message: "Credenciais inválidas" });
+      }
+      
+      // Compare password with hash
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
 
-      // In a real app, you'd use proper session/JWT here
-      res.json({ user: { ...user, password: undefined } });
+      res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
     } catch (error) {
       res.status(500).json({ message: "Erro interno do servidor" });
     }
   });
 
-  // User management routes
-  app.post("/api/users", async (req, res) => {
+  // User registration route
+  app.post("/api/auth/register", async (req, res) => {
     try {
-      const userData = req.body;
+      const userData = insertUserSchema.parse(req.body);
       
       // Check if username already exists
       const existingByUsername = await storage.getUserByUsername(userData.username);
@@ -51,8 +64,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "E-mail já cadastrado" });
       }
 
-      const user = await storage.createUser(userData);
-      res.json({ ...user, password: undefined });
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      
+      const userWithHashedPassword = {
+        ...userData,
+        password: hashedPassword,
+      };
+      
+      const user = await storage.createUser(userWithHashedPassword);
+      res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao criar usuário" });
+    }
+  });
+  
+  // Forgot password route
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "E-mail é obrigatório" });
+      }
+      
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists for security
+        return res.json({ message: "Se o e-mail existir, você receberá instruções de redefinição" });
+      }
+      
+      // Generate reset token
+      const resetToken = randomBytes(32).toString('hex');
+      const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+      
+      await storage.updateUser(user.id, {
+        resetToken,
+        resetTokenExpiry,
+      });
+      
+      // In a real app, you'd send an email here
+      // For demo purposes, we'll return the token
+      res.json({ 
+        message: "Token de redefinição gerado",
+        resetToken // Remove this in production!
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+  
+  // Reset password route
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: "Token e nova senha são obrigatórios" });
+      }
+      
+      const user = await storage.getUserByResetToken(token);
+      if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).json({ message: "Token inválido ou expirado" });
+      }
+      
+      // Hash new password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      });
+      
+      res.json({ message: "Senha redefinida com sucesso" });
+    } catch (error) {
+      res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
+  // User management routes (for admin)
+  app.post("/api/users", async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      
+      // Check if username already exists
+      const existingByUsername = await storage.getUserByUsername(userData.username);
+      if (existingByUsername) {
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+
+      // Check if email already exists
+      const existingByEmail = await storage.getUserByEmail(userData.email);
+      if (existingByEmail) {
+        return res.status(400).json({ message: "E-mail já cadastrado" });
+      }
+
+      // Hash password
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      
+      const userWithHashedPassword = {
+        ...userData,
+        password: hashedPassword,
+      };
+      
+      const user = await storage.createUser(userWithHashedPassword);
+      res.json({ ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
       res.status(400).json({ message: "Erro ao criar usuário" });
     }

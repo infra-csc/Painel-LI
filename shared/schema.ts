@@ -12,6 +12,9 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: text("role").notNull(), // admin, production, function_area, purchasing, financial
   area: text("area"), // area responsável
+  resetToken: text("reset_token"), // token for password reset
+  resetTokenExpiry: timestamp("reset_token_expiry"), // expiry for reset token
+  isActive: boolean("is_active").default(true), // account status
   createdAt: timestamp("created_at").defaultNow(),
 });
 

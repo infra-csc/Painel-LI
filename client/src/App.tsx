@@ -11,7 +11,8 @@ import Tickets from "@/pages/tickets";
 import Closure from "@/pages/closure";
 import Approval from "@/pages/approval";
 import Consultation from "@/pages/consultation";
-import Login from "@/pages/login";
+import AuthPage from "@/pages/auth-page";
+import ResetPasswordPage from "@/pages/reset-password-page";
 import UserRegistration from "@/pages/user-registration";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,21 +28,31 @@ function Router() {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
-
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/team-inclusion" component={TeamInclusion} />
-      <Route path="/scaling" component={Scaling} />
-      <Route path="/tickets" component={Tickets} />
-      <Route path="/closure" component={Closure} />
-      <Route path="/approval" component={Approval} />
-      <Route path="/consultation" component={Consultation} />
-      <Route path="/user-registration" component={UserRegistration} />
-      <Route component={NotFound} />
+      {/* Public routes */}
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
+      
+      {/* Protected routes */}
+      {user ? (
+        <>
+          <Route path="/" component={Dashboard} />
+          <Route path="/team-inclusion" component={TeamInclusion} />
+          <Route path="/scaling" component={Scaling} />
+          <Route path="/tickets" component={Tickets} />
+          <Route path="/closure" component={Closure} />
+          <Route path="/approval" component={Approval} />
+          <Route path="/consultation" component={Consultation} />
+          <Route path="/user-registration" component={UserRegistration} />
+          <Route component={NotFound} />
+        </>
+      ) : (
+        <>
+          <Route path="/" component={AuthPage} />
+          <Route component={AuthPage} />
+        </>
+      )}
     </Switch>
   );
 }
