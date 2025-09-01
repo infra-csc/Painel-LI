@@ -380,9 +380,9 @@ export default function Closure() {
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
                                 value={data.actualDailyRatesCount || ""}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRatesCount", e.target.value)}
+                                readOnly
                                 data-testid={`input-daily-rates-count-${inclusion.id}`}
-                                className="bg-muted/30"
+                                className="bg-muted/50 cursor-not-allowed"
                               />
                               {data.actualStartDate && data.actualEndDate && (
                                 <p className="text-xs text-muted-foreground mt-1">
