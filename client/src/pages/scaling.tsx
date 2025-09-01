@@ -117,14 +117,11 @@ export default function Scaling() {
 
   const calculateProgress = (inclusion: TeamInclusion) => {
     let completed = 0;
-    let total = 2; // collaborator + save action
+    let total = 1; // Only the escalation action matters
     
-    // Check if collaborator is assigned
-    if (inclusion.collaboratorId) completed++;
-    
-    // Check if already escalated (saved)
-    if (inclusion.status === "escalacao" || inclusion.status === "passagem" || inclusion.status === "fechamento" || inclusion.status === "aprovacao" || inclusion.status === "aprovado") {
-      completed++;
+    // Check if escalation is complete (collaborator assigned and confirmed)
+    if (inclusion.collaboratorId && (inclusion.status === "escalacao" || inclusion.status === "passagem" || inclusion.status === "fechamento" || inclusion.status === "aprovacao" || inclusion.status === "aprovado")) {
+      completed = 1;
     }
     
     return { completed, total };
