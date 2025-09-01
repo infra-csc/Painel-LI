@@ -285,7 +285,6 @@ export default function Scaling() {
                             )}
                             <Textarea
                               rows={2}
-                              placeholder="Nova observação da escalação..."
                               value={observations[inclusion.id] || ""}
                               onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
                               disabled={inclusion.status === "escalacao"}
