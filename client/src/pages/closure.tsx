@@ -199,7 +199,8 @@ export default function Closure() {
       // First create the financial record
       await createFinancialMutation.mutateAsync({
         teamInclusionId: inclusion.id,
-        actualDailyRates: Math.round(parseFloat(data.actualDailyRates) * 100), // Convert to cents and round
+        actualDailyRates: parseInt(data.actualDailyRatesCount || "0"), // Quantity of daily rates
+        actualValue: Math.round(parseFloat(data.actualDailyRates) * 100), // Total value in cents
         actualFee: 0, // Fee field removed as per user request
         observations: data.observations || null
       });

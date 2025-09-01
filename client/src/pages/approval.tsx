@@ -155,9 +155,9 @@ export default function Approval() {
     const ticket = getTicket(inclusion.id);
     const financial = getFinancial(inclusion.id);
     const ticketValue = ticket?.value || 0;
-    const dailyRatesValue = financial?.actualDailyRates || 0;
+    const dailyRatesValue = financial?.actualValue || 0;
     const feeValue = financial?.actualFee || 0;
-    return ticketValue + dailyRatesValue + feeValue;
+    return (ticketValue + dailyRatesValue + feeValue) / 100; // Convert from cents to reals
   };
 
   const handleInclusionSelect = (inclusionId: string, checked: boolean) => {
@@ -405,21 +405,21 @@ export default function Approval() {
                       ).reduce((total, inclusion) => {
                         const financial = getFinancial(inclusion.id);
                         const ticket = getTicket(inclusion.id);
-                        return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
-                      }, 0))}
+                        return total + (financial?.actualValue || 0) + (ticket?.value || 0);
+                      }, 0) / 100)}
                     </div>
                     <div className="text-muted-foreground">Total Realizado</div>
                   </div>
                   <div className="text-center">
                     <div className={`text-2xl font-bold ${
-                      ((selectedInclusions.size > 0 ? 
+                      (((selectedInclusions.size > 0 ? 
                         approvalInclusions.filter(inc => selectedInclusions.has(inc.id)) : 
                         approvalInclusions
                       ).reduce((total, inclusion) => {
                         const financial = getFinancial(inclusion.id);
                         const ticket = getTicket(inclusion.id);
-                        return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
-                      }, 0)) - ((selectedInclusions.size > 0 ? 
+                        return total + (financial?.actualValue || 0) + (ticket?.value || 0);
+                      }, 0)) / 100) - ((selectedInclusions.size > 0 ? 
                         approvalInclusions.filter(inc => selectedInclusions.has(inc.id)) : 
                         approvalInclusions
                       ).reduce((total, inclusion) => 
@@ -427,14 +427,14 @@ export default function Approval() {
                       )) >= 0 ? 'text-red-600' : 'text-green-600'
                     }`}>
                       {formatCurrency(
-                        ((selectedInclusions.size > 0 ? 
+                        (((selectedInclusions.size > 0 ? 
                           approvalInclusions.filter(inc => selectedInclusions.has(inc.id)) : 
                           approvalInclusions
                         ).reduce((total, inclusion) => {
                           const financial = getFinancial(inclusion.id);
                           const ticket = getTicket(inclusion.id);
-                          return total + (financial?.actualDailyRates || 0) + (ticket?.value || 0);
-                        }, 0)) - ((selectedInclusions.size > 0 ? 
+                          return total + (financial?.actualValue || 0) + (ticket?.value || 0);
+                        }, 0)) / 100) - ((selectedInclusions.size > 0 ? 
                           approvalInclusions.filter(inc => selectedInclusions.has(inc.id)) : 
                           approvalInclusions
                         ).reduce((total, inclusion) => 
