@@ -1,14 +1,17 @@
 import { randomUUID } from "crypto";
-import type {
-  User, InsertUser,
-  Event, InsertEvent,
-  Function, InsertFunction,
-  Collaborator, InsertCollaborator,
-  TeamInclusion, InsertTeamInclusion,
-  Ticket, InsertTicket,
-  Financial, InsertFinancial,
-  Comment, InsertComment
+import { db } from "./db";
+import { 
+  users, events, functions, collaborators, teamInclusions, tickets, financial, comments,
+  type User, type InsertUser,
+  type Event, type InsertEvent,
+  type Function, type InsertFunction,
+  type Collaborator, type InsertCollaborator,
+  type TeamInclusion, type InsertTeamInclusion,
+  type Ticket, type InsertTicket,
+  type Financial, type InsertFinancial,
+  type Comment, type InsertComment
 } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -355,4 +358,172 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database storage implementation using PostgreSQL + Drizzle
+export class DatabaseStorage implements IStorage {
+  // Users
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.resetToken, token));
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  // Events
+  async getEvents(): Promise<Event[]> {
+    return await db.select().from(events);
+  }
+
+  async getEvent(id: string): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event;
+  }
+
+  async createEvent(eventData: InsertEvent): Promise<Event> {
+    const [event] = await db.insert(events).values(eventData).returning();
+    return event;
+  }
+
+  async updateEvent(id: string, eventData: Partial<InsertEvent>): Promise<Event> {
+    const [event] = await db.update(events).set(eventData).where(eq(events.id, id)).returning();
+    return event;
+  }
+
+  // Functions
+  async getFunctions(): Promise<Function[]> {
+    return await db.select().from(functions);
+  }
+
+  async getFunction(id: string): Promise<Function | undefined> {
+    const [func] = await db.select().from(functions).where(eq(functions.id, id));
+    return func;
+  }
+
+  async createFunction(functionData: InsertFunction): Promise<Function> {
+    const [func] = await db.insert(functions).values(functionData).returning();
+    return func;
+  }
+
+  async updateFunction(id: string, functionData: Partial<InsertFunction>): Promise<Function> {
+    const [func] = await db.update(functions).set(functionData).where(eq(functions.id, id)).returning();
+    return func;
+  }
+
+  // Collaborators
+  async getCollaborators(): Promise<Collaborator[]> {
+    return await db.select().from(collaborators);
+  }
+
+  async getCollaborator(id: string): Promise<Collaborator | undefined> {
+    const [collaborator] = await db.select().from(collaborators).where(eq(collaborators.id, id));
+    return collaborator;
+  }
+
+  async createCollaborator(collaboratorData: InsertCollaborator): Promise<Collaborator> {
+    const [collaborator] = await db.insert(collaborators).values(collaboratorData).returning();
+    return collaborator;
+  }
+
+  async updateCollaborator(id: string, collaboratorData: Partial<InsertCollaborator>): Promise<Collaborator> {
+    const [collaborator] = await db.update(collaborators).set(collaboratorData).where(eq(collaborators.id, id)).returning();
+    return collaborator;
+  }
+
+  // Team Inclusions
+  async getTeamInclusions(): Promise<TeamInclusion[]> {
+    return await db.select().from(teamInclusions);
+  }
+
+  async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
+    const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    return inclusion;
+  }
+
+  async createTeamInclusion(inclusionData: InsertTeamInclusion): Promise<TeamInclusion> {
+    const [inclusion] = await db.insert(teamInclusions).values(inclusionData).returning();
+    return inclusion;
+  }
+
+  async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
+    const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning();
+    return inclusion;
+  }
+
+  // Tickets
+  async getTickets(): Promise<Ticket[]> {
+    return await db.select().from(tickets);
+  }
+
+  async getTicket(id: string): Promise<Ticket | undefined> {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id));
+    return ticket;
+  }
+
+  async createTicket(ticketData: InsertTicket): Promise<Ticket> {
+    const [ticket] = await db.insert(tickets).values(ticketData).returning();
+    return ticket;
+  }
+
+  async updateTicket(id: string, ticketData: Partial<InsertTicket>): Promise<Ticket> {
+    const [ticket] = await db.update(tickets).set(ticketData).where(eq(tickets.id, id)).returning();
+    return ticket;
+  }
+
+  // Financial
+  async getFinancials(): Promise<Financial[]> {
+    return await db.select().from(financial);
+  }
+
+  async getFinancial(id: string): Promise<Financial | undefined> {
+    const [fin] = await db.select().from(financial).where(eq(financial.id, id));
+    return fin;
+  }
+
+  async createFinancial(financialData: InsertFinancial): Promise<Financial> {
+    const [fin] = await db.insert(financial).values(financialData).returning();
+    return fin;
+  }
+
+  async updateFinancial(id: string, financialData: Partial<InsertFinancial>): Promise<Financial> {
+    const [fin] = await db.update(financial).set(financialData).where(eq(financial.id, id)).returning();
+    return fin;
+  }
+
+  // Comments
+  async getComments(teamInclusionId: string): Promise<Comment[]> {
+    return await db.select().from(comments).where(eq(comments.teamInclusionId, teamInclusionId));
+  }
+
+  async createComment(commentData: InsertComment): Promise<Comment> {
+    const [comment] = await db.insert(comments).values(commentData).returning();
+    return comment;
+  }
+}
+
+export const storage = new DatabaseStorage();
