@@ -51,19 +51,8 @@ export default function Closure() {
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Fechamento financeiro registrado com sucesso",
-      });
       queryClient.invalidateQueries({ queryKey: ["/api/financial"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Erro ao registrar fechamento financeiro",
-        variant: "destructive",
-      });
     },
   });
 
@@ -132,7 +121,7 @@ export default function Closure() {
     }));
   };
 
-  const handleFinancialClosure = (inclusion: TeamInclusion) => {
+  const handleFinancialClosure = async (inclusion: TeamInclusion) => {
     const data = financialData[inclusion.id] || {};
     
     if (!data.actualDailyRates) {
@@ -144,21 +133,44 @@ export default function Closure() {
       return;
     }
 
-    createFinancialMutation.mutate({
-      teamInclusionId: inclusion.id,
-      actualDailyRates: parseFloat(data.actualDailyRates),
-      actualFee: 0, // Fee field removed as per user request
-      observations: data.observations || null
-    });
+    try {
+      // First create the financial record
+      await createFinancialMutation.mutateAsync({
+        teamInclusionId: inclusion.id,
+        actualDailyRates: parseFloat(data.actualDailyRates),
+        actualFee: 0, // Fee field removed as per user request
+        observations: data.observations || null
+      });
 
-    // Update team inclusion status to approval phase
-    updateTeamInclusionMutation.mutate({
-      id: inclusion.id,
-      data: {
-        status: "aprovacao",
-        phase: "aprovacao"
-      }
-    });
+      // Then update team inclusion status to approval phase
+      await updateTeamInclusionMutation.mutateAsync({
+        id: inclusion.id,
+        data: {
+          status: "aprovacao",
+          phase: "aprovacao"
+        }
+      });
+
+      // Show success message only if both operations succeed
+      toast({
+        title: "Sucesso",
+        description: "Fechamento financeiro registrado com sucesso",
+      });
+
+      // Clear the form data for this inclusion
+      setFinancialData(prev => {
+        const newData = { ...prev };
+        delete newData[inclusion.id];
+        return newData;
+      });
+
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao registrar fechamento financeiro",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {

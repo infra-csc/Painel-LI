@@ -430,10 +430,20 @@ export default function Consultation() {
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Período</label>
                             <div className="text-sm">
-                              {inclusion.actualStartDate 
-                                ? `${formatDate(inclusion.actualStartDate)} - ${formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}`
-                                : (financialRecord ? "Período em fechamento" : "Não informado")
-                              }
+                              {(() => {
+                                // Se há datas reais definidas, usar essas datas
+                                if (inclusion.actualStartDate && inclusion.actualEndDate) {
+                                  return `${formatDate(inclusion.actualStartDate)} - ${formatDate(inclusion.actualEndDate)}`;
+                                }
+                                // Se há dados financeiros mas não há datas reais, usar datas planejadas
+                                else if (financialRecord) {
+                                  return `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`;
+                                }
+                                // Se não há nada, mostrar "Não informado"
+                                else {
+                                  return "Não informado";
+                                }
+                              })()}
                             </div>
                           </div>
                           <div>
@@ -442,6 +452,7 @@ export default function Consultation() {
                               {financialRecord ? (
                                 <span className="font-medium text-green-600">
                                   {(() => {
+                                    // Se há datas reais definidas, calcular com essas datas
                                     if (inclusion.actualStartDate && inclusion.actualEndDate) {
                                       const startDate = new Date(inclusion.actualStartDate);
                                       const endDate = new Date(inclusion.actualEndDate);
@@ -450,10 +461,13 @@ export default function Consultation() {
                                       const dailyValue = (financialRecord.actualDailyRates || 0) / actualDays;
                                       return `${actualDays} × ${formatCurrency(dailyValue)}`;
                                     } else {
-                                      // Se não há datas, usar os dados financeiros diretamente
-                                      const estimatedDays = inclusion.dailyRates;
-                                      const dailyValue = (financialRecord.actualDailyRates || 0) / estimatedDays;
-                                      return `${estimatedDays} × ${formatCurrency(dailyValue)}`;
+                                      // Se há dados financeiros mas não há datas reais, usar datas planejadas para cálculo
+                                      const startDate = new Date(inclusion.scheduleStartDate);
+                                      const endDate = new Date(inclusion.scheduleEndDate);
+                                      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                                      const plannedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                      const dailyValue = (financialRecord.actualDailyRates || 0) / plannedDays;
+                                      return `${plannedDays} × ${formatCurrency(dailyValue)}`;
                                     }
                                   })()}
                                 </span>
@@ -542,9 +556,17 @@ export default function Consultation() {
                         <span className="text-sm">Quantidade de Diárias:</span>
                         <span className="font-medium text-blue-600">
                           {(() => {
+                            // Se há datas reais definidas, usar essas datas
                             if (inclusion.actualStartDate && inclusion.actualEndDate) {
                               const startDate = new Date(inclusion.actualStartDate);
                               const endDate = new Date(inclusion.actualEndDate);
+                              const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                              return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                            }
+                            // Se há dados financeiros mas não há datas reais, usar datas planejadas
+                            else if (financialRecord) {
+                              const startDate = new Date(inclusion.scheduleStartDate);
+                              const endDate = new Date(inclusion.scheduleEndDate);
                               const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
                               return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
                             }
