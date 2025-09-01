@@ -138,13 +138,16 @@ export default function Consultation() {
     // Se foi aprovado, usar valores reais; senão usar valores planejados
     if (inclusion.status === "aprovado") {
       const ticketValue = ticket?.value || 0;
-      const dailyRatesValue = financialRecord?.actualDailyRates || 0;
+      // Calculate daily value: use actualDailyRates * dailyValue if available, otherwise use actualValue
+      const dailyRatesValue = financialRecord?.actualDailyRates 
+        ? financialRecord.actualDailyRates * (inclusion.dailyValue || 0)
+        : financialRecord?.actualValue || 0;
       const feeValue = financialRecord?.actualFee || 0;
-      return ticketValue + dailyRatesValue + feeValue;
+      return (ticketValue + dailyRatesValue + feeValue) / 100;
     } else {
       // Valores planejados
       const plannedDailyValue = ((inclusion.dailyValue || 0) * inclusion.dailyRates) / 100;
-      const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) : 0;
+      const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) / 100 : 0;
       return plannedDailyValue + plannedTicketValue;
     }
   };
@@ -558,16 +561,22 @@ export default function Consultation() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Diárias Realizadas</label>
-                          <div className="text-lg font-medium">{formatCurrency(financialRecord.actualDailyRates || 0)}</div>
+                          <div className="text-lg font-medium">{formatCurrency(
+                            financialRecord.actualDailyRates 
+                              ? financialRecord.actualDailyRates * (inclusion.dailyValue / 100)
+                              : (financialRecord.actualValue || 0) / 100
+                          )}</div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Taxa Realizada</label>
-                          <div className="text-lg font-medium">{formatCurrency(financialRecord.actualFee || 0)}</div>
+                          <div className="text-lg font-medium">{formatCurrency((financialRecord.actualFee || 0) / 100)}</div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Total Financeiro</label>
                           <div className="text-lg font-medium text-green-600">
-                            {formatCurrency((financialRecord.actualDailyRates || 0) + (financialRecord.actualFee || 0))}
+                            {formatCurrency(((financialRecord.actualDailyRates 
+                              ? financialRecord.actualDailyRates * (inclusion.dailyValue / 100)
+                              : (financialRecord.actualValue || 0) / 100) + ((financialRecord.actualFee || 0) / 100)))}
                           </div>
                         </div>
                       </div>
@@ -591,7 +600,7 @@ export default function Consultation() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Valor da Passagem</label>
-                          <div className="text-lg font-medium text-blue-600">{formatCurrency(ticket.value || 0)}</div>
+                          <div className="text-lg font-medium text-blue-600">{formatCurrency((ticket.value || 0) / 100)}</div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Data de Compra</label>
@@ -633,15 +642,19 @@ export default function Consultation() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Valor das Diárias:</span>
-                        <span className="font-medium">{formatCurrency(financialRecord?.actualDailyRates || (inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
+                        <span className="font-medium">{formatCurrency(
+                          financialRecord?.actualDailyRates 
+                            ? financialRecord.actualDailyRates * (inclusion.dailyValue / 100)
+                            : (inclusion.dailyValue / 100) * inclusion.dailyRates
+                        )}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Taxa:</span>
-                        <span className="font-medium">{formatCurrency(financialRecord?.actualFee || 0)}</span>
+                        <span className="font-medium">{formatCurrency((financialRecord?.actualFee || 0) / 100)}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Passagem:</span>
-                        <span className="font-medium">{formatCurrency(ticket?.value || 0)}</span>
+                        <span className="font-medium">{formatCurrency((ticket?.value || 0) / 100)}</span>
                       </div>
                       <div className="border-t pt-2 flex justify-between items-center">
                         <span className="font-medium">Total Geral:</span>
