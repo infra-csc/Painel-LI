@@ -247,7 +247,7 @@ export default function Scaling() {
                               onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
                               disabled={inclusion.status === "escalacao"}
                             >
-                              <SelectTrigger className="flex-1 min-w-[180px]" data-testid={`select-collaborator-${inclusion.id}`}>
+                              <SelectTrigger className="flex-1 min-w-[220px]" data-testid={`select-collaborator-${inclusion.id}`}>
                                 <SelectValue placeholder="Selecione colaborador" />
                               </SelectTrigger>
                               <SelectContent>
@@ -383,7 +383,7 @@ export default function Scaling() {
                                     onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
                                     disabled={inclusion.status === "escalacao"}
                                   >
-                                    <SelectTrigger className="flex-1 min-w-[180px]" data-testid={`select-collaborator-${inclusion.id}`}>
+                                    <SelectTrigger className="flex-1 min-w-[220px]" data-testid={`select-collaborator-${inclusion.id}`}>
                                       <SelectValue placeholder="Selecione o colaborador" />
                                     </SelectTrigger>
                                     <SelectContent>
