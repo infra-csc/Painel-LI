@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
+import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import { Calculator, Save, DollarSign, Plus } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
@@ -154,6 +155,20 @@ export default function Closure() {
     });
   };
 
+  const calculateProgress = (inclusion: TeamInclusion) => {
+    const data = financialData[inclusion.id] || {};
+    let completed = 0;
+    let total = 4; // start date, end date, daily count, daily value
+    
+    // Check required fields
+    if (data.actualStartDate) completed++;
+    if (data.actualEndDate) completed++;
+    if (data.actualDailyRatesCount) completed++;
+    if (data.actualDailyRates) completed++;
+    
+    return { completed, total };
+  };
+
   const handleFinancialClosure = async (inclusion: TeamInclusion) => {
     const data = financialData[inclusion.id] || {};
     
@@ -283,7 +298,15 @@ export default function Closure() {
                             Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
                         </div>
-                        <StatusBadge status={inclusion.status} />
+                        <div className="space-y-2">
+                          <StatusBadge status={inclusion.status} />
+                          <ProgressIndicator 
+                            completed={calculateProgress(inclusion).completed}
+                            total={calculateProgress(inclusion).total}
+                            status={inclusion.status}
+                            className="max-w-xs"
+                          />
+                        </div>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

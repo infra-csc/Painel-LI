@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
+import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import { CheckCircle, XCircle, FileCheck, Filter } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
@@ -112,6 +113,28 @@ export default function Approval() {
 
   const getFinancial = (inclusionId: string) => {
     return financials?.find(financial => financial.teamInclusionId === inclusionId);
+  };
+
+  const calculateProgress = (inclusion: TeamInclusion) => {
+    let completed = 0;
+    let total = 3; // collaborator, financial data, ticket (if needed)
+    
+    // Check if collaborator is assigned
+    if (inclusion.collaboratorId) completed++;
+    
+    // Check if financial data exists
+    const financial = getFinancial(inclusion.id);
+    if (financial) completed++;
+    
+    // Check if ticket exists (only count if ticket is needed)
+    if (inclusion.needsTicket) {
+      const ticket = getTicket(inclusion.id);
+      if (ticket) completed++;
+    } else {
+      total--; // Don't count ticket if not needed
+    }
+    
+    return { completed, total };
   };
 
   const getTotalValue = (inclusion: TeamInclusion) => {
@@ -596,7 +619,15 @@ export default function Approval() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={inclusion.status} />
+                          <div className="space-y-2">
+                            <StatusBadge status={inclusion.status} />
+                            <ProgressIndicator 
+                              completed={calculateProgress(inclusion).completed}
+                              total={calculateProgress(inclusion).total}
+                              status={inclusion.status}
+                              className="max-w-xs"
+                            />
+                          </div>
                         </td>
                       </tr>
                     );

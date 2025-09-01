@@ -6,15 +6,19 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const getStatusClass = (status: string) => {
     switch (status) {
       case "planejado":
-        return "status-planejado";
+        return "status-planejado"; // Vermelho - ainda não iniciado
       case "escalacao":
-        return "status-escalacao";
+        return "status-escalacao"; // Amarelo - em andamento
       case "passagem":
-        return "status-passagem";
+        return "status-passagem"; // Amarelo - em andamento
       case "fechamento":
-        return "status-fechamento";
+        return "status-fechamento"; // Amarelo - em andamento
+      case "aprovacao":
+        return "status-aprovacao"; // Amarelo - em andamento
       case "aprovado":
-        return "status-aprovado";
+        return "status-aprovado"; // Verde - completo
+      case "rejeitado":
+        return "status-rejeitado"; // Vermelho - erro/problema
       default:
         return "status-planejado";
     }
@@ -30,8 +34,12 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Aguardando Passagem";
       case "fechamento":
         return "Fechamento";
+      case "aprovacao":
+        return "Aguardando Aprovação";
       case "aprovado":
         return "Aprovado";
+      case "rejeitado":
+        return "Rejeitado";
       default:
         return "Planejado";
     }
