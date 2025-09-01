@@ -189,6 +189,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update user profile route
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      // If updating password, verify current password and hash new one
+      if (updateData.newPassword) {
+        if (!updateData.currentPassword) {
+          return res.status(400).json({ message: "Senha atual é obrigatória para alterar senha" });
+        }
+        
+        const user = await storage.getUser(id);
+        if (!user) {
+          return res.status(404).json({ message: "Usuário não encontrado" });
+        }
+        
+        const isValidPassword = await bcrypt.compare(updateData.currentPassword, user.password);
+        if (!isValidPassword) {
+          return res.status(400).json({ message: "Senha atual incorreta" });
+        }
+        
+        // Hash new password
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(updateData.newPassword, saltRounds);
+        updateData.password = hashedPassword;
+      }
+      
+      // Remove password-related fields that shouldn't be stored
+      const { currentPassword, newPassword, confirmPassword, ...profileData } = updateData;
+      
+      // Check if username/email are unique (if being updated)
+      if (profileData.username) {
+        const existingByUsername = await storage.getUserByUsername(profileData.username);
+        if (existingByUsername && existingByUsername.id !== id) {
+          return res.status(400).json({ message: "Nome de usuário já existe" });
+        }
+      }
+      
+      if (profileData.email) {
+        const existingByEmail = await storage.getUserByEmail(profileData.email);
+        if (existingByEmail && existingByEmail.id !== id) {
+          return res.status(400).json({ message: "E-mail já está em uso" });
+        }
+      }
+      
+      const updatedUser = await storage.updateUser(id, profileData);
+      res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao atualizar usuário" });
+    }
+  });
+
   // Events routes
   app.get("/api/events", async (req, res) => {
     try {
