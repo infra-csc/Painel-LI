@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import { Plus, User, Save } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
@@ -307,14 +306,7 @@ export default function Scaling() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="space-y-2">
-                            <StatusBadge status={inclusion.status} />
-                            <ProgressIndicator 
-                              completed={calculateProgress(inclusion).completed}
-                              total={calculateProgress(inclusion).total}
-                              status={inclusion.status}
-                            />
-                          </div>
+                          <StatusBadge status={inclusion.status} />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           {inclusion.status === "planejado" && (
@@ -443,14 +435,7 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="space-y-2">
-                                  <StatusBadge status={inclusion.status} />
-                                  <ProgressIndicator 
-                                    completed={calculateProgress(inclusion).completed}
-                                    total={calculateProgress(inclusion).total}
-                                    status={inclusion.status}
-                                  />
-                                </div>
+                                <StatusBadge status={inclusion.status} />
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right">
                                 {inclusion.status === "planejado" && (

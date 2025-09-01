@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import { ProgressIndicator } from "@/components/ui/progress-indicator";
 import { CheckCircle, XCircle, FileCheck, Filter } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
@@ -619,15 +618,7 @@ export default function Approval() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="space-y-2">
-                            <StatusBadge status={inclusion.status} />
-                            <ProgressIndicator 
-                              completed={calculateProgress(inclusion).completed}
-                              total={calculateProgress(inclusion).total}
-                              status={inclusion.status}
-                              className="max-w-xs"
-                            />
-                          </div>
+                          <StatusBadge status={inclusion.status} />
                         </td>
                       </tr>
                     );
