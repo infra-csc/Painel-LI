@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import type { Event, Function } from "@shared/schema";
 
 const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
@@ -20,6 +21,8 @@ const collaboratorSchema = z.object({
   city: z.string().min(1, "Cidade é obrigatória"),
   actualStartDate: z.string().optional(),
   actualEndDate: z.string().optional(),
+  eventId: z.string().optional(),
+  functionId: z.string().optional(),
 });
 
 type CollaboratorFormData = z.infer<typeof collaboratorSchema>;
@@ -37,6 +40,17 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Buscar eventos e funções para seleção (apenas para colaboradores emergenciais)
+  const { data: events } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+    enabled: isEmergency,
+  });
+
+  const { data: functions } = useQuery<Function[]>({
+    queryKey: ["/api/functions"],
+    enabled: isEmergency,
+  });
+
   const form = useForm<CollaboratorFormData>({
     resolver: zodResolver(collaboratorSchema),
     defaultValues: {
@@ -49,6 +63,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       city: "",
       actualStartDate: "",
       actualEndDate: "",
+      eventId: "",
+      functionId: "",
     },
   });
 
@@ -63,57 +79,15 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       const collaborator = await response.json();
       
       // Se for colaborador emergencial, criar também um registro de inclusão de equipe
-      if (isEmergency && data.actualStartDate && data.actualEndDate) {
+      if (isEmergency && data.actualStartDate && data.actualEndDate && data.eventId && data.functionId) {
         const startDate = new Date(data.actualStartDate);
         const endDate = new Date(data.actualEndDate);
         const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
         const dailyRates = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         
-        // Primeiro, tentar obter eventos e funções existentes
-        let eventId, functionId;
-        
-        try {
-          const eventsResponse = await apiRequest("GET", "/api/events");
-          const events = await eventsResponse.json();
-          
-          const functionsResponse = await apiRequest("GET", "/api/functions");
-          const functions = await functionsResponse.json();
-          
-          // Buscar ou criar evento emergencial
-          let emergencyEvent = events.find((e: any) => e.name === "Trabalho Emergencial");
-          if (!emergencyEvent) {
-            const eventResponse = await apiRequest("POST", "/api/events", {
-              name: "Trabalho Emergencial",
-              location: "Diversos",
-              startDate: data.actualStartDate,
-              endDate: data.actualEndDate,
-              status: "ativo",
-              description: "Evento padrão para registros emergenciais"
-            });
-            emergencyEvent = await eventResponse.json();
-          }
-          eventId = emergencyEvent.id;
-          
-          // Buscar ou criar função emergencial
-          let emergencyFunction = functions.find((f: any) => f.name === "Trabalho Emergencial");
-          if (!emergencyFunction) {
-            const functionResponse = await apiRequest("POST", "/api/functions", {
-              name: "Trabalho Emergencial",
-              description: "Função padrão para registros emergenciais",
-              quantity: 1
-            });
-            emergencyFunction = await functionResponse.json();
-          }
-          functionId = emergencyFunction.id;
-          
-        } catch (error) {
-          console.error("Erro ao obter/criar evento/função emergencial:", error);
-          throw new Error("Erro ao configurar registros emergenciais");
-        }
-        
         const teamInclusionData = {
-          eventId: eventId,
-          functionId: functionId,
+          eventId: data.eventId,
+          functionId: data.functionId,
           collaboratorId: collaborator.id,
           area: defaultArea || "Emergencial",
           scheduleStartDate: data.actualStartDate,
@@ -321,7 +295,62 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
             
             {isEmergency && (
               <div className="border-t pt-4 mt-4">
-                <h4 className="font-medium text-foreground mb-3">Período de Trabalho Emergencial</h4>
+                <h4 className="font-medium text-foreground mb-3">Informações do Trabalho Emergencial</h4>
+                
+                {/* Seleção de Evento e Função */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <FormField
+                    control={form.control}
+                    name="eventId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Evento *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-emergency-event">
+                              <SelectValue placeholder="Selecione o evento" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {events?.map((event) => (
+                              <SelectItem key={event.id} value={event.id}>
+                                {event.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="functionId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Função *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-emergency-function">
+                              <SelectValue placeholder="Selecione a função" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {functions?.map((func) => (
+                              <SelectItem key={func.id} value={func.id}>
+                                {func.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                {/* Período de Trabalho */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
