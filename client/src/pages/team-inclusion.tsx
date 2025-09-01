@@ -3,7 +3,6 @@ import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import TeamInclusionForm from "@/components/forms/team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
-import DashboardSummary from "@/components/common/dashboard-summary";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -37,7 +36,6 @@ export default function TeamInclusion() {
           <TeamInclusionTable />
         </div>
         
-        <DashboardSummary />
       </div>
     </div>
   );
