@@ -248,7 +248,7 @@ export default function Scaling() {
                               disabled={inclusion.status === "escalacao"}
                             >
                               <SelectTrigger className="flex-1 min-w-[180px]" data-testid={`select-collaborator-${inclusion.id}`}>
-                                <SelectValue placeholder="Selecione Colaborador" />
+                                <SelectValue placeholder="Selecione o colaborador" />
                               </SelectTrigger>
                               <SelectContent>
                                 {collaborators?.map((collaborator) => (
