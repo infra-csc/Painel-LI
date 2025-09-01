@@ -424,35 +424,50 @@ export default function Consultation() {
                         </div>
                       </div>
                       
-                      {inclusion.actualStartDate && (
-                        <div>
-                          <h4 className="font-medium text-green-600 mb-2">Realizado</h4>
-                          <div className="space-y-2">
-                            <div>
-                              <label className="text-sm font-medium text-muted-foreground">Período</label>
-                              <div className="text-sm">{formatDate(inclusion.actualStartDate)} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}</div>
+                      <div>
+                        <h4 className="font-medium text-green-600 mb-2">Realizado</h4>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Período</label>
+                            <div className="text-sm">
+                              {inclusion.actualStartDate 
+                                ? `${formatDate(inclusion.actualStartDate)} - ${formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}`
+                                : "Não informado"
+                              }
                             </div>
-                            <div>
-                              <label className="text-sm font-medium text-muted-foreground">Quantidade de Diárias</label>
-                              <div className="text-sm font-medium text-green-600">
-                                {(() => {
-                                  if (inclusion.actualStartDate && inclusion.actualEndDate) {
-                                    const startDate = new Date(inclusion.actualStartDate);
-                                    const endDate = new Date(inclusion.actualEndDate);
-                                    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                                    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                  }
-                                  return inclusion.dailyRates;
-                                })()} diárias realizadas
-                              </div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Diárias</label>
+                            <div className="text-sm">
+                              {inclusion.actualStartDate ? (
+                                <span className="font-medium text-green-600">
+                                  {(() => {
+                                    if (inclusion.actualStartDate && inclusion.actualEndDate) {
+                                      const startDate = new Date(inclusion.actualStartDate);
+                                      const endDate = new Date(inclusion.actualEndDate);
+                                      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                                      const actualDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                      return `${actualDays} × ${formatCurrency((financialRecord?.actualDailyRates || 0) / actualDays)}`;
+                                    }
+                                    return `${inclusion.dailyRates} × ${formatCurrency(inclusion.dailyValue / 100)}`;
+                                  })()}
+                                </span>
+                              ) : (
+                                "Aguardando execução"
+                              )}
                             </div>
-                            <div>
-                              <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
-                              <div className="text-sm font-medium">{formatCurrency(financialRecord?.actualDailyRates || 0)}</div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
+                            <div className="text-sm font-medium">
+                              {inclusion.actualStartDate 
+                                ? formatCurrency(financialRecord?.actualDailyRates || 0)
+                                : "R$ 0,00"
+                              }
                             </div>
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
