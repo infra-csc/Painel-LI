@@ -30,7 +30,6 @@ const profileSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("E-mail inválido"),
   username: z.string().min(3, "Usuário deve ter pelo menos 3 caracteres"),
-  area: z.string().optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
@@ -73,7 +72,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       name: user?.name || "",
       email: user?.email || "",
       username: user?.username || "",
-      area: user?.area || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -97,7 +95,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
         name: updatedUser.name,
         email: updatedUser.email,
         username: updatedUser.username,
-        area: updatedUser.area,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -127,7 +124,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       name: user?.name || "",
       email: user?.email || "",
       username: user?.username || "",
-      area: user?.area || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -137,11 +133,11 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]" data-testid="modal-profile-edit">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto" data-testid="modal-profile-edit">
         <DialogHeader>
           <DialogTitle>Editar Dados Pessoais</DialogTitle>
           <DialogDescription>
-            Atualize suas informações pessoais. Permissões e área de acesso não podem ser alteradas.
+            Atualize suas informações pessoais básicas. Permissões não podem ser alteradas.
           </DialogDescription>
         </DialogHeader>
         
@@ -203,23 +199,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Área Específica (opcional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ex: Som, Iluminação, Cenografia..."
-                        data-testid="input-area"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <div className="border-t pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3">Alterar Senha (opcional)</h4>
