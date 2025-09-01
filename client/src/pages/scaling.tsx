@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
-import { Plus, User, Save } from "lucide-react";
+import { Plus, User, Save, Search, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 
 export default function Scaling() {
@@ -21,6 +21,7 @@ export default function Scaling() {
   const [currentArea, setCurrentArea] = useState<string>("");
   const [currentEventName, setCurrentEventName] = useState<string>("");
   const [currentFunctionName, setCurrentFunctionName] = useState<string>("");
+  const [searchId, setSearchId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -64,7 +65,11 @@ export default function Scaling() {
 
   // Filter inclusions that are in planning phase or scaling phase
   const scalingInclusions = teamInclusions?.filter(
-    inclusion => inclusion.status === "planejado" || inclusion.status === "escalacao"
+    inclusion => {
+      const statusMatch = inclusion.status === "planejado" || inclusion.status === "escalacao";
+      const idMatch = !searchId || inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+      return statusMatch && idMatch;
+    }
   ) || [];
 
   // Group inclusions by event
@@ -112,6 +117,14 @@ export default function Scaling() {
       ...prev,
       [inclusionId]: observation
     }));
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado",
+      description: `${label} copiado para a área de transferência`,
+    });
   };
 
   const calculateProgress = (inclusion: TeamInclusion) => {
@@ -189,6 +202,29 @@ export default function Scaling() {
               <p className="text-muted-foreground mt-1">
                 Selecione colaboradores para as funções e confirme as escalações
               </p>
+              <div className="mt-4 flex gap-2 items-center">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por ID..."
+                    value={searchId}
+                    onChange={(e) => setSearchId(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    data-testid="input-search-id"
+                  />
+                </div>
+                {searchId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSearchId("")}
+                    data-testid="button-clear-search"
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
             </div>
 
             {scalingInclusions.length === 0 ? (
@@ -214,6 +250,9 @@ export default function Scaling() {
                     <thead className="bg-muted">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          ID
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Função
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -236,6 +275,22 @@ export default function Scaling() {
                     <tbody className="bg-card divide-y divide-border">
                       {groupedByEvent[eventIds[0]].map((inclusion) => (
                       <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-mono text-foreground">
+                              {inclusion.id.substring(0, 8)}...
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="p-1 h-6 w-6"
+                              onClick={() => copyToClipboard(inclusion.id, "ID")}
+                              data-testid={`button-copy-id-${inclusion.id}`}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-foreground">
                             {getFunctionName(inclusion.functionId)}
@@ -349,6 +404,9 @@ export default function Scaling() {
                         <thead className="bg-muted">
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              ID
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Função
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -371,6 +429,22 @@ export default function Scaling() {
                         <tbody className="bg-card divide-y divide-border">
                           {groupedByEvent[eventId].map((inclusion) => (
                             <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-mono text-foreground">
+                                    {inclusion.id.substring(0, 8)}...
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="p-1 h-6 w-6"
+                                    onClick={() => copyToClipboard(inclusion.id, "ID")}
+                                    data-testid={`button-copy-id-${inclusion.id}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm font-medium text-foreground">
                                   {getFunctionName(inclusion.functionId)}

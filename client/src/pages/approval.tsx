@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import { CheckCircle, XCircle, FileCheck, Filter } from "lucide-react";
+import { CheckCircle, XCircle, FileCheck, Filter, Search, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
 export default function Approval() {
@@ -20,6 +20,7 @@ export default function Approval() {
     functionId: "all", 
     collaboratorId: "all"
   });
+  const [searchId, setSearchId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -68,9 +69,21 @@ export default function Approval() {
     },
   });
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado",
+      description: `${label} copiado para a área de transferência`,
+    });
+  };
+
   // Filter inclusions that need approval
   const approvalInclusions = teamInclusions?.filter(inclusion => {
     if (inclusion.status !== "aprovacao" || !inclusion.collaboratorId) return false;
+    
+    // Apply ID search filter
+    const idMatch = !searchId || inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+    if (!idMatch) return false;
     
     // Apply filters
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -267,10 +280,22 @@ export default function Approval() {
 
           {/* Filters */}
           <div className="px-6 py-4 border-b border-border bg-muted/20">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Filtros:</span>
+              </div>
+              
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Buscar por ID..."
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  data-testid="input-search-id"
+                />
               </div>
               
               <div className="flex items-center gap-4">
@@ -497,6 +522,9 @@ export default function Approval() {
                         />
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Evento / Função
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -536,6 +564,22 @@ export default function Approval() {
                             onCheckedChange={(checked) => handleInclusionSelect(inclusion.id, checked as boolean)}
                             data-testid={`checkbox-${inclusion.id}`}
                           />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-mono text-foreground">
+                              {inclusion.id.substring(0, 8)}...
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="p-1 h-6 w-6"
+                              onClick={() => copyToClipboard(inclusion.id, "ID")}
+                              data-testid={`button-copy-id-${inclusion.id}`}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-foreground">

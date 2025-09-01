@@ -5,7 +5,7 @@ import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import UniversalFilters from "@/components/common/universal-filters";
 import StatusBadge from "@/components/common/status-badge";
-import { Eye, MessageCircle } from "lucide-react";
+import { Eye, MessageCircle, Search, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,6 +25,7 @@ export default function Consultation() {
     status: "all",
     hasTicket: "all",
   });
+  const [searchId, setSearchId] = useState<string>("");
 
   const { data: teamInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -50,8 +51,18 @@ export default function Consultation() {
     queryKey: ["/api/financial"],
   });
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    // Note: toast notification would be added here if available
+    console.log(`${label} copiado: ${text}`);
+  };
+
   // Filter inclusions based on current filters
   const filteredInclusions = teamInclusions?.filter(inclusion => {
+    // Apply ID search filter first
+    const idMatch = !searchId || inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+    if (!idMatch) return false;
+    
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
     if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
     if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
@@ -172,6 +183,29 @@ export default function Consultation() {
                 {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} registros aprovados
               </div>
             </div>
+            <div className="mt-4 flex gap-2 items-center">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Buscar por ID..."
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  data-testid="input-search-id"
+                />
+              </div>
+              {searchId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSearchId("")}
+                  data-testid="button-clear-search"
+                >
+                  Limpar
+                </Button>
+              )}
+            </div>
           </div>
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} />
@@ -209,6 +243,9 @@ export default function Consultation() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Evento
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -237,7 +274,7 @@ export default function Consultation() {
                 <tbody className="bg-card divide-y divide-border">
                   {filteredInclusions?.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                      <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                         Nenhum registro encontrado
                       </td>
                     </tr>
@@ -254,6 +291,22 @@ export default function Consultation() {
 
                       return (
                         <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`consultation-row-${inclusion.id}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-mono text-foreground">
+                                {inclusion.id.substring(0, 8)}...
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="p-1 h-6 w-6"
+                                onClick={() => copyToClipboard(inclusion.id, "ID")}
+                                data-testid={`button-copy-id-${inclusion.id}`}
+                              >
+                                <Copy className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-foreground">
                               {getEventName(inclusion.eventId)}
