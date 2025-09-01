@@ -344,6 +344,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/team-inclusions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteTeamInclusion(id);
+      res.json({ message: "Inclusão removida com sucesso" });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao remover inclusão" });
+    }
+  });
+
   // Tickets routes
   app.get("/api/tickets", async (req, res) => {
     try {

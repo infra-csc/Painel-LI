@@ -77,7 +77,10 @@ export default function TeamInclusionTable() {
   const deleteTeamInclusionMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
-      return response.json();
+      if (response.ok) {
+        return { success: true };
+      }
+      throw new Error("Erro ao remover inclusão");
     },
     onSuccess: () => {
       toast({

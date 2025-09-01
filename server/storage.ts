@@ -46,6 +46,7 @@ export interface IStorage {
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
   updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
+  deleteTeamInclusion(id: string): Promise<void>;
   
   // Tickets
   getTickets(): Promise<Ticket[]>;
@@ -270,6 +271,13 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async deleteTeamInclusion(id: string): Promise<void> {
+    if (!this.teamInclusions.has(id)) {
+      throw new Error("Team inclusion not found");
+    }
+    this.teamInclusions.delete(id);
+  }
+
   // Tickets
   async getTickets(): Promise<Ticket[]> {
     return Array.from(this.tickets.values());
@@ -473,6 +481,10 @@ export class DatabaseStorage implements IStorage {
   async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
     const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning();
     return inclusion;
+  }
+
+  async deleteTeamInclusion(id: string): Promise<void> {
+    await db.delete(teamInclusions).where(eq(teamInclusions.id, id));
   }
 
   // Tickets
