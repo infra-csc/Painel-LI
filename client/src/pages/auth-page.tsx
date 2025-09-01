@@ -210,7 +210,6 @@ export default function AuthPage() {
             />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Logística Interna</h1>
-          <p className="text-gray-600 mt-2">Sistema de Gestão de Eventos</p>
         </div>
 
         <Card className="shadow-xl">
