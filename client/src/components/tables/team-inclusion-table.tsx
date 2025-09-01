@@ -220,9 +220,6 @@ export default function TeamInclusionTable() {
                       <div className="text-sm text-foreground">
                         {getFunctionName(inclusion.functionId)}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {getFunctionArea(inclusion.functionId)}
-                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-foreground">
