@@ -192,7 +192,7 @@ export default function Tickets() {
         
         <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-2xl font-bold text-foreground">Tela 3 - Compra de Passagem</h2>
+            <h2 className="text-2xl font-bold text-foreground">Compra de Passagem</h2>
             <p className="text-muted-foreground mt-1">
               Registre as informações de compra de passagens para colaboradores escalados
             </p>

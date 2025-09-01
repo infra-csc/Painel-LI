@@ -171,7 +171,7 @@ export default function Scaling() {
           
           <div className="bg-card rounded-lg shadow-sm border border-border">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-2xl font-bold text-foreground">Tela 2 - Escalação</h2>
+              <h2 className="text-2xl font-bold text-foreground">Escalação</h2>
               <p className="text-muted-foreground mt-1">
                 Selecione colaboradores para as funções e confirme as escalações
               </p>
@@ -277,7 +277,7 @@ export default function Scaling() {
                           <div className="space-y-2">
                             {inclusion.observations && (
                               <div className="p-2 bg-muted rounded text-sm">
-                                <span className="text-xs text-muted-foreground block mb-1">Observação da Tela 1:</span>
+                                <span className="text-xs text-muted-foreground block mb-1">Observação da Inclusão de Equipe:</span>
                                 {inclusion.observations}
                               </div>
                             )}

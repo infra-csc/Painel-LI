@@ -192,7 +192,7 @@ export default function Closure() {
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-foreground">Tela 4 - Logística Interna/Realizado</h2>
+                <h2 className="text-2xl font-bold text-foreground">Logística Interna/Realizado</h2>
                 <p className="text-muted-foreground mt-1">
                   Registre os dados reais de trabalho executado para cada colaborador
                 </p>

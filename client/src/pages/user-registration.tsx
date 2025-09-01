@@ -109,7 +109,7 @@ export default function UserRegistration() {
             <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-primary/10">
               <UserPlus className="w-6 h-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Tela 0 - Cadastro de Usuários</CardTitle>
+            <CardTitle className="text-2xl font-bold">Cadastro de Usuários</CardTitle>
             <p className="text-muted-foreground">
               Adicionar novo usuário ao sistema (Acesso restrito ao Administrador)
             </p>
