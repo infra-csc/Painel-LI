@@ -141,7 +141,7 @@ export default function Tickets() {
 
     createTicketMutation.mutate({
       teamInclusionId: inclusion.id,
-      value: parseFloat(data.value),
+      value: Math.round(parseFloat(data.value) * 100), // Convert to cents
       purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
       actualDepartureDate: data.actualDepartureDate || inclusion.flightDepartureDate,
       actualDepartureTime: data.actualDepartureTime || inclusion.flightDepartureSuggestedTime,
@@ -234,7 +234,7 @@ export default function Tickets() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                           <div>
                             <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                            <p className="font-medium">{formatCurrency(ticket.value || 0)}</p>
+                            <p className="font-medium">{formatCurrency((ticket.value || 0) / 100)}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Data da Compra</Label>

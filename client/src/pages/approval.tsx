@@ -661,7 +661,7 @@ export default function Approval() {
                             </div>
                             {ticket && (ticket.value || 0) > 0 && (
                               <div className="pt-1 border-t">
-                                <div className="text-xs text-muted-foreground">Passagem: {formatCurrency(ticket.value || 0)}</div>
+                                <div className="text-xs text-muted-foreground">Passagem: {formatCurrency((ticket.value || 0) / 100)}</div>
                               </div>
                             )}
                             {financial?.observations && (

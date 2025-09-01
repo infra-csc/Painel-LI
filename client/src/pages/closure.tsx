@@ -125,7 +125,7 @@ export default function Closure() {
     const ticket = getTicket(inclusion.id);
     const ticketValue = ticket?.value || 0;
     const plannedDailyValue = inclusion.dailyValue * inclusion.dailyRates;
-    return ticketValue + plannedDailyValue;
+    return (ticketValue / 100) + (plannedDailyValue / 100);
   };
 
   const calculateDailyRates = (startDate: string, endDate: string): number => {
@@ -366,12 +366,12 @@ export default function Closure() {
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                            <p className="font-medium">{ticket ? formatCurrency(ticket.value || 0) : "R$ 0,00"}</p>
+                            <p className="font-medium">{ticket ? formatCurrency((ticket.value || 0) / 100) : "R$ 0,00"}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Total Geral</Label>
                             <p className="font-medium text-lg">
-                              {formatCurrency((financial.actualDailyRates || 0) + (financial.actualFee || 0) + (ticket?.value || 0))}
+                              {formatCurrency(((financial.actualDailyRates || 0) + (financial.actualFee || 0)) / 100 + ((ticket?.value || 0) / 100))}
                             </p>
                           </div>
                           {financial.observations && (
