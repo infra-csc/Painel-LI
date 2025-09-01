@@ -11,6 +11,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import norteLogoUrl from "@assets/b7708c145100409.6298b4cbdc473_1756736810143.jpg";
 import { Lock, Mail, User, Building2, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
@@ -201,6 +202,13 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img 
+              src={norteLogoUrl} 
+              alt="NORTE Marketing Esportivo" 
+              className="h-20 w-auto object-contain"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900">Logística Interna</h1>
           <p className="text-gray-600 mt-2">Sistema de Gestão de Eventos</p>
         </div>
