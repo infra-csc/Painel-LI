@@ -179,9 +179,6 @@ export default function TeamInclusionTable() {
                   Função
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Área
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Colaborador
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -225,11 +222,6 @@ export default function TeamInclusionTable() {
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {getFunctionArea(inclusion.functionId)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">
-                        {inclusion.area || 'Não definida'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
