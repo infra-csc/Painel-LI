@@ -205,7 +205,6 @@ export default function UserRegistration() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="admin">Administrador</SelectItem>
                             <SelectItem value="production">Logística Interna</SelectItem>
                             <SelectItem value="function_area">Área responsável por funções</SelectItem>
                             <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>

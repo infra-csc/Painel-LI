@@ -15,6 +15,7 @@ import AuthPage from "@/pages/auth-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
 import UserRegistration from "@/pages/user-registration";
 import NotFound from "@/pages/not-found";
+import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 
 function Router() {
@@ -38,13 +39,41 @@ function Router() {
       {user ? (
         <>
           <Route path="/" component={Dashboard} />
-          <Route path="/team-inclusion" component={TeamInclusion} />
-          <Route path="/scaling" component={Scaling} />
-          <Route path="/tickets" component={Tickets} />
-          <Route path="/closure" component={Closure} />
-          <Route path="/approval" component={Approval} />
-          <Route path="/consultation" component={Consultation} />
-          <Route path="/user-registration" component={UserRegistration} />
+          <Route path="/team-inclusion">
+            <ProtectedRoute permission="canAccessScreen1">
+              <TeamInclusion />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/scaling">
+            <ProtectedRoute permission="canAccessScreen2">
+              <Scaling />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/tickets">
+            <ProtectedRoute permission="canAccessScreen3">
+              <Tickets />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/closure">
+            <ProtectedRoute permission="canAccessScreen4">
+              <Closure />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/approval">
+            <ProtectedRoute permission="canAccessScreen5">
+              <Approval />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/consultation">
+            <ProtectedRoute permission="canAccessScreen6">
+              <Consultation />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/user-registration">
+            <ProtectedRoute permission="canAccessScreen0">
+              <UserRegistration />
+            </ProtectedRoute>
+          </Route>
           <Route component={NotFound} />
         </>
       ) : (
