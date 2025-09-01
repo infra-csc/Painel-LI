@@ -5,14 +5,21 @@ import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import { CheckCircle, XCircle, FileCheck } from "lucide-react";
+import { CheckCircle, XCircle, FileCheck, Filter } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
 export default function Approval() {
   const [selectedInclusions, setSelectedInclusions] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState({
+    eventId: "all",
+    functionId: "all", 
+    collaboratorId: "all"
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -62,9 +69,16 @@ export default function Approval() {
   });
 
   // Filter inclusions that need approval
-  const approvalInclusions = teamInclusions?.filter(
-    inclusion => inclusion.status === "aprovacao" && inclusion.collaboratorId
-  ) || [];
+  const approvalInclusions = teamInclusions?.filter(inclusion => {
+    if (inclusion.status !== "aprovacao" || !inclusion.collaboratorId) return false;
+    
+    // Apply filters
+    if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+    if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+    if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+    
+    return true;
+  }) || [];
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -226,6 +240,75 @@ export default function Approval() {
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="px-6 py-4 border-b border-border bg-muted/20">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Filtros:</span>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="min-w-[200px]">
+                  <Select 
+                    value={filters.eventId} 
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Todos os eventos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os eventos</SelectItem>
+                      {events?.map(event => (
+                        <SelectItem key={event.id} value={event.id}>
+                          {event.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="min-w-[180px]">
+                  <Select 
+                    value={filters.functionId} 
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, functionId: value }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Todas as funções" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as funções</SelectItem>
+                      {functions?.map(func => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="min-w-[200px]">
+                  <Select 
+                    value={filters.collaboratorId} 
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, collaboratorId: value }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Todos os colaboradores" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os colaboradores</SelectItem>
+                      {collaborators?.map(collaborator => (
+                        <SelectItem key={collaborator.id} value={collaborator.id}>
+                          {collaborator.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </div>
 
