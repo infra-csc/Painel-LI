@@ -8,12 +8,16 @@ import StatusBadge from "@/components/common/status-badge";
 import { Eye, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket, Financial } from "@shared/schema";
 
 export default function Consultation() {
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryInclusionId, setSummaryInclusionId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
@@ -97,9 +101,47 @@ export default function Consultation() {
     return labels[phase as keyof typeof labels] || phase;
   };
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const getTicket = (inclusionId: string) => {
+    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+  };
+
+  const getFinancial = (inclusionId: string) => {
+    return financial?.find(fin => fin.teamInclusionId === inclusionId);
+  };
+
+  const getTotalValue = (inclusion: TeamInclusion) => {
+    const ticket = getTicket(inclusion.id);
+    const financialRecord = getFinancial(inclusion.id);
+    
+    // Se foi aprovado, usar valores reais; senão usar valores planejados
+    if (inclusion.status === "aprovado") {
+      const ticketValue = ticket?.value || 0;
+      const dailyRatesValue = financialRecord?.actualDailyRates || 0;
+      const feeValue = financialRecord?.actualFee || 0;
+      return ticketValue + dailyRatesValue + feeValue;
+    } else {
+      // Valores planejados
+      const plannedDailyValue = ((inclusion.dailyValue || 0) * inclusion.dailyRates) / 100;
+      const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) : 0;
+      return plannedDailyValue + plannedTicketValue;
+    }
+  };
+
   const handleViewComments = (inclusionId: string) => {
     setSelectedInclusion(inclusionId);
     setShowCommentsModal(true);
+  };
+
+  const handleViewSummary = (inclusionId: string) => {
+    setSummaryInclusionId(inclusionId);
+    setShowSummaryModal(true);
   };
 
   // Group inclusions by phase for progress visualization
@@ -235,8 +277,11 @@ export default function Consultation() {
                             <StatusBadge status={inclusion.status} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-foreground">
-                              R$ {((inclusion.dailyValue || 0) * inclusion.dailyRates / 100).toFixed(2)}
+                            <div className="text-sm font-medium text-foreground">
+                              {formatCurrency(getTotalValue(inclusion))}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {inclusion.status === "aprovado" ? "Valor Real" : "Valor Planejado"}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {inclusion.dailyRates} diárias
@@ -268,6 +313,7 @@ export default function Consultation() {
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                onClick={() => handleViewSummary(inclusion.id)}
                                 className="text-green-600 hover:text-green-900"
                                 data-testid={`button-view-${inclusion.id}`}
                               >
@@ -285,6 +331,225 @@ export default function Consultation() {
           </div>
         </div>
       </div>
+
+      {/* Summary Modal */}
+      <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resumo Completo do Registro</DialogTitle>
+          </DialogHeader>
+          {summaryInclusionId && (() => {
+            const inclusion = teamInclusions?.find(i => i.id === summaryInclusionId);
+            const ticket = getTicket(summaryInclusionId);
+            const financialRecord = getFinancial(summaryInclusionId);
+            
+            if (!inclusion) return <div>Registro não encontrado</div>;
+            
+            return (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Informações Básicas</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Evento</label>
+                        <div className="text-sm">{getEventName(inclusion.eventId)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Função</label>
+                        <div className="text-sm">{getFunctionName(inclusion.functionId)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Colaborador</label>
+                        <div className="text-sm">{getCollaboratorName(inclusion.collaboratorId || undefined)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Área</label>
+                        <div className="text-sm">{inclusion.area}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Status e Progresso</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Fase Atual</label>
+                        <div className="flex items-center mt-1">
+                          <span className="mr-2">{getPhaseIcon(inclusion.phase)}</span>
+                          <Badge variant="outline">{getPhaseLabel(inclusion.phase)}</Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Status</label>
+                        <div className="mt-1">
+                          <StatusBadge status={inclusion.status} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Precisa de Passagem</label>
+                        <div className="text-sm">{inclusion.needsTicket ? "Sim" : "Não"}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Dates and Daily Rates */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Datas e Diárias</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="font-medium text-blue-600 mb-2">Planejado</h4>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Período</label>
+                            <div className="text-sm">{formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}</div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Diárias</label>
+                            <div className="text-sm">{inclusion.dailyRates} × {formatCurrency(inclusion.dailyValue / 100)}</div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Total Planejado</label>
+                            <div className="text-sm font-medium">{formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {inclusion.actualStartDate && (
+                        <div>
+                          <h4 className="font-medium text-green-600 mb-2">Realizado</h4>
+                          <div className="space-y-2">
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">Período</label>
+                              <div className="text-sm">{formatDate(inclusion.actualStartDate)} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}</div>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">Diárias</label>
+                              <div className="text-sm">{financialRecord?.actualDailyRates || inclusion.dailyRates}</div>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
+                              <div className="text-sm font-medium">{formatCurrency(financialRecord?.actualDailyRates || 0)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Financial Information */}
+                {financialRecord && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Dados Financeiros</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Diárias Realizadas</label>
+                          <div className="text-lg font-medium">{formatCurrency(financialRecord.actualDailyRates || 0)}</div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Taxa Realizada</label>
+                          <div className="text-lg font-medium">{formatCurrency(financialRecord.actualFee || 0)}</div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Total Financeiro</label>
+                          <div className="text-lg font-medium text-green-600">
+                            {formatCurrency((financialRecord.actualDailyRates || 0) + (financialRecord.actualFee || 0))}
+                          </div>
+                        </div>
+                      </div>
+                      {financialRecord.observations && (
+                        <div className="mt-4">
+                          <label className="text-sm font-medium text-muted-foreground">Observações Financeiras</label>
+                          <div className="text-sm mt-1 p-2 bg-muted rounded">{financialRecord.observations}</div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Ticket Information */}
+                {ticket && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Informações da Passagem</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Valor da Passagem</label>
+                          <div className="text-lg font-medium text-blue-600">{formatCurrency(ticket.value || 0)}</div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Status da Passagem</label>
+                          <div className="text-sm">{ticket.status || "Não informado"}</div>
+                        </div>
+                      </div>
+                      {ticket.observations && (
+                        <div className="mt-4">
+                          <label className="text-sm font-medium text-muted-foreground">Observações da Passagem</label>
+                          <div className="text-sm mt-1 p-2 bg-muted rounded">{ticket.observations}</div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Total Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Resumo de Valores</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Diárias:</span>
+                        <span className="font-medium">{formatCurrency(financialRecord?.actualDailyRates || (inclusion.dailyValue / 100) * inclusion.dailyRates)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Taxa:</span>
+                        <span className="font-medium">{formatCurrency(financialRecord?.actualFee || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Passagem:</span>
+                        <span className="font-medium">{formatCurrency(ticket?.value || 0)}</span>
+                      </div>
+                      <div className="border-t pt-2 flex justify-between items-center">
+                        <span className="font-medium">Total Geral:</span>
+                        <span className="text-lg font-bold text-green-600">{formatCurrency(getTotalValue(inclusion))}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Observations */}
+                {inclusion.observations && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Observações Gerais</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm p-3 bg-muted rounded">{inclusion.observations}</div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <CommentsModal
         open={showCommentsModal}

@@ -90,7 +90,7 @@ export default function UserRegistration() {
   const getRoleLabel = (role: string) => {
     const labels = {
       admin: "Administrador",
-      production: "Área de Produção", 
+      production: "Logística Interna", 
       function_area: "Área responsável por funções",
       purchasing: "Área de Compras/Viagem",
       financial: "Área Financeira"
@@ -206,7 +206,7 @@ export default function UserRegistration() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="admin">Administrador</SelectItem>
-                            <SelectItem value="production">Área de Produção</SelectItem>
+                            <SelectItem value="production">Logística Interna</SelectItem>
                             <SelectItem value="function_area">Área responsável por funções</SelectItem>
                             <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>
                             <SelectItem value="financial">Área Financeira</SelectItem>

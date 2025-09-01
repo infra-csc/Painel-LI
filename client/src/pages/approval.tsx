@@ -244,7 +244,9 @@ export default function Approval() {
               {/* Planned vs Actual Analysis Summary */}
               <div className="p-4 bg-accent/50 rounded-lg">
                 <h3 className="font-medium text-foreground mb-3">Análise Planejado x Realizado</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                
+                {/* Comparativo de Valores */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">
                       {formatCurrency(approvalInclusions.reduce((total, inclusion) => 
@@ -284,6 +286,47 @@ export default function Approval() {
                       )}
                     </div>
                     <div className="text-muted-foreground">Diferença</div>
+                  </div>
+                </div>
+
+                {/* Comparativo de Diárias */}
+                <div className="border-t pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Comparativo de Diárias</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-blue-600">
+                        {approvalInclusions.reduce((total, inclusion) => total + inclusion.dailyRates, 0)}
+                      </div>
+                      <div className="text-muted-foreground">Diárias Planejadas</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-green-600">
+                        {approvalInclusions.reduce((total, inclusion) => {
+                          const financial = getFinancial(inclusion.id);
+                          return total + (financial?.actualDailyRates || inclusion.dailyRates);
+                        }, 0)}
+                      </div>
+                      <div className="text-muted-foreground">Diárias Realizadas</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-xl font-bold ${
+                        (approvalInclusions.reduce((total, inclusion) => {
+                          const financial = getFinancial(inclusion.id);
+                          return total + (financial?.actualDailyRates || inclusion.dailyRates);
+                        }, 0)) - (approvalInclusions.reduce((total, inclusion) => total + inclusion.dailyRates, 0)) >= 0 
+                          ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {((approvalInclusions.reduce((total, inclusion) => {
+                          const financial = getFinancial(inclusion.id);
+                          return total + (financial?.actualDailyRates || inclusion.dailyRates);
+                        }, 0)) - (approvalInclusions.reduce((total, inclusion) => total + inclusion.dailyRates, 0))) > 0 ? '+' : ''}
+                        {(approvalInclusions.reduce((total, inclusion) => {
+                          const financial = getFinancial(inclusion.id);
+                          return total + (financial?.actualDailyRates || inclusion.dailyRates);
+                        }, 0)) - (approvalInclusions.reduce((total, inclusion) => total + inclusion.dailyRates, 0))}
+                      </div>
+                      <div className="text-muted-foreground">Diferença</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -370,6 +413,13 @@ export default function Approval() {
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {financial?.actualDailyRates || inclusion.dailyRates} diárias
+                                  {financial?.actualDailyRates && financial.actualDailyRates !== inclusion.dailyRates && (
+                                    <span className={`ml-2 font-medium ${
+                                      financial.actualDailyRates > inclusion.dailyRates ? 'text-red-600' : 'text-green-600'
+                                    }`}>
+                                      ({financial.actualDailyRates > inclusion.dailyRates ? '+' : ''}{financial.actualDailyRates - inclusion.dailyRates})
+                                    </span>
+                                  )}
                                 </div>
                               </>
                             )}

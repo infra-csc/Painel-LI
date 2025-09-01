@@ -10,7 +10,7 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-foreground">Sistema de Gestão de Produção</h1>
+              <h1 className="text-xl font-bold text-foreground">Sistema de Logística Interna</h1>
             </div>
           </div>
           <div className="flex items-center space-x-4">

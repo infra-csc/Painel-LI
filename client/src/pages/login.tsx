@@ -50,7 +50,7 @@ export default function Login() {
           <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-primary/10">
             <LogIn className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Sistema de Produção</CardTitle>
+          <CardTitle className="text-2xl font-bold">Logística Interna</CardTitle>
           <p className="text-muted-foreground">
             Entre com suas credenciais para acessar o sistema
           </p>

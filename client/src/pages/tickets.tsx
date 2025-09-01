@@ -117,12 +117,23 @@ export default function Tickets() {
   const handlePurchaseTicket = (inclusion: TeamInclusion) => {
     const data = ticketData[inclusion.id] || {};
     
-    if (!data.value || !data.departureAirport || !data.destinationAirport || 
-        !data.purchaseDate || !data.actualDepartureDate || !data.actualDepartureTime || 
-        !data.actualReturnTime || !data.purchaseOrderNumber) {
+    // Validar apenas os campos realmente obrigatórios (marcados com * na interface)
+    const requiredFields = [
+      { field: 'value', label: 'Valor da Passagem' },
+      { field: 'departureAirport', label: 'Aeroporto Origem' },
+      { field: 'destinationAirport', label: 'Aeroporto Destino' },
+      { field: 'actualDepartureDate', label: 'Data de Ida' },
+      { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualReturnTime', label: 'Horário de Volta' },
+      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
+    ];
+    
+    const missingFields = requiredFields.filter(({ field }) => !data[field] || data[field] === '');
+    
+    if (missingFields.length > 0) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios da passagem",
+        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
         variant: "destructive",
       });
       return;

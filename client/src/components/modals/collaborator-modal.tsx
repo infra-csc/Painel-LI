@@ -60,15 +60,91 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         area: defaultArea || ""
       };
       const response = await apiRequest("POST", "/api/collaborators", collaboratorData);
-      return response.json();
+      const collaborator = await response.json();
+      
+      // Se for colaborador emergencial, criar também um registro de inclusão de equipe
+      if (isEmergency && data.actualStartDate && data.actualEndDate) {
+        const startDate = new Date(data.actualStartDate);
+        const endDate = new Date(data.actualEndDate);
+        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+        const dailyRates = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Primeiro, tentar obter eventos e funções existentes
+        let eventId, functionId;
+        
+        try {
+          const eventsResponse = await apiRequest("GET", "/api/events");
+          const events = await eventsResponse.json();
+          
+          const functionsResponse = await apiRequest("GET", "/api/functions");
+          const functions = await functionsResponse.json();
+          
+          // Buscar ou criar evento emergencial
+          let emergencyEvent = events.find((e: any) => e.name === "Trabalho Emergencial");
+          if (!emergencyEvent) {
+            const eventResponse = await apiRequest("POST", "/api/events", {
+              name: "Trabalho Emergencial",
+              location: "Diversos",
+              startDate: data.actualStartDate,
+              endDate: data.actualEndDate,
+              status: "ativo",
+              description: "Evento padrão para registros emergenciais"
+            });
+            emergencyEvent = await eventResponse.json();
+          }
+          eventId = emergencyEvent.id;
+          
+          // Buscar ou criar função emergencial
+          let emergencyFunction = functions.find((f: any) => f.name === "Trabalho Emergencial");
+          if (!emergencyFunction) {
+            const functionResponse = await apiRequest("POST", "/api/functions", {
+              name: "Trabalho Emergencial",
+              description: "Função padrão para registros emergenciais",
+              quantity: 1
+            });
+            emergencyFunction = await functionResponse.json();
+          }
+          functionId = emergencyFunction.id;
+          
+        } catch (error) {
+          console.error("Erro ao obter/criar evento/função emergencial:", error);
+          throw new Error("Erro ao configurar registros emergenciais");
+        }
+        
+        const teamInclusionData = {
+          eventId: eventId,
+          functionId: functionId,
+          collaboratorId: collaborator.id,
+          area: defaultArea || "Emergencial",
+          scheduleStartDate: data.actualStartDate,
+          scheduleEndDate: data.actualEndDate,
+          actualStartDate: data.actualStartDate,
+          actualEndDate: data.actualEndDate,
+          dailyRates: dailyRates,
+          actualDailyRates: dailyRates,
+          dailyValue: 0, // Valor padrão, pode ser editado depois
+          needsTicket: false,
+          emergencyRecord: true,
+          status: "fechamento",
+          phase: "fechamento",
+          observations: "Colaborador emergencial adicionado durante o fechamento"
+        };
+        
+        await apiRequest("POST", "/api/team-inclusions", teamInclusionData);
+      }
+      
+      return collaborator;
     },
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Colaborador criado com sucesso",
+        description: isEmergency 
+          ? "Colaborador emergencial criado e adicionado ao fechamento com sucesso"
+          : "Colaborador criado com sucesso",
       });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       onClose();
     },
     onError: () => {
