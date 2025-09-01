@@ -128,8 +128,8 @@ export function hasPermission(user: User | null, permission: keyof RolePermissio
 export function getRoleLabel(role: UserRole): string {
   switch (role) {
     case "admin": return "Administrador";
-    case "production": return "Logística Interna";
-    case "function_area": return "Área de Função";
+    case "production": return "Área de Produção";
+    case "function_area": return "Áreas responsáveis por funções";
     case "purchasing": return "Área de Compras/Viagem";
     case "financial": return "Área Financeira";
     default: return "Usuário";

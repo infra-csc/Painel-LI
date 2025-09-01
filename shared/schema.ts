@@ -131,6 +131,11 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+// Public registration schema (no admin role allowed)
+export const publicUserRegistrationSchema = insertUserSchema.extend({
+  role: z.enum(["production", "function_area", "purchasing", "financial"])
+});
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,

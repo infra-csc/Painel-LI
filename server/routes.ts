@@ -9,7 +9,8 @@ import {
   insertTicketSchema,
   insertFinancialSchema,
   insertCommentSchema,
-  insertUserSchema
+  insertUserSchema,
+  publicUserRegistrationSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -50,7 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User registration route
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
+      const userData = publicUserRegistrationSchema.parse(req.body);
       
       // Check if username already exists
       const existingByUsername = await storage.getUserByUsername(userData.username);
