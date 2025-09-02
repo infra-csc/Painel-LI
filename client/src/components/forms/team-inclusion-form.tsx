@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Calendar, X } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { getAvailableAreas } from "@/lib/role-utils";
 import EventModal from "@/components/modals/event-modal";
 import FunctionModal from "@/components/modals/function-modal";
 import type { Event, Function } from "@shared/schema";
@@ -23,10 +22,12 @@ import type { Event, Function } from "@shared/schema";
 const teamInclusionSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   functionId: z.string().min(1, "Função é obrigatória"),
-  area: z.string().optional(),
   scheduleStartDate: z.string().optional(),
   scheduleEndDate: z.string().optional(),
-  dailyValue: z.number().optional(),
+  dailyRatesByDate: z.array(z.object({
+    date: z.string(),
+    dailyRates: z.number().min(1)
+  })).optional(),
   needsTicket: z.boolean().default(false),
   flightDepartureDate: z.string().optional(),
   flightDepartureSuggestedTime: z.string().optional(),
@@ -41,6 +42,8 @@ export default function TeamInclusionForm() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [showFunctionModal, setShowFunctionModal] = useState(false);
   const [isAddingEscalation, setIsAddingEscalation] = useState(false);
+  const [dailyRatesByDate, setDailyRatesByDate] = useState<Array<{date: string, dailyRates: number}>>([]);
+  const [showDateDetails, setShowDateDetails] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -59,10 +62,9 @@ export default function TeamInclusionForm() {
     defaultValues: {
       eventId: "",
       functionId: "",
-      area: "",
       scheduleStartDate: "",
       scheduleEndDate: "",
-      dailyValue: undefined,
+      dailyRatesByDate: [],
       needsTicket: false,
       flightDepartureDate: "",
       flightDepartureSuggestedTime: "",
@@ -82,34 +84,54 @@ export default function TeamInclusionForm() {
 
   const createTeamInclusionMutation = useMutation({
     mutationFn: async (data: TeamInclusionFormData) => {
-      // Calculate daily rates
-      let diffDays = 1; // default to 1 day
-      if (data.scheduleStartDate && data.scheduleEndDate) {
-        const startDate = new Date(data.scheduleStartDate);
-        const endDate = new Date(data.scheduleEndDate);
-        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-        diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      // Create multiple entries based on dailyRatesByDate
+      const entries = [];
+      
+      if (dailyRatesByDate.length > 0) {
+        // Create one entry per date with specific daily rates
+        for (const dateEntry of dailyRatesByDate) {
+          const payload = {
+            ...data,
+            scheduleStartDate: dateEntry.date,
+            scheduleEndDate: dateEntry.date,
+            dailyRates: dateEntry.dailyRates,
+            status: "planejado",
+            phase: "inclusao",
+          };
+          delete payload.dailyRatesByDate; // Remove this field from API call
+          const response = await apiRequest("POST", "/api/team-inclusions", payload);
+          entries.push(await response.json());
+        }
+      } else {
+        // Single entry with date range
+        let diffDays = 1;
+        if (data.scheduleStartDate && data.scheduleEndDate) {
+          const startDate = new Date(data.scheduleStartDate);
+          const endDate = new Date(data.scheduleEndDate);
+          const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+          diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        const payload = {
+          ...data,
+          dailyRates: diffDays,
+          status: "planejado",
+          phase: "inclusao",
+        };
+        delete payload.dailyRatesByDate;
+        const response = await apiRequest("POST", "/api/team-inclusions", payload);
+        entries.push(await response.json());
       }
-
-      const payload = {
-        ...data,
-        dailyRates: diffDays,
-        dailyValue: (data.dailyValue || 0) * 100, // Convert to cents
-        status: "planejado",
-        phase: "inclusao",
-      };
-
-      const response = await apiRequest("POST", "/api/team-inclusions", payload);
-      return response.json();
+      
+      return entries;
     },
     onSuccess: () => {
       toast({
         title: "Sucesso",
         description: "Nova escalação adicionada para o mesmo evento",
       });
-      // Reset only specific fields, keep event data
+      // Reset fields including clearing dates
       const currentEventId = form.getValues("eventId");
-      const currentArea = form.getValues("area");
       const currentNeedsTicket = form.getValues("needsTicket");
       const currentFlightDates = {
         flightDepartureDate: form.getValues("flightDepartureDate"),
@@ -121,14 +143,17 @@ export default function TeamInclusionForm() {
       form.reset({
         eventId: currentEventId,
         functionId: "",
-        area: currentArea,
         scheduleStartDate: "",
         scheduleEndDate: "",
-        dailyValue: undefined,
+        dailyRatesByDate: [],
         needsTicket: currentNeedsTicket,
         ...currentFlightDates,
         observations: "",
       });
+      
+      // Clear local state
+      setDailyRatesByDate([]);
+      setShowDateDetails(false);
       setIsAddingEscalation(false);
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
     },
@@ -146,19 +171,51 @@ export default function TeamInclusionForm() {
     createTeamInclusionMutation.mutate(data);
   };
 
-  const calculateDailyRates = () => {
-    const startDate = form.watch("scheduleStartDate");
-    const endDate = form.watch("scheduleEndDate");
+  const generateDateRange = () => {
+    const startDate = form.getValues("scheduleStartDate");
+    const endDate = form.getValues("scheduleEndDate");
     
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays;
+    if (!startDate || !endDate) {
+      toast({
+        title: "Erro",
+        description: "Selecione as datas de início e fim",
+        variant: "destructive",
+      });
+      return;
     }
-    return 0;
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dates: Array<{date: string, dailyRates: number}> = [];
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dates.push({ date: dateStr, dailyRates: 1 });
+    }
+    
+    setDailyRatesByDate(dates);
+    setShowDateDetails(true);
   };
+
+  const updateDailyRates = (index: number, dailyRates: number) => {
+    const updated = [...dailyRatesByDate];
+    updated[index].dailyRates = dailyRates;
+    setDailyRatesByDate(updated);
+  };
+
+  const removeDateEntry = (index: number) => {
+    const updated = dailyRatesByDate.filter((_, i) => i !== index);
+    setDailyRatesByDate(updated);
+    if (updated.length === 0) {
+      setShowDateDetails(false);
+    }
+  };
+
+  const formatDateForDisplay = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
 
   return (
     <>
@@ -242,94 +299,105 @@ export default function TeamInclusionForm() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="scheduleStartDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Início da Escala *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} data-testid="input-start-date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="scheduleStartDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data Início da Escala *</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} data-testid="input-start-date" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="scheduleEndDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Data Fim da Escala *</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} data-testid="input-end-date" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={generateDateRange}
+                    disabled={!form.watch('scheduleStartDate') || !form.watch('scheduleEndDate')}
+                    data-testid="button-generate-dates"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Configurar Diárias por Data
+                  </Button>
+                  {showDateDetails && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setShowDateDetails(false);
+                        setDailyRatesByDate([]);
+                      }}
+                      data-testid="button-clear-dates"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Usar Período Simples
+                    </Button>
                   )}
-                />
-                <FormField
-                  control={form.control}
-                  name="scheduleEndDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Fim da Escala *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} data-testid="input-end-date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Área</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Digite uma área (ex: Som, Iluminação, Cenografia...)"
-                        {...field}
-                        data-testid="input-area"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="dailyValue"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor da Diária (R$)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          placeholder="Digite o valor (ex: 150.00)"
-                          value={field.value ? field.value.toString() : ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            // Remove leading zeros but preserve decimal part
-                            const numericValue = value === '' ? undefined : parseFloat(value);
-                            field.onChange(numericValue);
-                          }}
-                          data-testid="input-daily-value"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="bg-muted p-4 rounded-lg">
-                  <Label className="block text-sm font-medium text-foreground mb-2">Quantidade de Diárias</Label>
-                  <div className="text-lg font-semibold text-primary" data-testid="text-daily-rates">
-                    {calculateDailyRates()} diárias
+                </div>
+                
+                {showDateDetails && dailyRatesByDate.length > 0 && (
+                  <div className="bg-muted p-4 rounded-lg space-y-3">
+                    <Label className="text-sm font-medium">Diárias por Data Específica:</Label>
+                    <div className="grid gap-3 max-h-48 overflow-y-auto">
+                      {dailyRatesByDate.map((entry, index) => (
+                        <div key={entry.date} className="flex items-center gap-3 bg-background p-3 rounded border">
+                          <span className="text-sm font-medium min-w-[60px]">
+                            {formatDateForDisplay(entry.date)}
+                          </span>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={entry.dailyRates}
+                            onChange={(e) => updateDailyRates(index, parseInt(e.target.value) || 1)}
+                            className="w-20"
+                            data-testid={`input-daily-rates-${index}`}
+                          />
+                          <span className="text-sm text-muted-foreground">diárias</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDateEntry(index)}
+                            data-testid={`button-remove-date-${index}`}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-sm text-muted-foreground pt-2 border-t">
+                      Total: {dailyRatesByDate.reduce((sum, entry) => sum + entry.dailyRates, 0)} diárias 
+                      em {dailyRatesByDate.length} {dailyRatesByDate.length === 1 ? 'linha' : 'linhas'} de escalação
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              <div className="bg-muted p-4 rounded-lg">
-                <Label className="block text-sm font-medium text-foreground mb-2">Valor Total Estimado</Label>
-                <div className="text-lg font-semibold text-primary" data-testid="text-total-value">
-                  R$ {((form.watch('dailyValue') || 0) * calculateDailyRates()).toFixed(2)}
-                </div>
-              </div>
+
+
             </div>
 
             <div className="space-y-4">
