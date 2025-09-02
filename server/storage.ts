@@ -269,6 +269,8 @@ export class MemStorage implements IStorage {
     const inclusion: TeamInclusion = { 
       ...insertInclusion, 
       id, 
+      inclusionNumber: insertInclusion.inclusionNumber || 1,
+      area: insertInclusion.area || null,
       createdAt: new Date(),
       updatedAt: new Date(),
       status: insertInclusion.status || 'planejado',
@@ -324,7 +326,7 @@ export class MemStorage implements IStorage {
       purchaseDate: insertTicket.purchaseDate || null,
       actualDepartureDate: insertTicket.actualDepartureDate || null,
       actualDepartureTime: insertTicket.actualDepartureTime || null,
-      actualReturnDate: insertTicket.actualReturnDate || null,
+      actualReturnDate: insertTicket.actualReturnDate || new Date().toISOString().split('T')[0],
       actualReturnTime: insertTicket.actualReturnTime || null,
       departureAirport: insertTicket.departureAirport || null,
       destinationAirport: insertTicket.destinationAirport || null,
@@ -579,4 +581,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

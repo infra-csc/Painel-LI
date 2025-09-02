@@ -66,6 +66,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   eventId: varchar("event_id").notNull().references(() => events.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  area: text("area"), // campo que existe no banco mas estava faltando no schema
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),
   actualStartDate: date("actual_start_date"), // data real de início de trabalho
