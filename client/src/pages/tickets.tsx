@@ -10,11 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
+import UniversalFilters from "@/components/common/universal-filters";
 import { Plane, Save, FileText } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
 
 export default function Tickets() {
   const [ticketData, setTicketData] = useState<Record<string, any>>({});
+  const [filters, setFilters] = useState({
+    eventId: "all",
+    functionId: "all",
+    collaboratorId: "all",
+    status: "all",
+    hasTicket: "all",
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -72,7 +80,19 @@ export default function Tickets() {
 
   // Filter inclusions that need tickets (escalated and marked as needing tickets)
   const ticketInclusions = teamInclusions?.filter(
-    inclusion => inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId
+    inclusion => {
+      const statusMatch = inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId;
+      
+      // Apply universal filters
+      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
+      if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
+      if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+      
+      return statusMatch;
+    }
   ) || [];
 
   // Group inclusions by collaborator + event for unified ticket purchase
@@ -376,6 +396,8 @@ export default function Tickets() {
               Registre as informações de compra de passagens para colaboradores escalados
             </p>
           </div>
+
+          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
           {ticketInclusions.length === 0 ? (
             <div className="p-12 text-center">
