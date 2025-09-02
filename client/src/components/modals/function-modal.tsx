@@ -17,7 +17,6 @@ import type { User } from "@shared/schema";
 
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
-  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
   userId: z.string().optional(),
 });
@@ -43,7 +42,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     resolver: zodResolver(functionSchema),
     defaultValues: {
       name: "",
-      quantity: 1,
       description: "",
       userId: "",
     },
@@ -116,27 +114,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                         ))}
                       </SelectContent>
                     </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantidade *</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number"
-                      placeholder="1"
-                      min="1"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      data-testid="input-function-quantity"
-                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
