@@ -94,20 +94,20 @@ export default function Tickets() {
     return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
       const firstInclusion = inclusions[0];
       
-      // Calculate first start date and last end date
+      // Calculate first start date and last end date using string comparison to avoid timezone issues
       const startDates = inclusions
         .filter(inc => inc.scheduleStartDate)
-        .map(inc => new Date(inc.scheduleStartDate!));
+        .map(inc => inc.scheduleStartDate!);
       const endDates = inclusions
         .filter(inc => inc.scheduleEndDate)
-        .map(inc => new Date(inc.scheduleEndDate!));
+        .map(inc => inc.scheduleEndDate!);
       
       const earliestStartDate = startDates.length > 0 
-        ? new Date(Math.min(...startDates.map(d => d.getTime())))
-        : new Date(firstInclusion.scheduleStartDate!);
+        ? startDates.sort()[0]  // Sort strings directly
+        : firstInclusion.scheduleStartDate!;
       const latestEndDate = endDates.length > 0 
-        ? new Date(Math.max(...endDates.map(d => d.getTime())))
-        : new Date(firstInclusion.scheduleEndDate!);
+        ? endDates.sort().reverse()[0]  // Sort and get last
+        : firstInclusion.scheduleEndDate!;
       
       return {
         groupKey,
@@ -115,8 +115,8 @@ export default function Tickets() {
         representative: firstInclusion,
         ids: inclusions.map(inc => inc.id),
         inclusionNumbers: inclusions.map(inc => inc.inclusionNumber).filter(Boolean),
-        earliestStartDate: earliestStartDate.toISOString().split('T')[0],
-        latestEndDate: latestEndDate.toISOString().split('T')[0],
+        earliestStartDate,
+        latestEndDate,
       };
     });
   }, [ticketInclusions]);
