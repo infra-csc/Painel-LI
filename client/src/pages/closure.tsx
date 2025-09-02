@@ -409,17 +409,17 @@ export default function Closure() {
                 <input
                   type="text"
                   placeholder="Buscar por número..."
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
+                  value={filters.searchId}
+                  onChange={(e) => setFilters({...filters, searchId: e.target.value})}
                   className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   data-testid="input-search-id"
                 />
               </div>
-              {searchId && (
+              {filters.searchId && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSearchId("")}
+                  onClick={() => setFilters({...filters, searchId: ""})}
                   data-testid="button-clear-search"
                 >
                   Limpar

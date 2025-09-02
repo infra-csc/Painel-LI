@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
-import { Plus, User, Save, Search, Copy } from "lucide-react";
+import { Plus, User, Save, Copy } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 
@@ -22,12 +22,13 @@ export default function Scaling() {
   const [currentArea, setCurrentArea] = useState<string>("");
   const [currentEventName, setCurrentEventName] = useState<string>("");
   const [currentFunctionName, setCurrentFunctionName] = useState<string>("");
-  const [searchId, setSearchId] = useState<string>("");
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
+    status: "all",
     hasTicket: "all",
+    searchId: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -74,9 +75,9 @@ export default function Scaling() {
   const scalingInclusions = teamInclusions?.filter(
     inclusion => {
       const statusMatch = inclusion.status === "planejado" || inclusion.status === "escalacao";
-      const idMatch = !searchId || 
-        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(searchId)) ||
-        inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+      const idMatch = !filters.searchId || 
+        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
+        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
       
       // Apply universal filters
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -115,7 +116,8 @@ export default function Scaling() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "";
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "N/A";
     // Parse manual para evitar problemas de timezone
     const [year, month, day] = dateStr.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -219,29 +221,6 @@ export default function Scaling() {
               <p className="text-muted-foreground mt-1">
                 Selecione colaboradores para as funções e confirme as escalações
               </p>
-              <div className="mt-4 flex gap-2 items-center">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por número..."
-                    value={searchId}
-                    onChange={(e) => setSearchId(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    data-testid="input-search-id"
-                  />
-                </div>
-                {searchId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSearchId("")}
-                    data-testid="button-clear-search"
-                  >
-                    Limpar
-                  </Button>
-                )}
-              </div>
             </div>
 
             <UniversalFilters filters={filters} onFiltersChange={setFilters} />
@@ -350,7 +329,7 @@ export default function Scaling() {
                               variant="ghost"
                               className="p-1 h-8 w-8 shrink-0"
                               onClick={() => {
-                                setCurrentArea(inclusion.area);
+                                setCurrentArea(inclusion.area || "");
                                 setCurrentEventName(getEventName(inclusion.eventId));
                                 setCurrentFunctionName(getFunctionName(inclusion.functionId));
                                 setShowCollaboratorModal(true);
@@ -504,7 +483,7 @@ export default function Scaling() {
                                     variant="ghost"
                                     className="p-1 h-8 w-8 shrink-0"
                                     onClick={() => {
-                                      setCurrentArea(inclusion.area);
+                                      setCurrentArea(inclusion.area || "");
                                       setCurrentEventName(getEventName(inclusion.eventId));
                                       setCurrentFunctionName(getFunctionName(inclusion.functionId));
                                       setShowCollaboratorModal(true);
