@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -73,6 +73,39 @@ export default function Consultation() {
     if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
     return true;
   }) || [];
+
+  // Group inclusions by collaborator + event for better visualization
+  const groupedInclusions = useMemo(() => {
+    if (!filteredInclusions) return [];
+    
+    const groups = new Map<string, {
+      groupKey: string;
+      inclusions: TeamInclusion[];
+      representative: TeamInclusion;
+      inclusionNumbers: number[];
+    }>();
+
+    filteredInclusions.forEach(inclusion => {
+      const groupKey = `${inclusion.collaboratorId || 'no-collaborator'}-${inclusion.eventId}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          groupKey,
+          inclusions: [],
+          representative: inclusion,
+          inclusionNumbers: []
+        });
+      }
+      
+      const group = groups.get(groupKey)!;
+      group.inclusions.push(inclusion);
+      if (inclusion.inclusionNumber) {
+        group.inclusionNumbers.push(inclusion.inclusionNumber);
+      }
+    });
+
+    return Array.from(groups.values());
+  }, [filteredInclusions]);
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -284,7 +317,9 @@ export default function Consultation() {
                       </td>
                     </tr>
                   ) : (
-                    filteredInclusions?.map((inclusion) => {
+                    groupedInclusions?.map((group) => {
+                      const inclusion = group.representative;
+                      const isGrouped = group.inclusions.length > 1;
                       const phases = ['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'];
                       let progress;
                       if (inclusion.status === "aprovado") {
@@ -295,22 +330,52 @@ export default function Consultation() {
                       }
 
                       return (
-                        <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`consultation-row-${inclusion.id}`}>
+                        <tr key={group.groupKey} className={`hover:bg-accent/50 transition-colors ${isGrouped ? 'bg-gradient-to-r from-green-50/30 to-blue-50/30 dark:from-green-950/30 dark:to-blue-950/30' : ''}`} data-testid={`consultation-row-${group.groupKey}`}>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-mono text-foreground">
-                                #{inclusion.inclusionNumber || 'N/A'}
+                            {isGrouped ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-2 bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900 dark:to-blue-900 border-2 border-green-300 dark:border-green-700 rounded-lg">
+                                    <div className="flex items-center gap-1 text-green-700 dark:text-green-300 text-xs font-bold">
+                                      🔗 GRUPO
+                                    </div>
+                                    <div className="text-xs font-mono text-green-900 dark:text-green-100">
+                                      #{group.inclusionNumbers.join(', #')}
+                                    </div>
+                                  </div>
+                                  <div className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs rounded-full font-bold">
+                                    {group.inclusions.length} IDs
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="p-1 h-6 w-6 hover:bg-green-200 dark:hover:bg-green-800"
+                                    onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
+                                    data-testid={`button-copy-id-${group.groupKey}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <div className="text-xs text-green-600 dark:text-green-400">
+                                  ℹ️ Mesmo colaborador + evento
+                                </div>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="p-1 h-6 w-6"
-                                onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
-                                data-testid={`button-copy-id-${inclusion.id}`}
-                              >
-                                <Copy className="w-3 h-3" />
-                              </Button>
-                            </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-mono text-foreground">
+                                  #{inclusion.inclusionNumber || 'N/A'}
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="p-1 h-6 w-6"
+                                  onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
+                                  data-testid={`button-copy-id-${group.groupKey}`}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-foreground">
@@ -337,15 +402,31 @@ export default function Consultation() {
                             <StatusBadge status={inclusion.status} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-foreground">
-                              {formatCurrency(getTotalValue(inclusion))}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {inclusion.status === "aprovado" ? "Valor Real" : "Valor Planejado"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {inclusion.dailyRates} diárias
-                            </div>
+                            {isGrouped ? (
+                              <div>
+                                <div className="text-sm font-bold text-green-700 dark:text-green-300">
+                                  {formatCurrency(group.inclusions.reduce((sum, inc) => sum + getTotalValue(inc), 0))}
+                                </div>
+                                <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  Total do Grupo
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0)} diárias totais
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-sm font-medium text-foreground">
+                                  {formatCurrency(getTotalValue(inclusion))}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {inclusion.status === "aprovado" ? "Valor Real" : "Valor Planejado"}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {inclusion.dailyRates} diárias
+                                </div>
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="w-full bg-gray-200 rounded-full h-2">
