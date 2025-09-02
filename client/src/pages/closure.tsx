@@ -149,6 +149,22 @@ export default function Closure() {
     return date.toLocaleDateString("pt-BR");
   };
 
+  // Calculate date range for a group (earliest start, latest end)
+  const getGroupDateRange = (inclusions: TeamInclusion[]) => {
+    const startDates = inclusions.map(inc => inc.scheduleStartDate).filter(Boolean);
+    const endDates = inclusions.map(inc => inc.scheduleEndDate).filter(Boolean);
+    
+    if (startDates.length === 0 || endDates.length === 0) {
+      return { startDate: null, endDate: null };
+    }
+    
+    // Find earliest start date and latest end date
+    const earliestStart = startDates.sort()[0];
+    const latestEnd = endDates.sort().reverse()[0];
+    
+    return { startDate: earliestStart, endDate: latestEnd };
+  };
+
   const getTicket = (inclusionId: string) => {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
@@ -521,14 +537,35 @@ export default function Closure() {
                           <div className="p-4 bg-accent/50 rounded-lg">
                             <h4 className="font-medium text-foreground mb-3">Informações do Trabalho</h4>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Data Início Planejada</Label>
-                                <p className="font-medium">{inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : "N/A"}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Data Fim Planejada</Label>
-                                <p className="font-medium">{inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : "N/A"}</p>
-                              </div>
+                              {(() => {
+                                const dateRange = getGroupDateRange(group.inclusions);
+                                return (
+                                  <>
+                                    <div>
+                                      <Label className="text-xs text-muted-foreground">Data Início Planejada</Label>
+                                      <p className="font-medium">
+                                        {dateRange.startDate ? formatDate(dateRange.startDate) : "N/A"}
+                                      </p>
+                                      {group.inclusions.length > 1 && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          (Primeira data do grupo)
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-muted-foreground">Data Fim Planejada</Label>
+                                      <p className="font-medium">
+                                        {dateRange.endDate ? formatDate(dateRange.endDate) : "N/A"}
+                                      </p>
+                                      {group.inclusions.length > 1 && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          (Última data do grupo)
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
+                                );
+                              })()}
                               <div>
                                 <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
                                 <p className="font-medium">{inclusion.dailyRates} diárias</p>
