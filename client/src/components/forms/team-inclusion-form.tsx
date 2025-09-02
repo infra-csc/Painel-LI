@@ -175,9 +175,6 @@ export default function TeamInclusionForm() {
     const startDate = form.getValues("scheduleStartDate");
     const endDate = form.getValues("scheduleEndDate");
     
-    console.log("DEBUG - Data início:", startDate);
-    console.log("DEBUG - Data fim:", endDate);
-    
     if (!startDate || !endDate) {
       toast({
         title: "Erro",
@@ -189,32 +186,29 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Versão super simples - apenas pegar as datas como estão
-    const start = startDate; // ex: "2024-09-02"  
-    const end = endDate;     // ex: "2024-09-04"
+    // Função para adicionar um dia a uma data string YYYY-MM-DD
+    const addDay = (dateStr: string): string => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day); // mês é 0-based
+      date.setDate(date.getDate() + 1);
+      
+      const newYear = date.getFullYear();
+      const newMonth = String(date.getMonth() + 1).padStart(2, '0');
+      const newDay = String(date.getDate()).padStart(2, '0');
+      
+      return `${newYear}-${newMonth}-${newDay}`;
+    };
     
-    // Se for o mesmo dia
-    if (start === end) {
-      dates.push({ date: start, dailyRates: 1 });
-    } else {
-      // Para múltiplos dias, vou fazer manualmente por enquanto
-      const startParts = start.split('-');
-      const endParts = end.split('-');
+    // Gerar todas as datas do período (inclusive)
+    let currentDate = startDate;
+    
+    while (currentDate <= endDate) {
+      dates.push({ date: currentDate, dailyRates: 1 });
       
-      console.log("DEBUG - Partes início:", startParts);
-      console.log("DEBUG - Partes fim:", endParts);
+      if (currentDate === endDate) break;
       
-      // Por agora, só vou adicionar as duas datas principais para testar
-      dates.push({ date: start, dailyRates: 1 });
-      
-      // Se tiver mais de um dia de diferença, adicionar dias no meio
-      if (start !== end) {
-        // Por enquanto, só adicionar a data final também
-        dates.push({ date: end, dailyRates: 1 });
-      }
+      currentDate = addDay(currentDate);
     }
-    
-    console.log("DEBUG - Datas geradas:", dates);
     
     setDailyRatesByDate(dates);
     setShowDateDetails(true);
@@ -235,8 +229,10 @@ export default function TeamInclusionForm() {
   };
 
   const formatDateForDisplay = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    // Não usar new Date() para evitar problemas de timezone
+    // dateStr está no formato "YYYY-MM-DD"
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}`;
   };
 
 
