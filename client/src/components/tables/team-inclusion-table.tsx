@@ -104,8 +104,9 @@ export default function TeamInclusionTable() {
     }
   };
 
-  // Filter inclusions based on current filters
-  const filteredInclusions = teamInclusions?.filter(inclusion => {
+  // Filter and sort inclusions based on current filters
+  // Sort by Event → Function → Date
+  const filteredAndSortedInclusions = teamInclusions?.filter(inclusion => {
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
     if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
     if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
@@ -113,14 +114,32 @@ export default function TeamInclusionTable() {
     if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
     if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
     return true;
+  }).sort((a, b) => {
+    // 1. Ordenar por Evento
+    const eventA = getEventName(a.eventId);
+    const eventB = getEventName(b.eventId);
+    const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
+    if (eventComparison !== 0) return eventComparison;
+    
+    // 2. Ordenar por Função
+    const functionA = getFunctionName(a.functionId);
+    const functionB = getFunctionName(b.functionId);
+    const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
+    if (functionComparison !== 0) return functionComparison;
+    
+    // 3. Ordenar por Data (scheduleStartDate)
+    if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+    if (!a.scheduleStartDate) return 1;
+    if (!b.scheduleStartDate) return -1;
+    return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
   }) || [];
 
   // Calculate real totals
   const totals = {
-    incluidos: filteredInclusions.length,
-    em_escalacao: filteredInclusions.filter(i => i.status === 'escalacao').length,
-    aguardando_passagem: filteredInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
-    aprovados: filteredInclusions.filter(i => i.status === 'aprovado').length,
+    incluidos: filteredAndSortedInclusions.length,
+    em_escalacao: filteredAndSortedInclusions.filter(i => i.status === 'escalacao').length,
+    aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
+    aprovados: filteredAndSortedInclusions.filter(i => i.status === 'aprovado').length,
   };
 
   if (isLoading) {
@@ -202,14 +221,14 @@ export default function TeamInclusionTable() {
               </tr>
             </thead>
             <tbody className="bg-card divide-y divide-border">
-              {filteredInclusions?.length === 0 ? (
+              {filteredAndSortedInclusions?.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
               ) : (
-                filteredInclusions?.map((inclusion) => (
+                filteredAndSortedInclusions?.map((inclusion) => (
                   <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-inclusion-${inclusion.id}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-foreground">

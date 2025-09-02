@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
+import { getAvailablePreFunctions } from "@shared/pre-functions";
+import type { User } from "@shared/schema";
 
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
   quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
+  userId: z.string().optional(),
 });
 
 type FunctionFormData = z.infer<typeof functionSchema>;
@@ -27,6 +32,12 @@ interface FunctionModalProps {
 export default function FunctionModal({ open, onClose }: FunctionModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  // Only admin can create functions
+  if (!user || !hasPermission(user, 'canEditScreen1')) {
+    return null;
+  }
 
   const form = useForm<FunctionFormData>({
     resolver: zodResolver(functionSchema),
@@ -34,8 +45,16 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
       name: "",
       quantity: 1,
       description: "",
+      userId: "",
     },
   });
+  
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+  
+  const approvedUsers = users.filter(user => user.status === 'approved');
+  const preFunctions = getAvailablePreFunctions();
 
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => {
@@ -85,11 +104,18 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                 <FormItem>
                   <FormLabel>Nome da Função *</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Ex: Técnico de Som" 
-                      {...field}
-                      data-testid="input-function-name"
-                    />
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger data-testid="select-function-name">
+                        <SelectValue placeholder="Selecione ou digite uma função" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {preFunctions.map((func) => (
+                          <SelectItem key={func} value={func}>
+                            {func}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -111,6 +137,32 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                       onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                       data-testid="input-function-quantity"
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="userId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Usuário Responsável (Opcional)</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger data-testid="select-function-user">
+                        <SelectValue placeholder="Selecione um usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum usuário específico</SelectItem>
+                        {approvedUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name} - {user.area}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
