@@ -507,15 +507,6 @@ export default function Closure() {
                                 <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
                                 <p className="font-medium">{inclusion.dailyRates} diárias</p>
                               </div>
-                              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded border-l-4 border-blue-500">
-                                <Label className="text-xs font-medium text-blue-700 dark:text-blue-300">Valor da Diária</Label>
-                                <p className="font-bold text-lg text-blue-800 dark:text-blue-200">
-                                  {formatCurrency(inclusion.dailyValue / 100)}
-                                </p>
-                                <p className="text-xs text-blue-600 dark:text-blue-400">
-                                  Total: {formatCurrency(group.totalDailyValue / 100)}
-                                </p>
-                              </div>
                             </div>
                           </div>
                           
