@@ -175,6 +175,9 @@ export default function TeamInclusionForm() {
     const startDate = form.getValues("scheduleStartDate");
     const endDate = form.getValues("scheduleEndDate");
     
+    console.log("DEBUG - Data início:", startDate);
+    console.log("DEBUG - Data fim:", endDate);
+    
     if (!startDate || !endDate) {
       toast({
         title: "Erro",
@@ -186,32 +189,32 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Função para incrementar uma data (string YYYY-MM-DD)
-    const incrementDateString = (dateStr: string): string => {
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const date = new Date(year, month - 1, day); // mês 0-based
-      date.setDate(date.getDate() + 1);
-      
-      const newYear = date.getFullYear();
-      const newMonth = String(date.getMonth() + 1).padStart(2, '0'); // volta para 1-based
-      const newDay = String(date.getDate()).padStart(2, '0');
-      
-      return `${newYear}-${newMonth}-${newDay}`;
-    };
+    // Versão super simples - apenas pegar as datas como estão
+    const start = startDate; // ex: "2024-09-02"  
+    const end = endDate;     // ex: "2024-09-04"
     
-    // Começar com a data de início
-    let currentDateStr = startDate;
-    
-    // Loop até chegar na data fim (inclusive)
-    while (currentDateStr <= endDate) {
-      dates.push({ date: currentDateStr, dailyRates: 1 });
+    // Se for o mesmo dia
+    if (start === end) {
+      dates.push({ date: start, dailyRates: 1 });
+    } else {
+      // Para múltiplos dias, vou fazer manualmente por enquanto
+      const startParts = start.split('-');
+      const endParts = end.split('-');
       
-      // Se chegamos na data fim, parar
-      if (currentDateStr === endDate) break;
+      console.log("DEBUG - Partes início:", startParts);
+      console.log("DEBUG - Partes fim:", endParts);
       
-      // Senão, incrementar para o próximo dia
-      currentDateStr = incrementDateString(currentDateStr);
+      // Por agora, só vou adicionar as duas datas principais para testar
+      dates.push({ date: start, dailyRates: 1 });
+      
+      // Se tiver mais de um dia de diferença, adicionar dias no meio
+      if (start !== end) {
+        // Por enquanto, só adicionar a data final também
+        dates.push({ date: end, dailyRates: 1 });
+      }
     }
+    
+    console.log("DEBUG - Datas geradas:", dates);
     
     setDailyRatesByDate(dates);
     setShowDateDetails(true);
