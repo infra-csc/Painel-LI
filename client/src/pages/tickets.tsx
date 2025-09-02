@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import UniversalFilters from "@/components/common/universal-filters";
+import SimpleFilters from "@/components/common/simple-filters";
 import { Plane, Save, FileText } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
 
@@ -20,8 +20,6 @@ export default function Tickets() {
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
-    status: "all",
-    hasTicket: "all",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -83,13 +81,10 @@ export default function Tickets() {
     inclusion => {
       const statusMatch = inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId;
       
-      // Apply universal filters
+      // Apply universal filters (only event, function, and collaborator)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-      if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
-      if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
       
       return statusMatch;
     }
@@ -397,7 +392,7 @@ export default function Tickets() {
             </p>
           </div>
 
-          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+          <SimpleFilters filters={filters} onFiltersChange={setFilters} />
 
           {ticketInclusions.length === 0 ? (
             <div className="p-12 text-center">

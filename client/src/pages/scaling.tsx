@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import { Plus, User, Save, Search, Copy } from "lucide-react";
+import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 
 export default function Scaling() {
@@ -22,6 +23,13 @@ export default function Scaling() {
   const [currentEventName, setCurrentEventName] = useState<string>("");
   const [currentFunctionName, setCurrentFunctionName] = useState<string>("");
   const [searchId, setSearchId] = useState<string>("");
+  const [filters, setFilters] = useState({
+    eventId: "all",
+    functionId: "all",
+    collaboratorId: "all",
+    status: "all",
+    hasTicket: "all",
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -70,6 +78,15 @@ export default function Scaling() {
       const idMatch = !searchId || 
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(searchId)) ||
         inclusion.id.toLowerCase().includes(searchId.toLowerCase());
+      
+      // Apply universal filters
+      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
+      if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
+      if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+      
       return statusMatch && idMatch;
     }
   ) || [];
@@ -228,6 +245,8 @@ export default function Scaling() {
                 )}
               </div>
             </div>
+
+            <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
             {scalingInclusions.length === 0 ? (
               <div className="p-12 text-center">

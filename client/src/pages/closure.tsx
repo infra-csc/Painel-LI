@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
-import UniversalFilters from "@/components/common/universal-filters";
+import SimpleFilters from "@/components/common/simple-filters";
 import { Calculator, Save, DollarSign, Plus, Search, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
@@ -24,8 +24,6 @@ export default function Closure() {
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
-    status: "all",
-    hasTicket: "all",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -83,13 +81,10 @@ export default function Closure() {
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(searchId)) ||
         inclusion.id.toLowerCase().includes(searchId.toLowerCase());
       
-      // Apply universal filters
+      // Apply universal filters (only event, function, and collaborator)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-      if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
-      if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
       
       return statusMatch && idMatch;
     }
@@ -432,7 +427,7 @@ export default function Closure() {
             </div>
           </div>
 
-          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+          <SimpleFilters filters={filters} onFiltersChange={setFilters} />
 
           {groupedClosureInclusions.length === 0 ? (
             <div className="p-12 text-center">
