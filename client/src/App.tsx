@@ -11,6 +11,7 @@ import Tickets from "@/pages/tickets";
 import Closure from "@/pages/closure";
 import Approval from "@/pages/approval";
 import Consultation from "@/pages/consultation";
+import AdminUsers from "@/pages/admin-users";
 import AuthPage from "@/pages/auth-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
 import UserRegistration from "@/pages/user-registration";
@@ -72,6 +73,11 @@ function Router() {
           <Route path="/user-registration">
             <ProtectedRoute permission="canAccessScreen0">
               <UserRegistration />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/admin-users">
+            <ProtectedRoute permission="canAccessAdminUsers">
+              <AdminUsers />
             </ProtectedRoute>
           </Route>
           <Route component={NotFound} />

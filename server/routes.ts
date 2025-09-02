@@ -220,14 +220,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove password-related fields that shouldn't be stored
       const { currentPassword, newPassword, confirmPassword, ...profileData } = updateData;
       
-      // Check if username/email are unique (if being updated)
-      if (profileData.username) {
-        const existingByUsername = await storage.getUserByUsername(profileData.username);
-        if (existingByUsername && existingByUsername.id !== id) {
-          return res.status(400).json({ message: "Nome de usuário já existe" });
-        }
-      }
-      
       if (profileData.email) {
         const existingByEmail = await storage.getUserByEmail(profileData.email);
         if (existingByEmail && existingByEmail.id !== id) {
@@ -239,6 +231,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
       res.status(500).json({ message: "Erro ao atualizar usuário" });
+    }
+  });
+
+  // User approval route (admin only)
+  app.patch("/api/users/:id/approval", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, role } = req.body;
+      
+      if (!['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Status inválido" });
+      }
+      
+      const updatedUser = await storage.approveUser(id, status, role);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao aprovar usuário" });
     }
   });
 

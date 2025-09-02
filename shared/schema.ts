@@ -6,7 +6,6 @@ import { z } from "zod";
 // Users table for authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
@@ -14,6 +13,7 @@ export const users = pgTable("users", {
   area: text("area"), // area responsável
   resetToken: text("reset_token"), // token for password reset
   resetTokenExpiry: timestamp("reset_token_expiry"), // expiry for reset token
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
   isActive: boolean("is_active").default(true), // account status
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -39,6 +39,7 @@ export const functions = pgTable("functions", {
   description: text("description"),
   responsibleArea: text("responsible_area"),
   quantity: integer("quantity").notNull().default(1),
+  userId: varchar("user_id").references(() => users.id), // função vinculada a usuário específico
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -65,7 +66,6 @@ export const teamInclusions = pgTable("team_inclusions", {
   eventId: varchar("event_id").notNull().references(() => events.id),
   functionId: varchar("function_id").notNull().references(() => functions.id),
   collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
-  area: text("area").notNull(), // área selecionada - now required
   scheduleStartDate: date("schedule_start_date"),
   scheduleEndDate: date("schedule_end_date"),
   actualStartDate: date("actual_start_date"), // data real de início de trabalho
@@ -83,6 +83,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
   status: text("status").notNull().default("planejado"), // planejado, escalacao, passagem, fechamento, aprovado
   phase: text("phase").notNull().default("inclusao"), // inclusao, escalacao, passagem, fechamento, aprovacao
+  userId: varchar("user_id").notNull().references(() => users.id), // usuário responsável pela função
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -94,13 +95,14 @@ export const tickets = pgTable("tickets", {
   purchaseDate: date("purchase_date"),
   actualDepartureDate: date("actual_departure_date"),
   actualDepartureTime: text("actual_departure_time"),
-  actualReturnDate: date("actual_return_date"),
+  actualReturnDate: date("actual_return_date").notNull(), // agora obrigatório
   actualReturnTime: text("actual_return_time"),
   departureAirport: text("departure_airport"),
   destinationAirport: text("destination_airport"),
   value: integer("value"), // valor em centavos
   purchaseOrderNumber: text("purchase_order_number"),
   fileUrl: text("file_url"),
+  cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -136,9 +138,21 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
-// Public registration schema (no admin role allowed)
+// Public registration schema (no admin role allowed, no username)
 export const publicUserRegistrationSchema = insertUserSchema.extend({
   role: z.enum(["production", "function_area", "purchasing", "financial"])
+});
+
+// Login schema (email + password only)
+export const loginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres")
+});
+
+// User approval schema (admin only)
+export const userApprovalSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"]).optional()
 });
 
 export const insertEventSchema = createInsertSchema(events).omit({
@@ -165,6 +179,8 @@ export const insertTeamInclusionSchema = createInsertSchema(teamInclusions).omit
 export const insertTicketSchema = createInsertSchema(tickets).omit({
   id: true,
   createdAt: true,
+}).extend({
+  actualReturnDate: z.string().min(1, "Data de volta é obrigatória")
 });
 
 export const insertFinancialSchema = createInsertSchema(financial).omit({

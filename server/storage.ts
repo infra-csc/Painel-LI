@@ -17,11 +17,12 @@ export interface IStorage {
   // Users
   getUsers(): Promise<User[]>;
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByResetToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
+  approveUser(id: string, status: 'approved' | 'rejected', role?: string): Promise<User | undefined>;
+  getUsersByStatus(status: 'pending' | 'approved' | 'rejected'): Promise<User[]>;
   
   // Events
   getEvents(): Promise<Event[]>;
@@ -34,6 +35,7 @@ export interface IStorage {
   getFunction(id: string): Promise<Function | undefined>;
   createFunction(func: InsertFunction): Promise<Function>;
   updateFunction(id: string, func: Partial<InsertFunction>): Promise<Function>;
+  getFunctionsByUser(userId: string): Promise<Function[]>;
   
   // Collaborators
   getCollaborators(): Promise<Collaborator[]>;
@@ -84,7 +86,6 @@ export class MemStorage implements IStorage {
     // Create demo user with hashed password
     const demoUser: User = {
       id: "demo-user-1",
-      username: "admin",
       email: "admin@sistema.com",
       password: "$2b$10$s39R6A1cSe6scFn/rIfPL.4LDZZGSXwDEw8Sf/TXXbiXihRLVfQJy", // admin123
       name: "João Pedro Silva",
@@ -92,6 +93,7 @@ export class MemStorage implements IStorage {
       area: "Administração",
       resetToken: null,
       resetTokenExpiry: null,
+      status: "approved",
       isActive: true,
       createdAt: new Date(),
     };
@@ -107,9 +109,7 @@ export class MemStorage implements IStorage {
     return this.users.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.username === username);
-  }
+  // Removed getUserByUsername since username field is removed
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(user => user.email === email);
@@ -128,10 +128,24 @@ export class MemStorage implements IStorage {
       area: insertUser.area || null,
       resetToken: null,
       resetTokenExpiry: null,
+      status: insertUser.status || 'pending',
       isActive: true
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async getUsersByStatus(status: 'pending' | 'approved' | 'rejected'): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.status === status);
+  }
+
+  async approveUser(id: string, status: 'approved' | 'rejected', role?: string): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    
+    const updatedUser = { ...user, status, ...(role && { role }) };
+    this.users.set(id, updatedUser);
+    return updatedUser;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
@@ -153,7 +167,14 @@ export class MemStorage implements IStorage {
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
     const id = randomUUID();
-    const event: Event = { ...insertEvent, id, createdAt: new Date(), status: insertEvent.status || 'planejado', observations: insertEvent.observations || null };
+    const event: Event = { 
+      ...insertEvent, 
+      id, 
+      createdAt: new Date(), 
+      eventNumber: insertEvent.eventNumber || 1,
+      status: insertEvent.status || 'planejado', 
+      observations: insertEvent.observations || null 
+    };
     this.events.set(id, event);
     return event;
   }
@@ -181,11 +202,18 @@ export class MemStorage implements IStorage {
       ...insertFunction, 
       id, 
       createdAt: new Date(), 
+      functionNumber: insertFunction.functionNumber || 1,
       description: insertFunction.description || null,
-      quantity: insertFunction.quantity || 1
+      responsibleArea: insertFunction.responsibleArea || null,
+      quantity: insertFunction.quantity || 1,
+      userId: insertFunction.userId || null
     };
     this.functions.set(id, func);
     return func;
+  }
+
+  async getFunctionsByUser(userId: string): Promise<Function[]> {
+    return Array.from(this.functions.values()).filter(func => func.userId === userId);
   }
 
   async updateFunction(id: string, funcUpdate: Partial<InsertFunction>): Promise<Function> {
@@ -378,10 +406,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
-  }
+  // Removed getUserByUsername since username field is removed
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
@@ -395,6 +420,18 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async getUsersByStatus(status: 'pending' | 'approved' | 'rejected'): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.status, status));
+  }
+
+  async approveUser(id: string, status: 'approved' | 'rejected', role?: string): Promise<User | undefined> {
+    const updateData: any = { status };
+    if (role) updateData.role = role;
+    
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user;
   }
 
@@ -436,6 +473,10 @@ export class DatabaseStorage implements IStorage {
   async createFunction(functionData: InsertFunction): Promise<Function> {
     const [func] = await db.insert(functions).values(functionData).returning();
     return func;
+  }
+
+  async getFunctionsByUser(userId: string): Promise<Function[]> {
+    return await db.select().from(functions).where(eq(functions.userId, userId));
   }
 
   async updateFunction(id: string, functionData: Partial<InsertFunction>): Promise<Function> {
