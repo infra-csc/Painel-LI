@@ -184,13 +184,25 @@ export default function TeamInclusionForm() {
       return;
     }
     
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Parse dates properly to avoid timezone issues
+    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+    
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+    
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+    // Use a simple date iteration that ensures we include the end date
+    const current = new Date(start);
+    while (current <= end) {
+      const year = current.getFullYear();
+      const month = String(current.getMonth() + 1).padStart(2, '0');
+      const day = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
       dates.push({ date: dateStr, dailyRates: 1 });
+      current.setDate(current.getDate() + 1);
     }
     
     setDailyRatesByDate(dates);
