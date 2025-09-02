@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -74,6 +74,35 @@ export default function Tickets() {
   const ticketInclusions = teamInclusions?.filter(
     inclusion => inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId
   ) || [];
+
+  // Group inclusions by collaborator + event for unified ticket purchase
+  const groupedTicketInclusions = useMemo(() => {
+    const groups = new Map<string, TeamInclusion[]>();
+    
+    ticketInclusions.forEach(inclusion => {
+      if (!inclusion.collaboratorId) return;
+      
+      const groupKey = `${inclusion.collaboratorId}-${inclusion.eventId}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(inclusion);
+    });
+    
+    // Convert to array of grouped items
+    return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
+      const firstInclusion = inclusions[0];
+      
+      return {
+        groupKey,
+        inclusions,
+        representative: firstInclusion,
+        ids: inclusions.map(inc => inc.id),
+        inclusionNumbers: inclusions.map(inc => inc.inclusionNumber).filter(Boolean),
+      };
+    });
+  }, [ticketInclusions]);
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -163,6 +192,82 @@ export default function Tickets() {
     });
   };
 
+  // New function for handling grouped ticket purchase
+  const handlePurchaseTicketGroup = async (group: any) => {
+    const data = ticketData[group.groupKey] || {};
+    
+    // Validar apenas os campos realmente obrigatórios (marcados com * na interface)
+    const requiredFields = [
+      { field: 'value', label: 'Valor da Passagem' },
+      { field: 'departureAirport', label: 'Aeroporto Origem' },
+      { field: 'destinationAirport', label: 'Aeroporto Destino' },
+      { field: 'actualDepartureDate', label: 'Data de Ida' },
+      { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualReturnTime', label: 'Horário de Volta' },
+      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
+    ];
+    
+    const missingFields = requiredFields.filter(({ field }) => !data[field] || data[field] === '');
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Erro",
+        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Create one ticket record for the group (using the representative inclusion)
+      const representative = group.representative;
+      
+      await createTicketMutation.mutateAsync({
+        teamInclusionId: representative.id,
+        value: Math.round(parseFloat(data.value) * 100), // Convert to cents
+        purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+        actualDepartureDate: data.actualDepartureDate || representative.flightDepartureDate,
+        actualDepartureTime: data.actualDepartureTime || representative.flightDepartureSuggestedTime,
+        actualReturnDate: data.actualReturnDate || representative.flightReturnDate,
+        actualReturnTime: data.actualReturnTime || representative.flightReturnSuggestedTime,
+        departureAirport: data.departureAirport,
+        destinationAirport: data.destinationAirport,
+        purchaseOrderNumber: data.purchaseOrderNumber || null,
+        fileUrl: data.fileUrl || null
+      });
+
+      // Update all team inclusions in the group to closure phase
+      for (const inclusion of group.inclusions) {
+        await updateTeamInclusionMutation.mutateAsync({
+          id: inclusion.id,
+          data: {
+            status: "fechamento",
+            phase: "fechamento"
+          }
+        });
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Passagem registrada para ${group.inclusions.length} escalação(ões) agrupadas!`,
+      });
+
+      // Clear the form data for this group
+      setTicketData(prev => {
+        const newData = { ...prev };
+        delete newData[group.groupKey];
+        return newData;
+      });
+
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao registrar passagem",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -210,12 +315,13 @@ export default function Tickets() {
             </div>
           ) : (
             <div className="p-6 space-y-6">
-              {ticketInclusions.map((inclusion) => {
+              {groupedTicketInclusions.map((group) => {
+                const inclusion = group.representative;
                 const ticket = getTicket(inclusion.id);
-                const data = ticketData[inclusion.id] || {};
+                const data = ticketData[group.groupKey] || {};
                 
                 return (
-                  <Card key={inclusion.id} className="border-border" data-testid={`card-ticket-${inclusion.id}`}>
+                  <Card key={group.groupKey} className="border-border" data-testid={`card-ticket-${group.groupKey}`}>
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div>
@@ -225,6 +331,16 @@ export default function Tickets() {
                           <p className="text-sm text-muted-foreground mt-1">
                             Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
+                          {group.inclusions.length > 1 && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-muted-foreground">
+                                IDs: #{group.inclusionNumbers.join(", #")}
+                              </span>
+                              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs rounded-md">
+                                {group.inclusions.length} escalações agrupadas
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <StatusBadge status={inclusion.status} />
                       </CardTitle>
@@ -298,9 +414,9 @@ export default function Tickets() {
                                     min="0.01"
                                     placeholder="0.00"
                                     value={data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "") || ""}
-                                    onChange={(e) => handleTicketDataChange(inclusion.id, "dailyValue", parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => handleTicketDataChange(group.groupKey, "dailyValue", parseFloat(e.target.value) || 0)}
                                     className="max-w-[120px]"
-                                    data-testid={`input-daily-value-${inclusion.id}`}
+                                    data-testid={`input-daily-value-${group.groupKey}`}
                                   />
                                   <span className="text-sm text-muted-foreground">R$</span>
                                 </div>
@@ -313,35 +429,35 @@ export default function Tickets() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
-                            <Label htmlFor={`value-${inclusion.id}`}>Valor da Passagem *</Label>
+                            <Label htmlFor={`value-${group.groupKey}`}>Valor da Passagem *</Label>
                             <Input
-                              id={`value-${inclusion.id}`}
+                              id={`value-${group.groupKey}`}
                               type="number"
                               step="0.01"
                               placeholder="0,00"
                               value={data.value || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "value", e.target.value)}
-                              data-testid={`input-value-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "value", e.target.value)}
+                              data-testid={`input-value-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`purchaseDate-${inclusion.id}`}>Data da Compra *</Label>
+                            <Label htmlFor={`purchaseDate-${group.groupKey}`}>Data da Compra *</Label>
                             <Input
-                              id={`purchaseDate-${inclusion.id}`}
+                              id={`purchaseDate-${group.groupKey}`}
                               type="date"
                               value={data.purchaseDate || new Date().toISOString().split('T')[0]}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "purchaseDate", e.target.value)}
-                              data-testid={`input-purchase-date-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "purchaseDate", e.target.value)}
+                              data-testid={`input-purchase-date-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`departureAirport-${inclusion.id}`}>Aeroporto Origem *</Label>
+                            <Label htmlFor={`departureAirport-${group.groupKey}`}>Aeroporto Origem *</Label>
                             <Input
-                              id={`departureAirport-${inclusion.id}`}
+                              id={`departureAirport-${group.groupKey}`}
                               placeholder="Ex: GRU"
                               value={data.departureAirport || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "departureAirport", e.target.value)}
-                              data-testid={`input-departure-airport-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "departureAirport", e.target.value)}
+                              data-testid={`input-departure-airport-${group.groupKey}`}
                             />
                           </div>
                           <div>
@@ -350,75 +466,75 @@ export default function Tickets() {
                               id={`destinationAirport-${inclusion.id}`}
                               placeholder="Ex: RJ"
                               value={data.destinationAirport || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "destinationAirport", e.target.value)}
-                              data-testid={`input-destination-airport-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "destinationAirport", e.target.value)}
+                              data-testid={`input-destination-airport-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualDepartureDate-${inclusion.id}`}>Data de Ida *</Label>
+                            <Label htmlFor={`actualDepartureDate-${group.groupKey}`}>Data de Ida *</Label>
                             <Input
-                              id={`actualDepartureDate-${inclusion.id}`}
+                              id={`actualDepartureDate-${group.groupKey}`}
                               type="date"
                               value={data.actualDepartureDate || inclusion.flightDepartureDate || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "actualDepartureDate", e.target.value)}
-                              data-testid={`input-departure-date-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualDepartureDate", e.target.value)}
+                              data-testid={`input-departure-date-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualDepartureTime-${inclusion.id}`}>Horário de Ida *</Label>
+                            <Label htmlFor={`actualDepartureTime-${group.groupKey}`}>Horário de Ida *</Label>
                             <Input
-                              id={`actualDepartureTime-${inclusion.id}`}
+                              id={`actualDepartureTime-${group.groupKey}`}
                               type="time"
                               value={data.actualDepartureTime || inclusion.flightDepartureSuggestedTime || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "actualDepartureTime", e.target.value)}
-                              data-testid={`input-departure-time-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualDepartureTime", e.target.value)}
+                              data-testid={`input-departure-time-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualReturnDate-${inclusion.id}`}>Data de Volta</Label>
+                            <Label htmlFor={`actualReturnDate-${group.groupKey}`}>Data de Volta</Label>
                             <Input
-                              id={`actualReturnDate-${inclusion.id}`}
+                              id={`actualReturnDate-${group.groupKey}`}
                               type="date"
                               value={data.actualReturnDate || inclusion.flightReturnDate || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "actualReturnDate", e.target.value)}
-                              data-testid={`input-return-date-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualReturnDate", e.target.value)}
+                              data-testid={`input-return-date-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualReturnTime-${inclusion.id}`}>Horário de Volta *</Label>
+                            <Label htmlFor={`actualReturnTime-${group.groupKey}`}>Horário de Volta *</Label>
                             <Input
-                              id={`actualReturnTime-${inclusion.id}`}
+                              id={`actualReturnTime-${group.groupKey}`}
                               type="time"
                               value={data.actualReturnTime || inclusion.flightReturnSuggestedTime || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "actualReturnTime", e.target.value)}
-                              data-testid={`input-return-time-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualReturnTime", e.target.value)}
+                              data-testid={`input-return-time-${group.groupKey}`}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`purchaseOrderNumber-${inclusion.id}`}>Ordem de Compra *</Label>
+                            <Label htmlFor={`purchaseOrderNumber-${group.groupKey}`}>Ordem de Compra *</Label>
                             <Input
-                              id={`purchaseOrderNumber-${inclusion.id}`}
+                              id={`purchaseOrderNumber-${group.groupKey}`}
                               placeholder="Número da OC"
                               value={data.purchaseOrderNumber || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "purchaseOrderNumber", e.target.value)}
-                              data-testid={`input-po-number-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "purchaseOrderNumber", e.target.value)}
+                              data-testid={`input-po-number-${group.groupKey}`}
                             />
                           </div>
                           <div className="md:col-span-2 lg:col-span-3">
-                            <Label htmlFor={`fileUrl-${inclusion.id}`}>Link do Arquivo (Opcional)</Label>
+                            <Label htmlFor={`fileUrl-${group.groupKey}`}>Link do Arquivo (Opcional)</Label>
                             <Input
-                              id={`fileUrl-${inclusion.id}`}
+                              id={`fileUrl-${group.groupKey}`}
                               placeholder="URL do arquivo da passagem"
                               value={data.fileUrl || ""}
-                              onChange={(e) => handleTicketDataChange(inclusion.id, "fileUrl", e.target.value)}
-                              data-testid={`input-file-url-${inclusion.id}`}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "fileUrl", e.target.value)}
+                              data-testid={`input-file-url-${group.groupKey}`}
                             />
                           </div>
                           <div className="md:col-span-2 lg:col-span-3 flex justify-end">
                             <Button
-                              onClick={() => handlePurchaseTicket(inclusion)}
+                              onClick={() => handlePurchaseTicketGroup(group)}
                               disabled={createTicketMutation.isPending}
-                              data-testid={`button-purchase-${inclusion.id}`}
+                              data-testid={`button-purchase-${group.groupKey}`}
                             >
                               <Save className="w-4 h-4 mr-2" />
                               {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
