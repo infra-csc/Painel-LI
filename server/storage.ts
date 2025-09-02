@@ -240,7 +240,8 @@ export class MemStorage implements IStorage {
       id, 
       createdAt: new Date(), 
       status: insertCollaborator.status || 'ativo',
-      phone: insertCollaborator.phone || null
+      phone: insertCollaborator.phone || null,
+      collaboratorNumber: insertCollaborator.collaboratorNumber || this.getNextCollaboratorNumber()
     };
     this.collaborators.set(id, collaborator);
     return collaborator;
@@ -272,7 +273,6 @@ export class MemStorage implements IStorage {
       updatedAt: new Date(),
       status: insertInclusion.status || 'planejado',
       phase: insertInclusion.phase || 'inclusao',
-      area: insertInclusion.area,
       observations: insertInclusion.observations || null,
       actualObservations: insertInclusion.actualObservations || null,
       collaboratorId: insertInclusion.collaboratorId || null,

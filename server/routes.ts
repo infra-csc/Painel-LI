@@ -19,21 +19,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { email, password } = req.body;
       
-      if (!username || !password) {
-        return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
+      if (!email || !password) {
+        return res.status(400).json({ message: "E-mail e senha são obrigatórios" });
       }
       
-      let user = await storage.getUserByUsername(username);
+      const user = await storage.getUserByEmail(email);
       
-      // If not found by username, try by email
-      if (!user) {
-        user = await storage.getUserByEmail(username);
-      }
-      
-      if (!user || !user.isActive) {
-        return res.status(401).json({ message: "Credenciais inválidas" });
+      if (!user || user.status !== 'approved') {
+        return res.status(401).json({ message: "Credenciais inválidas ou conta não aprovada" });
       }
       
       // Compare password with hash
@@ -53,12 +48,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = publicUserRegistrationSchema.parse(req.body);
       
-      // Check if username already exists
-      const existingByUsername = await storage.getUserByUsername(userData.username);
-      if (existingByUsername) {
-        return res.status(400).json({ message: "Nome de usuário já existe" });
-      }
-
       // Check if email already exists
       const existingByEmail = await storage.getUserByEmail(userData.email);
       if (existingByEmail) {
@@ -151,12 +140,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       
-      // Check if username already exists
-      const existingByUsername = await storage.getUserByUsername(userData.username);
-      if (existingByUsername) {
-        return res.status(400).json({ message: "Nome de usuário já existe" });
-      }
-
       // Check if email already exists
       const existingByEmail = await storage.getUserByEmail(userData.email);
       if (existingByEmail) {

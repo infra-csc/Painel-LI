@@ -15,12 +15,11 @@ import norteLogoUrl from "@assets/b7708c145100409.6298b4cbdc473_1756736810143.jp
 import { Lock, Mail, User, Building2, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Usuário é obrigatório"),
+  email: z.string().email("E-mail inválido"),
   password: z.string().min(1, "Senha é obrigatória"),
 });
 
 const registerSchema = z.object({
-  username: z.string().min(3, "Usuário deve ter pelo menos 3 caracteres"),
   email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   confirmPassword: z.string(),
@@ -58,7 +57,7 @@ export default function AuthPage() {
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -66,7 +65,6 @@ export default function AuthPage() {
   const registerForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -86,7 +84,7 @@ export default function AuthPage() {
   const handleLogin = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      const success = await login(data.username, data.password);
+      const success = await login(data.email, data.password);
       if (success) {
         toast({
           title: "Login realizado com sucesso",
@@ -127,7 +125,7 @@ export default function AuthPage() {
           description: "Sua conta foi criada. Faça login para continuar.",
         });
         setActiveTab("login");
-        loginForm.setValue("username", data.username);
+        loginForm.setValue("email", data.email);
       } else {
         const error = await response.json();
         toast({
@@ -230,19 +228,20 @@ export default function AuthPage() {
               <TabsContent value="login" className="space-y-4">
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Usuário ou E-mail</Label>
+                    <Label htmlFor="email">E-mail</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        id="username"
-                        placeholder="Digite seu usuário ou e-mail"
+                        id="email"
+                        type="email"
+                        placeholder="Digite seu e-mail"
                         className="pl-10"
-                        {...loginForm.register("username")}
-                        data-testid="input-username"
+                        {...loginForm.register("email")}
+                        data-testid="input-email"
                       />
                     </div>
-                    {loginForm.formState.errors.username && (
-                      <p className="text-sm text-red-600">{loginForm.formState.errors.username.message}</p>
+                    {loginForm.formState.errors.email && (
+                      <p className="text-sm text-red-600">{loginForm.formState.errors.email.message}</p>
                     )}
                   </div>
 
@@ -299,23 +298,6 @@ export default function AuthPage() {
                     </div>
                     {registerForm.formState.errors.name && (
                       <p className="text-sm text-red-600">{registerForm.formState.errors.name.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-username">Usuário</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-username"
-                        placeholder="Digite seu nome de usuário"
-                        className="pl-10"
-                        {...registerForm.register("username")}
-                        data-testid="input-register-username"
-                      />
-                    </div>
-                    {registerForm.formState.errors.username && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.username.message}</p>
                     )}
                   </div>
 
