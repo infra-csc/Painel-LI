@@ -186,25 +186,31 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Simple approach: work with the date strings directly
-    const start = new Date(startDate + 'T12:00:00'); // Use noon to avoid timezone issues
-    const end = new Date(endDate + 'T12:00:00');
+    // Helper function to add days to a date string
+    const addDays = (dateStr: string, days: number): string => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      date.setDate(date.getDate() + days);
+      const newYear = date.getFullYear();
+      const newMonth = String(date.getMonth() + 1).padStart(2, '0');
+      const newDay = String(date.getDate()).padStart(2, '0');
+      return `${newYear}-${newMonth}-${newDay}`;
+    };
     
-    // Calculate the number of days between start and end (inclusive)
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+    // Helper function to check if date1 <= date2
+    const isDateLessOrEqual = (date1: string, date2: string): boolean => {
+      return date1 <= date2; // String comparison works for YYYY-MM-DD format
+    };
     
-    // Generate dates by adding days to the start date
-    for (let i = 0; i < diffDays; i++) {
-      const currentDate = new Date(start);
-      currentDate.setDate(start.getDate() + i);
+    // Start with the start date
+    let currentDate = startDate;
+    
+    // Keep adding dates until we reach the end date (inclusive)
+    while (isDateLessOrEqual(currentDate, endDate)) {
+      dates.push({ date: currentDate, dailyRates: 1 });
       
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      
-      dates.push({ date: dateStr, dailyRates: 1 });
+      // Move to next day
+      currentDate = addDays(currentDate, 1);
     }
     
     setDailyRatesByDate(dates);
