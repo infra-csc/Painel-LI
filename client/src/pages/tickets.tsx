@@ -172,11 +172,37 @@ export default function Tickets() {
       { field: 'destinationAirport', label: 'Aeroporto Destino' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
       { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualReturnDate', label: 'Data de Volta' },
       { field: 'actualReturnTime', label: 'Horário de Volta' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
     ];
     
-    const missingFields = requiredFields.filter(({ field }) => !data[field] || data[field] === '');
+    const missingFields = requiredFields.filter(({ field }) => {
+      let value = data[field] || data[field] === '' ? data[field] : null;
+      
+      // Check default values for date/time fields
+      if (!value) {
+        switch (field) {
+          case 'actualDepartureDate':
+            value = inclusion.flightDepartureDate;
+            break;
+          case 'actualDepartureTime':
+            value = inclusion.flightDepartureSuggestedTime;
+            break;
+          case 'actualReturnDate':
+            value = inclusion.flightReturnDate;
+            break;
+          case 'actualReturnTime':
+            value = inclusion.flightReturnSuggestedTime;
+            break;
+          case 'purchaseDate':
+            value = new Date().toISOString().split('T')[0];
+            break;
+        }
+      }
+      
+      return !value || value === '';
+    });
     
     if (missingFields.length > 0) {
       toast({
@@ -198,7 +224,8 @@ export default function Tickets() {
       departureAirport: data.departureAirport,
       destinationAirport: data.destinationAirport,
       purchaseOrderNumber: data.purchaseOrderNumber || null,
-      fileUrl: data.fileUrl || null
+      fileUrl: data.fileUrl || null,
+      cardLastFourDigits: data.cardLastFourDigits || null
     });
 
     // Update team inclusion status to closure phase
@@ -214,6 +241,7 @@ export default function Tickets() {
   // New function for handling grouped ticket purchase
   const handlePurchaseTicketGroup = async (group: any) => {
     const data = ticketData[group.groupKey] || {};
+    const representative = group.representative;
     
     // Validar apenas os campos realmente obrigatórios (marcados com * na interface)
     const requiredFields = [
@@ -222,11 +250,37 @@ export default function Tickets() {
       { field: 'destinationAirport', label: 'Aeroporto Destino' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
       { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualReturnDate', label: 'Data de Volta' },
       { field: 'actualReturnTime', label: 'Horário de Volta' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
     ];
     
-    const missingFields = requiredFields.filter(({ field }) => !data[field] || data[field] === '');
+    const missingFields = requiredFields.filter(({ field }) => {
+      let value = data[field] || data[field] === '' ? data[field] : null;
+      
+      // Check default values for date/time fields
+      if (!value) {
+        switch (field) {
+          case 'actualDepartureDate':
+            value = representative.flightDepartureDate;
+            break;
+          case 'actualDepartureTime':
+            value = representative.flightDepartureSuggestedTime;
+            break;
+          case 'actualReturnDate':
+            value = representative.flightReturnDate;
+            break;
+          case 'actualReturnTime':
+            value = representative.flightReturnSuggestedTime;
+            break;
+          case 'purchaseDate':
+            value = new Date().toISOString().split('T')[0];
+            break;
+        }
+      }
+      
+      return !value || value === '';
+    });
     
     if (missingFields.length > 0) {
       toast({
@@ -252,7 +306,8 @@ export default function Tickets() {
         departureAirport: data.departureAirport,
         destinationAirport: data.destinationAirport,
         purchaseOrderNumber: data.purchaseOrderNumber || null,
-        fileUrl: data.fileUrl || null
+        fileUrl: data.fileUrl || null,
+        cardLastFourDigits: data.cardLastFourDigits || null
       });
 
       // Update all team inclusions in the group to closure phase
@@ -446,6 +501,27 @@ export default function Tickets() {
                             </div>
                           </div>
 
+                          {/* Flight Suggestions from Inclusion */}
+                          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                            <h4 className="font-medium text-foreground mb-3">Sugestões de Voo da Escalação</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
+                                <p className="font-medium text-blue-700 dark:text-blue-300">
+                                  {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "Não definido"}
+                                  {inclusion.flightDepartureSuggestedTime && ` às ${inclusion.flightDepartureSuggestedTime}`}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
+                                <p className="font-medium text-blue-700 dark:text-blue-300">
+                                  {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "Não definido"}
+                                  {inclusion.flightReturnSuggestedTime && ` às ${inclusion.flightReturnSuggestedTime}`}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
                             <Label htmlFor={`value-${group.groupKey}`}>Valor da Passagem *</Label>
@@ -510,7 +586,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`actualReturnDate-${group.groupKey}`}>Data de Volta</Label>
+                            <Label htmlFor={`actualReturnDate-${group.groupKey}`}>Data de Volta *</Label>
                             <Input
                               id={`actualReturnDate-${group.groupKey}`}
                               type="date"
@@ -539,7 +615,21 @@ export default function Tickets() {
                               data-testid={`input-po-number-${group.groupKey}`}
                             />
                           </div>
-                          <div className="md:col-span-2 lg:col-span-3">
+                          <div>
+                            <Label htmlFor={`cardLastFourDigits-${group.groupKey}`}>Últimos 4 Dígitos do Cartão</Label>
+                            <Input
+                              id={`cardLastFourDigits-${group.groupKey}`}
+                              placeholder="1234"
+                              maxLength={4}
+                              value={data.cardLastFourDigits || ""}
+                              onChange={(e) => handleTicketDataChange(group.groupKey, "cardLastFourDigits", e.target.value.replace(/\D/g, ''))}
+                              data-testid={`input-card-digits-${group.groupKey}`}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Para identificação e controle interno da passagem
+                            </p>
+                          </div>
+                          <div className="md:col-span-2">
                             <Label htmlFor={`fileUrl-${group.groupKey}`}>Link do Arquivo (Opcional)</Label>
                             <Input
                               id={`fileUrl-${group.groupKey}`}
