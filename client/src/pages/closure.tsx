@@ -575,26 +575,43 @@ export default function Closure() {
                           
                           {/* Actual work data input fields */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor={`actualStartDate-${group.groupKey}`}>Data de Início do Trabalho *</Label>
-                              <Input
-                                id={`actualStartDate-${group.groupKey}`}
-                                type="date"
-                                value={data.actualStartDate || (inclusion.scheduleStartDate ? inclusion.scheduleStartDate : "")}
-                                onChange={(e) => handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value)}
-                                data-testid={`input-actual-start-date-${group.groupKey}`}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`actualEndDate-${group.groupKey}`}>Data Final do Trabalho *</Label>
-                              <Input
-                                id={`actualEndDate-${group.groupKey}`}
-                                type="date"
-                                value={data.actualEndDate || (inclusion.scheduleEndDate ? inclusion.scheduleEndDate : "")}
-                                onChange={(e) => handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value)}
-                                data-testid={`input-actual-end-date-${group.groupKey}`}
-                              />
-                            </div>
+                            {(() => {
+                              const dateRange = getGroupDateRange(group.inclusions);
+                              return (
+                                <>
+                                  <div>
+                                    <Label htmlFor={`actualStartDate-${group.groupKey}`}>Data de Início do Trabalho *</Label>
+                                    <Input
+                                      id={`actualStartDate-${group.groupKey}`}
+                                      type="date"
+                                      value={data.actualStartDate || (dateRange.startDate ? dateRange.startDate : "")}
+                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value)}
+                                      data-testid={`input-actual-start-date-${group.groupKey}`}
+                                    />
+                                    {group.inclusions.length > 1 && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Padrão: primeira data do grupo
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`actualEndDate-${group.groupKey}`}>Data Final do Trabalho *</Label>
+                                    <Input
+                                      id={`actualEndDate-${group.groupKey}`}
+                                      type="date"
+                                      value={data.actualEndDate || (dateRange.endDate ? dateRange.endDate : "")}
+                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value)}
+                                      data-testid={`input-actual-end-date-${group.groupKey}`}
+                                    />
+                                    {group.inclusions.length > 1 && (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Padrão: última data do grupo
+                                      </p>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                             <div>
                               <Label htmlFor={`actualDailyRates-${group.groupKey}`}>Quantidade de Diárias / Cachê a Pagar *</Label>
                               <Input
