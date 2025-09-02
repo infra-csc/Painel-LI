@@ -27,7 +27,6 @@ export default function Scaling() {
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
-    status: "all",
     hasTicket: "all",
   });
   const { toast } = useToast();
@@ -83,7 +82,6 @@ export default function Scaling() {
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
       if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
       if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
       

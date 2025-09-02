@@ -20,6 +20,7 @@ export default function Tickets() {
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
+    searchId: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -81,10 +82,14 @@ export default function Tickets() {
     inclusion => {
       const statusMatch = inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId;
       
-      // Apply universal filters (only event, function, and collaborator)
+      // Apply simple filters (event, function, collaborator, and search ID)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.searchId && !(
+        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
+        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
+      )) return false;
       
       return statusMatch;
     }

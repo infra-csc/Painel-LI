@@ -9,7 +9,6 @@ interface UniversalFiltersProps {
     eventId: string;
     functionId: string;
     collaboratorId: string;
-    status: string;
     hasTicket: string;
   };
   onFiltersChange: (filters: any) => void;
@@ -28,15 +27,6 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
     queryKey: ["/api/collaborators"],
   });
 
-  const statusOptions = [
-    { value: "all", label: "Todos os Status" },
-    { value: "planejado", label: "Planejado" },
-    { value: "escalacao", label: "Em Escalação" },
-    { value: "passagem", label: "Aguardando Passagem" },
-    { value: "fechamento", label: "Em Fechamento" },
-    { value: "aprovado", label: "Aprovado" }
-  ];
-
   const ticketOptions = [
     { value: "all", label: "Todos" },
     { value: "with", label: "Com Passagem" },
@@ -48,7 +38,6 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
       eventId: "all",
       functionId: "all", 
       collaboratorId: "all",
-      status: "all",
       hasTicket: "all"
     });
   };
@@ -119,28 +108,6 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
               {collaborators?.map((collaborator) => (
                 <SelectItem key={collaborator.id} value={collaborator.id}>
                   {collaborator.fullName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Status
-          </label>
-          <Select 
-            value={filters.status} 
-            onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
-            data-testid="filter-status"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar status" />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
