@@ -97,6 +97,7 @@ export default function TeamInclusionForm() {
             dailyRates: dateEntry.dailyRates,
             status: "planejado",
             phase: "inclusao",
+            userId: user?.id,
           };
           delete payload.dailyRatesByDate; // Remove this field from API call
           const response = await apiRequest("POST", "/api/team-inclusions", payload);
@@ -117,6 +118,7 @@ export default function TeamInclusionForm() {
           dailyRates: diffDays,
           status: "planejado",
           phase: "inclusao",
+          userId: user?.id,
         };
         delete payload.dailyRatesByDate;
         const response = await apiRequest("POST", "/api/team-inclusions", payload);

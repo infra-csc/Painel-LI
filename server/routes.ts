@@ -310,8 +310,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/team-inclusions", async (req, res) => {
     try {
-      console.log("DEBUG - Dados recebidos:", JSON.stringify(req.body, null, 2));
-      
       // Clean empty date strings before validation
       const cleanedData = { ...req.body };
       
@@ -323,13 +321,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (cleanedData.flightDepartureDate === "") cleanedData.flightDepartureDate = null;
       if (cleanedData.flightReturnDate === "") cleanedData.flightReturnDate = null;
       
-      console.log("DEBUG - Dados após limpeza:", JSON.stringify(cleanedData, null, 2));
-      
       const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
       const inclusion = await storage.createTeamInclusion(inclusionData);
       res.json(inclusion);
     } catch (error) {
-      console.error("DEBUG - Erro na validação:", error);
       res.status(400).json({ message: "Dados inválidos" });
     }
   });
