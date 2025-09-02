@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import SimpleFilters from "@/components/common/simple-filters";
-import { Calculator, Save, DollarSign, Plus, Search, Copy } from "lucide-react";
+import { Calculator, Save, DollarSign, Plus, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
 export default function Closure() {
@@ -402,29 +402,6 @@ export default function Closure() {
                 <Plus className="w-4 h-4 mr-2" />
                 Adicionar Colaborador Emergencial
               </Button>
-            </div>
-            <div className="mt-4 flex gap-2 items-center">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Buscar por número..."
-                  value={filters.searchId}
-                  onChange={(e) => setFilters({...filters, searchId: e.target.value})}
-                  className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  data-testid="input-search-id"
-                />
-              </div>
-              {filters.searchId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFilters({...filters, searchId: ""})}
-                  data-testid="button-clear-search"
-                >
-                  Limpar
-                </Button>
-              )}
             </div>
           </div>
 
