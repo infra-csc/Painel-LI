@@ -186,27 +186,47 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Convert dates to Date objects for proper comparison
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Parse dates manually to avoid timezone issues
+    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
     
-    // Calculate total days (inclusive)
-    const timeDiff = end.getTime() - start.getTime();
-    const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
-    const totalDays = daysDiff + 1; // +1 to include both start and end dates
+    // Helper to increment a date
+    let currentYear = startYear;
+    let currentMonth = startMonth;
+    let currentDay = startDay;
     
-    // Generate each date
-    for (let i = 0; i < totalDays; i++) {
-      const currentDate = new Date(start);
-      currentDate.setDate(start.getDate() + i);
-      
-      // Format as YYYY-MM-DD
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      
-      dates.push({ date: dateStr, dailyRates: 1 });
+    const formatDate = (year: number, month: number, day: number) => {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    };
+    
+    const isEndReached = (year: number, month: number, day: number) => {
+      if (year > endYear) return true;
+      if (year < endYear) return false;
+      if (month > endMonth) return true;
+      if (month < endMonth) return false;
+      return day > endDay;
+    };
+    
+    const incrementDate = () => {
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      currentDay++;
+      if (currentDay > daysInMonth) {
+        currentDay = 1;
+        currentMonth++;
+        if (currentMonth > 12) {
+          currentMonth = 1;
+          currentYear++;
+        }
+      }
+    };
+    
+    // Generate dates from start to end (inclusive)
+    while (!isEndReached(currentYear, currentMonth, currentDay)) {
+      dates.push({ 
+        date: formatDate(currentYear, currentMonth, currentDay), 
+        dailyRates: 1 
+      });
+      incrementDate();
     }
     
     setDailyRatesByDate(dates);
