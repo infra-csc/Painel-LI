@@ -184,25 +184,27 @@ export default function TeamInclusionForm() {
       return;
     }
     
-    // Parse dates properly to avoid timezone issues
-    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
-    const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
-    
-    const start = new Date(startYear, startMonth - 1, startDay);
-    const end = new Date(endYear, endMonth - 1, endDay);
-    
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Use a simple date iteration that ensures we include the end date
-    const current = new Date(start);
-    while (current <= end) {
-      const year = current.getFullYear();
-      const month = String(current.getMonth() + 1).padStart(2, '0');
-      const day = String(current.getDate()).padStart(2, '0');
+    // Simple approach: work with the date strings directly
+    const start = new Date(startDate + 'T12:00:00'); // Use noon to avoid timezone issues
+    const end = new Date(endDate + 'T12:00:00');
+    
+    // Calculate the number of days between start and end (inclusive)
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+    
+    // Generate dates by adding days to the start date
+    for (let i = 0; i < diffDays; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
       
       dates.push({ date: dateStr, dailyRates: 1 });
-      current.setDate(current.getDate() + 1);
     }
     
     setDailyRatesByDate(dates);
