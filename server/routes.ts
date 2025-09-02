@@ -33,10 +33,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Compare password with hash
       const isValidPassword = await bcrypt.compare(password, user.password);
+      
       if (!isValidPassword) {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
-
       res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
     } catch (error) {
       res.status(500).json({ message: "Erro interno do servidor" });

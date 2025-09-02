@@ -241,7 +241,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(), 
       status: insertCollaborator.status || 'ativo',
       phone: insertCollaborator.phone || null,
-      collaboratorNumber: insertCollaborator.collaboratorNumber || this.getNextCollaboratorNumber()
+      collaboratorNumber: insertCollaborator.collaboratorNumber || 1
     };
     this.collaborators.set(id, collaborator);
     return collaborator;
@@ -579,4 +579,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();
