@@ -88,20 +88,23 @@ export default function TeamInclusionForm() {
       const entries = [];
       
       if (dailyRatesByDate.length > 0) {
-        // Create one entry per date with specific daily rates
+        // Create one entry per individual daily rate (not per date)
         for (const dateEntry of dailyRatesByDate) {
-          const payload = {
-            ...data,
-            scheduleStartDate: dateEntry.date,
-            scheduleEndDate: dateEntry.date,
-            dailyRates: dateEntry.dailyRates,
-            status: "planejado",
-            phase: "inclusao",
-            userId: user?.id,
-          };
-          delete payload.dailyRatesByDate; // Remove this field from API call
-          const response = await apiRequest("POST", "/api/team-inclusions", payload);
-          entries.push(await response.json());
+          // Create multiple entries for each daily rate on this date
+          for (let i = 0; i < dateEntry.dailyRates; i++) {
+            const payload = {
+              ...data,
+              scheduleStartDate: dateEntry.date,
+              scheduleEndDate: dateEntry.date,
+              dailyRates: 1, // Each entry represents 1 diária
+              status: "planejado",
+              phase: "inclusao",
+              userId: user?.id,
+            };
+            delete payload.dailyRatesByDate; // Remove this field from API call
+            const response = await apiRequest("POST", "/api/team-inclusions", payload);
+            entries.push(await response.json());
+          }
         }
       } else {
         // Single entry with date range
