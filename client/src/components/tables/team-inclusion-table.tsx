@@ -20,6 +20,7 @@ export default function TeamInclusionTable() {
     collaboratorId: "all",
     status: "all",
     hasTicket: "all",
+    searchId: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -113,6 +114,10 @@ export default function TeamInclusionTable() {
     if (filters.status !== "all" && inclusion.status !== filters.status) return false;
     if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
     if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+    if (filters.searchId && !(
+      (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
+      inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
+    )) return false;
     return true;
   }).sort((a, b) => {
     // 1. Ordenar por Evento
@@ -276,7 +281,9 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-foreground">
-                        {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
+                        {inclusion.scheduleStartDate && inclusion.scheduleEndDate
+                          ? `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`
+                          : "Datas não definidas"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

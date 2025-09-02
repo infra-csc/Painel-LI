@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
 interface UniversalFiltersProps {
@@ -9,7 +9,9 @@ interface UniversalFiltersProps {
     eventId: string;
     functionId: string;
     collaboratorId: string;
+    status: string;
     hasTicket: string;
+    searchId: string;
   };
   onFiltersChange: (filters: any) => void;
 }
@@ -27,6 +29,15 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
     queryKey: ["/api/collaborators"],
   });
 
+  const statusOptions = [
+    { value: "all", label: "Todos os Status" },
+    { value: "planejado", label: "Planejado" },
+    { value: "escalacao", label: "Em Escalação" },
+    { value: "passagem", label: "Aguardando Passagem" },
+    { value: "fechamento", label: "Em Fechamento" },
+    { value: "aprovado", label: "Aprovado" }
+  ];
+
   const ticketOptions = [
     { value: "all", label: "Todos" },
     { value: "with", label: "Com Passagem" },
@@ -38,12 +49,32 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
       eventId: "all",
       functionId: "all", 
       collaboratorId: "all",
-      hasTicket: "all"
+      status: "all",
+      hasTicket: "all",
+      searchId: ""
     });
   };
 
   return (
     <div className="bg-card rounded-lg shadow-sm border border-border p-4 mb-6">
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <div className="flex-1 min-w-64">
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Buscar por ID
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Buscar por número..."
+              value={filters.searchId}
+              onChange={(e) => onFiltersChange({ ...filters, searchId: e.target.value })}
+              className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              data-testid="input-search-id"
+            />
+          </div>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-foreground mb-1">
@@ -108,6 +139,28 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
               {collaborators?.map((collaborator) => (
                 <SelectItem key={collaborator.id} value={collaborator.id}>
                   {collaborator.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex-1 min-w-48">
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Status
+          </label>
+          <Select 
+            value={filters.status} 
+            onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
+            data-testid="filter-status"
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar status" />
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
