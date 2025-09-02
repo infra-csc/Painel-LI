@@ -186,31 +186,27 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Helper function to add days to a date string
-    const addDays = (dateStr: string, days: number): string => {
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      date.setDate(date.getDate() + days);
-      const newYear = date.getFullYear();
-      const newMonth = String(date.getMonth() + 1).padStart(2, '0');
-      const newDay = String(date.getDate()).padStart(2, '0');
-      return `${newYear}-${newMonth}-${newDay}`;
-    };
+    // Convert dates to Date objects for proper comparison
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     
-    // Helper function to check if date1 <= date2
-    const isDateLessOrEqual = (date1: string, date2: string): boolean => {
-      return date1 <= date2; // String comparison works for YYYY-MM-DD format
-    };
+    // Calculate total days (inclusive)
+    const timeDiff = end.getTime() - start.getTime();
+    const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+    const totalDays = daysDiff + 1; // +1 to include both start and end dates
     
-    // Start with the start date
-    let currentDate = startDate;
-    
-    // Keep adding dates until we reach the end date (inclusive)
-    while (isDateLessOrEqual(currentDate, endDate)) {
-      dates.push({ date: currentDate, dailyRates: 1 });
+    // Generate each date
+    for (let i = 0; i < totalDays; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
       
-      // Move to next day
-      currentDate = addDays(currentDate, 1);
+      // Format as YYYY-MM-DD
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      dates.push({ date: dateStr, dailyRates: 1 });
     }
     
     setDailyRatesByDate(dates);
