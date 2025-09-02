@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -78,6 +78,42 @@ export default function Closure() {
     }
   ) || [];
 
+  // Group inclusions by collaborator + event for unified closure
+  const groupedClosureInclusions = useMemo(() => {
+    const groups = new Map<string, TeamInclusion[]>();
+    
+    closureInclusions.forEach(inclusion => {
+      if (!inclusion.collaboratorId) return;
+      
+      const groupKey = `${inclusion.collaboratorId}-${inclusion.eventId}-${inclusion.functionId}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(inclusion);
+    });
+    
+    // Convert to array of grouped items
+    return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
+      const firstInclusion = inclusions[0];
+      const totalDailyRates = inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0);
+      const totalDailyValue = inclusions.reduce((sum, inc) => sum + (inc.dailyValue * inc.dailyRates), 0);
+      
+      return {
+        groupKey,
+        inclusions,
+        representative: {
+          ...firstInclusion,
+          dailyRates: totalDailyRates,
+          dailyValue: Math.round(totalDailyValue / totalDailyRates), // Average daily value
+        },
+        totalDailyValue,
+        ids: inclusions.map(inc => inc.id),
+        inclusionNumbers: inclusions.map(inc => inc.inclusionNumber).filter(Boolean),
+      };
+    });
+  }, [closureInclusions]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -143,12 +179,12 @@ export default function Closure() {
     return diffDays;
   };
 
-  const handleFinancialDataChange = (inclusionId: string, field: string, value: any) => {
+  const handleFinancialDataChange = (groupKey: string, field: string, value: any) => {
     setFinancialData(prev => {
-      const currentData = prev[inclusionId] || {};
+      const currentData = prev[groupKey] || {};
       const updatedData = {
         ...prev,
-        [inclusionId]: {
+        [groupKey]: {
           ...currentData,
           [field]: value
         }
@@ -161,7 +197,7 @@ export default function Closure() {
         
         if (startDate && endDate) {
           const calculatedDays = calculateDailyRates(startDate, endDate);
-          updatedData[inclusionId].actualDailyRatesCount = calculatedDays.toString();
+          updatedData[groupKey].actualDailyRatesCount = calculatedDays.toString();
         }
       }
       
@@ -224,6 +260,62 @@ export default function Closure() {
       setFinancialData(prev => {
         const newData = { ...prev };
         delete newData[inclusion.id];
+        return newData;
+      });
+
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao registrar fechamento financeiro",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // New function for handling grouped closure
+  const handleFinancialClosureGroup = async (group: any) => {
+    const data = financialData[group.groupKey] || {};
+    
+    if (!data.actualDailyRates) {
+      toast({
+        title: "Erro",
+        description: "Preencha o valor total das diárias realizadas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Process all inclusions in the group
+      for (const inclusion of group.inclusions) {
+        // Create the financial record for each inclusion
+        await createFinancialMutation.mutateAsync({
+          teamInclusionId: inclusion.id,
+          actualDailyRates: Math.round(parseFloat(data.actualDailyRates) / group.inclusions.length), // Distribute evenly
+          actualValue: Math.round(parseFloat(data.actualDailyRates) * 100), // Total value in cents
+          actualFee: 0, // Fee field removed as per user request
+          observations: data.observations || null
+        });
+
+        // Update each team inclusion status to approval phase
+        await updateTeamInclusionMutation.mutateAsync({
+          id: inclusion.id,
+          data: {
+            status: "aprovacao",
+            phase: "aprovacao"
+          }
+        });
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Fechamento financeiro registrado para ${group.inclusions.length} escalação(ões) agrupadas!`,
+      });
+
+      // Clear the form data for this group
+      setFinancialData(prev => {
+        const newData = { ...prev };
+        delete newData[group.groupKey];
         return newData;
       });
 
@@ -307,7 +399,7 @@ export default function Closure() {
             </div>
           </div>
 
-          {closureInclusions.length === 0 ? (
+          {groupedClosureInclusions.length === 0 ? (
             <div className="p-12 text-center">
               <Calculator className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
@@ -319,26 +411,36 @@ export default function Closure() {
             </div>
           ) : (
             <div className="p-6 space-y-6">
-              {closureInclusions.map((inclusion) => {
+              {groupedClosureInclusions.map((group) => {
+                const inclusion = group.representative;
                 const financial = getFinancial(inclusion.id);
                 const ticket = getTicket(inclusion.id);
-                const data = financialData[inclusion.id] || {};
+                const data = financialData[group.groupKey] || {};
                 
                 return (
-                  <Card key={inclusion.id} className="border-border" data-testid={`card-closure-${inclusion.id}`}>
+                  <Card key={group.groupKey} className="border-border" data-testid={`card-closure-${group.groupKey}`}>
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-sm font-mono text-muted-foreground">
-                              ID: #{inclusion.inclusionNumber || 'N/A'}
+                              {group.inclusionNumbers.length > 1 ? (
+                                <>IDs: #{group.inclusionNumbers.join(', #')}</>
+                              ) : (
+                                <>ID: #{group.inclusionNumbers[0] || 'N/A'}</>
+                              )}
+                              {group.inclusions.length > 1 && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
+                                  {group.inclusions.length} escalações agrupadas
+                                </span>
+                              )}
                             </span>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="p-1 h-6 w-6"
-                              onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
-                              data-testid={`button-copy-id-${inclusion.id}`}
+                              onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
+                              data-testid={`button-copy-id-${group.groupKey}`}
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
@@ -395,11 +497,11 @@ export default function Closure() {
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                               <div>
                                 <Label className="text-xs text-muted-foreground">Data Início Planejada</Label>
-                                <p className="font-medium">{formatDate(inclusion.scheduleStartDate)}</p>
+                                <p className="font-medium">{inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : "N/A"}</p>
                               </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground">Data Fim Planejada</Label>
-                                <p className="font-medium">{formatDate(inclusion.scheduleEndDate)}</p>
+                                <p className="font-medium">{inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : "N/A"}</p>
                               </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
@@ -411,7 +513,7 @@ export default function Closure() {
                                   {formatCurrency(inclusion.dailyValue / 100)}
                                 </p>
                                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                                  Total: {formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}
+                                  Total: {formatCurrency(group.totalDailyValue / 100)}
                                 </p>
                               </div>
                             </div>
@@ -420,27 +522,27 @@ export default function Closure() {
                           {/* Actual work data input fields */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label htmlFor={`actualStartDate-${inclusion.id}`}>Data de Início do Trabalho *</Label>
+                              <Label htmlFor={`actualStartDate-${group.groupKey}`}>Data de Início do Trabalho *</Label>
                               <Input
-                                id={`actualStartDate-${inclusion.id}`}
+                                id={`actualStartDate-${group.groupKey}`}
                                 type="date"
                                 value={data.actualStartDate || (inclusion.scheduleStartDate ? inclusion.scheduleStartDate : "")}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualStartDate", e.target.value)}
-                                data-testid={`input-actual-start-date-${inclusion.id}`}
+                                onChange={(e) => handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value)}
+                                data-testid={`input-actual-start-date-${group.groupKey}`}
                               />
                             </div>
                             <div>
-                              <Label htmlFor={`actualEndDate-${inclusion.id}`}>Data Final do Trabalho *</Label>
+                              <Label htmlFor={`actualEndDate-${group.groupKey}`}>Data Final do Trabalho *</Label>
                               <Input
-                                id={`actualEndDate-${inclusion.id}`}
+                                id={`actualEndDate-${group.groupKey}`}
                                 type="date"
                                 value={data.actualEndDate || (inclusion.scheduleEndDate ? inclusion.scheduleEndDate : "")}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualEndDate", e.target.value)}
-                                data-testid={`input-actual-end-date-${inclusion.id}`}
+                                onChange={(e) => handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value)}
+                                data-testid={`input-actual-end-date-${group.groupKey}`}
                               />
                             </div>
                             <div>
-                              <Label htmlFor={`actualDailyRates-${inclusion.id}`}>Quantidade de Diárias / Cachê a Pagar *</Label>
+                              <Label htmlFor={`actualDailyRates-${group.groupKey}`}>Quantidade de Diárias / Cachê a Pagar *</Label>
                               <Input
                                 id={`actualDailyRates-${inclusion.id}`}
                                 type="number"
@@ -465,26 +567,26 @@ export default function Closure() {
                                 step="0.01"
                                 placeholder="0,00"
                                 value={data.actualDailyRates || ""}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "actualDailyRates", e.target.value)}
-                                data-testid={`input-daily-rates-${inclusion.id}`}
+                                onChange={(e) => handleFinancialDataChange(group.groupKey, "actualDailyRates", e.target.value)}
+                                data-testid={`input-daily-rates-${group.groupKey}`}
                               />
                             </div>
                             <div className="md:col-span-2">
-                              <Label htmlFor={`observations-${inclusion.id}`}>Observações sobre o Realizado</Label>
+                              <Label htmlFor={`observations-${group.groupKey}`}>Observações sobre o Realizado</Label>
                               <Textarea
-                                id={`observations-${inclusion.id}`}
+                                id={`observations-${group.groupKey}`}
                                 rows={3}
                                 placeholder="Explicações adicionais sobre o que foi realizado, mudanças, etc..."
                                 value={data.observations || ""}
-                                onChange={(e) => handleFinancialDataChange(inclusion.id, "observations", e.target.value)}
-                                data-testid={`textarea-observations-${inclusion.id}`}
+                                onChange={(e) => handleFinancialDataChange(group.groupKey, "observations", e.target.value)}
+                                data-testid={`textarea-observations-${group.groupKey}`}
                               />
                             </div>
                             <div className="md:col-span-2 flex justify-end">
                               <Button
-                                onClick={() => handleFinancialClosure(inclusion)}
+                                onClick={() => handleFinancialClosureGroup(group)}
                                 disabled={createFinancialMutation.isPending}
-                                data-testid={`button-close-${inclusion.id}`}
+                                data-testid={`button-close-${group.groupKey}`}
                               >
                                 <Save className="w-4 h-4 mr-2" />
                                 {createFinancialMutation.isPending ? "Registrando..." : "Registrar Fechamento"}
