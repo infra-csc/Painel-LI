@@ -406,13 +406,24 @@ export default function Tickets() {
                             Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
                           {group.inclusions.length > 1 && (
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="text-xs text-muted-foreground">
-                                IDs: #{group.inclusionNumbers.join(", #")}
-                              </span>
-                              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs rounded-md">
-                                {group.inclusions.length} escalações agrupadas
-                              </span>
+                            <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-300 dark:border-blue-700 rounded-lg shadow-sm">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="flex items-center gap-1 text-blue-700 dark:text-blue-300 text-sm font-bold">
+                                  ✈️ PASSAGEM AGRUPADA
+                                </span>
+                                <span className="px-3 py-1 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full font-bold">
+                                  {group.inclusions.length} ESCALAÇÕES
+                                </span>
+                              </div>
+                              <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                                <strong>🆔 IDs Unificados:</strong> 
+                                <span className="font-mono bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded ml-2 text-blue-900 dark:text-blue-100">
+                                  #{group.inclusionNumbers.join(", #")}
+                                </span>
+                              </div>
+                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1">
+                                ℹ️ <strong>Mesmo colaborador + evento = uma passagem unificada</strong>
+                              </div>
                             </div>
                           )}
                         </div>

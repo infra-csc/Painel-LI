@@ -422,28 +422,54 @@ export default function Closure() {
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-mono text-muted-foreground">
-                              {group.inclusionNumbers.length > 1 ? (
-                                <>IDs: #{group.inclusionNumbers.join(', #')}</>
-                              ) : (
-                                <>ID: #{group.inclusionNumbers[0] || 'N/A'}</>
-                              )}
-                              {group.inclusions.length > 1 && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
-                                  {group.inclusions.length} escalações agrupadas
+                          <div className="mb-3">
+                            {group.inclusions.length > 1 ? (
+                              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950 border-2 border-amber-300 dark:border-amber-700 rounded-lg shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300 text-sm font-bold">
+                                      🔗 FECHAMENTO AGRUPADO
+                                    </span>
+                                    <span className="px-3 py-1 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs rounded-full font-bold">
+                                      {group.inclusions.length} ESCALAÇÕES
+                                    </span>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="p-1 h-6 w-6 hover:bg-amber-200 dark:hover:bg-amber-800"
+                                    onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
+                                    data-testid={`button-copy-id-${group.groupKey}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <div className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                                  <strong>🆔 IDs Unificados:</strong> 
+                                  <span className="font-mono bg-amber-100 dark:bg-amber-900 px-2 py-1 rounded ml-2 text-amber-900 dark:text-amber-100">
+                                    #{group.inclusionNumbers.join(', #')}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+                                  ℹ️ <strong>Mesmo colaborador + evento = um fechamento unificado</strong>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-mono text-muted-foreground">
+                                  🆔 ID: #{group.inclusionNumbers[0] || 'N/A'}
                                 </span>
-                              )}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="p-1 h-6 w-6"
-                              onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
-                              data-testid={`button-copy-id-${group.groupKey}`}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="p-1 h-6 w-6"
+                                  onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
+                                  data-testid={`button-copy-id-${group.groupKey}`}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           <h3 className="text-lg font-semibold text-foreground">
                             {getEventName(inclusion.eventId)} - {getFunctionName(inclusion.functionId)}
