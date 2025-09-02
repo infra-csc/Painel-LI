@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2 } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -195,6 +195,9 @@ export default function TeamInclusionTable() {
             <thead className="bg-muted">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Evento
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -230,6 +233,29 @@ export default function TeamInclusionTable() {
               ) : (
                 filteredAndSortedInclusions?.map((inclusion) => (
                   <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-inclusion-${inclusion.id}`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-mono text-foreground font-medium">
+                          #{inclusion.inclusionNumber || 'N/A'}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="p-1 h-6 w-6"
+                          onClick={() => {
+                            const text = inclusion.inclusionNumber?.toString() || inclusion.id;
+                            navigator.clipboard.writeText(text);
+                            toast({
+                              title: "Sucesso",
+                              description: "ID copiado para a área de transferência",
+                            });
+                          }}
+                          data-testid={`button-copy-id-${inclusion.id}`}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-foreground">
                         {getEventName(inclusion.eventId)}
