@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus } from "lucide-react";
+import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -60,6 +60,13 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       label: "Consulta Geral",
       icon: Search,
       permission: "canAccessScreen6" as const,
+    },
+    {
+      id: "admin-users",
+      path: "/admin-users",
+      label: "Gerenciamento de Usuários",
+      icon: Settings,
+      permission: "canAccessAdminUsers" as const,
     },
   ];
 
