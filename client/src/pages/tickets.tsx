@@ -135,8 +135,10 @@ export default function Tickets() {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("pt-BR");
+    // Avoid Date object to prevent timezone issues
+    // Format directly from YYYY-MM-DD string to DD/MM/YYYY
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
   };
 
   const formatCurrency = (value: number) => {
