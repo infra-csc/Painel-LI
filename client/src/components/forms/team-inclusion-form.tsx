@@ -186,23 +186,31 @@ export default function TeamInclusionForm() {
     
     const dates: Array<{date: string, dailyRates: number}> = [];
     
-    // Método muito simples: usar Date mas definir hora específica
-    const start = new Date(startDate + 'T00:00:00.000Z');
-    const end = new Date(endDate + 'T00:00:00.000Z');
-    
-    const currentDate = new Date(start);
-    
-    while (currentDate <= end) {
-      // Formatar a data como YYYY-MM-DD
-      const year = currentDate.getUTCFullYear();
-      const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getUTCDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+    // Função para incrementar uma data (string YYYY-MM-DD)
+    const incrementDateString = (dateStr: string): string => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day); // mês 0-based
+      date.setDate(date.getDate() + 1);
       
-      dates.push({ date: dateStr, dailyRates: 1 });
+      const newYear = date.getFullYear();
+      const newMonth = String(date.getMonth() + 1).padStart(2, '0'); // volta para 1-based
+      const newDay = String(date.getDate()).padStart(2, '0');
       
-      // Avançar para o próximo dia
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      return `${newYear}-${newMonth}-${newDay}`;
+    };
+    
+    // Começar com a data de início
+    let currentDateStr = startDate;
+    
+    // Loop até chegar na data fim (inclusive)
+    while (currentDateStr <= endDate) {
+      dates.push({ date: currentDateStr, dailyRates: 1 });
+      
+      // Se chegamos na data fim, parar
+      if (currentDateStr === endDate) break;
+      
+      // Senão, incrementar para o próximo dia
+      currentDateStr = incrementDateString(currentDateStr);
     }
     
     setDailyRatesByDate(dates);
