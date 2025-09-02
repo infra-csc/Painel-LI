@@ -94,12 +94,29 @@ export default function Tickets() {
     return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
       const firstInclusion = inclusions[0];
       
+      // Calculate first start date and last end date
+      const startDates = inclusions
+        .filter(inc => inc.scheduleStartDate)
+        .map(inc => new Date(inc.scheduleStartDate!));
+      const endDates = inclusions
+        .filter(inc => inc.scheduleEndDate)
+        .map(inc => new Date(inc.scheduleEndDate!));
+      
+      const earliestStartDate = startDates.length > 0 
+        ? new Date(Math.min(...startDates.map(d => d.getTime())))
+        : new Date(firstInclusion.scheduleStartDate!);
+      const latestEndDate = endDates.length > 0 
+        ? new Date(Math.max(...endDates.map(d => d.getTime())))
+        : new Date(firstInclusion.scheduleEndDate!);
+      
       return {
         groupKey,
         inclusions,
         representative: firstInclusion,
         ids: inclusions.map(inc => inc.id),
         inclusionNumbers: inclusions.map(inc => inc.inclusionNumber).filter(Boolean),
+        earliestStartDate: earliestStartDate.toISOString().split('T')[0],
+        latestEndDate: latestEndDate.toISOString().split('T')[0],
       };
     });
   }, [ticketInclusions]);
@@ -399,11 +416,11 @@ export default function Tickets() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <Label className="text-xs text-muted-foreground">Data Início</Label>
-                                <p className="font-medium">{formatDate(inclusion.scheduleStartDate)}</p>
+                                <p className="font-medium">{formatDate(group.earliestStartDate)}</p>
                               </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                                <p className="font-medium">{formatDate(inclusion.scheduleEndDate)}</p>
+                                <p className="font-medium">{formatDate(group.latestEndDate)}</p>
                               </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground">Valor da Diária</Label>
@@ -421,7 +438,7 @@ export default function Tickets() {
                                   <span className="text-sm text-muted-foreground">R$</span>
                                 </div>
                                 <div className="text-sm text-muted-foreground mt-1">
-                                  {inclusion.dailyRates} diárias × {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)))} = {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
+                                  {group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0)} diárias × {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)))} = {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0))}
                                 </div>
                               </div>
                             </div>
