@@ -267,26 +267,31 @@ export class MemStorage implements IStorage {
   async createTeamInclusion(insertInclusion: InsertTeamInclusion): Promise<TeamInclusion> {
     const id = randomUUID();
     const inclusion: TeamInclusion = { 
-      ...insertInclusion, 
-      id, 
+      id,
+      eventId: insertInclusion.eventId,
+      functionId: insertInclusion.functionId,
+      userId: insertInclusion.userId,
       inclusionNumber: insertInclusion.inclusionNumber || 1,
-      area: insertInclusion.area || null,
+      area: insertInclusion.area ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
       status: insertInclusion.status || 'planejado',
       phase: insertInclusion.phase || 'inclusao',
-      observations: insertInclusion.observations || null,
-      actualObservations: insertInclusion.actualObservations || null,
-      collaboratorId: insertInclusion.collaboratorId || null,
-      actualStartDate: insertInclusion.actualStartDate || null,
-      actualEndDate: insertInclusion.actualEndDate || null,
-      actualDailyRates: insertInclusion.actualDailyRates || null,
+      observations: insertInclusion.observations ?? null,
+      actualObservations: insertInclusion.actualObservations ?? null,
+      collaboratorId: insertInclusion.collaboratorId ?? null,
+      actualStartDate: insertInclusion.actualStartDate ?? null,
+      actualEndDate: insertInclusion.actualEndDate ?? null,
+      actualDailyRates: insertInclusion.actualDailyRates ?? null,
       emergencyRecord: insertInclusion.emergencyRecord || false,
       dailyValue: insertInclusion.dailyValue || 0,
-      flightDepartureDate: insertInclusion.flightDepartureDate || null,
-      flightDepartureSuggestedTime: insertInclusion.flightDepartureSuggestedTime || null,
-      flightReturnDate: insertInclusion.flightReturnDate || null,
-      flightReturnSuggestedTime: insertInclusion.flightReturnSuggestedTime || null,
+      dailyRates: insertInclusion.dailyRates || 1,
+      scheduleStartDate: insertInclusion.scheduleStartDate ?? null,
+      scheduleEndDate: insertInclusion.scheduleEndDate ?? null,
+      flightDepartureDate: insertInclusion.flightDepartureDate ?? null,
+      flightDepartureSuggestedTime: insertInclusion.flightDepartureSuggestedTime ?? null,
+      flightReturnDate: insertInclusion.flightReturnDate ?? null,
+      flightReturnSuggestedTime: insertInclusion.flightReturnSuggestedTime ?? null,
       needsTicket: insertInclusion.needsTicket || false
     };
     this.teamInclusions.set(id, inclusion);
@@ -320,19 +325,20 @@ export class MemStorage implements IStorage {
   async createTicket(insertTicket: InsertTicket): Promise<Ticket> {
     const id = randomUUID();
     const ticket: Ticket = { 
-      ...insertTicket, 
-      id, 
+      id,
+      teamInclusionId: insertTicket.teamInclusionId,
       createdAt: new Date(),
-      purchaseDate: insertTicket.purchaseDate || null,
-      actualDepartureDate: insertTicket.actualDepartureDate || null,
-      actualDepartureTime: insertTicket.actualDepartureTime || null,
+      purchaseDate: insertTicket.purchaseDate ?? null,
+      actualDepartureDate: insertTicket.actualDepartureDate ?? null,
+      actualDepartureTime: insertTicket.actualDepartureTime ?? null,
       actualReturnDate: insertTicket.actualReturnDate || new Date().toISOString().split('T')[0],
-      actualReturnTime: insertTicket.actualReturnTime || null,
-      departureAirport: insertTicket.departureAirport || null,
-      destinationAirport: insertTicket.destinationAirport || null,
-      value: insertTicket.value || null,
-      purchaseOrderNumber: insertTicket.purchaseOrderNumber || null,
-      fileUrl: insertTicket.fileUrl || null
+      actualReturnTime: insertTicket.actualReturnTime ?? null,
+      departureAirport: insertTicket.departureAirport ?? null,
+      destinationAirport: insertTicket.destinationAirport ?? null,
+      value: insertTicket.value ?? null,
+      purchaseOrderNumber: insertTicket.purchaseOrderNumber ?? null,
+      fileUrl: insertTicket.fileUrl ?? null,
+      cardLastFourDigits: insertTicket.cardLastFourDigits ?? null
     };
     this.tickets.set(id, ticket);
     return ticket;

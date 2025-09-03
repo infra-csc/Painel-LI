@@ -16,6 +16,38 @@ import SimpleFilters from "@/components/common/simple-filters";
 import { Calculator, Save, DollarSign, Plus, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
+// Calculate daily rates based on date range
+const calculateDailyRates = (startDate: string, endDate: string): number => {
+  if (!startDate || !endDate) return 0;
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (start > end) return 0;
+  
+  // Calculate difference in days (inclusive)
+  const diffTime = end.getTime() - start.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  
+  return diffDays;
+};
+
+// Calculate date range for a group (earliest start, latest end)
+const getGroupDateRange = (inclusions: TeamInclusion[]) => {
+  const startDates = inclusions.map(inc => inc.scheduleStartDate).filter(Boolean);
+  const endDates = inclusions.map(inc => inc.scheduleEndDate).filter(Boolean);
+  
+  if (startDates.length === 0 || endDates.length === 0) {
+    return { startDate: null, endDate: null };
+  }
+  
+  // Find earliest start date and latest end date
+  const earliestStart = startDates.sort()[0];
+  const latestEnd = endDates.sort().reverse()[0];
+  
+  return { startDate: earliestStart, endDate: latestEnd };
+};
+
 export default function Closure() {
   const [financialData, setFinancialData] = useState<Record<string, any>>({});
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -91,37 +123,6 @@ export default function Closure() {
     }
   ) || [];
 
-  // Calculate daily rates based on date range
-  const calculateDailyRates = (startDate: string, endDate: string): number => {
-    if (!startDate || !endDate) return 0;
-    
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    if (start > end) return 0;
-    
-    // Calculate difference in days (inclusive)
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    
-    return diffDays;
-  };
-
-  // Calculate date range for a group (earliest start, latest end)
-  const getGroupDateRange = (inclusions: TeamInclusion[]) => {
-    const startDates = inclusions.map(inc => inc.scheduleStartDate).filter(Boolean);
-    const endDates = inclusions.map(inc => inc.scheduleEndDate).filter(Boolean);
-    
-    if (startDates.length === 0 || endDates.length === 0) {
-      return { startDate: null, endDate: null };
-    }
-    
-    // Find earliest start date and latest end date
-    const earliestStart = startDates.sort()[0];
-    const latestEnd = endDates.sort().reverse()[0];
-    
-    return { startDate: earliestStart, endDate: latestEnd };
-  };
 
   // Group inclusions by collaborator + event for unified closure
   const groupedClosureInclusions = useMemo(() => {
@@ -214,21 +215,6 @@ export default function Closure() {
     return (ticketValue / 100) + (plannedDailyValue / 100);
   };
 
-  // Duplicate definition here to be available for handleFinancialDataChange
-  const calculateDailyRatesLocal = (startDate: string, endDate: string): number => {
-    if (!startDate || !endDate) return 0;
-    
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    if (start > end) return 0;
-    
-    // Calculate difference in days (inclusive)
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    
-    return diffDays;
-  };
 
   const handleFinancialDataChange = (groupKey: string, field: string, value: any) => {
     setFinancialData(prev => {
@@ -249,7 +235,7 @@ export default function Closure() {
         const endDate = field === 'actualEndDate' ? value : (newData.actualEndDate || defaultDateRange.endDate);
         
         if (startDate && endDate) {
-          const calculatedDays = calculateDailyRatesLocal(startDate, endDate);
+          const calculatedDays = calculateDailyRates(startDate, endDate);
           newData.actualDailyRatesCount = calculatedDays.toString();
         } else {
           newData.actualDailyRatesCount = "";
@@ -654,7 +640,7 @@ export default function Closure() {
                               />
                               {data.actualStartDate && data.actualEndDate && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Calculado automaticamente: {calculateDailyRatesLocal(data.actualStartDate, data.actualEndDate)} dias
+                                  Calculado automaticamente: {calculateDailyRates(data.actualStartDate, data.actualEndDate)} dias
                                 </p>
                               )}
                             </div>
