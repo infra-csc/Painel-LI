@@ -209,8 +209,11 @@ export default function Closure() {
   };
 
   const handleFinancialDataChange = (groupKey: string, field: string, value: any) => {
+    console.log('handleFinancialDataChange called:', groupKey, field, value);
     setFinancialData(prev => {
       const currentData = prev[groupKey] || {};
+      console.log('Current data for groupKey:', groupKey, currentData);
+      
       const newData = {
         ...currentData,
         [field]: value
@@ -221,19 +224,25 @@ export default function Closure() {
         const startDate = field === 'actualStartDate' ? value : newData.actualStartDate;
         const endDate = field === 'actualEndDate' ? value : newData.actualEndDate;
         
+        console.log('Checking dates:', startDate, endDate);
+        
         if (startDate && endDate) {
           const calculatedDays = calculateDailyRates(startDate, endDate);
           newData.actualDailyRatesCount = calculatedDays.toString();
           console.log('Calculated days:', calculatedDays, 'for dates:', startDate, 'to', endDate);
         } else {
           newData.actualDailyRatesCount = "";
+          console.log('Clearing days count - missing dates');
         }
       }
       
-      return {
+      const updated = {
         ...prev,
         [groupKey]: newData
       };
+      
+      console.log('Updated financialData:', updated);
+      return updated;
     });
   };
 
@@ -614,7 +623,10 @@ export default function Closure() {
                                 type="number"
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
-                                value={data.actualDailyRatesCount || ""}
+                                value={(() => {
+                                  console.log('Rendering field for groupKey:', group.groupKey, 'data:', data);
+                                  return data.actualDailyRatesCount || "";
+                                })()}
                                 readOnly
                                 data-testid={`input-daily-rates-count-${group.groupKey}`}
                                 className="bg-muted/50 cursor-not-allowed"
