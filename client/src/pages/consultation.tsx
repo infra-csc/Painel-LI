@@ -593,7 +593,7 @@ export default function Consultation() {
                                 <span className="font-medium text-green-600">
                                   {(() => {
                                     // Mostrar quantidade de diárias realizadas e valor total realizado
-                                    const actualDays = financialRecord.actualDailyRates || inclusion.dailyRates;
+                                    const actualDays = inclusion.dailyRates; // Usar sempre a quantidade das inclusões
                                     const totalValue = (financialRecord.actualValue || 0) / 100;
                                     const dailyValue = actualDays > 0 ? totalValue / actualDays : 0;
                                     return `${actualDays} × ${formatCurrency(dailyValue)}`;
@@ -685,7 +685,7 @@ export default function Consultation() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm">Quantidade de Diárias:</span>
                         <span className="font-medium text-blue-600">
-                          {financialRecord ? (financialRecord.actualDailyRates || inclusion.dailyRates) : inclusion.dailyRates} diárias
+                          {inclusion.dailyRates} diárias
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
