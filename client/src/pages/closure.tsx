@@ -607,13 +607,13 @@ export default function Closure() {
                             <div>
                               <Label htmlFor={`actualDailyRates-${group.groupKey}`}>Quantidade de Diárias / Cachê a Pagar *</Label>
                               <Input
-                                id={`actualDailyRates-${inclusion.id}`}
+                                id={`actualDailyRates-${group.groupKey}`}
                                 type="number"
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
                                 value={data.actualDailyRatesCount || ""}
                                 readOnly
-                                data-testid={`input-daily-rates-count-${inclusion.id}`}
+                                data-testid={`input-daily-rates-count-${group.groupKey}`}
                                 className="bg-muted/50 cursor-not-allowed"
                               />
                               {data.actualStartDate && data.actualEndDate && (
@@ -623,9 +623,9 @@ export default function Closure() {
                               )}
                             </div>
                             <div>
-                              <Label htmlFor={`actualDailyValue-${inclusion.id}`}>Valor Total das Diárias Realizadas *</Label>
+                              <Label htmlFor={`actualDailyValue-${group.groupKey}`}>Valor Total das Diárias Realizadas *</Label>
                               <Input
-                                id={`actualDailyValue-${inclusion.id}`}
+                                id={`actualDailyValue-${group.groupKey}`}
                                 type="number"
                                 step="0.01"
                                 placeholder="0,00"
