@@ -520,32 +520,36 @@ export default function Closure() {
                     </CardHeader>
                     <CardContent>
                       {financial ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
                           <div>
                             <Label className="text-xs text-muted-foreground">Diárias Realizadas</Label>
-                            <p className="font-medium">{formatCurrency(financial.actualDailyRates || 0)}</p>
+                            <p className="font-medium">{financial.actualDailyRates || 0} diárias</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Valor das Diárias</Label>
+                            <p className="font-medium">{formatCurrency((financial.actualValue || 0) / 100)}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Taxa Realizada</Label>
-                            <p className="font-medium">{formatCurrency(financial.actualFee || 0)}</p>
+                            <p className="font-medium">{formatCurrency((financial.actualFee || 0) / 100)}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
                             <p className="font-medium">{ticket ? formatCurrency((ticket.value || 0) / 100) : "R$ 0,00"}</p>
                           </div>
-                          <div>
+                          <div className="md:col-span-2 lg:col-span-4">
                             <Label className="text-xs text-muted-foreground">Total Geral</Label>
                             <p className="font-medium text-lg">
-                              {formatCurrency(((financial.actualDailyRates || 0) + (financial.actualFee || 0)) / 100 + ((ticket?.value || 0) / 100))}
+                              {formatCurrency(((financial.actualValue || 0) + (financial.actualFee || 0)) / 100 + ((ticket?.value || 0) / 100))}
                             </p>
                           </div>
                           {financial.observations && (
-                            <div className="md:col-span-2 lg:col-span-3">
+                            <div className="md:col-span-2 lg:col-span-4">
                               <Label className="text-xs text-muted-foreground">Observações</Label>
                               <p className="font-medium">{financial.observations}</p>
                             </div>
                           )}
-                          <div className="md:col-span-2 lg:col-span-3">
+                          <div className="md:col-span-2 lg:col-span-4">
                             <span className="text-sm text-green-600 font-medium flex items-center">
                               <DollarSign className="w-4 h-4 mr-1" />
                               Fechamento financeiro registrado com sucesso
