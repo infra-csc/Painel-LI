@@ -611,7 +611,7 @@ export default function Closure() {
                                 type="number"
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
-                                value={data.actualDailyRatesCount || ""}
+                                value={data.actualDailyRatesCount || (data.actualStartDate && data.actualEndDate ? calculateDailyRates(data.actualStartDate, data.actualEndDate).toString() : "")}
                                 readOnly
                                 data-testid={`input-daily-rates-count-${group.groupKey}`}
                                 className="bg-muted/50 cursor-not-allowed"
