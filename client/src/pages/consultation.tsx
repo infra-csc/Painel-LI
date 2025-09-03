@@ -24,6 +24,7 @@ export default function Consultation() {
     collaboratorId: "all",
     status: "all",
     hasTicket: "all",
+    searchId: "",
   });
   const [searchId, setSearchId] = useState<string>("");
 
@@ -120,7 +121,8 @@ export default function Consultation() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "N/A";
     // Parse manual para evitar problemas de timezone
     const [year, month, day] = dateStr.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -171,14 +173,11 @@ export default function Consultation() {
     // Se foi aprovado, usar valores reais; senão usar valores planejados
     if (inclusion.status === "aprovado") {
       const ticketValue = ticket?.value || 0;
-      // Calculate daily value: use actualDailyRates * dailyValue if available, otherwise use actualValue
-      const dailyRatesValue = financialRecord?.actualDailyRates 
-        ? financialRecord.actualDailyRates * (inclusion.dailyValue || 0)
-        : financialRecord?.actualValue || 0;
+      const dailyRatesValue = (financialRecord?.actualValue || 0);
       const feeValue = financialRecord?.actualFee || 0;
       return (ticketValue + dailyRatesValue + feeValue) / 100;
     } else {
-      // Valores planejados
+      // Valores planejados: soma de passagens + diárias (considerando agrupamentos)
       const plannedDailyValue = ((inclusion.dailyValue || 0) * inclusion.dailyRates) / 100;
       const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) / 100 : 0;
       return plannedDailyValue + plannedTicketValue;

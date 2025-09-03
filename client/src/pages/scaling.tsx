@@ -4,6 +4,7 @@ import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,7 @@ import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schem
 export default function Scaling() {
   const [selectedCollaborators, setSelectedCollaborators] = useState<Record<string, string>>({});
   const [observations, setObservations] = useState<Record<string, string>>({});
+  const [dailyValues, setDailyValues] = useState<Record<string, number>>({});
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [currentArea, setCurrentArea] = useState<string>("");
   const [currentEventName, setCurrentEventName] = useState<string>("");
@@ -138,6 +140,35 @@ export default function Scaling() {
     }));
   };
 
+  const handleDailyValueChange = (inclusionId: string, value: number) => {
+    setDailyValues(prev => ({
+      ...prev,
+      [inclusionId]: value
+    }));
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const handleSaveWithoutConfirm = (inclusion: TeamInclusion) => {
+    const collaboratorId = selectedCollaborators[inclusion.id] || inclusion.collaboratorId;
+    const observation = observations[inclusion.id] || inclusion.observations;
+    const dailyValue = dailyValues[inclusion.id];
+
+    updateTeamInclusionMutation.mutate({
+      id: inclusion.id,
+      data: {
+        collaboratorId,
+        observations: observation,
+        dailyValue: dailyValue ? Math.round(dailyValue * 100) : inclusion.dailyValue // Store in cents
+      }
+    });
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -176,11 +207,14 @@ export default function Scaling() {
     const nextStatus = needsTicket ? "passagem" : "fechamento";
     const nextPhase = needsTicket ? "passagem" : "fechamento";
 
+    const dailyValue = dailyValues[inclusion.id];
+
     updateTeamInclusionMutation.mutate({
       id: inclusion.id,
       data: {
         collaboratorId,
         observations: observation,
+        dailyValue: dailyValue ? Math.round(dailyValue * 100) : inclusion.dailyValue, // Store in cents
         status: nextStatus,
         phase: nextPhase
       }
@@ -257,6 +291,9 @@ export default function Scaling() {
                           Datas / Diárias
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Valor Diária
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Colaborador
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -303,6 +340,25 @@ export default function Scaling() {
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {inclusion.dailyRates} diárias
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-muted-foreground">R$</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              placeholder="0.00"
+                              value={dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "")}
+                              onChange={(e) => handleDailyValueChange(inclusion.id, parseFloat(e.target.value) || 0)}
+                              disabled={inclusion.status === "escalacao"}
+                              className="w-24 text-sm"
+                              data-testid={`input-daily-value-${inclusion.id}`}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Total: {formatCurrency((dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -363,15 +419,27 @@ export default function Scaling() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           {inclusion.status === "planejado" && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleConfirmScaling(inclusion)}
-                              disabled={updateTeamInclusionMutation.isPending}
-                              data-testid={`button-confirm-${inclusion.id}`}
-                            >
-                              <Save className="w-4 h-4 mr-1" />
-                              {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                            </Button>
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleSaveWithoutConfirm(inclusion)}
+                                disabled={updateTeamInclusionMutation.isPending}
+                                data-testid={`button-save-${inclusion.id}`}
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                Salvar
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleConfirmScaling(inclusion)}
+                                disabled={updateTeamInclusionMutation.isPending}
+                                data-testid={`button-confirm-${inclusion.id}`}
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                              </Button>
+                            </div>
                           )}
                           {inclusion.status === "escalacao" && (
                             <span className="text-sm text-muted-foreground">Escalado</span>
@@ -409,6 +477,9 @@ export default function Scaling() {
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Datas / Diárias
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Valor Diária
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Colaborador
@@ -457,6 +528,25 @@ export default function Scaling() {
                                 </div>
                                 <div className="text-sm text-muted-foreground">
                                   {inclusion.dailyRates} diárias
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm text-muted-foreground">R$</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    placeholder="0.00"
+                                    value={dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "")}
+                                    onChange={(e) => handleDailyValueChange(inclusion.id, parseFloat(e.target.value) || 0)}
+                                    disabled={inclusion.status === "escalacao"}
+                                    className="w-24 text-sm"
+                                    data-testid={`input-daily-value-${inclusion.id}`}
+                                  />
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Total: {formatCurrency((dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
                                 </div>
                               </td>
                               <td className="px-6 py-4">
@@ -511,15 +601,27 @@ export default function Scaling() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right">
                                 {inclusion.status === "planejado" && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleConfirmScaling(inclusion)}
-                                    disabled={updateTeamInclusionMutation.isPending}
-                                    data-testid={`button-confirm-${inclusion.id}`}
-                                  >
-                                    <Save className="w-4 h-4 mr-1" />
-                                    {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                                  </Button>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleSaveWithoutConfirm(inclusion)}
+                                      disabled={updateTeamInclusionMutation.isPending}
+                                      data-testid={`button-save-${inclusion.id}`}
+                                    >
+                                      <Save className="w-4 h-4 mr-1" />
+                                      Salvar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleConfirmScaling(inclusion)}
+                                      disabled={updateTeamInclusionMutation.isPending}
+                                      data-testid={`button-confirm-${inclusion.id}`}
+                                    >
+                                      <Save className="w-4 h-4 mr-1" />
+                                      {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                                    </Button>
+                                  </div>
                                 )}
                                 {inclusion.status === "escalacao" && (
                                   <span className="text-sm text-muted-foreground">Escalado</span>

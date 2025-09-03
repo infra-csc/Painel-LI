@@ -154,15 +154,19 @@ export default function Approval() {
   const getTotalValue = (inclusion: TeamInclusion) => {
     const ticket = getTicket(inclusion.id);
     const financial = getFinancial(inclusion.id);
-    const ticketValue = ticket?.value || 0;
     
-    // Calculate daily value: use actualDailyRates * dailyValue if available, otherwise use actualValue
-    const dailyRatesValue = financial?.actualDailyRates 
-      ? financial.actualDailyRates * inclusion.dailyValue 
-      : financial?.actualValue || 0;
-    
-    const feeValue = financial?.actualFee || 0;
-    return (ticketValue + dailyRatesValue + feeValue) / 100; // Convert from cents to reals
+    // Se foi aprovado, usar valores reais; senão usar valores planejados
+    if (inclusion.status === "aprovado") {
+      const ticketValue = ticket?.value || 0;
+      const dailyRatesValue = (financial?.actualValue || 0);
+      const feeValue = financial?.actualFee || 0;
+      return (ticketValue + dailyRatesValue + feeValue) / 100;
+    } else {
+      // Valores planejados: soma de passagens + diárias (considerando agrupamentos)
+      const plannedDailyValue = ((inclusion.dailyValue || 0) * inclusion.dailyRates) / 100;
+      const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) / 100 : 0;
+      return plannedDailyValue + plannedTicketValue;
+    }
   };
 
   const handleInclusionSelect = (inclusionId: string, checked: boolean) => {

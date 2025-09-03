@@ -512,25 +512,6 @@ export default function Tickets() {
                                 <Label className="text-xs text-muted-foreground">Data Fim</Label>
                                 <p className="font-medium">{formatDate(group.latestEndDate)}</p>
                               </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Valor da Diária</Label>
-                                <div className="flex gap-2 items-center">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    placeholder="0.00"
-                                    value={data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "") || ""}
-                                    onChange={(e) => handleTicketDataChange(group.groupKey, "dailyValue", parseFloat(e.target.value) || 0)}
-                                    className="max-w-[120px]"
-                                    data-testid={`input-daily-value-${group.groupKey}`}
-                                  />
-                                  <span className="text-sm text-muted-foreground">R$</span>
-                                </div>
-                                <div className="text-sm text-muted-foreground mt-1">
-                                  {group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0)} diárias × {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)))} = {formatCurrency((data.dailyValue || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0))}
-                                </div>
-                              </div>
                             </div>
                           </div>
 
