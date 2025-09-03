@@ -609,7 +609,7 @@ export default function Approval() {
                           <div className="space-y-1">
                             <div className="text-xs font-medium text-blue-600">Planejado:</div>
                             <div className="text-sm text-foreground">
-                              {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
+                              {formatDate(inclusion.scheduleStartDate || '')} - {formatDate(inclusion.scheduleEndDate || '')}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {inclusion.dailyRates} diárias × {formatCurrency(inclusion.dailyValue / 100)}
@@ -618,7 +618,7 @@ export default function Approval() {
                               <>
                                 <div className="text-xs font-medium text-green-600 mt-2">Realizado:</div>
                                 <div className="text-sm text-foreground">
-                                  {formatDate(inclusion.actualStartDate)} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate)}
+                                  {formatDate(inclusion.actualStartDate || '')} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate || '')}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {financial?.actualDailyRates || inclusion.dailyRates} diárias
