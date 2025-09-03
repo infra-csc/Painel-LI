@@ -589,7 +589,10 @@ export default function Closure() {
                                       id={`actualStartDate-${group.groupKey}`}
                                       type="date"
                                       value={data.actualStartDate || (dateRange.startDate ? dateRange.startDate : "")}
-                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value)}
+                                      onChange={(e) => {
+                                        console.log('Start date onChange fired:', e.target.value, 'for group:', group.groupKey);
+                                        handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value);
+                                      }}
                                       data-testid={`input-actual-start-date-${group.groupKey}`}
                                     />
                                     {group.inclusions.length > 1 && (
@@ -604,7 +607,10 @@ export default function Closure() {
                                       id={`actualEndDate-${group.groupKey}`}
                                       type="date"
                                       value={data.actualEndDate || (dateRange.endDate ? dateRange.endDate : "")}
-                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value)}
+                                      onChange={(e) => {
+                                        console.log('End date onChange fired:', e.target.value, 'for group:', group.groupKey);
+                                        handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value);
+                                      }}
                                       data-testid={`input-actual-end-date-${group.groupKey}`}
                                     />
                                     {group.inclusions.length > 1 && (
