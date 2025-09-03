@@ -209,10 +209,8 @@ export default function Closure() {
   };
 
   const handleFinancialDataChange = (groupKey: string, field: string, value: any) => {
-    console.log('handleFinancialDataChange called:', groupKey, field, value);
     setFinancialData(prev => {
       const currentData = prev[groupKey] || {};
-      console.log('Current data for groupKey:', groupKey, currentData);
       
       const newData = {
         ...currentData,
@@ -221,28 +219,25 @@ export default function Closure() {
       
       // Auto-calculate daily rates when dates change
       if (field === 'actualStartDate' || field === 'actualEndDate') {
-        const startDate = field === 'actualStartDate' ? value : newData.actualStartDate;
-        const endDate = field === 'actualEndDate' ? value : newData.actualEndDate;
+        // For group keys, we need to get the default dates
+        const groupInclusions = groupedClosureInclusions?.find(g => g.groupKey === groupKey)?.inclusions || [];
+        const defaultDateRange = getGroupDateRange(groupInclusions);
         
-        console.log('Checking dates:', startDate, endDate);
+        const startDate = field === 'actualStartDate' ? value : (newData.actualStartDate || defaultDateRange.startDate);
+        const endDate = field === 'actualEndDate' ? value : (newData.actualEndDate || defaultDateRange.endDate);
         
         if (startDate && endDate) {
           const calculatedDays = calculateDailyRates(startDate, endDate);
           newData.actualDailyRatesCount = calculatedDays.toString();
-          console.log('Calculated days:', calculatedDays, 'for dates:', startDate, 'to', endDate);
         } else {
           newData.actualDailyRatesCount = "";
-          console.log('Clearing days count - missing dates');
         }
       }
       
-      const updated = {
+      return {
         ...prev,
         [groupKey]: newData
       };
-      
-      console.log('Updated financialData:', updated);
-      return updated;
     });
   };
 
@@ -589,10 +584,7 @@ export default function Closure() {
                                       id={`actualStartDate-${group.groupKey}`}
                                       type="date"
                                       value={data.actualStartDate || (dateRange.startDate ? dateRange.startDate : "")}
-                                      onChange={(e) => {
-                                        console.log('Start date onChange fired:', e.target.value, 'for group:', group.groupKey);
-                                        handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value);
-                                      }}
+                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualStartDate", e.target.value)}
                                       data-testid={`input-actual-start-date-${group.groupKey}`}
                                     />
                                     {group.inclusions.length > 1 && (
@@ -607,10 +599,7 @@ export default function Closure() {
                                       id={`actualEndDate-${group.groupKey}`}
                                       type="date"
                                       value={data.actualEndDate || (dateRange.endDate ? dateRange.endDate : "")}
-                                      onChange={(e) => {
-                                        console.log('End date onChange fired:', e.target.value, 'for group:', group.groupKey);
-                                        handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value);
-                                      }}
+                                      onChange={(e) => handleFinancialDataChange(group.groupKey, "actualEndDate", e.target.value)}
                                       data-testid={`input-actual-end-date-${group.groupKey}`}
                                     />
                                     {group.inclusions.length > 1 && (
@@ -629,10 +618,7 @@ export default function Closure() {
                                 type="number"
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
-                                value={(() => {
-                                  console.log('Rendering field for groupKey:', group.groupKey, 'data:', data);
-                                  return data.actualDailyRatesCount || "";
-                                })()}
+                                value={data.actualDailyRatesCount || ""}
                                 readOnly
                                 data-testid={`input-daily-rates-count-${group.groupKey}`}
                                 className="bg-muted/50 cursor-not-allowed"
