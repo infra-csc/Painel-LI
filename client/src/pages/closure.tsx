@@ -344,13 +344,16 @@ export default function Closure() {
     }
 
     try {
+      // Calculate the actual daily rate amount per person for the group
+      const totalValuePerPerson = Math.round(parseFloat(data.actualDailyRates) * 100) / group.inclusions.length;
+      
       // Process all inclusions in the group
       for (const inclusion of group.inclusions) {
         // Create the financial record for each inclusion
         await createFinancialMutation.mutateAsync({
           teamInclusionId: inclusion.id,
-          actualDailyRates: parseInt(data.actualDailyRatesCount || "0"), // Actual quantity of daily rates per person
-          actualValue: Math.round(parseFloat(data.actualDailyRates) * 100), // Total value in cents
+          actualDailyRates: parseInt(data.actualDailyRatesCount || "0"), // Actual quantity of daily rates calculated from dates
+          actualValue: totalValuePerPerson, // Value per person in cents
           actualFee: 0, // Fee field removed as per user request
           observations: data.observations || null
         });
