@@ -221,12 +221,15 @@ export default function Closure() {
       
       // Auto-calculate daily rates when dates change
       if (field === 'actualStartDate' || field === 'actualEndDate') {
-        const startDate = field === 'actualStartDate' ? value : currentData.actualStartDate;
-        const endDate = field === 'actualEndDate' ? value : currentData.actualEndDate;
+        const startDate = field === 'actualStartDate' ? value : (currentData.actualStartDate || updatedData[groupKey].actualStartDate);
+        const endDate = field === 'actualEndDate' ? value : (currentData.actualEndDate || updatedData[groupKey].actualEndDate);
         
         if (startDate && endDate) {
           const calculatedDays = calculateDailyRates(startDate, endDate);
           updatedData[groupKey].actualDailyRatesCount = calculatedDays.toString();
+        } else {
+          // Clear the count if dates are incomplete
+          updatedData[groupKey].actualDailyRatesCount = "";
         }
       }
       
@@ -611,7 +614,7 @@ export default function Closure() {
                                 type="number"
                                 min="0"
                                 placeholder={`Planejado: ${inclusion.dailyRates}`}
-                                value={data.actualDailyRatesCount || (data.actualStartDate && data.actualEndDate ? calculateDailyRates(data.actualStartDate, data.actualEndDate).toString() : "")}
+                                value={data.actualDailyRatesCount || ""}
                                 readOnly
                                 data-testid={`input-daily-rates-count-${group.groupKey}`}
                                 className="bg-muted/50 cursor-not-allowed"
