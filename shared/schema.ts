@@ -106,6 +106,7 @@ export const tickets = pgTable("tickets", {
   value: integer("value"), // valor em centavos
   purchaseOrderNumber: text("purchase_order_number"),
   fileUrl: text("file_url"),
+  attachmentId: text("attachment_id"), // ID de referência do anexo da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
   createdAt: timestamp("created_at").defaultNow(),
 });

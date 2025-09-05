@@ -14,6 +14,7 @@ import StatusBadge from "@/components/common/status-badge";
 import SimpleFilters from "@/components/common/simple-filters";
 import { Plane, Save, FileText, Eye } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
+import AttachmentUpload from "@/components/ui/attachment-upload";
 
 export default function Tickets() {
   const [ticketData, setTicketData] = useState<Record<string, any>>({});
@@ -257,6 +258,7 @@ export default function Tickets() {
         destinationAirport: data.destinationAirport,
         purchaseOrderNumber: data.purchaseOrderNumber || null,
         fileUrl: data.fileUrl || null,
+        attachmentId: data.attachmentId || null,
         cardLastFourDigits: data.cardLastFourDigits || null
       });
 
@@ -618,6 +620,14 @@ export default function Tickets() {
                             <p className="font-medium">{ticket.purchaseOrderNumber}</p>
                           </div>
                         )}
+                        {ticket.attachmentId && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">ID do Anexo</Label>
+                            <p className="font-mono text-sm bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-green-700 dark:text-green-300">
+                              {ticket.attachmentId}
+                            </p>
+                          </div>
+                        )}
                         <div className="md:col-span-2 lg:col-span-3">
                           <span className="text-sm text-green-600 font-medium flex items-center">
                             <FileText className="w-4 h-4 mr-1" />
@@ -693,6 +703,17 @@ export default function Tickets() {
                               onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "purchaseOrderNumber", e.target.value)}
                             />
                           </div>
+                        </div>
+
+                        {/* Campo de Anexo */}
+                        <div className="mt-4">
+                          <AttachmentUpload
+                            attachmentId={data.attachmentId}
+                            onAttachmentChange={(attachmentId) => 
+                              handleTicketDataChange(selectedGroup.groupKey, "attachmentId", attachmentId)
+                            }
+                            disabled={createTicketMutation.isPending}
+                          />
                         </div>
 
                         {/* Botões */}
