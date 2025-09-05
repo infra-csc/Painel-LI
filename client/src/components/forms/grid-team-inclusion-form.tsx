@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket } from "lucide-react";
+import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -57,9 +59,68 @@ export default function GridTeamInclusionForm() {
   const [showGrid, setShowGrid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showFunctionSelect, setShowFunctionSelect] = useState(false);
+  const [copiedValue, setCopiedValue] = useState<number | null>(null);
+  const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard event handler for copy/paste
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' && focusedCell) {
+          e.preventDefault();
+          const row = functionRows.find(r => r.functionId === focusedCell.functionId);
+          if (row) {
+            const value = row.dailyRates[focusedCell.date] || 0;
+            copyValue(value);
+          }
+        } else if (e.key === 'v' && focusedCell && copiedValue !== null) {
+          e.preventDefault();
+          pasteValue(focusedCell.functionId, focusedCell.date);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [focusedCell, copiedValue, functionRows]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (autoSave && functionRows.length > 0) {
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem('grid-auto-save', JSON.stringify({
+          functionRows,
+          dates,
+          timestamp: Date.now()
+        }));
+      }, 2000); // Auto-save after 2 seconds of inactivity
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [functionRows, dates, autoSave]);
+
+  // Load auto-saved data
+  useEffect(() => {
+    const saved = localStorage.getItem('grid-auto-save');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        // Only load if less than 1 hour old
+        if (Date.now() - data.timestamp < 3600000) {
+          setFunctionRows(data.functionRows || []);
+          setDates(data.dates || []);
+        }
+      } catch (e) {
+        console.error('Error loading auto-save data:', e);
+      }
+    }
+  }, []);
 
   // Check if user can edit this screen
   if (!hasPermission(user, 'canEditScreen1')) {
@@ -226,6 +287,108 @@ export default function GridTeamInclusionForm() {
 
   const openFunctionSelect = () => {
     setShowFunctionSelect(true);
+  };
+
+  const copyValue = (value: number) => {
+    setCopiedValue(value);
+    toast({
+      title: "Valor copiado",
+      description: `Valor ${value} copiado. Use Ctrl+V para colar.`,
+    });
+  };
+
+  const pasteValue = (functionId: string, date: string) => {
+    if (copiedValue !== null) {
+      updateDailyRate(functionId, date, copiedValue);
+      toast({
+        title: "Valor colado",
+        description: `Valor ${copiedValue} colado com sucesso.`,
+      });
+    }
+  };
+
+  const fillAllDates = (functionId: string, value: number) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { 
+            ...row, 
+            dailyRates: dates.reduce((acc, date) => ({ ...acc, [date]: value }), {})
+          }
+        : row
+    ));
+    toast({
+      title: "Valores preenchidos",
+      description: `Todas as datas preenchidas com valor ${value}.`,
+    });
+  };
+
+  const duplicateFunction = (functionId: string) => {
+    const originalRow = functionRows.find(row => row.functionId === functionId);
+    if (!originalRow) return;
+
+    const newRow: FunctionRow = {
+      ...originalRow,
+      functionId: `${originalRow.functionId}-copy-${Date.now()}`,
+    };
+
+    setFunctionRows(prev => [...prev, newRow]);
+    toast({
+      title: "Função duplicada",
+      description: `Função ${originalRow.functionName} duplicada com sucesso.`,
+    });
+  };
+
+  const saveTemplate = () => {
+    if (functionRows.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Não há configurações para salvar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const templateName = prompt("Nome do template:");
+    if (!templateName) return;
+
+    const templates = JSON.parse(localStorage.getItem('grid-templates') || '{}');
+    templates[templateName] = {
+      functionRows,
+      dates,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem('grid-templates', JSON.stringify(templates));
+    toast({
+      title: "Template salvo",
+      description: `Template "${templateName}" salvo com sucesso.`,
+    });
+  };
+
+  const loadTemplate = () => {
+    const templates = JSON.parse(localStorage.getItem('grid-templates') || '{}');
+    const templateNames = Object.keys(templates);
+    
+    if (templateNames.length === 0) {
+      toast({
+        title: "Nenhum template",
+        description: "Não há templates salvos.",
+      });
+      return;
+    }
+
+    const templateName = prompt(`Templates disponíveis: ${templateNames.join(', ')}\n\nDigite o nome do template:`);
+    if (!templateName || !templates[templateName]) return;
+
+    const template = templates[templateName];
+    setFunctionRows(template.functionRows);
+    setDates(template.dates);
+    setShowGrid(true);
+    
+    toast({
+      title: "Template carregado",
+      description: `Template "${templateName}" carregado com sucesso.`,
+    });
   };
 
   const removeFunction = (functionId: string) => {
@@ -483,6 +646,90 @@ export default function GridTeamInclusionForm() {
             {/* Grade de Escalação */}
             {showGrid && (
               <div className="space-y-4">
+                {/* Header com controles */}
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold">Modo Planilha - Inclusões de Equipe</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => setShowHelp(!showHelp)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      Ajuda
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Templates
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={saveTemplate}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Salvar Template
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={loadTemplate}>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Carregar Template
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button
+                      type="button"
+                      onClick={openFunctionSelect}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar Função
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Seção de Ajuda */}
+                <Collapsible open={showHelp}>
+                  <CollapsibleContent>
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <div className="grid md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">📋 Atalhos de Teclado:</h4>
+                          <ul className="space-y-1 text-blue-800 dark:text-blue-200">
+                            <li><strong>Ctrl+C</strong>: Copiar valor da célula selecionada</li>
+                            <li><strong>Ctrl+V</strong>: Colar valor na célula selecionada</li>
+                            <li><strong>Tab</strong>: Navegar para próxima célula</li>
+                            <li><strong>Enter</strong>: Confirmar valor e navegar</li>
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">⚡ Recursos Rápidos:</h4>
+                          <ul className="space-y-1 text-blue-800 dark:text-blue-200">
+                            <li><strong>Menu de Ações</strong>: Clique nos três pontos da função</li>
+                            <li><strong>Duplicar Função</strong>: Copia todos os dados da função</li>
+                            <li><strong>Preencher Datas</strong>: Aplica mesmo valor em todas as datas</li>
+                            <li><strong>Auto-save</strong>: Salvamento automático a cada 2 segundos</li>
+                            <li><strong>Templates</strong>: Salve e reutilize configurações</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center gap-4 text-xs text-blue-700 dark:text-blue-300">
+                          <label className="flex items-center gap-2">
+                            <Checkbox
+                              checked={autoSave}
+                              onCheckedChange={setAutoSave}
+                              className="w-3 h-3"
+                            />
+                            Auto-salvar ativo
+                          </label>
+                          <span>💡 Clique numa célula de diária para usar os atalhos de copiar/colar</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
                 <div className="border rounded-lg overflow-hidden">
                   <div className="overflow-x-auto max-h-96">
                     <table className="w-full text-sm">
@@ -501,10 +748,12 @@ export default function GridTeamInclusionForm() {
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Horário</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
-                              {formatDateForDisplay(date)}
+                              <div className="text-xs">
+                                {formatDateForDisplay(date)}
+                              </div>
                             </th>
                           ))}
-                          <th className="px-2 py-2 text-center font-medium w-12">Ações</th>
+                          <th className="px-2 py-2 text-center font-medium w-16">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -557,32 +806,61 @@ export default function GridTeamInclusionForm() {
                             </td>
                             {dates.map(date => (
                               <td key={date} className="px-1 py-2 border-r text-center">
-                                <Select
-                                  value={row.dailyRates[date]?.toString() || "0"}
-                                  onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
+                                <div 
+                                  className="relative"
+                                  onFocus={() => setFocusedCell({functionId: row.functionId, date})}
+                                  onBlur={() => setFocusedCell(null)}
                                 >
-                                  <SelectTrigger className="h-7 w-12">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="0">-</SelectItem>
-                                    <SelectItem value="1">1</SelectItem>
-                                    <SelectItem value="2">2</SelectItem>
-                                    <SelectItem value="3">3</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                  <Select
+                                    value={row.dailyRates[date]?.toString() || "0"}
+                                    onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
+                                  >
+                                    <SelectTrigger 
+                                      className={`h-7 w-12 ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-primary' : ''}`}
+                                      onFocus={() => setFocusedCell({functionId: row.functionId, date})}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="0">-</SelectItem>
+                                      <SelectItem value="1">1</SelectItem>
+                                      <SelectItem value="2">2</SelectItem>
+                                      <SelectItem value="3">3</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </td>
                             ))}
                             <td className="px-2 py-2 text-center">
-                              <Button
-                                type="button"
-                                onClick={() => removeFunction(row.functionId)}
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                    <MoreHorizontal className="w-3 h-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => duplicateFunction(row.functionId)}>
+                                    <Copy className="w-3 h-3 mr-2" />
+                                    Duplicar Função
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 1)}>
+                                    Preencher com 1
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 2)}>
+                                    Preencher com 2
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 3)}>
+                                    Preencher com 3
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => removeFunction(row.functionId)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-2" />
+                                    Remover
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </td>
                           </tr>
                         ))}
