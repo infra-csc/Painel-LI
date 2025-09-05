@@ -27,7 +27,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "planejado":
-        return "Planejado";
+        return "Aguardando Escalação";
       case "escalacao":
         return "Em Escalação";
       case "passagem":
@@ -41,7 +41,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       case "rejeitado":
         return "Rejeitado";
       default:
-        return "Planejado";
+        return "Aguardando Escalação";
     }
   };
 

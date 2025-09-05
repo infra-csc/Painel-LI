@@ -32,7 +32,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
 
   const statusOptions = [
     { value: "all", label: "Todos os Status" },
-    { value: "planejado", label: "Planejado" },
+    { value: "planejado", label: "Aguardando Escalação" },
     { value: "escalacao", label: "Em Escalação" },
     { value: "passagem", label: "Aguardando Passagem" },
     { value: "fechamento", label: "Em Fechamento" },
