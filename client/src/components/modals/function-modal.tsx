@@ -16,7 +16,6 @@ import type { User } from "@shared/schema";
 
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
-  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
   userId: z.string().optional(),
 });
@@ -42,7 +41,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     resolver: zodResolver(functionSchema),
     defaultValues: {
       name: "",
-      quantity: 1,
       description: "",
       userId: "",
     },
@@ -56,26 +54,13 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
 
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => {
-      const functions = [];
-      // Criar múltiplas funções com o mesmo nome
-      for (let i = 0; i < data.quantity; i++) {
-        const response = await apiRequest("POST", "/api/functions", {
-          name: data.name,
-          description: data.description,
-          userId: data.userId,
-        });
-        const result = await response.json();
-        functions.push(result);
-      }
-      return functions;
+      const response = await apiRequest("POST", "/api/functions", data);
+      return response.json();
     },
-    onSuccess: (functions) => {
-      const quantity = functions.length;
+    onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: quantity === 1 
-          ? "Função criada com sucesso"
-          : `${quantity} funções criadas com sucesso`,
+        description: "Função criada com sucesso",
       });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
@@ -84,7 +69,7 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     onError: () => {
       toast({
         title: "Erro",
-        description: "Erro ao criar função(ões)",
+        description: "Erro ao criar função",
         variant: "destructive",
       });
     },
@@ -119,27 +104,6 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                       placeholder="Digite o nome da função"
                       {...field}
                       data-testid="input-function-name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantidade *</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number"
-                      min="1"
-                      placeholder="1"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      data-testid="input-function-quantity"
                     />
                   </FormControl>
                   <FormMessage />

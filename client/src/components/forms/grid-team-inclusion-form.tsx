@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Save, Grid3x3, Plus, Trash2 } from "lucide-react";
+import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -31,6 +32,7 @@ interface FunctionRow {
   chegada: string;
   retorno: string;
   horarioRetorno: string;
+  needsTicket: boolean; // se precisa de passagem
   dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
   isCustom: boolean; // se é uma função adicionada dinamicamente
 }
@@ -149,6 +151,7 @@ export default function GridTeamInclusionForm() {
         chegada: "",
         retorno: "",
         horarioRetorno: "",
+        needsTicket: false,
         dailyRates,
         isCustom: false,
       };
@@ -175,6 +178,14 @@ export default function GridTeamInclusionForm() {
     ));
   };
 
+  const updateNeedsTicket = (functionId: string, needsTicket: boolean) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, needsTicket }
+        : row
+    ));
+  };
+
 
   const addCustomFunction = () => {
     const customId = `custom-${Date.now()}`;
@@ -190,6 +201,7 @@ export default function GridTeamInclusionForm() {
       chegada: "",
       retorno: "",
       horarioRetorno: "",
+      needsTicket: false,
       dailyRates,
       isCustom: true,
     };
@@ -341,7 +353,7 @@ export default function GridTeamInclusionForm() {
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
           dailyValue: range.dailyRate * 5000,
-          needsTicket: range.travelInfo.ida !== "" || range.travelInfo.retorno !== "",
+          needsTicket: functionRow?.needsTicket || false,
           observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
@@ -465,6 +477,12 @@ export default function GridTeamInclusionForm() {
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">
+                            <div className="flex items-center justify-center gap-1">
+                              <Ticket className="w-3 h-3" />
+                              <span>Passagem</span>
+                            </div>
+                          </th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
@@ -491,6 +509,13 @@ export default function GridTeamInclusionForm() {
                               ) : (
                                 row.functionName
                               )}
+                            </td>
+                            <td className="px-2 py-2 border-r text-center">
+                              <Checkbox
+                                checked={row.needsTicket}
+                                onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
+                                data-testid={`checkbox-needs-ticket-${row.functionId}`}
+                              />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
