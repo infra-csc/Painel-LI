@@ -25,7 +25,6 @@ const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   description: z.string().optional(),
   responsibleArea: z.string().optional(),
-  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1").default(1),
   userId: z.string().optional(),
 });
 
@@ -59,7 +58,6 @@ export default function Functions() {
       name: "",
       description: "",
       responsibleArea: "",
-      quantity: 1,
       userId: "none",
     },
   });
@@ -152,7 +150,6 @@ export default function Functions() {
         name: functionToEdit.name,
         description: functionToEdit.description || "",
         responsibleArea: functionToEdit.responsibleArea || "",
-        quantity: functionToEdit.quantity,
         userId: functionToEdit.userId || "none",
       });
     } else {
@@ -161,7 +158,6 @@ export default function Functions() {
         name: "",
         description: "",
         responsibleArea: "",
-        quantity: 1,
         userId: "none",
       });
     }
@@ -275,25 +271,6 @@ export default function Functions() {
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="quantity"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Quantidade</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="number" 
-                                  min="1"
-                                  {...field} 
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                                  data-testid="input-function-quantity"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
 
                         <FormField
                           control={form.control}
@@ -348,7 +325,6 @@ export default function Functions() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Descrição</TableHead>
                       <TableHead>Área</TableHead>
-                      <TableHead>Quantidade</TableHead>
                       <TableHead>Usuário Atribuído</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -361,7 +337,6 @@ export default function Functions() {
                           {func.description || "Sem descrição"}
                         </TableCell>
                         <TableCell>{func.responsibleArea || "-"}</TableCell>
-                        <TableCell>{func.quantity}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4" />
@@ -393,7 +368,7 @@ export default function Functions() {
                     ))}
                     {(!functions || functions.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           Nenhuma função cadastrada. Clique em "Nova Função" para criar a primeira.
                         </TableCell>
                       </TableRow>
