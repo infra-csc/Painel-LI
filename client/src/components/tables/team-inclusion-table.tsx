@@ -83,6 +83,14 @@ export default function TeamInclusionTable() {
     });
   };
 
+  const canEditInclusion = (status: string) => {
+    // Pode editar apenas até a confirmação de escalação
+    // Status que permitem edição: inclusao, escalacao
+    // Status que NÃO permitem edição: passagem, fechamento, aprovacao, aprovado
+    const editableStatuses = ['inclusao', 'escalacao'];
+    return editableStatuses.includes(status);
+  };
+
   const deleteTeamInclusionMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
@@ -203,35 +211,35 @@ export default function TeamInclusionTable() {
           <h3 className="text-lg font-semibold text-foreground">Lista de Inclusões de Equipe</h3>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div>
+          <table className="w-full table-fixed">
             <thead className="bg-muted">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-20 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-36 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Evento
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Função
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Colaborador
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Data da Escala
+                <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Data Escala
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Diárias / Valor
+                <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Diárias/Valor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Passagem
+                <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Ticket
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-24 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-20 px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -246,15 +254,15 @@ export default function TeamInclusionTable() {
               ) : (
                 filteredAndSortedInclusions?.map((inclusion) => (
                   <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-inclusion-${inclusion.id}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-mono text-foreground font-medium">
+                    <td className="px-3 py-4">
+                      <div className="flex items-center gap-1 truncate">
+                        <div className="text-sm font-mono text-foreground font-medium truncate">
                           #{inclusion.inclusionNumber || 'N/A'}
                         </div>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="p-1 h-6 w-6"
+                          className="p-1 h-5 w-5 flex-shrink-0"
                           onClick={() => {
                             const text = inclusion.inclusionNumber?.toString() || inclusion.id;
                             navigator.clipboard.writeText(text);
@@ -269,55 +277,57 @@ export default function TeamInclusionTable() {
                         </Button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-foreground">
-                        {getEventName(inclusion.eventId)}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {getEventLocation(inclusion.eventId)}
+                    <td className="px-3 py-4">
+                      <div className="truncate">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {getEventName(inclusion.eventId)}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {getEventLocation(inclusion.eventId)}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">
+                    <td className="px-3 py-4">
+                      <div className="text-sm text-foreground truncate">
                         {getFunctionName(inclusion.functionId)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">
+                    <td className="px-3 py-4">
+                      <div className="text-sm text-foreground truncate">
                         {getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado"}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">
+                    <td className="px-3 py-4">
+                      <div className="text-xs text-foreground">
                         {inclusion.scheduleStartDate && inclusion.scheduleEndDate
                           ? `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`
-                          : "Datas não definidas"}
+                          : "Não definidas"}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">
+                    <td className="px-3 py-4">
+                      <div className="text-xs text-foreground">
                         {inclusion.dailyRates} diárias
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        R$ {((inclusion.dailyValue || 0) / 100).toFixed(2)} / Total: R$ {((inclusion.dailyValue || 0) * inclusion.dailyRates / 100).toFixed(2)}
+                      <div className="text-xs text-muted-foreground truncate">
+                        R$ {((inclusion.dailyValue || 0) / 100).toFixed(0)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          Sim
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          S
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Não
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          N
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4">
                       <StatusBadge status={inclusion.status} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-3 py-4 text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -329,15 +339,17 @@ export default function TeamInclusionTable() {
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEdit(inclusion.id)}
-                              className="text-green-600 hover:text-green-900"
-                              data-testid={`button-edit-${inclusion.id}`}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
+                            {canEditInclusion(inclusion.status) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEdit(inclusion.id)}
+                                className="text-green-600 hover:text-green-900"
+                                data-testid={`button-edit-${inclusion.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
