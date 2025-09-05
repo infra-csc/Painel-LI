@@ -388,6 +388,9 @@ export default function Tickets() {
                     <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Data Ida
                     </th>
+                    <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Data Volta
+                    </th>
                     <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Voos Sugeridos
                     </th>
@@ -457,6 +460,11 @@ export default function Tickets() {
                               </div>
                             );
                           })()}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-foreground">
+                            {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : formatDate(group.latestEndDate)}
+                          </div>
                         </td>
                         <td className="px-4 py-4">
                           <div className="text-sm font-bold text-blue-700 dark:text-blue-300">
