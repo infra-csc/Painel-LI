@@ -47,10 +47,9 @@ export default function Scaling() {
     queryKey: ["/api/collaborators"],
   });
 
-  // Filter inclusions that are in planning phase or scaling phase
+  // Filter inclusions - now shows all phases to keep records visible
   const scalingInclusions = filteredTeamInclusions?.filter(
     inclusion => {
-      const statusMatch = inclusion.status === "planejado" || inclusion.status === "escalacao";
       const idMatch = !filters.searchId || 
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
         inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
@@ -62,9 +61,20 @@ export default function Scaling() {
       if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
       if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
       
-      return statusMatch && idMatch;
+      return idMatch;
     }
   ) || [];
+
+  // Helper function to determine if escalation is completed
+  const isEscalated = (inclusion: TeamInclusion) => {
+    return inclusion.collaboratorId && (
+      inclusion.status === "escalacao" || 
+      inclusion.status === "passagem" || 
+      inclusion.status === "fechamento" || 
+      inclusion.status === "aprovacao" || 
+      inclusion.status === "aprovado"
+    );
+  };
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -194,6 +204,9 @@ export default function Scaling() {
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Quantidade de Diárias
                             </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Escalação
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -228,6 +241,19 @@ export default function Scaling() {
                                 <div className="text-sm text-foreground font-medium">
                                   {inclusion.dailyRates} diárias
                                 </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                {isEscalated(inclusion) ? (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    Escalado
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    Pendente
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -276,6 +302,9 @@ export default function Scaling() {
                               Horários Sugeridos
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Escalação
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Status
                             </th>
                           </tr>
@@ -319,6 +348,19 @@ export default function Scaling() {
                                   <div>Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}</div>
                                   <div>Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}</div>
                                 </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                {isEscalated(inclusion) ? (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    Escalado
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    Pendente
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
                                 <StatusBadge status={inclusion.status} />
