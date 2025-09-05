@@ -5,15 +5,18 @@ import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import UniversalFilters from "@/components/common/universal-filters";
 import StatusBadge from "@/components/common/status-badge";
-import { Eye, MessageCircle, Search, Copy } from "lucide-react";
+import { Eye, MessageCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket, Financial } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { hasPermission } from "@/lib/role-utils";
 
 export default function Consultation() {
+  const { user } = useAuth();
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -23,10 +26,25 @@ export default function Consultation() {
     functionId: "all",
     collaboratorId: "all",
     status: "all",
-    hasTicket: "all",
+    escalationStatus: "all",
     searchId: "",
   });
   const [searchId, setSearchId] = useState<string>("");
+
+  // Check if user can access this screen
+  if (!hasPermission(user, 'canAccessScreen6')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const { data: teamInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -52,12 +70,6 @@ export default function Consultation() {
     queryKey: ["/api/financial"],
   });
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    // Note: toast notification would be added here if available
-    console.log(`${label} copiado: ${text}`);
-  };
-
   // Filter inclusions based on current filters
   const filteredInclusions = teamInclusions?.filter(inclusion => {
     // Apply ID search filter first (using inclusion number)
@@ -70,43 +82,8 @@ export default function Consultation() {
     if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
     if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
     if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-    if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
-    if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
     return true;
   }) || [];
-
-  // Group inclusions by collaborator + event for better visualization
-  const groupedInclusions = useMemo(() => {
-    if (!filteredInclusions) return [];
-    
-    const groups = new Map<string, {
-      groupKey: string;
-      inclusions: TeamInclusion[];
-      representative: TeamInclusion;
-      inclusionNumbers: number[];
-    }>();
-
-    filteredInclusions.forEach(inclusion => {
-      const groupKey = `${inclusion.collaboratorId || 'no-collaborator'}-${inclusion.eventId}`;
-      
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, {
-          groupKey,
-          inclusions: [],
-          representative: inclusion,
-          inclusionNumbers: []
-        });
-      }
-      
-      const group = groups.get(groupKey)!;
-      group.inclusions.push(inclusion);
-      if (inclusion.inclusionNumber) {
-        group.inclusionNumbers.push(inclusion.inclusionNumber);
-      }
-    });
-
-    return Array.from(groups.values());
-  }, [filteredInclusions]);
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -194,30 +171,27 @@ export default function Consultation() {
     setShowSummaryModal(true);
   };
 
-  // Group inclusions by phase for progress visualization
-  const inclusionsByPhase = filteredInclusions.reduce((acc, inclusion) => {
-    if (!acc[inclusion.phase]) {
-      acc[inclusion.phase] = [];
-    }
-    acc[inclusion.phase].push(inclusion);
-    return acc;
-  }, {} as Record<string, TeamInclusion[]>);
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <NavigationTabs activeTab="consultation" />
+        <WorkflowIndicator currentPhase="consulta" />
         
         <div className="space-y-6">
           <div className="bg-card rounded-lg shadow-sm border border-border p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Consulta Geral</h2>
-                <p className="text-muted-foreground">Acompanhe o andamento e status de todos os registros em todas as fases.</p>
+                <h2 className="text-2xl font-bold text-foreground mb-2">📋 Log Detalhado de Registros</h2>
+                <p className="text-muted-foreground">Visualize todas as informações completas dos registros com detalhes de cada etapa do processo.</p>
               </div>
-              <div className="text-sm font-medium text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-                {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} registros aprovados
+              <div className="flex gap-3">
+                <div className="text-sm font-medium text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                  ✅ {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} aprovados
+                </div>
+                <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                  📊 {teamInclusions?.length || 0} total
+                </div>
               </div>
             </div>
             <div className="mt-4 flex gap-2 items-center">
@@ -247,236 +221,315 @@ export default function Consultation() {
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
-          {/* Phase Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'].map((phase) => {
-              const count = inclusionsByPhase[phase]?.length || 0;
-              return (
-                <Card key={phase} className="text-center">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">
-                      {getPhaseIcon(phase)} {getPhaseLabel(phase)}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-primary" data-testid={`phase-count-${phase}`}>
-                      {count}
-                    </div>
-                    <div className="text-xs text-muted-foreground">registros</div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Detailed Table */}
+          {/* Timeline Log Detalhado */}
           <div className="bg-card rounded-lg shadow-sm border border-border">
             <div className="px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-semibold text-foreground">Todos os Registros - Visão Geral</h3>
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                🔍 Timeline Completo - Log Detalhado dos Registros
+                <Badge variant="outline" className="ml-2">{filteredInclusions.length} registros</Badge>
+              </h3>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Evento
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Função
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Colaborador
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Fase Atual
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Valor Total
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Progresso
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-card divide-y divide-border">
-                  {filteredInclusions?.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
-                        Nenhum registro encontrado
-                      </td>
-                    </tr>
-                  ) : (
-                    groupedInclusions?.map((group) => {
-                      const inclusion = group.representative;
-                      const isGrouped = group.inclusions.length > 1;
-                      const phases = ['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'];
-                      let progress;
-                      if (inclusion.status === "aprovado") {
-                        progress = 100;
-                      } else {
-                        const currentPhaseIndex = phases.indexOf(inclusion.phase);
-                        progress = ((currentPhaseIndex + 1) / phases.length) * 100;
-                      }
-
-                      return (
-                        <tr key={group.groupKey} className={`hover:bg-accent/50 transition-colors ${isGrouped ? 'bg-gradient-to-r from-green-50/30 to-blue-50/30 dark:from-green-950/30 dark:to-blue-950/30' : ''}`} data-testid={`consultation-row-${group.groupKey}`}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {isGrouped ? (
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="p-2 bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900 dark:to-blue-900 border-2 border-green-300 dark:border-green-700 rounded-lg">
-                                    <div className="flex items-center gap-1 text-green-700 dark:text-green-300 text-xs font-bold">
-                                      🔗 GRUPO
-                                    </div>
-                                    <div className="text-xs font-mono text-green-900 dark:text-green-100">
-                                      #{group.inclusionNumbers.join(', #')}
-                                    </div>
-                                  </div>
-                                  <div className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs rounded-full font-bold">
-                                    {group.inclusions.length} IDs
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="p-1 h-6 w-6 hover:bg-green-200 dark:hover:bg-green-800"
-                                    onClick={() => copyToClipboard(group.inclusionNumbers.join(', '), "IDs")}
-                                    data-testid={`button-copy-id-${group.groupKey}`}
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                                <div className="text-xs text-green-600 dark:text-green-400">
-                                  ℹ️ Mesmo colaborador + evento
-                                </div>
-                              </div>
-                            ) : (
+            <div className="p-6">
+              {filteredInclusions?.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  📄 Nenhum registro encontrado para os filtros selecionados
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {filteredInclusions?.map((inclusion) => {
+                    const ticket = getTicket(inclusion.id);
+                    const financialRecord = getFinancial(inclusion.id);
+                    const totalValue = getTotalValue(inclusion);
+                    const phases = ['inclusao', 'escalacao', 'passagem', 'fechamento', 'aprovacao'];
+                    const currentPhaseIndex = phases.indexOf(inclusion.phase);
+                    const progress = inclusion.status === "aprovado" ? 100 : ((currentPhaseIndex + 1) / phases.length) * 100;
+                    
+                    return (
+                      <div
+                        key={inclusion.id}
+                        className="border border-border rounded-lg p-6 bg-gradient-to-r from-card to-card/80 shadow-sm hover:shadow-md transition-all"
+                        data-testid={`log-entry-${inclusion.id}`}
+                      >
+                        {/* Header do Log */}
+                        <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full">
+                              <span className="text-2xl">{getPhaseIcon(inclusion.phase)}</span>
+                            </div>
+                            <div>
                               <div className="flex items-center gap-2">
-                                <div className="text-sm font-mono text-foreground">
-                                  #{inclusion.inclusionNumber || 'N/A'}
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="p-1 h-6 w-6"
-                                  onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
-                                  data-testid={`button-copy-id-${group.groupKey}`}
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </Button>
+                                <span className="text-lg font-bold text-foreground">#{inclusion.inclusionNumber || 'N/A'}</span>
+                                <StatusBadge status={inclusion.status} />
+                                <Badge variant="outline" className="text-xs">
+                                  {getPhaseLabel(inclusion.phase)}
+                                </Badge>
                               </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-foreground">
-                              {getEventName(inclusion.eventId)}
+                              <p className="text-sm text-muted-foreground mt-1">
+                                📅 Criado em {formatDate(inclusion.createdAt?.toString())} • 
+                                🔄 Atualizado em {formatDate(inclusion.updatedAt?.toString())}
+                              </p>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-foreground">
-                              {getFunctionName(inclusion.functionId)}
+                          </div>
+                          
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-primary">
+                              {formatCurrency(totalValue)}
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-foreground">
-                              {getCollaboratorName(inclusion.collaboratorId || undefined)}
+                            <div className="text-xs text-muted-foreground">
+                              {inclusion.status === "aprovado" ? "Valor Final" : "Valor Planejado"}
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <span className="mr-2">{getPhaseIcon(inclusion.phase)}</span>
-                              <span className="text-sm text-foreground">{getPhaseLabel(inclusion.phase)}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <StatusBadge status={inclusion.status} />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {isGrouped ? (
-                              <div>
-                                <div className="text-sm font-bold text-green-700 dark:text-green-300">
-                                  {formatCurrency(group.inclusions.reduce((sum, inc) => sum + getTotalValue(inc), 0))}
-                                </div>
-                                <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                                  Total do Grupo
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {group.inclusions.reduce((sum, inc) => sum + inc.dailyRates, 0)} diárias totais
-                                </div>
-                              </div>
-                            ) : (
-                              <div>
-                                <div className="text-sm font-medium text-foreground">
-                                  {formatCurrency(getTotalValue(inclusion))}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {inclusion.status === "aprovado" ? "Valor Real" : "Valor Planejado"}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {inclusion.dailyRates} diárias
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
                               <div 
-                                className="bg-primary h-2 rounded-full" 
+                                className="bg-primary h-2 rounded-full transition-all" 
                                 style={{ width: `${progress}%` }}
-                                data-testid={`progress-${inclusion.id}`}
                               ></div>
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
                               {Math.round(progress)}% completo
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleViewComments(inclusion.id)}
-                                className="text-blue-600 hover:text-blue-900"
-                                data-testid={`button-comments-${inclusion.id}`}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleViewSummary(inclusion.id)}
-                                className="text-green-600 hover:text-green-900"
-                                data-testid={`button-view-${inclusion.id}`}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
+                          </div>
+                        </div>
+
+                        {/* Grid de Informações Detalhadas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
+                          
+                          {/* Informações Básicas */}
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-foreground border-b border-border pb-1">🎪 Informações do Evento</h4>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Evento:</span>
+                                <div className="font-medium">{getEventName(inclusion.eventId)}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Função:</span>
+                                <div className="font-medium">{getFunctionName(inclusion.functionId)}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Colaborador:</span>
+                                <div className="font-medium">{getCollaboratorName(inclusion.collaboratorId || undefined)}</div>
+                              </div>
+                              {inclusion.area && (
+                                <div>
+                                  <span className="text-muted-foreground">Área:</span>
+                                  <div className="font-medium">{inclusion.area}</div>
+                                </div>
+                              )}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                          </div>
+
+                          {/* Informações de Cronograma */}
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-foreground border-b border-border pb-1">📅 Cronograma</h4>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">📋 Período Planejado:</span>
+                                <div className="font-medium">
+                                  {formatDate(inclusion.scheduleStartDate)} → {formatDate(inclusion.scheduleEndDate)}
+                                </div>
+                              </div>
+                              {(inclusion.actualStartDate || inclusion.actualEndDate) && (
+                                <div>
+                                  <span className="text-muted-foreground">✅ Período Real:</span>
+                                  <div className="font-medium">
+                                    {formatDate(inclusion.actualStartDate)} → {formatDate(inclusion.actualEndDate)}
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-muted-foreground">💰 Diárias:</span>
+                                <div className="font-medium">
+                                  Planejadas: {inclusion.dailyRates} 
+                                  {inclusion.actualDailyRates && ` • Realizadas: ${inclusion.actualDailyRates}`}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">💵 Valor por diária:</span>
+                                <div className="font-medium text-green-600">
+                                  {formatCurrency((inclusion.dailyValue || 0) / 100)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Informações de Voo */}
+                          {inclusion.needsTicket && (
+                            <div className="space-y-3">
+                              <h4 className="font-medium text-foreground border-b border-border pb-1">✈️ Informações de Voo</h4>
+                              <div className="space-y-2 text-sm">
+                                {ticket ? (
+                                  <>
+                                    <div>
+                                      <span className="text-muted-foreground">🛫 Rota:</span>
+                                      <div className="font-medium">{ticket.departureAirport} → {ticket.destinationAirport}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">📅 Ida:</span>
+                                      <div className="font-medium">
+                                        {formatDate(ticket.actualDepartureDate)} 
+                                        {ticket.actualDepartureTime && ` às ${ticket.actualDepartureTime}`}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">📅 Volta:</span>
+                                      <div className="font-medium">
+                                        {formatDate(ticket.actualReturnDate)} 
+                                        {ticket.actualReturnTime && ` às ${ticket.actualReturnTime}`}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">💸 Valor:</span>
+                                      <div className="font-medium text-green-600">
+                                        {formatCurrency(ticket.value ? ticket.value / 100 : 0)}
+                                      </div>
+                                    </div>
+                                    {ticket.purchaseOrderNumber && (
+                                      <div>
+                                        <span className="text-muted-foreground">🧾 Ordem de Compra:</span>
+                                        <div className="font-medium font-mono">{ticket.purchaseOrderNumber}</div>
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="text-orange-600 font-medium">
+                                    ⏳ Passagem ainda não adquirida
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Informações Financeiras */}
+                          {financialRecord && (
+                            <div className="space-y-3">
+                              <h4 className="font-medium text-foreground border-b border-border pb-1">💰 Detalhes Financeiros</h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">💵 Valor Planejado:</span>
+                                  <div className="font-medium">
+                                    {formatCurrency((financialRecord.plannedValue || 0) / 100)}
+                                  </div>
+                                </div>
+                                {financialRecord.actualValue && (
+                                  <div>
+                                    <span className="text-muted-foreground">✅ Valor Real:</span>
+                                    <div className="font-medium text-green-600">
+                                      {formatCurrency(financialRecord.actualValue / 100)}
+                                    </div>
+                                  </div>
+                                )}
+                                {financialRecord.actualFee && (
+                                  <div>
+                                    <span className="text-muted-foreground">🎯 Cachê:</span>
+                                    <div className="font-medium text-blue-600">
+                                      {formatCurrency(financialRecord.actualFee / 100)}
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-muted-foreground">📊 Status:</span>
+                                  <div className="font-medium">
+                                    {financialRecord.approved ? "✅ Aprovado" : "⏳ Pendente"}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Observações */}
+                          {(inclusion.observations || inclusion.actualObservations) && (
+                            <div className="space-y-3">
+                              <h4 className="font-medium text-foreground border-b border-border pb-1">📝 Observações</h4>
+                              <div className="space-y-2 text-sm">
+                                {inclusion.observations && (
+                                  <div>
+                                    <span className="text-muted-foreground">📋 Planejamento:</span>
+                                    <div className="font-medium bg-muted/30 p-2 rounded text-xs">
+                                      {inclusion.observations}
+                                    </div>
+                                  </div>
+                                )}
+                                {inclusion.actualObservations && (
+                                  <div>
+                                    <span className="text-muted-foreground">✅ Realizadas:</span>
+                                    <div className="font-medium bg-green-50 dark:bg-green-900/30 p-2 rounded text-xs">
+                                      {inclusion.actualObservations}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Marcadores especiais */}
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-foreground border-b border-border pb-1">🏷️ Marcadores</h4>
+                            <div className="flex flex-wrap gap-2 text-sm">
+                              {inclusion.emergencyRecord && (
+                                <Badge variant="destructive" className="text-xs">
+                                  🚨 Emergencial
+                                </Badge>
+                              )}
+                              {inclusion.needsTicket && (
+                                <Badge variant="secondary" className="text-xs">
+                                  ✈️ Precisa Passagem
+                                </Badge>
+                              )}
+                              {inclusion.dailyValue > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  💰 R$ {(inclusion.dailyValue / 100).toFixed(2)}/dia
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleViewComments(inclusion.id)}
+                            className="text-blue-600 hover:text-blue-900"
+                            data-testid={`button-comments-${inclusion.id}`}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-1" />
+                            Comentários
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleViewSummary(inclusion.id)}
+                            className="text-green-600 hover:text-green-900"
+                            data-testid={`button-view-${inclusion.id}`}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Resumo Completo
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Summary Modal */}
+      {/* Comments Modal */}
+      <CommentsModal
+        open={showCommentsModal}
+        onClose={() => setShowCommentsModal(false)}
+        teamInclusionId={selectedInclusion || ""}
+      />
+
+      {/* Summary Modal - Simplified */}
       <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Resumo Completo do Registro</DialogTitle>
+            <DialogTitle>📋 Resumo Completo do Registro</DialogTitle>
           </DialogHeader>
           {summaryInclusionId && (() => {
             const inclusion = teamInclusions?.find(i => i.id === summaryInclusionId);
@@ -486,254 +539,48 @@ export default function Consultation() {
             if (!inclusion) return <div>Registro não encontrado</div>;
             
             return (
-              <div className="space-y-6">
-                {/* Basic Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Informações Básicas</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Evento</label>
-                        <div className="text-sm">{getEventName(inclusion.eventId)}</div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Função</label>
-                        <div className="text-sm">{getFunctionName(inclusion.functionId)}</div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Colaborador</label>
-                        <div className="text-sm">{getCollaboratorName(inclusion.collaboratorId || undefined)}</div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Área</label>
-                        <div className="text-sm">{inclusion.area}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Status e Progresso</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Fase Atual</label>
-                        <div className="flex items-center mt-1">
-                          <span className="mr-2">{getPhaseIcon(inclusion.phase)}</span>
-                          <Badge variant="outline">{getPhaseLabel(inclusion.phase)}</Badge>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Status</label>
-                        <div className="mt-1">
-                          <StatusBadge status={inclusion.status} />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Precisa de Passagem</label>
-                        <div className="text-sm">{inclusion.needsTicket ? "Sim" : "Não"}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium">Evento</h4>
+                    <p>{getEventName(inclusion.eventId)}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Função</h4>
+                    <p>{getFunctionName(inclusion.functionId)}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Colaborador</h4>
+                    <p>{getCollaboratorName(inclusion.collaboratorId || undefined)}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Status</h4>
+                    <StatusBadge status={inclusion.status} />
+                  </div>
                 </div>
-
-                {/* Dates and Daily Rates */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Datas e Diárias</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="font-medium text-blue-600 mb-2">Planejado</h4>
-                        <div className="space-y-2">
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Período</label>
-                            <div className="text-sm">{formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}</div>
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Diárias</label>
-                            <div className="text-sm">{inclusion.dailyRates} × {formatCurrency(inclusion.dailyValue / 100)}</div>
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Total Planejado</label>
-                            <div className="text-sm font-medium">{formatCurrency((inclusion.dailyValue / 100) * inclusion.dailyRates)}</div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium text-green-600 mb-2">Realizado</h4>
-                        <div className="space-y-2">
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Período</label>
-                            <div className="text-sm">
-                              {(() => {
-                                // Se há datas reais definidas, usar essas datas
-                                if (inclusion.actualStartDate && inclusion.actualEndDate) {
-                                  return `${formatDate(inclusion.actualStartDate)} - ${formatDate(inclusion.actualEndDate)}`;
-                                }
-                                // Se há dados financeiros mas não há datas reais, usar datas planejadas
-                                else if (financialRecord) {
-                                  return `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`;
-                                }
-                                // Se não há nada, mostrar "Não informado"
-                                else {
-                                  return "Não informado";
-                                }
-                              })()}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Diárias</label>
-                            <div className="text-sm">
-                              {financialRecord ? (
-                                <span className="font-medium text-green-600">
-                                  {(() => {
-                                    // Mostrar quantidade de diárias realizadas e valor total realizado
-                                    const actualDays = financialRecord.actualDailyRates || inclusion.dailyRates; // Usar diárias realizadas ou fallback para planejadas
-                                    const totalValue = (financialRecord.actualValue || 0) / 100;
-                                    const dailyValue = actualDays > 0 ? totalValue / actualDays : 0;
-                                    return `${actualDays} × ${formatCurrency(dailyValue)}`;
-                                  })()}
-                                </span>
-                              ) : (
-                                "Aguardando execução"
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground">Total Realizado</label>
-                            <div className="text-sm font-medium">
-                              {financialRecord 
-                                ? formatCurrency((financialRecord.actualValue || 0) / 100)
-                                : "R$ 0,00"
-                              }
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Financial Information */}
-                {financialRecord && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Dados Financeiros</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Diárias Realizadas</label>
-                          <div className="text-lg font-medium">{formatCurrency(
-                            (financialRecord.actualValue || 0) / 100
-                          )}</div>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Taxa Realizada</label>
-                          <div className="text-lg font-medium">{formatCurrency((financialRecord.actualFee || 0) / 100)}</div>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Total Financeiro</label>
-                          <div className="text-lg font-medium text-green-600">
-                            {formatCurrency(((financialRecord.actualValue || 0) / 100) + ((financialRecord.actualFee || 0) / 100))}
-                          </div>
-                        </div>
-                      </div>
-                      {financialRecord.observations && (
-                        <div className="mt-4">
-                          <label className="text-sm font-medium text-muted-foreground">Observações Financeiras</label>
-                          <div className="text-sm mt-1 p-2 bg-muted rounded">{financialRecord.observations}</div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Ticket Information */}
+                
                 {ticket && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Informações da Passagem</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Valor da Passagem</label>
-                          <div className="text-lg font-medium text-blue-600">{formatCurrency((ticket.value || 0) / 100)}</div>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Data de Compra</label>
-                          <div className="text-sm">{ticket.purchaseDate || "Não informado"}</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div>
+                    <h4 className="font-medium">Informações de Voo</h4>
+                    <p>{ticket.departureAirport} → {ticket.destinationAirport}</p>
+                    <p>Valor: {formatCurrency(ticket.value ? ticket.value / 100 : 0)}</p>
+                  </div>
                 )}
-
-                {/* Total Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Resumo de Valores</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Quantidade de Diárias:</span>
-                        <span className="font-medium text-blue-600">
-                          {financialRecord?.actualDailyRates || inclusion.dailyRates} diárias
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Valor das Diárias:</span>
-                        <span className="font-medium">{formatCurrency(
-                          financialRecord?.actualValue 
-                            ? (financialRecord.actualValue / 100)
-                            : (inclusion.dailyValue / 100) * inclusion.dailyRates
-                        )}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Taxa:</span>
-                        <span className="font-medium">{formatCurrency((financialRecord?.actualFee || 0) / 100)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Passagem:</span>
-                        <span className="font-medium">{formatCurrency((ticket?.value || 0) / 100)}</span>
-                      </div>
-                      <div className="border-t pt-2 flex justify-between items-center">
-                        <span className="font-medium">Total Geral:</span>
-                        <span className="text-lg font-bold text-green-600">{formatCurrency(getTotalValue(inclusion))}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Observations */}
-                {inclusion.observations && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Observações Gerais</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-sm p-3 bg-muted rounded">{inclusion.observations}</div>
-                    </CardContent>
-                  </Card>
+                
+                {financialRecord && (
+                  <div>
+                    <h4 className="font-medium">Informações Financeiras</h4>
+                    <p>Planejado: {formatCurrency((financialRecord.plannedValue || 0) / 100)}</p>
+                    {financialRecord.actualValue && (
+                      <p>Real: {formatCurrency(financialRecord.actualValue / 100)}</p>
+                    )}
+                  </div>
                 )}
               </div>
             );
           })()}
         </DialogContent>
       </Dialog>
-
-      <CommentsModal
-        open={showCommentsModal}
-        onClose={() => setShowCommentsModal(false)}
-        teamInclusionId={selectedInclusion || ""}
-      />
     </div>
   );
 }

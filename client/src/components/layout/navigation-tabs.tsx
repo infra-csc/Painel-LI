@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus, Settings, Wrench, UserCog, Activity } from "lucide-react";
+import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus, Settings, Wrench, UserCog } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -82,19 +82,10 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       icon: UserCog,
       permission: "canAccessAdminUsers" as const,
     },
-    {
-      id: "system-log",
-      path: "/system-log",
-      label: "Log do Sistema",
-      icon: Activity,
-      permission: null, // Todos os usuários logados podem acessar
-    },
   ];
 
   // Filter tabs based on user permissions
-  const tabs = allTabs.filter(tab => 
-    tab.permission === null || hasPermission(user, tab.permission)
-  );
+  const tabs = allTabs.filter(tab => hasPermission(user, tab.permission));
 
   return (
     <div className="bg-card rounded-lg shadow-sm border border-border mb-8">
