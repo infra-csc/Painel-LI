@@ -265,7 +265,7 @@ export default function Scaling() {
                     >
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span>Sem Passagem ({withoutTicket.length})</span>
-                      {withoutTicketPending > 0 && (
+                      {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
                         <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
                           {withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''}
                         </span>
@@ -278,7 +278,7 @@ export default function Scaling() {
                     >
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span>Com Passagem ({withTicket.length})</span>
-                      {withTicketPending > 0 && (
+                      {withTicketPending > 0 && filters.escalationStatus !== "pending" && (
                         <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
                           {withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''}
                         </span>
