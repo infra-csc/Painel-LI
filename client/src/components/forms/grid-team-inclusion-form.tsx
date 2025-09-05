@@ -273,37 +273,17 @@ export default function GridTeamInclusionForm() {
             });
           }
         } else {
-          // Values change: create records for non-1 values and changes
+          // Values change: create records only for dates with non-1 values
           
-          // Check first value
-          const firstValue = row.dailyRates[sortedDates[0]];
-          if (firstValue !== 1) {
-            ranges.push({
-              functionId: row.functionId,
-              dailyRate: 1, // Always 1 daily rate
-              startDate: sortedDates[0], // First date
-              endDate: sortedDates[0], // Single day
-              travelInfo: {
-                ida: row.ida,
-                chegada: row.chegada,
-                retorno: row.retorno,
-                horarioRetorno: row.horarioRetorno,
-              },
-            });
-          }
-          
-          // Check for changes in subsequent values
-          let previousValue = firstValue;
-          for (let i = 1; i < sortedDates.length; i++) {
-            const currentDate = sortedDates[i];
-            const currentValue = row.dailyRates[currentDate];
-            
-            if (currentValue !== previousValue) {
+          // Create records for all dates with non-1 values
+          for (const date of sortedDates) {
+            const value = row.dailyRates[date];
+            if (value !== 1) {
               ranges.push({
                 functionId: row.functionId,
                 dailyRate: 1, // Always 1 daily rate
-                startDate: currentDate, // Only on this specific date
-                endDate: currentDate, // Single day
+                startDate: date, // Single date
+                endDate: date, // Single day
                 travelInfo: {
                   ida: row.ida,
                   chegada: row.chegada,
@@ -311,7 +291,6 @@ export default function GridTeamInclusionForm() {
                   horarioRetorno: row.horarioRetorno,
                 },
               });
-              previousValue = currentValue;
             }
           }
         }

@@ -138,45 +138,23 @@ export default function TeamInclusionForm() {
               entries.push(await sameResponse.json());
             }
           } else {
-            // Values change: create records for non-1 values and changes
+            // Values change: create records only for dates with non-1 values
             
-            // Check first value
-            const firstValue = sortedDates[0].dailyRates;
-            if (firstValue !== 1) {
-              const firstPayload = {
-                ...data,
-                scheduleStartDate: sortedDates[0].date,
-                scheduleEndDate: sortedDates[0].date, // Single day only
-                dailyRates: 1, // Always 1 daily rate
-                status: "planejado",
-                phase: "inclusao",
-                userId: user?.id,
-              };
-              delete firstPayload.dailyRatesByDate;
-              const firstResponse = await apiRequest("POST", "/api/team-inclusions", firstPayload);
-              entries.push(await firstResponse.json());
-            }
-            
-            // Check for changes in subsequent values
-            let previousValue = firstValue;
-            for (let i = 1; i < sortedDates.length; i++) {
-              const currentEntry = sortedDates[i];
-              const currentValue = currentEntry.dailyRates;
-              
-              if (currentValue !== previousValue) {
-                const changePayload = {
+            // Create records for all dates with non-1 values
+            for (const entry of sortedDates) {
+              if (entry.dailyRates !== 1) {
+                const nonOnePayload = {
                   ...data,
-                  scheduleStartDate: currentEntry.date,
-                  scheduleEndDate: currentEntry.date, // Single day only
+                  scheduleStartDate: entry.date,
+                  scheduleEndDate: entry.date, // Single day only
                   dailyRates: 1, // Always 1 daily rate
                   status: "planejado",
                   phase: "inclusao",
                   userId: user?.id,
                 };
-                delete changePayload.dailyRatesByDate;
-                const changeResponse = await apiRequest("POST", "/api/team-inclusions", changePayload);
-                entries.push(await changeResponse.json());
-                previousValue = currentValue;
+                delete nonOnePayload.dailyRatesByDate;
+                const nonOneResponse = await apiRequest("POST", "/api/team-inclusions", nonOnePayload);
+                entries.push(await nonOneResponse.json());
               }
             }
           }
