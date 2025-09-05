@@ -710,8 +710,8 @@ export default function Scaling() {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Valor Total</Label>
-                    <div className="text-lg font-bold text-green-600 dark:text-green-400 mt-2 px-3 py-2 bg-background rounded border">
+                    <Label className="text-sm font-medium text-muted-foreground">Valor Total</Label>
+                    <div className="text-sm text-muted-foreground mt-1">
                       {formatCurrency((modalData.dailyValue || 0) * selectedInclusion.dailyRates)}
                     </div>
                   </div>
