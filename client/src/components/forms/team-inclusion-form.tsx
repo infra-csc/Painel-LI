@@ -88,21 +88,29 @@ export default function TeamInclusionForm() {
       const entries = [];
       
       if (dailyRatesByDate.length > 0) {
-        // Create one entry for each date with its respective daily rates
-        for (const dateEntry of dailyRatesByDate) {
-          const payload = {
-            ...data,
-            scheduleStartDate: dateEntry.date,
-            scheduleEndDate: dateEntry.date,
-            dailyRates: dateEntry.dailyRates, // Use the specific daily rates for this date
-            status: "planejado",
-            phase: "inclusao",
-            userId: user?.id,
-          };
-          delete payload.dailyRatesByDate; // Remove this field from API call
-          const response = await apiRequest("POST", "/api/team-inclusions", payload);
-          entries.push(await response.json());
-        }
+        // Calculate total daily rates from all dates
+        const totalDailyRates = dailyRatesByDate.reduce((sum, dateEntry) => sum + dateEntry.dailyRates, 0);
+        
+        // Get start and end dates from the range (properly sort by Date object)
+        const sortedDates = dailyRatesByDate
+          .map(d => ({ date: d.date, dateObj: new Date(d.date) }))
+          .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+          .map(d => d.date);
+        const scheduleStartDate = sortedDates[0];
+        const scheduleEndDate = sortedDates[sortedDates.length - 1];
+        
+        const payload = {
+          ...data,
+          scheduleStartDate,
+          scheduleEndDate,
+          dailyRates: totalDailyRates, // Total sum of all daily rates
+          status: "planejado",
+          phase: "inclusao",
+          userId: user?.id,
+        };
+        delete payload.dailyRatesByDate; // Remove this field from API call
+        const response = await apiRequest("POST", "/api/team-inclusions", payload);
+        entries.push(await response.json());
       } else {
         // Single entry with date range
         let diffDays = 1;
