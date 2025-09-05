@@ -70,6 +70,10 @@ export default function Consultation() {
     queryKey: ["/api/financial"],
   });
 
+  const { data: users } = useQuery<any[]>({
+    queryKey: ["/api/users"],
+  });
+
   // Filter inclusions based on current filters
   const filteredInclusions = teamInclusions?.filter(inclusion => {
     // Apply ID search filter first (using inclusion number)
@@ -96,6 +100,11 @@ export default function Consultation() {
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  const getUserName = (userId?: string) => {
+    if (!userId) return "N/A";
+    return users?.find(u => u.id === userId)?.name || "Usuário não encontrado";
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
@@ -266,7 +275,7 @@ export default function Consultation() {
                                 </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground mt-1">
-                                📅 Criado em {formatDate(inclusion.createdAt?.toString())} • 
+                                📅 Criado em {formatDate(inclusion.createdAt?.toString())} por {getUserName(inclusion.userId)} • 
                                 🔄 Atualizado em {formatDate(inclusion.updatedAt?.toString())}
                               </p>
                             </div>
@@ -309,6 +318,18 @@ export default function Consultation() {
                               <div>
                                 <span className="text-muted-foreground">Colaborador:</span>
                                 <div className="font-medium">{getCollaboratorName(inclusion.collaboratorId || undefined)}</div>
+                                {(() => {
+                                  const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+                                  if (collaborator?.approvedBy) {
+                                    return (
+                                      <div className="text-xs text-green-600 mt-1">
+                                        ✅ Aprovado por {getUserName(collaborator.approvedBy)}
+                                        {collaborator.approvedAt && ` em ${formatDate(collaborator.approvedAt.toString())}`}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                               {inclusion.area && (
                                 <div>
@@ -461,6 +482,36 @@ export default function Consultation() {
                               </div>
                             </div>
                           )}
+
+                          {/* Informações de Auditoria */}
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-foreground border-b border-border pb-1">👤 Auditoria & Responsáveis</h4>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">👨‍💼 Responsável pela Função:</span>
+                                <div className="font-medium">{getUserName(inclusion.userId)}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">📝 Criado por:</span>
+                                <div className="font-medium">{getUserName(inclusion.userId)}</div>
+                              </div>
+                              {financialRecord?.approvedBy && (
+                                <div>
+                                  <span className="text-muted-foreground">✅ Aprovação Financeira:</span>
+                                  <div className="font-medium text-green-600">
+                                    {getUserName(financialRecord.approvedBy)} 
+                                    {financialRecord.approvedAt && ` em ${formatDate(financialRecord.approvedAt.toString())}`}
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-muted-foreground">📅 Última Atualização:</span>
+                                <div className="font-medium">
+                                  {formatDate(inclusion.updatedAt?.toString())}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
 
                           {/* Marcadores especiais */}
                           <div className="space-y-3">
