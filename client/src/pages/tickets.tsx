@@ -437,7 +437,7 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-lg font-bold text-foreground">
+                          <div className="text-base font-semibold text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
