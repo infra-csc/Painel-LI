@@ -256,19 +256,22 @@ export default function GridTeamInclusionForm() {
         const allSame = allValues.every(val => val === allValues[0]);
         
         if (allSame) {
-          // All same non-1 value: create another record with number of days
-          ranges.push({
-            functionId: row.functionId,
-            dailyRate: numberOfDays,
-            startDate: startDate,
-            endDate: endDate,
-            travelInfo: {
-              ida: row.ida,
-              chegada: row.chegada,
-              retorno: row.retorno,
-              horarioRetorno: row.horarioRetorno,
-            },
-          });
+          // All same non-1 value: create as many records as the value
+          const valueCount = allValues[0];
+          for (let i = 0; i < valueCount; i++) {
+            ranges.push({
+              functionId: row.functionId,
+              dailyRate: numberOfDays,
+              startDate: startDate,
+              endDate: endDate,
+              travelInfo: {
+                ida: row.ida,
+                chegada: row.chegada,
+                retorno: row.retorno,
+                horarioRetorno: row.horarioRetorno,
+              },
+            });
+          }
         } else {
           // Values change: create records for each change
           let previousValue = row.dailyRates[sortedDates[0]];

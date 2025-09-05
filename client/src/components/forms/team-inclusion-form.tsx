@@ -121,19 +121,22 @@ export default function TeamInclusionForm() {
           const allSame = allValues.every(val => val === allValues[0]);
           
           if (allSame) {
-            // All same non-1 value: create another record with number of days
-            const samePayload = {
-              ...data,
-              scheduleStartDate: startDate,
-              scheduleEndDate: endDate,
-              dailyRates: numberOfDays,
-              status: "planejado",
-              phase: "inclusao",
-              userId: user?.id,
-            };
-            delete samePayload.dailyRatesByDate;
-            const sameResponse = await apiRequest("POST", "/api/team-inclusions", samePayload);
-            entries.push(await sameResponse.json());
+            // All same non-1 value: create as many records as the value
+            const valueCount = allValues[0];
+            for (let i = 0; i < valueCount; i++) {
+              const samePayload = {
+                ...data,
+                scheduleStartDate: startDate,
+                scheduleEndDate: endDate,
+                dailyRates: numberOfDays,
+                status: "planejado",
+                phase: "inclusao",
+                userId: user?.id,
+              };
+              delete samePayload.dailyRatesByDate;
+              const sameResponse = await apiRequest("POST", "/api/team-inclusions", samePayload);
+              entries.push(await sameResponse.json());
+            }
           } else {
             // Values change: create records for each change
             let previousValue = sortedDates[0].dailyRates;
