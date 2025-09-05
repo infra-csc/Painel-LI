@@ -348,11 +348,18 @@ export default function Tickets() {
                 <h2 className="text-2xl font-bold text-foreground mb-2">✈️ Compra de Passagens</h2>
                 <p className="text-muted-foreground">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground">Passagens</div>
-                <div className="text-2xl font-bold text-primary">{filteredTicketInclusions.length}</div>
-                <div className="text-sm text-green-600">
-                  {filteredTicketInclusions.filter(inc => getTicket(inc.id)).length} compradas
+              <div className="flex gap-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">{filteredTicketInclusions.length}</div>
+                  <div className="text-xs text-muted-foreground">passagens</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
+                  <div className="text-xs text-muted-foreground">compradas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-600">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
+                  <div className="text-xs text-muted-foreground">pendentes</div>
                 </div>
               </div>
             </div>
