@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Save, Grid3x3 } from "lucide-react";
-import type { Event, Function } from "@shared/schema";
+import { Calendar, Save, Grid3x3, Plus, Trash2 } from "lucide-react";
+import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -27,11 +27,13 @@ type GridFormData = z.infer<typeof gridFormSchema>;
 interface FunctionRow {
   functionId: string;
   functionName: string;
+  userId: string;
   ida: string;
   chegada: string;
   retorno: string;
   horarioRetorno: string;
   dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
+  isCustom: boolean; // se é uma função adicionada dinamicamente
 }
 
 interface ProcessedRange {
@@ -80,6 +82,10 @@ export default function GridTeamInclusionForm() {
 
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
+  });
+
+  const { data: collaborators } = useQuery<User[]>({
+    queryKey: ["/api/collaborators"],
   });
 
   const createTeamInclusionMutation = useMutation({
@@ -140,11 +146,13 @@ export default function GridTeamInclusionForm() {
       return {
         functionId: func.id,
         functionName: func.name,
+        userId: "",
         ida: "",
         chegada: "",
         retorno: "",
         horarioRetorno: "",
         dailyRates,
+        isCustom: false,
       };
     });
 
@@ -169,6 +177,48 @@ export default function GridTeamInclusionForm() {
     ));
   };
 
+  const updateUser = (functionId: string, userId: string) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, userId }
+        : row
+    ));
+  };
+
+  const addCustomFunction = () => {
+    const customId = `custom-${Date.now()}`;
+    const dailyRates: { [date: string]: number } = {};
+    dates.forEach(date => {
+      dailyRates[date] = 1;
+    });
+
+    const newRow: FunctionRow = {
+      functionId: customId,
+      functionName: `Função ${functionRows.filter(r => r.isCustom).length + 1}`,
+      userId: "",
+      ida: "",
+      chegada: "",
+      retorno: "",
+      horarioRetorno: "",
+      dailyRates,
+      isCustom: true,
+    };
+
+    setFunctionRows(prev => [...prev, newRow]);
+  };
+
+  const removeFunction = (functionId: string) => {
+    setFunctionRows(prev => prev.filter(row => row.functionId !== functionId));
+  };
+
+  const updateFunctionName = (functionId: string, name: string) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, functionName: name }
+        : row
+    ));
+  };
+
   const formatDateForDisplay = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}`;
@@ -178,6 +228,9 @@ export default function GridTeamInclusionForm() {
     const ranges: ProcessedRange[] = [];
 
     functionRows.forEach(row => {
+      // Pula se não tem usuário atribuído
+      if (!row.userId) return;
+      
       if (dates.length === 0) return;
 
       let currentRate = row.dailyRates[dates[0]];
@@ -260,16 +313,18 @@ export default function GridTeamInclusionForm() {
       for (const range of ranges) {
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
         
+        const functionRow = functionRows.find(r => r.functionId === range.functionId);
+        
         await createTeamInclusionMutation.mutateAsync({
           eventId,
-          functionId: range.functionId,
-          userId: user?.id,
+          functionId: functionRow?.isCustom ? null : range.functionId, // null se for custom
+          userId: functionRow?.userId || user?.id,
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
-          dailyValue: range.dailyRate * 5000, // R$ 50,00 por diária como exemplo
+          dailyValue: range.dailyRate * 5000,
           needsTicket: range.travelInfo.ida !== "" || range.travelInfo.retorno !== "",
-          observations: `Escalação por grade: ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
+          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
         successCount++;
@@ -392,6 +447,7 @@ export default function GridTeamInclusionForm() {
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-32">Usuário</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
@@ -401,13 +457,38 @@ export default function GridTeamInclusionForm() {
                               {formatDateForDisplay(date)}
                             </th>
                           ))}
+                          <th className="px-2 py-2 text-center font-medium w-12">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {functionRows.map(row => (
                           <tr key={row.functionId} className="border-t">
                             <td className="px-3 py-2 border-r font-medium bg-muted/30">
-                              {row.functionName}
+                              {row.isCustom ? (
+                                <Input 
+                                  value={row.functionName}
+                                  onChange={(e) => updateFunctionName(row.functionId, e.target.value)}
+                                  className="h-7 font-medium"
+                                  placeholder="Nome da função"
+                                />
+                              ) : (
+                                row.functionName
+                              )}
+                            </td>
+                            <td className="px-2 py-2 border-r">
+                              <Select value={row.userId} onValueChange={(val) => updateUser(row.functionId, val)}>
+                                <SelectTrigger className="h-7">
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">-- Selecione --</SelectItem>
+                                  {collaborators?.map((collaborator) => (
+                                    <SelectItem key={collaborator.id} value={collaborator.id}>
+                                      {collaborator.name || collaborator.email}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
@@ -462,12 +543,37 @@ export default function GridTeamInclusionForm() {
                                 </Select>
                               </td>
                             ))}
+                            <td className="px-2 py-2 text-center">
+                              {row.isCustom && (
+                                <Button
+                                  type="button"
+                                  onClick={() => removeFunction(row.functionId)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+                {/* Botão para adicionar função */}
+                <Button
+                  type="button"
+                  onClick={addCustomFunction}
+                  variant="outline"
+                  className="w-full"
+                  disabled={dates.length === 0}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar Função Customizada
+                </Button>
 
                 {/* Preview dos resultados */}
                 <div className="border rounded-lg p-4 bg-muted/50">
