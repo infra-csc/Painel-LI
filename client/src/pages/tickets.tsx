@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import UniversalFilters from "@/components/common/universal-filters";
+import SimpleFilters from "@/components/common/simple-filters";
 import { Plane, Save, FileText, Eye } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
 
@@ -22,7 +22,7 @@ export default function Tickets() {
     functionId: "all",
     collaboratorId: "all",
     searchId: "",
-    statusFilter: "pending", // pending, processed
+    ticketStatus: "all", // all, pending, processed
   });
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
@@ -48,10 +48,6 @@ export default function Tickets() {
   const { data: tickets } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
   });
-
-  const getTicket = (teamInclusionId: number) => {
-    return tickets?.find(t => t.teamInclusionId === teamInclusionId);
-  };
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -277,7 +273,7 @@ export default function Tickets() {
       setShowModal(false);
       setSelectedGroup(null);
 
-      // Note: The ticket will remain visible in the table with "Processada" status
+      // Note: The ticket will remain visible in the table with "Comprada" status
 
     } catch (error) {
       toast({
@@ -337,7 +333,7 @@ export default function Tickets() {
                 >
                   <option value="all">Todos</option>
                   <option value="pending">Pendentes</option>
-                  <option value="processed">Processadas</option>
+                  <option value="processed">Compradas</option>
                 </select>
               </div>
             </div>
@@ -348,14 +344,14 @@ export default function Tickets() {
               <Plane className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
                 {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" : 
-                 filters.ticketStatus === "processed" ? "Nenhuma passagem processada" : 
+                 filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" : 
                  "Nenhuma passagem encontrada"}
               </h3>
               <p className="text-muted-foreground">
                 {filters.ticketStatus === "pending" 
-                  ? "Todas as passagens foram processadas ou não há colaboradores escalados."
+                  ? "Todas as passagens foram compradas ou não há colaboradores escalados."
                   : filters.ticketStatus === "processed"
-                  ? "Nenhuma passagem foi processada ainda."
+                  ? "Nenhuma passagem foi comprada ainda."
                   : "Não há colaboradores escalados que necessitem de passagens."}
               </p>
             </div>
