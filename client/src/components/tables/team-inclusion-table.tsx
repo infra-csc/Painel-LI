@@ -231,7 +231,7 @@ export default function TeamInclusionTable() {
                   Data Escala
                 </th>
                 <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Período
+                  Diárias
                 </th>
                 <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Ticket
@@ -306,7 +306,7 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4">
                       <div className="text-xs text-foreground">
-                        {inclusion.dailyRates} dias
+                        {inclusion.dailyRates} diárias
                       </div>
                     </td>
                     <td className="px-3 py-4 text-center">
@@ -347,15 +347,17 @@ export default function TeamInclusionTable() {
                                 <Edit className="w-4 h-4" />
                               </Button>
                             )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(inclusion.id)}
-                              className="text-red-600 hover:text-red-900"
-                              data-testid={`button-delete-${inclusion.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {canEditInclusion(inclusion.status) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(inclusion.id)}
+                                className="text-red-600 hover:text-red-900"
+                                data-testid={`button-delete-${inclusion.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
