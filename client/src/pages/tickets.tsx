@@ -1,31 +1,28 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
-import WorkflowIndicator from "@/components/layout/workflow-indicator";
+import SimpleFilters from "@/components/common/simple-filters";
+import StatusBadge from "@/components/common/status-badge";
+import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import StatusBadge from "@/components/common/status-badge";
-import SimpleFilters from "@/components/common/simple-filters";
-import { Plane, Save, FileText, Eye, ChevronDown, ChevronUp, Calendar, Clock } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
-import AttachmentUpload from "@/components/ui/attachment-upload";
 
 export default function Tickets() {
-  const [ticketData, setTicketData] = useState<Record<string, any>>({});
   const [filters, setFilters] = useState({
     eventId: "all",
-    functionId: "all",
+    functionId: "all", 
     collaboratorId: "all",
     searchId: "",
     ticketStatus: "all", // all, pending, processed
   });
-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -88,7 +85,12 @@ export default function Tickets() {
     },
   });
 
-  // Helper functions
+  const [ticketData, setTicketData] = useState<Record<string, any>>({});
+
+  const getTicket = (inclusionId: string): Ticket | undefined => {
+    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+  };
+
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
   };
@@ -102,24 +104,6 @@ export default function Tickets() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
-  const formatDate = (dateStr: string) => {
-    // Avoid Date object to prevent timezone issues
-    // Format directly from YYYY-MM-DD string to DD/MM/YYYY
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  };
-
-  const getTicket = (inclusionId: string) => {
-    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
-  };
-
   const getEventLocation = (eventId: string) => {
     const event = events?.find(e => e.id === eventId);
     return event?.location || "Destino não informado";
@@ -131,6 +115,20 @@ export default function Tickets() {
     const diffTime = targetDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 7 && diffDays >= 0; // Próximos 7 dias
+  };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "N/A";
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return date.toLocaleDateString("pt-BR");
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
   };
 
   // Filter inclusions that need tickets - show all that need tickets (pending or processed)
@@ -159,53 +157,11 @@ export default function Tickets() {
     }
   ) || [];
 
-  // Group inclusions by collaborator + event for unified ticket purchase
-  const groupedTicketInclusions = useMemo(() => {
-    const groups = new Map<string, TeamInclusion[]>();
-    
-    ticketInclusions.forEach(inclusion => {
-      if (!inclusion.collaboratorId) return;
-      
-      const groupKey = `${inclusion.collaboratorId}-${inclusion.eventId}`;
-      
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
-      }
-      groups.get(groupKey)!.push(inclusion);
-    });
-    
-    // Convert to array of grouped items and apply ticket status filter
-    return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
-      const firstInclusion = inclusions[0];
-      
-      // Calculate first start date and last end date using string comparison to avoid timezone issues
-      const startDates = inclusions
-        .filter(inc => inc.scheduleStartDate)
-        .map(inc => inc.scheduleStartDate!);
-      const endDates = inclusions
-        .filter(inc => inc.scheduleEndDate)
-        .map(inc => inc.scheduleEndDate!);
-      
-      const earliestStartDate = startDates.length > 0 
-        ? startDates.sort()[0]  // Sort strings directly
-        : firstInclusion.scheduleStartDate!;
-      const latestEndDate = endDates.length > 0 
-        ? endDates.sort().reverse()[0]  // Sort and get last
-        : firstInclusion.scheduleEndDate!;
-      
-      return {
-        groupKey,
-        inclusions,
-        representative: firstInclusion,
-        ids: inclusions.map(inc => inc.id),
-        inclusionNumbers: inclusions.map(inc => inc.inclusionNumber).filter(Boolean),
-        earliestStartDate,
-        latestEndDate,
-      };
-    }).filter(group => {
-      // Apply ticket status filter to groups
+  // Apply ticket status filter directly to individual inclusions
+  const filteredTicketInclusions = useMemo(() => {
+    return ticketInclusions.filter(inclusion => {
       if (filters.ticketStatus !== "all") {
-        const hasTicket = getTicket(group.representative.id);
+        const hasTicket = getTicket(inclusion.id);
         if (filters.ticketStatus === "pending" && hasTicket) return false;
         if (filters.ticketStatus === "processed" && !hasTicket) return false;
       }
@@ -213,43 +169,43 @@ export default function Tickets() {
     });
   }, [ticketInclusions, filters.ticketStatus, tickets]);
 
-  const handleTicketDataChange = (groupKey: string, field: string, value: any) => {
+  const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
     setTicketData(prev => ({
       ...prev,
-      [groupKey]: {
-        ...prev[groupKey],
+      [inclusionId]: {
+        ...prev[inclusionId],
         [field]: value
       }
     }));
   };
 
-  const handleViewTicketDetails = (group: any) => {
-    setSelectedGroup(group);
+  const handleViewTicketDetails = (inclusion: TeamInclusion) => {
+    setSelectedInclusion(inclusion);
     setShowModal(true);
   };
 
   // Toggle seleção de ticket
-  const toggleTicketSelection = (groupKey: string) => {
+  const toggleTicketSelection = (inclusionId: string) => {
     setSelectedTickets(prev => {
-      if (prev.includes(groupKey)) {
-        return prev.filter(id => id !== groupKey);
+      if (prev.includes(inclusionId)) {
+        return prev.filter(id => id !== inclusionId);
       } else {
-        return [...prev, groupKey];
+        return [...prev, inclusionId];
       }
     });
   };
 
   // Selecionar/deselecionar todos os tickets
   const toggleAllTickets = () => {
-    const pendingGroups = groupedTicketInclusions.filter(group => 
-      !getTicket(group.representative.id)
+    const pendingInclusions = filteredTicketInclusions.filter(inclusion => 
+      !getTicket(inclusion.id)
     );
-    const allPendingKeys = pendingGroups.map(group => group.groupKey);
+    const allPendingIds = pendingInclusions.map(inclusion => inclusion.id);
     
-    if (selectedTickets.length === allPendingKeys.length) {
+    if (selectedTickets.length === allPendingIds.length) {
       setSelectedTickets([]); // Deselecionar todos
     } else {
-      setSelectedTickets(allPendingKeys); // Selecionar todos pendentes
+      setSelectedTickets(allPendingIds); // Selecionar todos pendentes
     }
   };
 
@@ -296,20 +252,20 @@ export default function Tickets() {
       let successCount = 0;
       const errors: string[] = [];
 
-      for (const groupKey of selectedTickets) {
-        const group = groupedTicketInclusions.find(g => g.groupKey === groupKey);
-        if (!group) continue;
+      for (const inclusionId of selectedTickets) {
+        const inclusion = filteredTicketInclusions.find(inc => inc.id === inclusionId);
+        if (!inclusion) continue;
 
         // Verificar se não tem ticket já
-        if (getTicket(group.representative.id)) {
-          errors.push(`Passagem ${group.inclusionNumbers.join(", ")} já foi comprada`);
+        if (getTicket(inclusion.id)) {
+          errors.push(`Passagem #${inclusion.inclusionNumber} já foi comprada`);
           continue;
         }
 
         try {
           // Criar ticket com os dados comuns completos
           await createTicketMutation.mutateAsync({
-            teamInclusionId: group.representative.id,
+            teamInclusionId: inclusion.id,
             value: Math.round(parseFloat(quickData.value) * 100),
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
             actualDepartureDate: quickData.actualDepartureDate || null,
@@ -324,20 +280,18 @@ export default function Tickets() {
             cardLastFourDigits: quickData.cardLastFourDigits || null
           });
 
-          // Atualizar team inclusions para fechamento
-          for (const inclusion of group.inclusions) {
-            await updateTeamInclusionMutation.mutateAsync({
-              id: inclusion.id,
-              data: {
-                status: "fechamento",
-                phase: "fechamento"
-              }
-            });
-          }
+          // Atualizar team inclusion para fechamento
+          await updateTeamInclusionMutation.mutateAsync({
+            id: inclusion.id,
+            data: {
+              status: "fechamento",
+              phase: "fechamento"
+            }
+          });
 
           successCount++;
         } catch (error) {
-          errors.push(`Erro na passagem ${group.inclusionNumbers.join(", ")}`);
+          errors.push(`Erro na passagem #${inclusion.inclusionNumber}`);
         }
       }
 
@@ -367,101 +321,14 @@ export default function Tickets() {
     }
   };
 
-  const handlePurchaseTicketGroup = async (group: any) => {
-    const data = ticketData[group.groupKey] || {};
-    const representative = group.representative;
-    
-    // Validar apenas os campos realmente obrigatórios (marcados com * na interface)
-    const requiredFields = [
-      { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: 'Aeroporto Origem' },
-      { field: 'destinationAirport', label: 'Aeroporto Destino' },
-      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
-    ];
-    
-    const missingFields = requiredFields.filter(({ field }) => {
-      let value = data[field] || data[field] === '' ? data[field] : null;
-      return !value || value === '';
-    });
-    
-    if (missingFields.length > 0) {
-      toast({
-        title: "Erro",
-        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Create one ticket record for the group (using the representative inclusion)
-      await createTicketMutation.mutateAsync({
-        teamInclusionId: representative.id,
-        value: Math.round(parseFloat(data.value) * 100), // Convert to cents
-        purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-        actualDepartureDate: data.actualDepartureDate || null,
-        actualDepartureTime: data.actualDepartureTime || null,
-        actualReturnDate: data.actualReturnDate || null,
-        actualReturnTime: data.actualReturnTime || null,
-        departureAirport: data.departureAirport,
-        destinationAirport: data.destinationAirport,
-        purchaseOrderNumber: data.purchaseOrderNumber || null,
-        fileUrl: data.fileUrl || null,
-        attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-        cardLastFourDigits: data.cardLastFourDigits || null
-      });
-
-      // Update all team inclusions in the group to closure phase
-      for (const inclusion of group.inclusions) {
-        await updateTeamInclusionMutation.mutateAsync({
-          id: inclusion.id,
-          data: {
-            status: "fechamento",
-            phase: "fechamento"
-          }
-        });
-      }
-
-      toast({
-        title: "Sucesso",
-        description: `Passagem registrada para ${group.inclusions.length} escalação(ões) agrupadas!`,
-      });
-
-      // Clear the form data for this group and close modal
-      setTicketData(prev => {
-        const newData = { ...prev };
-        delete newData[group.groupKey];
-        return newData;
-      });
-
-      setShowModal(false);
-      setSelectedGroup(null);
-
-      // Note: The ticket will remain visible in the table with "Comprada" status
-
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao registrar passagem",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="tickets" />
-          <WorkflowIndicator currentPhase="passagem" />
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-muted rounded"></div>
-              ))}
-            </div>
+          <div className="animate-pulse">
+            <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+            <div className="h-64 bg-muted rounded"></div>
           </div>
         </div>
       </div>
@@ -473,217 +340,201 @@ export default function Tickets() {
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <NavigationTabs activeTab="tickets" />
-        <WorkflowIndicator currentPhase="passagem" />
         
-        <div className="bg-card rounded-lg shadow-sm border border-border">
+        <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-foreground">Compra de Passagem</h2>
-                <p className="text-muted-foreground mt-1">
-                  Registre as informações de compra de passagens para colaboradores escalados
-                </p>
+                <h2 className="text-2xl font-bold text-foreground mb-2">✈️ Compra de Passagens</h2>
+                <p className="text-muted-foreground">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
               </div>
-              {(() => {
-                const totalTickets = groupedTicketInclusions.length;
-                const purchasedTickets = groupedTicketInclusions.filter(group => 
-                  getTicket(group.representative.id)
-                ).length;
-                const pendingTickets = totalTickets - purchasedTickets;
-                
-                return (
-                  <div className="flex gap-4">
-                    <div className="bg-green-50 dark:bg-green-950 px-4 py-2 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-green-700 dark:text-green-300">{purchasedTickets}</div>
-                      <div className="text-xs text-green-600 dark:text-green-400">Compradas</div>
-                    </div>
-                    <div className="bg-yellow-50 dark:bg-yellow-950 px-4 py-2 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{pendingTickets}</div>
-                      <div className="text-xs text-yellow-600 dark:text-yellow-400">Pendentes</div>
-                    </div>
-                    <div className="bg-blue-50 dark:bg-blue-950 px-4 py-2 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalTickets}</div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400">Total</div>
-                    </div>
-                  </div>
-                );
-              })()}
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Total de passagens</div>
+                <div className="text-2xl font-bold text-primary">{filteredTicketInclusions.length}</div>
+                <div className="text-sm text-green-600">
+                  {filteredTicketInclusions.filter(inc => getTicket(inc.id)).length} compradas
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Registro Rápido de Passagens com Anexos */}
-          <div className="p-6 border-b border-border bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300">📎 Registro Rápido com Anexos</h3>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
-                  Registre vários anexos com os mesmos dados para situações especiais
-                </p>
-              </div>
-            </div>
-            
-            {/* Formulário Ultra Compacto */}
-            <div className="grid grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-2">
-              <div>
-                <Label className="text-[10px] font-medium">R$ *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={ticketData["quick"]?.value || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-value"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">De *</Label>
-                <Input
-                  placeholder="GRU"
-                  value={ticketData["quick"]?.departureAirport || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-departure"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">Para *</Label>
-                <Input
-                  placeholder="RJ"
-                  value={ticketData["quick"]?.destinationAirport || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-destination"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">OC *</Label>
-                <Input
-                  placeholder="123"
-                  value={ticketData["quick"]?.purchaseOrderNumber || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-order"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">Ida *</Label>
-                <Input
-                  type="date"
-                  value={ticketData["quick"]?.actualDepartureDate || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-departure-date"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">H.Ida *</Label>
-                <Input
-                  type="time"
-                  value={ticketData["quick"]?.actualDepartureTime || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-departure-time"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">Volta *</Label>
-                <Input
-                  type="date"
-                  value={ticketData["quick"]?.actualReturnDate || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-return-date"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">H.Volta *</Label>
-                <Input
-                  type="time"
-                  value={ticketData["quick"]?.actualReturnTime || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-return-time"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">Compra</Label>
-                <Input
-                  type="date"
-                  value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
-                  onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-purchase-date"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-medium">Cartão</Label>
-                <Input
-                  placeholder="1234"
-                  maxLength={4}
-                  value={ticketData["quick"]?.cardLastFourDigits || ""}
-                  onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className="h-6 text-xs px-1"
-                  data-testid="input-quick-card-digits"
-                />
-              </div>
+          {/* Seção de Registro Rápido */}
+          <div className="px-6 py-4 border-b border-border bg-accent/20">
+            <div 
+              className="flex items-center gap-2 cursor-pointer mb-4"
+              onClick={() => toggleSection('basic')}
+            >
+              {expandedSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <h3 className="text-lg font-semibold text-foreground">📋 Registro Rápido em Lote</h3>
+              <span className="text-sm text-muted-foreground">(Aplicar mesmos dados a múltiplas passagens)</span>
             </div>
 
-            {/* Campo de Anexos na Tela Principal */}
-            <div className="mt-4">
-              <AttachmentUpload
-                attachmentIds={ticketData["quick"]?.attachmentIds || []}
-                onAttachmentsChange={(attachmentIds) => 
-                  handleTicketDataChange("quick", "attachmentIds", attachmentIds)
-                }
-                disabled={false}
-              />
-            </div>
+            {expandedSections.basic && (
+              <>
+                {/* Grade Ultra-compacta */}
+                <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-8 lg:grid-cols-10 gap-1 mb-4">
+                  <div className="col-span-2">
+                    <Label className="text-[10px] font-medium">Valor *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="2500.50"
+                      value={ticketData["quick"]?.value || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-value"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <Label className="text-[10px] font-medium">OC *</Label>
+                    <Input
+                      placeholder="123"
+                      value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-purchase-order"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <Label className="text-[10px] font-medium">Orig *</Label>
+                    <Input
+                      placeholder="GRU"
+                      value={ticketData["quick"]?.departureAirport || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-departure-airport"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <Label className="text-[10px] font-medium">Dest *</Label>
+                    <Input
+                      placeholder="CGH"
+                      value={ticketData["quick"]?.destinationAirport || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-destination-airport"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Ida *</Label>
+                    <Input
+                      type="date"
+                      value={ticketData["quick"]?.actualDepartureDate || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-departure-date"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">H.Ida *</Label>
+                    <Input
+                      type="time"
+                      value={ticketData["quick"]?.actualDepartureTime || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-departure-time"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Volta *</Label>
+                    <Input
+                      type="date"
+                      value={ticketData["quick"]?.actualReturnDate || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-return-date"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">H.Volta *</Label>
+                    <Input
+                      type="time"
+                      value={ticketData["quick"]?.actualReturnTime || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-return-time"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Compra</Label>
+                    <Input
+                      type="date"
+                      value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-purchase-date"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Cartão</Label>
+                    <Input
+                      placeholder="1234"
+                      maxLength={4}
+                      value={ticketData["quick"]?.cardLastFourDigits || ""}
+                      onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-card-digits"
+                    />
+                  </div>
+                </div>
 
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Preencha os dados comuns e selecione as passagens na tabela para aplicar
-                {selectedTickets.length > 0 && (
-                  <span className="text-blue-600 font-medium ml-2">
-                    ({selectedTickets.length} passagens selecionadas)
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleApplyToSelected}
-                  disabled={
-                    selectedTickets.length === 0 || 
-                    !ticketData["quick"] || 
-                    Object.keys(ticketData["quick"]).length === 0 ||
-                    createTicketMutation.isPending
-                  }
-                  data-testid="button-apply-to-selected"
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Limpar campos do registro rápido
-                    setTicketData(prev => {
-                      const newData = { ...prev };
-                      delete newData["quick"];
-                      return newData;
-                    });
-                  }}
-                  disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
-                  data-testid="button-clear-quick"
-                >
-                  Limpar Campos
-                </Button>
-              </div>
-            </div>
+                {/* Campo de Anexos na Tela Principal */}
+                <div className="mt-4">
+                  <AttachmentUpload
+                    attachmentIds={ticketData["quick"]?.attachmentIds || []}
+                    onAttachmentsChange={(attachmentIds) => 
+                      handleTicketDataChange("quick", "attachmentIds", attachmentIds)
+                    }
+                    disabled={false}
+                  />
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Preencha os dados comuns e selecione as passagens na tabela para aplicar
+                    {selectedTickets.length > 0 && (
+                      <span className="text-blue-600 font-medium ml-2">
+                        ({selectedTickets.length} passagens selecionadas)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleApplyToSelected}
+                      disabled={
+                        selectedTickets.length === 0 || 
+                        !ticketData["quick"] || 
+                        Object.keys(ticketData["quick"]).length === 0 ||
+                        createTicketMutation.isPending
+                      }
+                      data-testid="button-apply-to-selected"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Limpar campos do registro rápido
+                        setTicketData(prev => {
+                          const newData = { ...prev };
+                          delete newData["quick"];
+                          return newData;
+                        });
+                      }}
+                      disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
+                      data-testid="button-clear-quick"
+                    >
+                      Limpar Campos
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <SimpleFilters filters={filters} onFiltersChange={setFilters} />
@@ -706,7 +557,7 @@ export default function Tickets() {
             </div>
           </div>
 
-          {groupedTicketInclusions.length === 0 ? (
+          {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
               <Plane className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
@@ -724,109 +575,97 @@ export default function Tickets() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
+              <table className="w-full">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="w-16 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       <input
                         type="checkbox"
+                        checked={selectedTickets.length > 0}
                         onChange={toggleAllTickets}
-                        checked={selectedTickets.length > 0 && selectedTickets.length === groupedTicketInclusions.filter(g => !getTicket(g.representative.id)).length}
-                        className="rounded border-gray-300"
+                        className="rounded border-gray-300 mr-2"
                         data-testid="checkbox-select-all"
                       />
+                      Seleção
                     </th>
-                    <th className="w-20 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       ID
                     </th>
-                    <th className="w-44 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Evento/Função
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Evento / Função
                     </th>
-                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Colaborador
                     </th>
-                    <th className="w-36 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Destino
                     </th>
-                    <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Data Ida
                     </th>
-                    <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Data Volta
                     </th>
-                    <th className="w-44 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Voos Sugeridos
                     </th>
-                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-card divide-y divide-border">
-                  {groupedTicketInclusions.map((group) => {
-                    const inclusion = group.representative;
+                  {filteredTicketInclusions.map((inclusion) => {
                     const ticket = getTicket(inclusion.id);
-                    
                     return (
                       <tr 
-                        key={group.groupKey} 
-                        className={`hover:bg-accent/30 transition-colors ${selectedTickets.includes(group.groupKey) ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                        key={inclusion.id} 
+                        className="hover:bg-muted/50 transition-colors"
                       >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {!ticket ? (
                             <input
                               type="checkbox"
-                              checked={selectedTickets.includes(group.groupKey)}
-                              onChange={() => toggleTicketSelection(group.groupKey)}
+                              checked={selectedTickets.includes(inclusion.id)}
+                              onChange={() => toggleTicketSelection(inclusion.id)}
                               className="rounded border-gray-300"
-                              data-testid={`checkbox-ticket-${group.groupKey}`}
+                              data-testid={`checkbox-ticket-${inclusion.id}`}
                             />
                           ) : (
                             <div className="w-4 h-4"></div>
                           )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-mono text-foreground">
-                              {group.inclusions.length > 1 ? (
-                                <span className="text-xs">
-                                  #{group.inclusionNumbers.join(", #")}
-                                </span>
-                              ) : (
-                                <span>#{group.inclusionNumbers[0] || 'N/A'}</span>
-                              )}
+                              <span>#{inclusion.inclusionNumber || 'N/A'}</span>
                             </div>
                             <Eye 
                               className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
                               />
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getEventName(inclusion.eventId)}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {getFunctionName(inclusion.functionId)}
-                            {group.inclusions.length > 1 && (
-                              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                {group.inclusions.length} escalações
-                              </span>
-                            )}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
-                            const departureDate = inclusion.flightDepartureDate || group.earliestStartDate;
+                            const departureDate = inclusion.flightDepartureDate || inclusion.scheduleStartDate;
                             const isUrgent = isDateUrgent(departureDate);
                             return (
                               <div className={`text-sm font-medium ${isUrgent ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-foreground'}`}>
@@ -836,12 +675,12 @@ export default function Tickets() {
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
-                            {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : formatDate(group.latestEndDate)}
+                            {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : formatDate(inclusion.scheduleEndDate)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-xs text-blue-700 dark:text-blue-300">
                             <div className="mb-1">
                               <span className="font-medium">Ida:</span> {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
@@ -853,7 +692,7 @@ export default function Tickets() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               Comprada
@@ -874,57 +713,47 @@ export default function Tickets() {
         {/* Modal de Detalhes da Passagem */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            {selectedGroup && (
+            {selectedInclusion && (
               <div>
                 <DialogHeader>
                   <DialogTitle>
-                    Detalhes da Passagem - {getEventName(selectedGroup.representative.eventId)}
+                    Detalhes da Passagem - {getEventName(selectedInclusion.eventId)}
                   </DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-6 mt-6">
-                  {/* Informações do Grupo */}
+                  {/* Informações Básicas */}
                   <div className="bg-muted p-4 rounded-lg">
                     <h3 className="font-medium mb-3">Informações Gerais</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs text-muted-foreground">Colaborador</Label>
-                        <p className="font-medium">{getCollaboratorName(selectedGroup.representative.collaboratorId)}</p>
+                        <p className="font-medium">{getCollaboratorName(selectedInclusion.collaboratorId)}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Função</Label>
-                        <p className="font-medium">{getFunctionName(selectedGroup.representative.functionId)}</p>
+                        <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedGroup.representative.flightDepartureDate ? formatDate(selectedGroup.representative.flightDepartureDate) : "Não definido"}
-                          {selectedGroup.representative.flightDepartureSuggestedTime && ` às ${selectedGroup.representative.flightDepartureSuggestedTime}`}
+                          {selectedInclusion.flightDepartureDate ? formatDate(selectedInclusion.flightDepartureDate) : "Não definido"}
+                          {selectedInclusion.flightDepartureSuggestedTime && ` às ${selectedInclusion.flightDepartureSuggestedTime}`}
                         </p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedGroup.representative.flightReturnDate ? formatDate(selectedGroup.representative.flightReturnDate) : "Não definido"}
-                          {selectedGroup.representative.flightReturnSuggestedTime && ` às ${selectedGroup.representative.flightReturnSuggestedTime}`}
+                          {selectedInclusion.flightReturnDate ? formatDate(selectedInclusion.flightReturnDate) : "Não definido"}
+                          {selectedInclusion.flightReturnSuggestedTime && ` às ${selectedInclusion.flightReturnSuggestedTime}`}
                         </p>
                       </div>
                     </div>
-                    {selectedGroup.inclusions.length > 1 && (
-                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded border">
-                        <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                          Passagem Agrupada - {selectedGroup.inclusions.length} escalações
-                        </div>
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          IDs: #{selectedGroup.inclusionNumbers.join(", #")}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {(() => {
-                    const ticket = getTicket(selectedGroup.representative.id);
-                    const data = ticketData[selectedGroup.groupKey] || {};
+                    const ticket = getTicket(selectedInclusion.id);
+                    const data = ticketData[selectedInclusion.id] || {};
                     
                     return ticket ? (
                       /* Passagem já processada */
@@ -1000,11 +829,11 @@ export default function Tickets() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <Label className="text-xs text-muted-foreground">Data Início</Label>
-                              <p className="font-medium">{formatDate(selectedGroup.earliestStartDate)}</p>
+                              <p className="font-medium">{formatDate(selectedInclusion.scheduleStartDate)}</p>
                             </div>
                             <div>
                               <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                              <p className="font-medium">{formatDate(selectedGroup.latestEndDate)}</p>
+                              <p className="font-medium">{formatDate(selectedInclusion.scheduleEndDate)}</p>
                             </div>
                           </div>
                         </div>
@@ -1013,64 +842,64 @@ export default function Tickets() {
                         {/* Formulário de Compra */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <Label htmlFor={`value-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                            <Label htmlFor={`value-${selectedInclusion.id}`} className="text-sm font-medium">
                               Valor da Passagem (R$) *
                             </Label>
                             <Input
-                              id={`value-${selectedGroup.groupKey}`}
+                              id={`value-${selectedInclusion.id}`}
                               type="number"
                               step="0.01"
                               placeholder="0.00"
                               value={data.value || ""}
-                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "value", e.target.value)}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                               className="mt-1"
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`departureAirport-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                            <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
                               Aeroporto Origem *
                             </Label>
                             <Input
-                              id={`departureAirport-${selectedGroup.groupKey}`}
+                              id={`departureAirport-${selectedInclusion.id}`}
                               placeholder="Ex: GRU"
                               value={data.departureAirport || ""}
-                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "departureAirport", e.target.value)}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`destinationAirport-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                            <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
                               Aeroporto Destino *
                             </Label>
                             <Input
-                              id={`destinationAirport-${selectedGroup.groupKey}`}
+                              id={`destinationAirport-${selectedInclusion.id}`}
                               placeholder="Ex: RJ"
                               value={data.destinationAirport || ""}
-                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "destinationAirport", e.target.value)}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`purchaseOrderNumber-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                            <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium">
                               Ordem de Compra *
                             </Label>
                             <Input
-                              id={`purchaseOrderNumber-${selectedGroup.groupKey}`}
+                              id={`purchaseOrderNumber-${selectedInclusion.id}`}
                               placeholder="Número da OC"
                               value={data.purchaseOrderNumber || ""}
-                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "purchaseOrderNumber", e.target.value)}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`cardLastFourDigits-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                            <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium">
                               Últimos 4 Dígitos do Cartão
                             </Label>
                             <Input
-                              id={`cardLastFourDigits-${selectedGroup.groupKey}`}
+                              id={`cardLastFourDigits-${selectedInclusion.id}`}
                               placeholder="1234"
                               maxLength={4}
                               value={data.cardLastFourDigits || ""}
-                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
                               className="mt-1"
-                              data-testid={`input-card-digits-${selectedGroup.groupKey}`}
+                              data-testid={`input-card-digits-${selectedInclusion.id}`}
                             />
                           </div>
                         </div>
@@ -1080,7 +909,7 @@ export default function Tickets() {
                           <AttachmentUpload
                             attachmentIds={data.attachmentIds || []}
                             onAttachmentsChange={(attachmentIds) => 
-                              handleTicketDataChange(selectedGroup.groupKey, "attachmentIds", attachmentIds)
+                              handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)
                             }
                             disabled={createTicketMutation.isPending}
                           />
@@ -1092,10 +921,50 @@ export default function Tickets() {
                             Cancelar
                           </Button>
                           <Button
-                            onClick={() => handlePurchaseTicketGroup(selectedGroup)}
+                            onClick={async () => {
+                              // Validar campos obrigatórios
+                              if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber) {
+                                toast({
+                                  title: "Erro",
+                                  description: "Preencha todos os campos obrigatórios",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
+                              try {
+                                await createTicketMutation.mutateAsync({
+                                  teamInclusionId: selectedInclusion.id,
+                                  value: Math.round(parseFloat(data.value) * 100),
+                                  purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+                                  actualDepartureDate: data.actualDepartureDate || null,
+                                  actualDepartureTime: data.actualDepartureTime || null,
+                                  actualReturnDate: data.actualReturnDate || null,
+                                  actualReturnTime: data.actualReturnTime || null,
+                                  departureAirport: data.departureAirport,
+                                  destinationAirport: data.destinationAirport,
+                                  purchaseOrderNumber: data.purchaseOrderNumber,
+                                  fileUrl: data.fileUrl || null,
+                                  attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
+                                  cardLastFourDigits: data.cardLastFourDigits || null
+                                });
+
+                                // Atualizar team inclusion para fechamento
+                                await updateTeamInclusionMutation.mutateAsync({
+                                  id: selectedInclusion.id,
+                                  data: {
+                                    status: "fechamento",
+                                    phase: "fechamento"
+                                  }
+                                });
+
+                                setShowModal(false);
+                              } catch (error) {
+                                // Error is already handled by the mutation
+                              }
+                            }}
                             disabled={createTicketMutation.isPending}
                           >
-                            <Save className="w-4 h-4 mr-2" />
                             {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
                           </Button>
                         </div>
