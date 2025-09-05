@@ -273,21 +273,37 @@ export default function GridTeamInclusionForm() {
             });
           }
         } else {
-          // Values change: create records for each change
-          let previousValue = row.dailyRates[sortedDates[0]];
+          // Values change: create records for non-1 values and changes
           
+          // Check first value
+          const firstValue = row.dailyRates[sortedDates[0]];
+          if (firstValue !== 1) {
+            ranges.push({
+              functionId: row.functionId,
+              dailyRate: 1, // Always 1 daily rate
+              startDate: sortedDates[0], // First date
+              endDate: sortedDates[0], // Single day
+              travelInfo: {
+                ida: row.ida,
+                chegada: row.chegada,
+                retorno: row.retorno,
+                horarioRetorno: row.horarioRetorno,
+              },
+            });
+          }
+          
+          // Check for changes in subsequent values
+          let previousValue = firstValue;
           for (let i = 1; i < sortedDates.length; i++) {
             const currentDate = sortedDates[i];
             const currentValue = row.dailyRates[currentDate];
             
             if (currentValue !== previousValue) {
-              const dailyRateToUse = (i === 1) ? currentValue : 1;
-              
               ranges.push({
                 functionId: row.functionId,
-                dailyRate: dailyRateToUse,
-                startDate: currentDate,
-                endDate: endDate,
+                dailyRate: 1, // Always 1 daily rate
+                startDate: currentDate, // Only on this specific date
+                endDate: currentDate, // Single day
                 travelInfo: {
                   ida: row.ida,
                   chegada: row.chegada,

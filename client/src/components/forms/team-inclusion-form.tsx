@@ -138,21 +138,37 @@ export default function TeamInclusionForm() {
               entries.push(await sameResponse.json());
             }
           } else {
-            // Values change: create records for each change
-            let previousValue = sortedDates[0].dailyRates;
+            // Values change: create records for non-1 values and changes
             
+            // Check first value
+            const firstValue = sortedDates[0].dailyRates;
+            if (firstValue !== 1) {
+              const firstPayload = {
+                ...data,
+                scheduleStartDate: sortedDates[0].date,
+                scheduleEndDate: sortedDates[0].date, // Single day only
+                dailyRates: 1, // Always 1 daily rate
+                status: "planejado",
+                phase: "inclusao",
+                userId: user?.id,
+              };
+              delete firstPayload.dailyRatesByDate;
+              const firstResponse = await apiRequest("POST", "/api/team-inclusions", firstPayload);
+              entries.push(await firstResponse.json());
+            }
+            
+            // Check for changes in subsequent values
+            let previousValue = firstValue;
             for (let i = 1; i < sortedDates.length; i++) {
               const currentEntry = sortedDates[i];
               const currentValue = currentEntry.dailyRates;
               
               if (currentValue !== previousValue) {
-                const dailyRateToUse = (i === 1) ? currentValue : 1;
-                
                 const changePayload = {
                   ...data,
                   scheduleStartDate: currentEntry.date,
-                  scheduleEndDate: endDate,
-                  dailyRates: dailyRateToUse,
+                  scheduleEndDate: currentEntry.date, // Single day only
+                  dailyRates: 1, // Always 1 daily rate
                   status: "planejado",
                   phase: "inclusao",
                   userId: user?.id,
