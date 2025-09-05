@@ -137,6 +137,24 @@ export const comments = pgTable("comments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// System Activity Logs table - for public audit trail
+export const systemLogs = pgTable("system_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  logNumber: integer("log_number").notNull().default(sql`nextval('log_sequence')`),
+  action: text("action").notNull(), // create, update, delete, approve, reject, etc
+  entityType: text("entity_type").notNull(), // user, event, function, collaborator, team_inclusion, ticket, financial
+  entityId: varchar("entity_id").notNull(), // ID of the affected entity
+  entityName: text("entity_name"), // human readable name/description
+  details: text("details").notNull(), // detailed description of what happened
+  previousData: text("previous_data"), // JSON of old data for updates
+  newData: text("new_data"), // JSON of new data 
+  userId: varchar("user_id").references(() => users.id), // who performed the action (null for system actions)
+  userName: text("user_name"), // cached user name for performance
+  ipAddress: text("ip_address"), // IP address of action
+  userAgent: text("user_agent"), // browser/client info
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -198,6 +216,12 @@ export const insertCommentSchema = createInsertSchema(comments).omit({
   createdAt: true,
 });
 
+export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
+  id: true,
+  logNumber: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -222,3 +246,6 @@ export type InsertFinancial = z.infer<typeof insertFinancialSchema>;
 
 export type Comment = typeof comments.$inferSelect;
 export type InsertComment = z.infer<typeof insertCommentSchema>;
+
+export type SystemLog = typeof systemLogs.$inferSelect;
+export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;

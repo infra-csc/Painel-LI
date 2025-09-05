@@ -16,6 +16,7 @@ import AdminUsers from "@/pages/admin-users";
 import CollaboratorManagement from "@/pages/collaborator-management";
 import AuthPage from "@/pages/auth-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
+import PublicLog from "@/pages/public-log";
 import UserRegistration from "@/pages/user-registration";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
