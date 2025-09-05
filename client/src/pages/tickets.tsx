@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
 import SimpleFilters from "@/components/common/simple-filters";
-import { Plane, Save, FileText } from "lucide-react";
+import { Plane, Save, FileText, Eye } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
 
 export default function Tickets() {
@@ -22,6 +23,8 @@ export default function Tickets() {
     collaboratorId: "all",
     searchId: "",
   });
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [showModal, setShowModal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -172,93 +175,21 @@ export default function Tickets() {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
 
-  const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
+  const handleTicketDataChange = (groupKey: string, field: string, value: any) => {
     setTicketData(prev => ({
       ...prev,
-      [inclusionId]: {
-        ...prev[inclusionId],
+      [groupKey]: {
+        ...prev[groupKey],
         [field]: value
       }
     }));
   };
 
-  const handlePurchaseTicket = (inclusion: TeamInclusion) => {
-    const data = ticketData[inclusion.id] || {};
-    
-    // Validar apenas os campos realmente obrigatórios (marcados com * na interface)
-    const requiredFields = [
-      { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: 'Aeroporto Origem' },
-      { field: 'destinationAirport', label: 'Aeroporto Destino' },
-      { field: 'actualDepartureDate', label: 'Data de Ida' },
-      { field: 'actualDepartureTime', label: 'Horário de Ida' },
-      { field: 'actualReturnDate', label: 'Data de Volta' },
-      { field: 'actualReturnTime', label: 'Horário de Volta' },
-      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
-    ];
-    
-    const missingFields = requiredFields.filter(({ field }) => {
-      let value = data[field] || data[field] === '' ? data[field] : null;
-      
-      // Check default values for date/time fields
-      if (!value) {
-        switch (field) {
-          case 'actualDepartureDate':
-            value = inclusion.flightDepartureDate;
-            break;
-          case 'actualDepartureTime':
-            value = inclusion.flightDepartureSuggestedTime;
-            break;
-          case 'actualReturnDate':
-            value = inclusion.flightReturnDate;
-            break;
-          case 'actualReturnTime':
-            value = inclusion.flightReturnSuggestedTime;
-            break;
-          case 'purchaseDate':
-            value = new Date().toISOString().split('T')[0];
-            break;
-        }
-      }
-      
-      return !value || value === '';
-    });
-    
-    if (missingFields.length > 0) {
-      toast({
-        title: "Erro",
-        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createTicketMutation.mutate({
-      teamInclusionId: inclusion.id,
-      value: Math.round(parseFloat(data.value) * 100), // Convert to cents
-      purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-      actualDepartureDate: data.actualDepartureDate || inclusion.flightDepartureDate,
-      actualDepartureTime: data.actualDepartureTime || inclusion.flightDepartureSuggestedTime,
-      actualReturnDate: data.actualReturnDate || inclusion.flightReturnDate,
-      actualReturnTime: data.actualReturnTime || inclusion.flightReturnSuggestedTime,
-      departureAirport: data.departureAirport,
-      destinationAirport: data.destinationAirport,
-      purchaseOrderNumber: data.purchaseOrderNumber || null,
-      fileUrl: data.fileUrl || null,
-      cardLastFourDigits: data.cardLastFourDigits || null
-    });
-
-    // Update team inclusion status to closure phase
-    updateTeamInclusionMutation.mutate({
-      id: inclusion.id,
-      data: {
-        status: "fechamento",
-        phase: "fechamento"
-      }
-    });
+  const handleViewTicketDetails = (group: any) => {
+    setSelectedGroup(group);
+    setShowModal(true);
   };
 
-  // New function for handling grouped ticket purchase
   const handlePurchaseTicketGroup = async (group: any) => {
     const data = ticketData[group.groupKey] || {};
     const representative = group.representative;
@@ -268,37 +199,11 @@ export default function Tickets() {
       { field: 'value', label: 'Valor da Passagem' },
       { field: 'departureAirport', label: 'Aeroporto Origem' },
       { field: 'destinationAirport', label: 'Aeroporto Destino' },
-      { field: 'actualDepartureDate', label: 'Data de Ida' },
-      { field: 'actualDepartureTime', label: 'Horário de Ida' },
-      { field: 'actualReturnDate', label: 'Data de Volta' },
-      { field: 'actualReturnTime', label: 'Horário de Volta' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
     ];
     
     const missingFields = requiredFields.filter(({ field }) => {
       let value = data[field] || data[field] === '' ? data[field] : null;
-      
-      // Check default values for date/time fields
-      if (!value) {
-        switch (field) {
-          case 'actualDepartureDate':
-            value = representative.flightDepartureDate;
-            break;
-          case 'actualDepartureTime':
-            value = representative.flightDepartureSuggestedTime;
-            break;
-          case 'actualReturnDate':
-            value = representative.flightReturnDate;
-            break;
-          case 'actualReturnTime':
-            value = representative.flightReturnSuggestedTime;
-            break;
-          case 'purchaseDate':
-            value = new Date().toISOString().split('T')[0];
-            break;
-        }
-      }
-      
       return !value || value === '';
     });
     
@@ -313,16 +218,10 @@ export default function Tickets() {
 
     try {
       // Create one ticket record for the group (using the representative inclusion)
-      const representative = group.representative;
-      
       await createTicketMutation.mutateAsync({
         teamInclusionId: representative.id,
         value: Math.round(parseFloat(data.value) * 100), // Convert to cents
         purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-        actualDepartureDate: data.actualDepartureDate || representative.flightDepartureDate,
-        actualDepartureTime: data.actualDepartureTime || representative.flightDepartureSuggestedTime,
-        actualReturnDate: data.actualReturnDate || representative.flightReturnDate,
-        actualReturnTime: data.actualReturnTime || representative.flightReturnSuggestedTime,
         departureAirport: data.departureAirport,
         destinationAirport: data.destinationAirport,
         purchaseOrderNumber: data.purchaseOrderNumber || null,
@@ -346,12 +245,15 @@ export default function Tickets() {
         description: `Passagem registrada para ${group.inclusions.length} escalação(ões) agrupadas!`,
       });
 
-      // Clear the form data for this group
+      // Clear the form data for this group and close modal
       setTicketData(prev => {
         const newData = { ...prev };
         delete newData[group.groupKey];
         return newData;
       });
+
+      setShowModal(false);
+      setSelectedGroup(null);
 
     } catch (error) {
       toast({
@@ -410,269 +312,303 @@ export default function Tickets() {
               </p>
             </div>
           ) : (
-            <div className="p-6 space-y-6">
-              {groupedTicketInclusions.map((group) => {
-                const inclusion = group.representative;
-                const ticket = getTicket(inclusion.id);
-                const data = ticketData[group.groupKey] || {};
-                
-                return (
-                  <Card key={group.groupKey} className="border-border" data-testid={`card-ticket-${group.groupKey}`}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {getEventName(inclusion.eventId)} - {getFunctionName(inclusion.functionId)}
-                          </h3>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
-                          </p>
-                          {group.inclusions.length > 1 && (
-                            <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-300 dark:border-blue-700 rounded-lg shadow-sm">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="flex items-center gap-1 text-blue-700 dark:text-blue-300 text-sm font-bold">
-                                  ✈️ PASSAGEM AGRUPADA
-                                </span>
-                                <span className="px-3 py-1 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full font-bold">
-                                  {group.inclusions.length} ESCALAÇÕES
-                                </span>
-                              </div>
-                              <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-                                <strong>🆔 IDs Unificados:</strong> 
-                                <span className="font-mono bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded ml-2 text-blue-900 dark:text-blue-100">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="w-48 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Evento/Função
+                    </th>
+                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Colaborador
+                    </th>
+                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Período
+                    </th>
+                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Voos Sugeridos
+                    </th>
+                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-card divide-y divide-border">
+                  {groupedTicketInclusions.map((group) => {
+                    const inclusion = group.representative;
+                    const ticket = getTicket(inclusion.id);
+                    
+                    return (
+                      <tr 
+                        key={group.groupKey} 
+                        className="hover:bg-accent/30 transition-colors cursor-pointer"
+                        onClick={() => handleViewTicketDetails(group)}
+                      >
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-mono text-foreground">
+                              {group.inclusions.length > 1 ? (
+                                <span className="text-xs">
                                   #{group.inclusionNumbers.join(", #")}
                                 </span>
-                              </div>
-                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1">
-                                ℹ️ <strong>Mesmo colaborador + evento = uma passagem unificada</strong>
-                              </div>
+                              ) : (
+                                <span>#{group.inclusionNumbers[0] || 'N/A'}</span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <StatusBadge status={inclusion.status} />
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {ticket ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                            <p className="font-medium">{formatCurrency((ticket.value || 0) / 100)}</p>
+                            <Eye 
+                              className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
+                              title="Ver detalhes da passagem"
+                            />
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Data da Compra</Label>
-                            <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-foreground">
+                            {getEventName(inclusion.eventId)}
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                            <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                          <div className="text-xs text-muted-foreground">
+                            {getFunctionName(inclusion.functionId)}
+                            {group.inclusions.length > 1 && (
+                              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                {group.inclusions.length} escalações
+                              </span>
+                            )}
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                            <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-foreground">
+                            {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Ida</Label>
-                            <p className="font-medium">
-                              {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"} 
-                              {ticket.actualDepartureTime && ` às ${ticket.actualDepartureTime}`}
-                            </p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-foreground">
+                            {formatDate(group.earliestStartDate)} a {formatDate(group.latestEndDate)}
                           </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Volta</Label>
-                            <p className="font-medium">
-                              {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"} 
-                              {ticket.actualReturnTime && ` às ${ticket.actualReturnTime}`}
-                            </p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-xs text-foreground">
+                            <div>Ida: {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}</div>
+                            <div>Volta: {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}</div>
                           </div>
-                          {ticket.purchaseOrderNumber && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Ordem de Compra</Label>
-                              <p className="font-medium">{ticket.purchaseOrderNumber}</p>
-                            </div>
-                          )}
-                          <div className="md:col-span-2 lg:col-span-3">
-                            <span className="text-sm text-green-600 font-medium flex items-center">
-                              <FileText className="w-4 h-4 mr-1" />
-                              Passagem registrada com sucesso
+                        </td>
+                        <td className="px-4 py-4">
+                          {ticket ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Processada
                             </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {/* Work Period Information */}
-                          <div className="p-4 bg-accent/50 rounded-lg">
-                            <h4 className="font-medium text-foreground mb-3">Período de Trabalho</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Data Início</Label>
-                                <p className="font-medium">{formatDate(group.earliestStartDate)}</p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                                <p className="font-medium">{formatDate(group.latestEndDate)}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Flight Suggestions from Inclusion */}
-                          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                            <h4 className="font-medium text-foreground mb-3">Sugestões de Voo da Escalação</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
-                                <p className="font-medium text-blue-700 dark:text-blue-300">
-                                  {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "Não definido"}
-                                  {inclusion.flightDepartureSuggestedTime && ` às ${inclusion.flightDepartureSuggestedTime}`}
-                                </p>
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
-                                <p className="font-medium text-blue-700 dark:text-blue-300">
-                                  {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "Não definido"}
-                                  {inclusion.flightReturnSuggestedTime && ` às ${inclusion.flightReturnSuggestedTime}`}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div>
-                            <Label htmlFor={`value-${group.groupKey}`}>Valor da Passagem *</Label>
-                            <Input
-                              id={`value-${group.groupKey}`}
-                              type="number"
-                              step="0.01"
-                              placeholder="0,00"
-                              value={data.value || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "value", e.target.value)}
-                              data-testid={`input-value-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`purchaseDate-${group.groupKey}`}>Data da Compra *</Label>
-                            <Input
-                              id={`purchaseDate-${group.groupKey}`}
-                              type="date"
-                              value={data.purchaseDate || new Date().toISOString().split('T')[0]}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "purchaseDate", e.target.value)}
-                              data-testid={`input-purchase-date-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`departureAirport-${group.groupKey}`}>Aeroporto Origem *</Label>
-                            <Input
-                              id={`departureAirport-${group.groupKey}`}
-                              placeholder="Ex: GRU"
-                              value={data.departureAirport || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "departureAirport", e.target.value)}
-                              data-testid={`input-departure-airport-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`destinationAirport-${inclusion.id}`}>Aeroporto Destino *</Label>
-                            <Input
-                              id={`destinationAirport-${inclusion.id}`}
-                              placeholder="Ex: RJ"
-                              value={data.destinationAirport || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "destinationAirport", e.target.value)}
-                              data-testid={`input-destination-airport-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`actualDepartureDate-${group.groupKey}`}>Data de Ida *</Label>
-                            <Input
-                              id={`actualDepartureDate-${group.groupKey}`}
-                              type="date"
-                              value={data.actualDepartureDate || inclusion.flightDepartureDate || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualDepartureDate", e.target.value)}
-                              data-testid={`input-departure-date-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`actualDepartureTime-${group.groupKey}`}>Horário de Ida *</Label>
-                            <Input
-                              id={`actualDepartureTime-${group.groupKey}`}
-                              type="time"
-                              value={data.actualDepartureTime || inclusion.flightDepartureSuggestedTime || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualDepartureTime", e.target.value)}
-                              data-testid={`input-departure-time-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`actualReturnDate-${group.groupKey}`}>Data de Volta *</Label>
-                            <Input
-                              id={`actualReturnDate-${group.groupKey}`}
-                              type="date"
-                              value={data.actualReturnDate || inclusion.flightReturnDate || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualReturnDate", e.target.value)}
-                              data-testid={`input-return-date-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`actualReturnTime-${group.groupKey}`}>Horário de Volta *</Label>
-                            <Input
-                              id={`actualReturnTime-${group.groupKey}`}
-                              type="time"
-                              value={data.actualReturnTime || inclusion.flightReturnSuggestedTime || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "actualReturnTime", e.target.value)}
-                              data-testid={`input-return-time-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`purchaseOrderNumber-${group.groupKey}`}>Ordem de Compra *</Label>
-                            <Input
-                              id={`purchaseOrderNumber-${group.groupKey}`}
-                              placeholder="Número da OC"
-                              value={data.purchaseOrderNumber || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "purchaseOrderNumber", e.target.value)}
-                              data-testid={`input-po-number-${group.groupKey}`}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`cardLastFourDigits-${group.groupKey}`}>Últimos 4 Dígitos do Cartão</Label>
-                            <Input
-                              id={`cardLastFourDigits-${group.groupKey}`}
-                              placeholder="1234"
-                              maxLength={4}
-                              value={data.cardLastFourDigits || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "cardLastFourDigits", e.target.value.replace(/\D/g, ''))}
-                              data-testid={`input-card-digits-${group.groupKey}`}
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Para identificação e controle interno da passagem
-                            </p>
-                          </div>
-                          <div className="md:col-span-2">
-                            <Label htmlFor={`fileUrl-${group.groupKey}`}>Link do Arquivo (Opcional)</Label>
-                            <Input
-                              id={`fileUrl-${group.groupKey}`}
-                              placeholder="URL do arquivo da passagem"
-                              value={data.fileUrl || ""}
-                              onChange={(e) => handleTicketDataChange(group.groupKey, "fileUrl", e.target.value)}
-                              data-testid={`input-file-url-${group.groupKey}`}
-                            />
-                          </div>
-                          <div className="md:col-span-2 lg:col-span-3 flex justify-end">
-                            <Button
-                              onClick={() => handlePurchaseTicketGroup(group)}
-                              disabled={createTicketMutation.isPending}
-                              data-testid={`button-purchase-${group.groupKey}`}
-                            >
-                              <Save className="w-4 h-4 mr-2" />
-                              {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
-                            </Button>
-                          </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                          ) : (
+                            <StatusBadge status={inclusion.status} />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
+
+        {/* Modal de Detalhes da Passagem */}
+        <Dialog open={showModal} onOpenChange={setShowModal}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            {selectedGroup && (
+              <div>
+                <DialogHeader>
+                  <DialogTitle>
+                    Detalhes da Passagem - {getEventName(selectedGroup.representative.eventId)}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-6 mt-6">
+                  {/* Informações do Grupo */}
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h3 className="font-medium mb-3">Informações Gerais</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Colaborador</Label>
+                        <p className="font-medium">{getCollaboratorName(selectedGroup.representative.collaboratorId)}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Função</Label>
+                        <p className="font-medium">{getFunctionName(selectedGroup.representative.functionId)}</p>
+                      </div>
+                    </div>
+                    {selectedGroup.inclusions.length > 1 && (
+                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded border">
+                        <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                          Passagem Agrupada - {selectedGroup.inclusions.length} escalações
+                        </div>
+                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          IDs: #{selectedGroup.inclusionNumbers.join(", #")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const ticket = getTicket(selectedGroup.representative.id);
+                    const data = ticketData[selectedGroup.groupKey] || {};
+                    
+                    return ticket ? (
+                      /* Passagem já processada */
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
+                          <p className="font-medium">{formatCurrency((ticket.value || 0) / 100)}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Data da Compra</Label>
+                          <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                          <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                          <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Ida</Label>
+                          <p className="font-medium">
+                            {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"} 
+                            {ticket.actualDepartureTime && ` às ${ticket.actualDepartureTime}`}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Volta</Label>
+                          <p className="font-medium">
+                            {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"} 
+                            {ticket.actualReturnTime && ` às ${ticket.actualReturnTime}`}
+                          </p>
+                        </div>
+                        {ticket.purchaseOrderNumber && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Ordem de Compra</Label>
+                            <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                          </div>
+                        )}
+                        <div className="md:col-span-2 lg:col-span-3">
+                          <span className="text-sm text-green-600 font-medium flex items-center">
+                            <FileText className="w-4 h-4 mr-1" />
+                            Passagem registrada com sucesso
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Formulário para registrar passagem */
+                      <div className="space-y-6">
+                        {/* Período de Trabalho */}
+                        <div className="p-4 bg-accent/50 rounded-lg">
+                          <h4 className="font-medium text-foreground mb-3">Período de Trabalho</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Data Início</Label>
+                              <p className="font-medium">{formatDate(selectedGroup.earliestStartDate)}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                              <p className="font-medium">{formatDate(selectedGroup.latestEndDate)}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sugestões de Voo */}
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                          <h4 className="font-medium text-foreground mb-3">Sugestões de Voo da Escalação</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
+                              <p className="font-medium text-blue-700 dark:text-blue-300">
+                                {selectedGroup.representative.flightDepartureDate ? formatDate(selectedGroup.representative.flightDepartureDate) : "Não definido"}
+                                {selectedGroup.representative.flightDepartureSuggestedTime && ` às ${selectedGroup.representative.flightDepartureSuggestedTime}`}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
+                              <p className="font-medium text-blue-700 dark:text-blue-300">
+                                {selectedGroup.representative.flightReturnDate ? formatDate(selectedGroup.representative.flightReturnDate) : "Não definido"}
+                                {selectedGroup.representative.flightReturnSuggestedTime && ` às ${selectedGroup.representative.flightReturnSuggestedTime}`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Formulário de Compra */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor={`value-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                              Valor da Passagem (R$) *
+                            </Label>
+                            <Input
+                              id={`value-${selectedGroup.groupKey}`}
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={data.value || ""}
+                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "value", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`departureAirport-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                              Aeroporto Origem *
+                            </Label>
+                            <Input
+                              id={`departureAirport-${selectedGroup.groupKey}`}
+                              placeholder="Ex: GRU"
+                              value={data.departureAirport || ""}
+                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "departureAirport", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`destinationAirport-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                              Aeroporto Destino *
+                            </Label>
+                            <Input
+                              id={`destinationAirport-${selectedGroup.groupKey}`}
+                              placeholder="Ex: RJ"
+                              value={data.destinationAirport || ""}
+                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "destinationAirport", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`purchaseOrderNumber-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                              Ordem de Compra *
+                            </Label>
+                            <Input
+                              id={`purchaseOrderNumber-${selectedGroup.groupKey}`}
+                              placeholder="Número da OC"
+                              value={data.purchaseOrderNumber || ""}
+                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "purchaseOrderNumber", e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Botões */}
+                        <div className="flex gap-3 justify-end pt-4 border-t">
+                          <Button variant="outline" onClick={() => setShowModal(false)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={() => handlePurchaseTicketGroup(selectedGroup)}
+                            disabled={createTicketMutation.isPending}
+                          >
+                            <Save className="w-4 h-4 mr-2" />
+                            {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
