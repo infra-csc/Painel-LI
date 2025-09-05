@@ -350,9 +350,12 @@ export default function Tickets() {
               </div>
               <div className="text-right">
                 <div className="text-sm text-muted-foreground">Total de passagens</div>
-                <div className="text-2xl font-bold text-primary">{filteredTicketInclusions.length}</div>
+                <div className="text-2xl font-bold text-primary">{ticketInclusions.length}</div>
                 <div className="text-sm text-green-600">
-                  {filteredTicketInclusions.filter(inc => getTicket(inc.id)).length} compradas
+                  {ticketInclusions.filter(inc => getTicket(inc.id)).length} compradas
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Mostrando: {filteredTicketInclusions.length}
                 </div>
               </div>
             </div>
