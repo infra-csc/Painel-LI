@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -55,6 +56,7 @@ export default function GridTeamInclusionForm() {
   const [dates, setDates] = useState<string[]>([]);
   const [showGrid, setShowGrid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showFunctionSelect, setShowFunctionSelect] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -187,39 +189,49 @@ export default function GridTeamInclusionForm() {
   };
 
 
-  const addCustomFunction = () => {
-    const customId = `custom-${Date.now()}`;
+  const addSystemFunction = (functionId: string) => {
+    const selectedFunction = functions?.find(f => f.id === functionId);
+    if (!selectedFunction) return;
+
+    // Verificar se a função já foi adicionada
+    if (functionRows.some(row => row.functionId === functionId)) {
+      toast({
+        title: "Aviso",
+        description: "Esta função já foi adicionada à grade",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const dailyRates: { [date: string]: number } = {};
     dates.forEach(date => {
       dailyRates[date] = 1;
     });
 
     const newRow: FunctionRow = {
-      functionId: customId,
-      functionName: `Função ${functionRows.filter(r => r.isCustom).length + 1}`,
+      functionId: selectedFunction.id,
+      functionName: selectedFunction.name,
       ida: "",
       chegada: "",
       retorno: "",
       horarioRetorno: "",
       needsTicket: false,
       dailyRates,
-      isCustom: true,
+      isCustom: false,
     };
 
     setFunctionRows(prev => [...prev, newRow]);
+    setShowFunctionSelect(false);
+  };
+
+  const openFunctionSelect = () => {
+    setShowFunctionSelect(true);
   };
 
   const removeFunction = (functionId: string) => {
     setFunctionRows(prev => prev.filter(row => row.functionId !== functionId));
   };
 
-  const updateFunctionName = (functionId: string, name: string) => {
-    setFunctionRows(prev => prev.map(row => 
-      row.functionId === functionId 
-        ? { ...row, functionName: name }
-        : row
-    ));
-  };
 
   const formatDateForDisplay = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-');
@@ -347,7 +359,7 @@ export default function GridTeamInclusionForm() {
         
         await createTeamInclusionMutation.mutateAsync({
           eventId,
-          functionId: functionRow?.isCustom ? null : range.functionId, // null se for custom
+          functionId: range.functionId,
           userId: selectedFunction?.userId || user?.id, // usa userId da função
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
@@ -499,16 +511,7 @@ export default function GridTeamInclusionForm() {
                         {functionRows.map(row => (
                           <tr key={row.functionId} className="border-t">
                             <td className="px-3 py-2 border-r font-medium bg-muted/30">
-                              {row.isCustom ? (
-                                <Input 
-                                  value={row.functionName}
-                                  onChange={(e) => updateFunctionName(row.functionId, e.target.value)}
-                                  className="h-7 font-medium"
-                                  placeholder="Nome da função"
-                                />
-                              ) : (
-                                row.functionName
-                              )}
+                              {row.functionName}
                             </td>
                             <td className="px-2 py-2 border-r text-center">
                               <Checkbox
@@ -571,17 +574,15 @@ export default function GridTeamInclusionForm() {
                               </td>
                             ))}
                             <td className="px-2 py-2 text-center">
-                              {row.isCustom && (
-                                <Button
-                                  type="button"
-                                  onClick={() => removeFunction(row.functionId)}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              )}
+                              <Button
+                                type="button"
+                                onClick={() => removeFunction(row.functionId)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -593,13 +594,13 @@ export default function GridTeamInclusionForm() {
                 {/* Botão para adicionar função */}
                 <Button
                   type="button"
-                  onClick={addCustomFunction}
+                  onClick={openFunctionSelect}
                   variant="outline"
                   className="w-full"
                   disabled={dates.length === 0}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Função Customizada
+                  Adicionar Função
                 </Button>
 
                 {/* Preview dos resultados */}
@@ -637,6 +638,45 @@ export default function GridTeamInclusionForm() {
           </div>
         </Form>
       </CardContent>
+
+      {/* Modal para seleção de função */}
+      <Dialog open={showFunctionSelect} onOpenChange={setShowFunctionSelect}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecionar Função</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Escolha uma função das disponíveis no sistema:
+            </p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {functions?.filter(func => !functionRows.some(row => row.functionId === func.id)).map(func => (
+                <Button
+                  key={func.id}
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => addSystemFunction(func.id)}
+                >
+                  <div className="text-left">
+                    <div className="font-medium">{func.name}</div>
+                    {func.description && (
+                      <div className="text-xs text-muted-foreground">{func.description}</div>
+                    )}
+                  </div>
+                </Button>
+              ))}
+              {(!functions || functions.filter(func => !functionRows.some(row => row.functionId === func.id)).length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {!functions ? "Carregando funções..." : "Todas as funções já foram adicionadas ou não há funções cadastradas."}
+                </p>
+              )}
+            </div>
+            <Button variant="outline" onClick={() => setShowFunctionSelect(false)} className="w-full">
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
