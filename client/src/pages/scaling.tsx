@@ -128,7 +128,7 @@ export default function Scaling() {
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
       observations: inclusion.observations || "",
-      dailyValue: inclusion.dailyValue ? inclusion.dailyValue / 100 : 0, // Convert from cents
+      dailyValue: 0, // Always start empty, user must input value
     });
     setShowModal(true);
   };
