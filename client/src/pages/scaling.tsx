@@ -6,6 +6,7 @@ import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
 import { User } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -131,22 +132,46 @@ export default function Scaling() {
                 Não há registros de escalação para exibir com os filtros atuais.
               </p>
             </div>
-          ) : (
-            <div className="space-y-8">
-              {/* Módulo 1: Escalações SEM passagem */}
-              {(() => {
-                const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
-                return withoutTicket.length > 0 && (
-                  <div>
-                    <div className="px-6 py-4 bg-blue-50 dark:bg-blue-950/50 border-l-4 border-blue-500">
-                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        Escalações sem Passagem ({withoutTicket.length})
+          ) : (() => {
+            const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
+            const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
+            
+            return (
+              <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
+                <div className="px-6 py-4 border-b border-border">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger 
+                      value="without-ticket" 
+                      className="flex items-center gap-2"
+                      disabled={withoutTicket.length === 0}
+                    >
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      Sem Passagem ({withoutTicket.length})
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="with-ticket" 
+                      className="flex items-center gap-2"
+                      disabled={withTicket.length === 0}
+                    >
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      Com Passagem ({withTicket.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                {/* Aba: Escalações SEM passagem */}
+                <TabsContent value="without-ticket" className="mt-0">
+                  {withoutTicket.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        Nenhuma escalação sem passagem
                       </h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Funções que não necessitam de emissão de passagens aéreas
+                      <p className="text-muted-foreground">
+                        Não há registros de escalações que não necessitam de passagens.
                       </p>
                     </div>
+                  ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-muted">
@@ -209,24 +234,22 @@ export default function Scaling() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                );
-              })()}
+                  )}
+                </TabsContent>
 
-              {/* Módulo 2: Escalações COM passagem */}
-              {(() => {
-                const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
-                return withTicket.length > 0 && (
-                  <div>
-                    <div className="px-6 py-4 bg-green-50 dark:bg-green-950/50 border-l-4 border-green-500">
-                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        Escalações com Passagem ({withTicket.length})
+                {/* Aba: Escalações COM passagem */}
+                <TabsContent value="with-ticket" className="mt-0">
+                  {withTicket.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        Nenhuma escalação com passagem
                       </h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Funções que necessitam de emissão de passagens aéreas
+                      <p className="text-muted-foreground">
+                        Não há registros de escalações que necessitam de passagens.
                       </p>
                     </div>
+                  ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-muted">
@@ -305,11 +328,11 @@ export default function Scaling() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
+                  )}
+                </TabsContent>
+              </Tabs>
+            );
+          })()}
         </div>
       </div>
     </div>
