@@ -379,7 +379,7 @@ export default function Tickets() {
                     <th className="w-44 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Evento/Função
                     </th>
-                    <th className="w-48 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Colaborador
                     </th>
                     <th className="w-36 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -391,7 +391,7 @@ export default function Tickets() {
                     <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Data Volta
                     </th>
-                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-44 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Voos Sugeridos
                     </th>
                     <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -440,7 +440,7 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-base font-semibold text-foreground">
+                          <div className="text-sm font-medium text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
@@ -467,14 +467,14 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                            <div className="flex items-center gap-1">
-                              ✈️ {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
-                              {inclusion.flightDepartureSuggestedTime && <span className="text-xs">({inclusion.flightDepartureSuggestedTime})</span>}
+                          <div className="text-xs text-blue-700 dark:text-blue-300">
+                            <div className="mb-1">
+                              <span className="font-medium">Ida:</span> {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
+                              {inclusion.flightDepartureSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightDepartureSuggestedTime}</div>}
                             </div>
-                            <div className="flex items-center gap-1 mt-1">
-                              🔄 {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}
-                              {inclusion.flightReturnSuggestedTime && <span className="text-xs">({inclusion.flightReturnSuggestedTime})</span>}
+                            <div>
+                              <span className="font-medium">Volta:</span> {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}
+                              {inclusion.flightReturnSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightReturnSuggestedTime}</div>}
                             </div>
                           </div>
                         </td>
