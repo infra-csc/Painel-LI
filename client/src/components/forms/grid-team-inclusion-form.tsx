@@ -228,24 +228,18 @@ export default function GridTeamInclusionForm() {
       // Sort dates chronologically
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-      // Always create TWO records:
+      // Always create THREE records:
       // 1st: Full period with number of days as daily rate
-      // 2nd: Date with maximum value
+      // 2nd: Second position value from its date to end of period
+      // 3rd: Always 1 daily rate on last date
       
       const startDate = sortedDates[0];
       const endDate = sortedDates[sortedDates.length - 1];
       const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
       
-      // Find maximum value and its date
-      let maxValue = 0;
-      let maxValueDate = sortedDates[0];
-      for (const date of sortedDates) {
-        const value = row.dailyRates[date];
-        if (value > maxValue) {
-          maxValue = value;
-          maxValueDate = date;
-        }
-      }
+      // Get second position date and value (if exists)
+      const secondDate = sortedDates.length > 1 ? sortedDates[1] : sortedDates[0];
+      const secondValue = row.dailyRates[secondDate];
       
       // 1st record: Full period with number of days
       ranges.push({
@@ -261,12 +255,26 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // 2nd record: Maximum value from its date to end of period
+      // 2nd record: Second position value from its date to end of period
       ranges.push({
         functionId: row.functionId,
-        dailyRate: maxValue, // Maximum value found
-        startDate: maxValueDate, // Date where max value appears
+        dailyRate: secondValue, // Second position value
+        startDate: secondDate, // Second date
         endDate: endDate, // Until end of period
+        travelInfo: {
+          ida: row.ida,
+          chegada: row.chegada,
+          retorno: row.retorno,
+          horarioRetorno: row.horarioRetorno,
+        },
+      });
+      
+      // 3rd record: Always 1 daily rate on last date
+      ranges.push({
+        functionId: row.functionId,
+        dailyRate: 1, // Always 1 daily rate
+        startDate: endDate, // Last date only
+        endDate: endDate,
         travelInfo: {
           ida: row.ida,
           chegada: row.chegada,
