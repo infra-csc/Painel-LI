@@ -11,23 +11,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Plus, Save, Grid3x3 } from "lucide-react";
+import { Calendar, Save, Grid3x3 } from "lucide-react";
 import type { Event, Function } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
 const gridFormSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
-  functionId: z.string().min(1, "Função é obrigatória"),
   startDate: z.string().min(1, "Data inicial é obrigatória"),
   endDate: z.string().min(1, "Data final é obrigatória"),
 });
 
 type GridFormData = z.infer<typeof gridFormSchema>;
 
-interface GridCell {
-  date: string;
-  dailyRate: number; // 1, 2, ou 3
+interface FunctionRow {
+  functionId: string;
+  functionName: string;
+  ida: string;
+  chegada: string;
+  retorno: string;
+  horarioRetorno: string;
+  dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
 }
 
 interface ProcessedRange {
@@ -35,10 +39,17 @@ interface ProcessedRange {
   dailyRate: number;
   startDate: string;
   endDate: string;
+  travelInfo: {
+    ida: string;
+    chegada: string;
+    retorno: string;
+    horarioRetorno: string;
+  };
 }
 
 export default function GridTeamInclusionForm() {
-  const [grid, setGrid] = useState<GridCell[]>([]);
+  const [functionRows, setFunctionRows] = useState<FunctionRow[]>([]);
+  const [dates, setDates] = useState<string[]>([]);
   const [showGrid, setShowGrid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
@@ -58,7 +69,6 @@ export default function GridTeamInclusionForm() {
     resolver: zodResolver(gridFormSchema),
     defaultValues: {
       eventId: "",
-      functionId: "",
       startDate: "",
       endDate: "",
     },
@@ -79,15 +89,11 @@ export default function GridTeamInclusionForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      toast({
-        title: "Sucesso",
-        description: "Escalações criadas com sucesso",
-      });
     },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Erro ao criar escalações",
+        description: "Erro ao criar escalação",
         variant: "destructive",
       });
     },
@@ -114,26 +120,53 @@ export default function GridTeamInclusionForm() {
       return;
     }
 
-    const cells: GridCell[] = [];
+    // Gerar datas
+    const datesList: string[] = [];
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      cells.push({
-        date: dateStr,
-        dailyRate: 1, // valor padrão
-      });
+      datesList.push(dateStr);
     }
 
-    setGrid(cells);
+    // Criar linhas para cada função
+    const rows: FunctionRow[] = (functions || []).map(func => {
+      const dailyRates: { [date: string]: number } = {};
+      datesList.forEach(date => {
+        dailyRates[date] = 1; // valor padrão
+      });
+
+      return {
+        functionId: func.id,
+        functionName: func.name,
+        ida: "",
+        chegada: "",
+        retorno: "",
+        horarioRetorno: "",
+        dailyRates,
+      };
+    });
+
+    setDates(datesList);
+    setFunctionRows(rows);
     setShowGrid(true);
   };
 
-  const updateCell = (index: number, value: number) => {
-    const updated = [...grid];
-    updated[index].dailyRate = value;
-    setGrid(updated);
+  const updateDailyRate = (functionId: string, date: string, value: number) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, dailyRates: { ...row.dailyRates, [date]: value } }
+        : row
+    ));
+  };
+
+  const updateTravelInfo = (functionId: string, field: string, value: string) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, [field]: value }
+        : row
+    ));
   };
 
   const formatDateForDisplay = (dateStr: string) => {
@@ -141,46 +174,60 @@ export default function GridTeamInclusionForm() {
     return `${day}/${month}`;
   };
 
-  // Processa a grade para gerar ranges baseados em números consecutivos
   const processGrid = (): ProcessedRange[] => {
     const ranges: ProcessedRange[] = [];
-    const { functionId } = form.getValues();
 
-    if (grid.length === 0) return ranges;
+    functionRows.forEach(row => {
+      if (dates.length === 0) return;
 
-    let currentRate = grid[0].dailyRate;
-    let startDate = grid[0].date;
-    let endDate = grid[0].date;
+      let currentRate = row.dailyRates[dates[0]];
+      let startDate = dates[0];
+      let endDate = dates[0];
 
-    for (let i = 1; i < grid.length; i++) {
-      if (grid[i].dailyRate === currentRate) {
-        // Mesmo número, continua o range
-        endDate = grid[i].date;
-      } else {
-        // Número mudou, fecha o range atual
-        ranges.push({
-          functionId,
-          dailyRate: currentRate,
-          startDate,
-          endDate,
-        });
+      for (let i = 1; i < dates.length; i++) {
+        const date = dates[i];
+        if (row.dailyRates[date] === currentRate) {
+          // Mesmo número, continua o range
+          endDate = date;
+        } else {
+          // Número mudou, fecha o range atual
+          ranges.push({
+            functionId: row.functionId,
+            dailyRate: currentRate,
+            startDate,
+            endDate,
+            travelInfo: {
+              ida: row.ida,
+              chegada: row.chegada,
+              retorno: row.retorno,
+              horarioRetorno: row.horarioRetorno,
+            },
+          });
 
-        // Inicia novo range
-        currentRate = grid[i].dailyRate;
-        startDate = grid[i].date;
-        endDate = grid[i].date;
+          // Inicia novo range
+          currentRate = row.dailyRates[date];
+          startDate = date;
+          endDate = date;
+        }
       }
-    }
 
-    // Adiciona o último range
-    ranges.push({
-      functionId,
-      dailyRate: currentRate,
-      startDate,
-      endDate,
+      // Adiciona o último range
+      ranges.push({
+        functionId: row.functionId,
+        dailyRate: currentRate,
+        startDate,
+        endDate,
+        travelInfo: {
+          ida: row.ida,
+          chegada: row.chegada,
+          retorno: row.retorno,
+          horarioRetorno: row.horarioRetorno,
+        },
+      });
     });
 
-    return ranges;
+    // Filtrar apenas ranges que têm alguma diária configurada
+    return ranges.filter(range => range.dailyRate > 0);
   };
 
   const calculateDailyRates = (startDate: string, endDate: string): number => {
@@ -198,7 +245,7 @@ export default function GridTeamInclusionForm() {
     if (ranges.length === 0) {
       toast({
         title: "Erro",
-        description: "Configure a grade antes de salvar",
+        description: "Configure pelo menos uma escalação na grade",
         variant: "destructive",
       });
       return;
@@ -207,6 +254,8 @@ export default function GridTeamInclusionForm() {
     setIsProcessing(true);
 
     try {
+      let successCount = 0;
+      
       // Cria um team_inclusion para cada range processado
       for (const range of ranges) {
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
@@ -219,14 +268,22 @@ export default function GridTeamInclusionForm() {
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
           dailyValue: range.dailyRate * 5000, // R$ 50,00 por diária como exemplo
-          needsTicket: false,
-          observations: `Grade: ${range.dailyRate} diária(s) do ${formatDateForDisplay(range.startDate)} ao ${formatDateForDisplay(range.endDate)}`,
+          needsTicket: range.travelInfo.ida !== "" || range.travelInfo.retorno !== "",
+          observations: `Escalação por grade: ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
+        
+        successCount++;
       }
+
+      toast({
+        title: "Sucesso",
+        description: `${successCount} escalação(ões) criada(s) com sucesso!`,
+      });
 
       // Limpa o form após sucesso
       form.reset();
-      setGrid([]);
+      setFunctionRows([]);
+      setDates([]);
       setShowGrid(false);
       
     } catch (error) {
@@ -241,10 +298,10 @@ export default function GridTeamInclusionForm() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Grid3x3 className="w-5 h-5" />
-          Escalação por Grade
+          Escalação por Grade - Modelo Planilha
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Configure uma grade de diárias por dia. Números iguais consecutivos viram um registro único.
+          Configure as diárias por função e data. Números consecutivos iguais se tornam um registro único.
         </p>
       </CardHeader>
       <CardContent>
@@ -267,32 +324,6 @@ export default function GridTeamInclusionForm() {
                       {events?.map((event) => (
                         <SelectItem key={event.id} value={event.id}>
                           {event.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Seleção de Função */}
-            <FormField
-              control={form.control}
-              name="functionId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Função *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-grid-function">
-                        <SelectValue placeholder="Selecione uma função" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {functions?.map((func) => (
-                        <SelectItem key={func.id} value={func.id}>
-                          {func.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -349,54 +380,115 @@ export default function GridTeamInclusionForm() {
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4 mr-2" />
-              Gerar Grade
+              Gerar Grade de Funções
             </Button>
 
-            {/* Grade de Diárias */}
+            {/* Grade de Escalação */}
             {showGrid && (
               <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <Label className="text-sm font-medium mb-3 block">
-                    Grade de Diárias (1, 2 ou 3 por dia)
-                  </Label>
-                  <div className="grid grid-cols-7 gap-2 max-h-60 overflow-y-auto">
-                    {grid.map((cell, index) => (
-                      <div key={index} className="text-center">
-                        <div className="text-xs text-muted-foreground mb-1">
-                          {formatDateForDisplay(cell.date)}
-                        </div>
-                        <Select
-                          value={cell.dailyRate.toString()}
-                          onValueChange={(value) => updateCell(index, parseInt(value))}
-                        >
-                          <SelectTrigger className="h-8 text-center">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">1</SelectItem>
-                            <SelectItem value="2">2</SelectItem>
-                            <SelectItem value="3">3</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário</th>
+                          {dates.map(date => (
+                            <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
+                              {formatDateForDisplay(date)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {functionRows.map(row => (
+                          <tr key={row.functionId} className="border-t">
+                            <td className="px-3 py-2 border-r font-medium bg-muted/30">
+                              {row.functionName}
+                            </td>
+                            <td className="px-2 py-2 border-r">
+                              <Select value={row.ida} onValueChange={(val) => updateTravelInfo(row.functionId, 'ida', val)}>
+                                <SelectTrigger className="h-7">
+                                  <SelectValue placeholder="---" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">---</SelectItem>
+                                  <SelectItem value="sáb">sáb</SelectItem>
+                                  <SelectItem value="sex">sex</SelectItem>
+                                  <SelectItem value="qui">qui</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-2 py-2 border-r">
+                              <Input 
+                                value={row.chegada} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'chegada', e.target.value)}
+                                placeholder="10h"
+                                className="h-7 text-center"
+                              />
+                            </td>
+                            <td className="px-2 py-2 border-r">
+                              <Select value={row.retorno} onValueChange={(val) => updateTravelInfo(row.functionId, 'retorno', val)}>
+                                <SelectTrigger className="h-7">
+                                  <SelectValue placeholder="---" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">---</SelectItem>
+                                  <SelectItem value="dom">dom</SelectItem>
+                                  <SelectItem value="seg">seg</SelectItem>
+                                  <SelectItem value="ter">ter</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-2 py-2 border-r">
+                              <Input 
+                                value={row.horarioRetorno} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
+                                placeholder="14-18h"
+                                className="h-7 text-center"
+                              />
+                            </td>
+                            {dates.map(date => (
+                              <td key={date} className="px-1 py-2 border-r text-center">
+                                <Select
+                                  value={row.dailyRates[date]?.toString() || "0"}
+                                  onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
+                                >
+                                  <SelectTrigger className="h-7 w-12">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="0">-</SelectItem>
+                                    <SelectItem value="1">1</SelectItem>
+                                    <SelectItem value="2">2</SelectItem>
+                                    <SelectItem value="3">3</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                {/* Preview dos ranges processados */}
+                {/* Preview dos resultados */}
                 <div className="border rounded-lg p-4 bg-muted/50">
                   <Label className="text-sm font-medium mb-3 block">
-                    Resultado (será criado um registro para cada linha):
+                    Registros que serão criados ({processGrid().length}):
                   </Label>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
                     {processGrid().map((range, index) => (
                       <div key={index} className="flex justify-between">
                         <span>
-                          {functions?.find(f => f.id === range.functionId)?.name || 'Função'} | 
-                          Diária {range.dailyRate}
+                          {functions?.find(f => f.id === range.functionId)?.name} - {range.dailyRate} diária(s)
                         </span>
                         <span>
-                          {formatDateForDisplay(range.startDate)} - {formatDateForDisplay(range.endDate)}
+                          {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
                         </span>
                       </div>
                     ))}
@@ -412,7 +504,7 @@ export default function GridTeamInclusionForm() {
                   data-testid="button-save-grid"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isProcessing ? "Criando Escalações..." : "Criar Escalações"}
+                  {isProcessing ? "Criando Escalações..." : `Criar ${processGrid().length} Escalação(ões)`}
                 </Button>
               </div>
             )}
