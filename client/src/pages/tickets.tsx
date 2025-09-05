@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import SimpleFilters from "@/components/common/simple-filters";
+import UniversalFilters from "@/components/common/universal-filters";
 import { Plane, Save, FileText, Eye } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
 
@@ -22,7 +22,7 @@ export default function Tickets() {
     functionId: "all",
     collaboratorId: "all",
     searchId: "",
-    ticketStatus: "all", // all, pending, processed
+    statusFilter: "pending", // pending, processed
   });
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
@@ -48,6 +48,10 @@ export default function Tickets() {
   const { data: tickets } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
   });
+
+  const getTicket = (teamInclusionId: number) => {
+    return tickets?.find(t => t.teamInclusionId === teamInclusionId);
+  };
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -404,8 +408,7 @@ export default function Tickets() {
                             </div>
                             <Eye 
                               className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
-                              title="Ver detalhes da passagem"
-                            />
+                              />
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -440,7 +443,7 @@ export default function Tickets() {
                         <td className="px-4 py-4">
                           {ticket ? (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Processada
+                              Comprada
                             </span>
                           ) : (
                             <StatusBadge status={inclusion.status} />
