@@ -140,9 +140,9 @@ export default function GridTeamInclusionForm() {
       return {
         functionId: func.id,
         functionName: func.name,
-        ida: "",
+        ida: "none",
         chegada: "",
-        retorno: "",
+        retorno: "none",
         horarioRetorno: "",
         dailyRates,
       };
@@ -268,7 +268,7 @@ export default function GridTeamInclusionForm() {
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
           dailyValue: range.dailyRate * 5000, // R$ 50,00 por diária como exemplo
-          needsTicket: range.travelInfo.ida !== "" || range.travelInfo.retorno !== "",
+          needsTicket: range.travelInfo.ida !== "" && range.travelInfo.ida !== "none" || range.travelInfo.retorno !== "" && range.travelInfo.retorno !== "none",
           observations: `Escalação por grade: ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
@@ -415,7 +415,7 @@ export default function GridTeamInclusionForm() {
                                   <SelectValue placeholder="---" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">---</SelectItem>
+                                  <SelectItem value="none">---</SelectItem>
                                   <SelectItem value="sáb">sáb</SelectItem>
                                   <SelectItem value="sex">sex</SelectItem>
                                   <SelectItem value="qui">qui</SelectItem>
@@ -436,7 +436,7 @@ export default function GridTeamInclusionForm() {
                                   <SelectValue placeholder="---" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">---</SelectItem>
+                                  <SelectItem value="none">---</SelectItem>
                                   <SelectItem value="dom">dom</SelectItem>
                                   <SelectItem value="seg">seg</SelectItem>
                                   <SelectItem value="ter">ter</SelectItem>
