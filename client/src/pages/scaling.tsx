@@ -319,7 +319,7 @@ export default function Scaling() {
                                   {inclusion.dailyRates} diárias
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 {isEscalated(inclusion) ? (
                                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -357,28 +357,25 @@ export default function Scaling() {
                       <table className="w-full">
                         <thead className="bg-muted">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               ID
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Evento
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Função / Evento
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Função
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Colaborador
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Data Início e Fim
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Período / Diárias
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Datas de Passagens
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Passagens
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Horários Sugeridos
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Horários
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
                           </tr>
@@ -390,7 +387,7 @@ export default function Scaling() {
                               className="hover:bg-accent/30 transition-colors cursor-pointer"
                               onClick={() => handleRowClick(inclusion)}
                             >
-                              <td className="px-4 py-4 whitespace-nowrap">
+                              <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
@@ -398,39 +395,40 @@ export default function Scaling() {
                                   <Eye className="w-4 h-4 text-muted-foreground" />
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
-                                <div className="text-sm font-medium text-foreground">
-                                  {getEventName(inclusion.eventId)}
-                                </div>
-                              </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm font-medium text-foreground">
                                   {getFunctionName(inclusion.functionId)}
                                 </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {getEventName(inclusion.eventId)}
+                                </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   {getCollaboratorName(inclusion.collaboratorId)}
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
                                 </div>
+                                <div className="text-xs text-muted-foreground font-medium">
+                                  {inclusion.dailyRates} diárias
+                                </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   <div>Ida: {formatDate(inclusion.flightDepartureDate) || "N/A"}</div>
                                   <div>Retorno: {formatDate(inclusion.flightReturnDate) || "N/A"}</div>
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   <div>Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}</div>
                                   <div>Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}</div>
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 {isEscalated(inclusion) ? (
                                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
