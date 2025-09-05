@@ -216,6 +216,10 @@ export default function Scaling() {
             const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
             const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
             
+            // Count pending escalations
+            const withoutTicketPending = withoutTicket.filter(inclusion => !isEscalated(inclusion)).length;
+            const withTicketPending = withTicket.filter(inclusion => !isEscalated(inclusion)).length;
+            
             return (
               <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
                 <div className="px-6 py-4 border-b border-border">
@@ -226,7 +230,12 @@ export default function Scaling() {
                       disabled={withoutTicket.length === 0}
                     >
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      Sem Passagem ({withoutTicket.length})
+                      <span>Sem Passagem ({withoutTicket.length})</span>
+                      {withoutTicketPending > 0 && (
+                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
+                          {withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </TabsTrigger>
                     <TabsTrigger 
                       value="with-ticket" 
@@ -234,7 +243,12 @@ export default function Scaling() {
                       disabled={withTicket.length === 0}
                     >
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      Com Passagem ({withTicket.length})
+                      <span>Com Passagem ({withTicket.length})</span>
+                      {withTicketPending > 0 && (
+                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
+                          {withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </TabsTrigger>
                   </TabsList>
                 </div>
