@@ -27,6 +27,7 @@ export default function Tickets() {
   });
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -220,6 +221,129 @@ export default function Tickets() {
   const handleViewTicketDetails = (group: any) => {
     setSelectedGroup(group);
     setShowModal(true);
+  };
+
+  // Toggle seleção de ticket
+  const toggleTicketSelection = (groupKey: string) => {
+    setSelectedTickets(prev => {
+      if (prev.includes(groupKey)) {
+        return prev.filter(id => id !== groupKey);
+      } else {
+        return [...prev, groupKey];
+      }
+    });
+  };
+
+  // Selecionar/deselecionar todos os tickets
+  const toggleAllTickets = () => {
+    const pendingGroups = groupedTicketInclusions.filter(group => 
+      !getTicket(group.representative.id)
+    );
+    const allPendingKeys = pendingGroups.map(group => group.groupKey);
+    
+    if (selectedTickets.length === allPendingKeys.length) {
+      setSelectedTickets([]); // Deselecionar todos
+    } else {
+      setSelectedTickets(allPendingKeys); // Selecionar todos pendentes
+    }
+  };
+
+  // Aplicar dados do registro rápido às passagens selecionadas
+  const handleApplyToSelected = async () => {
+    const quickData = ticketData["quick"];
+    if (!quickData || selectedTickets.length === 0) return;
+
+    // Validar campos obrigatórios
+    const requiredFields = [
+      { field: 'value', label: 'Valor da Passagem' },
+      { field: 'departureAirport', label: 'Aeroporto Origem' },
+      { field: 'destinationAirport', label: 'Aeroporto Destino' },
+      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' }
+    ];
+    
+    const missingFields = requiredFields.filter(({ field }) => {
+      let value = quickData[field];
+      return !value || value === '';
+    });
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Erro",
+        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const groupKey of selectedTickets) {
+        const group = groupedTicketInclusions.find(g => g.groupKey === groupKey);
+        if (!group) continue;
+
+        // Verificar se não tem ticket já
+        if (getTicket(group.representative.id)) {
+          errors.push(`Passagem ${group.inclusionNumbers.join(", ")} já foi comprada`);
+          continue;
+        }
+
+        try {
+          // Criar ticket com os dados comuns
+          await createTicketMutation.mutateAsync({
+            teamInclusionId: group.representative.id,
+            value: Math.round(parseFloat(quickData.value) * 100),
+            purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
+            departureAirport: quickData.departureAirport,
+            destinationAirport: quickData.destinationAirport,
+            purchaseOrderNumber: quickData.purchaseOrderNumber || null,
+            fileUrl: quickData.fileUrl || null,
+            attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null,
+            cardLastFourDigits: quickData.cardLastFourDigits || null
+          });
+
+          // Atualizar team inclusions para fechamento
+          for (const inclusion of group.inclusions) {
+            await updateTeamInclusionMutation.mutateAsync({
+              id: inclusion.id,
+              data: {
+                status: "fechamento",
+                phase: "fechamento"
+              }
+            });
+          }
+
+          successCount++;
+        } catch (error) {
+          errors.push(`Erro na passagem ${group.inclusionNumbers.join(", ")}`);
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Sucesso",
+          description: `${successCount} passagem(ns) registrada(s) com os mesmos dados e anexos!`,
+        });
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "Alguns erros ocorreram",
+          description: errors.join(", "),
+          variant: "destructive",
+        });
+      }
+
+      // Limpar seleções
+      setSelectedTickets([]);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao aplicar dados às passagens selecionadas",
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePurchaseTicketGroup = async (group: any) => {
@@ -431,24 +555,47 @@ export default function Tickets() {
 
             <div className="mt-4 flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Preencha os dados comuns que serão aplicados a várias passagens
+                Preencha os dados comuns e selecione as passagens na tabela para aplicar
+                {selectedTickets.length > 0 && (
+                  <span className="text-blue-600 font-medium ml-2">
+                    ({selectedTickets.length} passagens selecionadas)
+                  </span>
+                )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Limpar campos do registro rápido
-                  setTicketData(prev => {
-                    const newData = { ...prev };
-                    delete newData["quick"];
-                    return newData;
-                  });
-                }}
-                disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
-                data-testid="button-clear-quick"
-              >
-                Limpar Campos
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleApplyToSelected}
+                  disabled={
+                    selectedTickets.length === 0 || 
+                    !ticketData["quick"] || 
+                    Object.keys(ticketData["quick"]).length === 0 ||
+                    createTicketMutation.isPending
+                  }
+                  data-testid="button-apply-to-selected"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Limpar campos do registro rápido
+                    setTicketData(prev => {
+                      const newData = { ...prev };
+                      delete newData["quick"];
+                      return newData;
+                    });
+                  }}
+                  disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
+                  data-testid="button-clear-quick"
+                >
+                  Limpar Campos
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -493,6 +640,15 @@ export default function Tickets() {
               <table className="w-full table-fixed">
                 <thead className="bg-muted">
                   <tr>
+                    <th className="w-16 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <input
+                        type="checkbox"
+                        onChange={toggleAllTickets}
+                        checked={selectedTickets.length > 0 && selectedTickets.length === groupedTicketInclusions.filter(g => !getTicket(g.representative.id)).length}
+                        className="rounded border-gray-300"
+                        data-testid="checkbox-select-all"
+                      />
+                    </th>
                     <th className="w-20 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       ID
                     </th>
@@ -527,10 +683,22 @@ export default function Tickets() {
                     return (
                       <tr 
                         key={group.groupKey} 
-                        className="hover:bg-accent/30 transition-colors cursor-pointer"
-                        onClick={() => handleViewTicketDetails(group)}
+                        className={`hover:bg-accent/30 transition-colors ${selectedTickets.includes(group.groupKey) ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
                       >
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          {!ticket ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedTickets.includes(group.groupKey)}
+                              onChange={() => toggleTicketSelection(group.groupKey)}
+                              className="rounded border-gray-300"
+                              data-testid={`checkbox-ticket-${group.groupKey}`}
+                            />
+                          ) : (
+                            <div className="w-4 h-4"></div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-mono text-foreground">
                               {group.inclusions.length > 1 ? (
@@ -546,7 +714,7 @@ export default function Tickets() {
                               />
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="text-sm font-medium text-foreground">
                             {getEventName(inclusion.eventId)}
                           </div>
@@ -559,17 +727,17 @@ export default function Tickets() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="text-sm font-medium text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           {(() => {
                             const departureDate = inclusion.flightDepartureDate || group.earliestStartDate;
                             const isUrgent = isDateUrgent(departureDate);
@@ -581,12 +749,12 @@ export default function Tickets() {
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="text-sm font-medium text-foreground">
                             {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : formatDate(group.latestEndDate)}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           <div className="text-xs text-blue-700 dark:text-blue-300">
                             <div className="mb-1">
                               <span className="font-medium">Ida:</span> {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
@@ -598,7 +766,7 @@ export default function Tickets() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(group)}>
                           {ticket ? (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               Comprada
