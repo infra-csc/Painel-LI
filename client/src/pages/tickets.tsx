@@ -22,6 +22,7 @@ export default function Tickets() {
     functionId: "all",
     collaboratorId: "all",
     searchId: "",
+    ticketStatus: "all", // all, pending, processed
   });
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
@@ -80,10 +81,18 @@ export default function Tickets() {
     },
   });
 
-  // Filter inclusions that need tickets (escalated and marked as needing tickets)
+  // Filter inclusions that need tickets - show all that need tickets (pending or processed)
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
-      const statusMatch = inclusion.status === "passagem" && inclusion.needsTicket && inclusion.collaboratorId;
+      // Show all inclusions that need tickets and have collaborators assigned
+      // This includes both "passagem" (pending) and "fechamento"+ (processed)
+      const needsTicketMatch = inclusion.needsTicket && inclusion.collaboratorId && 
+        (inclusion.status === "passagem" || 
+         inclusion.status === "fechamento" || 
+         inclusion.status === "aprovacao" || 
+         inclusion.status === "aprovado");
+      
+      if (!needsTicketMatch) return false;
       
       // Apply simple filters (event, function, collaborator, and search ID)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -94,7 +103,7 @@ export default function Tickets() {
         inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
       )) return false;
       
-      return statusMatch;
+      return true;
     }
   ) || [];
 
@@ -113,7 +122,7 @@ export default function Tickets() {
       groups.get(groupKey)!.push(inclusion);
     });
     
-    // Convert to array of grouped items
+    // Convert to array of grouped items and apply ticket status filter
     return Array.from(groups.entries()).map(([groupKey, inclusions]) => {
       const firstInclusion = inclusions[0];
       
@@ -141,8 +150,16 @@ export default function Tickets() {
         earliestStartDate,
         latestEndDate,
       };
+    }).filter(group => {
+      // Apply ticket status filter to groups
+      if (filters.ticketStatus !== "all") {
+        const hasTicket = getTicket(group.representative.id);
+        if (filters.ticketStatus === "pending" && hasTicket) return false;
+        if (filters.ticketStatus === "processed" && !hasTicket) return false;
+      }
+      return true;
     });
-  }, [ticketInclusions]);
+  }, [ticketInclusions, filters.ticketStatus, tickets]);
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -255,6 +272,8 @@ export default function Tickets() {
       setShowModal(false);
       setSelectedGroup(null);
 
+      // Note: The ticket will remain visible in the table with "Processada" status
+
     } catch (error) {
       toast({
         title: "Erro",
@@ -300,15 +319,39 @@ export default function Tickets() {
           </div>
 
           <SimpleFilters filters={filters} onFiltersChange={setFilters} />
+          
+          {/* Filtro de Status de Passagem */}
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-foreground">Status da Passagem:</label>
+                <select
+                  value={filters.ticketStatus}
+                  onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
+                  className="px-3 py-1 border border-border rounded bg-background text-foreground text-sm"
+                >
+                  <option value="all">Todos</option>
+                  <option value="pending">Pendentes</option>
+                  <option value="processed">Processadas</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-          {ticketInclusions.length === 0 ? (
+          {groupedTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
               <Plane className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">
-                Nenhuma passagem pendente
+                {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" : 
+                 filters.ticketStatus === "processed" ? "Nenhuma passagem processada" : 
+                 "Nenhuma passagem encontrada"}
               </h3>
               <p className="text-muted-foreground">
-                Não há colaboradores escalados que necessitem de passagens ou todas já foram processadas.
+                {filters.ticketStatus === "pending" 
+                  ? "Todas as passagens foram processadas ou não há colaboradores escalados."
+                  : filters.ticketStatus === "processed"
+                  ? "Nenhuma passagem foi processada ainda."
+                  : "Não há colaboradores escalados que necessitem de passagens."}
               </p>
             </div>
           ) : (
