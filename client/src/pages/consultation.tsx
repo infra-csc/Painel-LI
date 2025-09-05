@@ -245,7 +245,7 @@ export default function Consultation() {
                   📄 Nenhum registro encontrado para os filtros selecionados
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {filteredInclusions?.map((inclusion) => {
                     const ticket = getTicket(inclusion.id);
                     const financialRecord = getFinancial(inclusion.id);
@@ -255,70 +255,61 @@ export default function Consultation() {
                     const progress = inclusion.status === "aprovado" ? 100 : ((currentPhaseIndex + 1) / phases.length) * 100;
                     
                     return (
-                      <div
+                      <Card
                         key={inclusion.id}
-                        className="border border-border rounded-lg p-6 bg-gradient-to-r from-card to-card/80 shadow-sm hover:shadow-md transition-all"
+                        className="hover:shadow-md transition-all"
                         data-testid={`log-entry-${inclusion.id}`}
                       >
-                        {/* Header do Log */}
-                        <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
-                          <div className="flex items-center gap-4">
-                            <div className="p-3 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full">
-                              <span className="text-2xl">{getPhaseIcon(inclusion.phase)}</span>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-foreground">#{inclusion.inclusionNumber || 'N/A'}</span>
-                                <StatusBadge status={inclusion.status} />
-                                <Badge variant="outline" className="text-xs">
-                                  {getPhaseLabel(inclusion.phase)}
-                                </Badge>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-1.5 bg-primary/10 rounded-full">
+                                <span className="text-lg">{getPhaseIcon(inclusion.phase)}</span>
                               </div>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                📅 Criado em {formatDate(inclusion.createdAt?.toString())} por {getUserName(inclusion.userId)} • 
-                                🔄 Atualizado em {formatDate(inclusion.updatedAt?.toString())}
-                                {inclusion.updatedBy && ` por ${getUserName(inclusion.updatedBy)}`}
-                              </p>
+                              <div>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                  #{inclusion.inclusionNumber || 'N/A'}
+                                  <StatusBadge status={inclusion.status} />
+                                </CardTitle>
+                                <p className="text-xs text-muted-foreground">
+                                  {getPhaseLabel(inclusion.phase)} • {formatDate(inclusion.createdAt?.toString())}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-primary">
+                                {formatCurrency(totalValue)}
+                              </div>
+                              <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                                <div 
+                                  className="bg-primary h-1.5 rounded-full transition-all" 
+                                  style={{ width: `${progress}%` }}
+                                ></div>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="text-right">
-                            <div className="text-xl font-bold text-primary">
-                              {formatCurrency(totalValue)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {inclusion.status === "aprovado" ? "Valor Final" : "Valor Planejado"}
-                            </div>
-                            <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
-                              <div 
-                                className="bg-primary h-2 rounded-full transition-all" 
-                                style={{ width: `${progress}%` }}
-                              ></div>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {Math.round(progress)}% completo
-                            </div>
-                          </div>
-                        </div>
+                        </CardHeader>
 
-                        {/* Grid de Informações Detalhadas */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
+                        <CardContent className="pt-2">
+                          {/* Grid de Informações Compactas */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                           
                           {/* Informações Básicas */}
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-foreground border-b border-border pb-1">🎪 Informações do Evento</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Evento:</span>
-                                <div className="font-medium">{getEventName(inclusion.eventId)}</div>
+                          <div className="space-y-1.5">
+                            <h4 className="font-medium text-foreground text-xs mb-1">🎪 Evento</h4>
+                            <div className="space-y-1">
+                              <div className="text-xs">
+                                <span className="text-muted-foreground block">Evento:</span>
+                                <span className="font-medium">{getEventName(inclusion.eventId)}</span>
                               </div>
-                              <div>
-                                <span className="text-muted-foreground">Função:</span>
-                                <div className="font-medium">{getFunctionName(inclusion.functionId)}</div>
+                              <div className="text-xs">
+                                <span className="text-muted-foreground block">Função:</span>
+                                <span className="font-medium">{getFunctionName(inclusion.functionId)}</span>
                               </div>
-                              <div>
-                                <span className="text-muted-foreground">Colaborador:</span>
-                                <div className="font-medium">{getCollaboratorName(inclusion.collaboratorId || undefined)}</div>
+                              <div className="text-xs">
+                                <span className="text-muted-foreground block">Colaborador:</span>
+                                <span className="font-medium">{getCollaboratorName(inclusion.collaboratorId || undefined)}</span>
                                 {(() => {
                                   const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
                                   if (collaborator?.approvedBy) {
@@ -552,30 +543,31 @@ export default function Consultation() {
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleViewComments(inclusion.id)}
-                            className="text-blue-600 hover:text-blue-900"
-                            data-testid={`button-comments-${inclusion.id}`}
-                          >
-                            <MessageCircle className="w-4 h-4 mr-1" />
-                            Comentários
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleViewSummary(inclusion.id)}
-                            className="text-green-600 hover:text-green-900"
-                            data-testid={`button-view-${inclusion.id}`}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Resumo Completo
-                          </Button>
-                        </div>
-                      </div>
+                          {/* Actions */}
+                          <div className="flex items-center justify-end gap-1 pt-2 border-t border-border/30">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewComments(inclusion.id)}
+                              className="text-blue-600 hover:text-blue-900 text-xs px-2"
+                              data-testid={`button-comments-${inclusion.id}`}
+                            >
+                              <MessageCircle className="w-3 h-3 mr-1" />
+                              Comentários
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewSummary(inclusion.id)}
+                              className="text-green-600 hover:text-green-900 text-xs px-2"
+                              data-testid={`button-view-${inclusion.id}`}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              Resumo
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     );
                   })}
                 </div>
