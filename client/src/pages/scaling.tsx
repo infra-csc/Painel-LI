@@ -24,7 +24,6 @@ export default function Scaling() {
     functionId: "all",
     collaboratorId: "all",
     status: "all",
-    hasTicket: "all",
     searchId: "",
   });
   
@@ -75,8 +74,6 @@ export default function Scaling() {
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
-      if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
       
       return idMatch;
     }
