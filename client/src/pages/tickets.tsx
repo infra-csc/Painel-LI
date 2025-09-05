@@ -30,7 +30,7 @@ export default function Tickets() {
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
-    dates: false,
+    dates: true,
     additional: false
   });
   const { toast } = useToast();
@@ -272,7 +272,10 @@ export default function Tickets() {
       { field: 'departureAirport', label: 'Aeroporto Origem' },
       { field: 'destinationAirport', label: 'Aeroporto Destino' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' },
-      { field: 'actualReturnDate', label: 'Data de Volta' }
+      { field: 'actualDepartureDate', label: 'Data de Ida' },
+      { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualReturnDate', label: 'Data de Volta' },
+      { field: 'actualReturnTime', label: 'Horário de Volta' }
     ];
     
     const missingFields = requiredFields.filter(({ field }) => {
@@ -519,162 +522,111 @@ export default function Tickets() {
               </div>
             </div>
             
-            {/* Seção Básica - Sempre visível */}
-            <div className="space-y-4">
-              <div 
-                className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border"
-                onClick={() => toggleSection('basic')}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">💰 Dados Básicos (obrigatórios)</span>
-                </div>
-                {expandedSections.basic ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {/* Formulário Compacto */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div>
+                <Label className="text-xs font-medium">Valor (R$) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={ticketData["quick"]?.value || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-value"
+                />
               </div>
-              
-              {expandedSections.basic && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Valor da Passagem (R$) *</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={ticketData["quick"]?.value || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-value"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Aeroporto Origem *</Label>
-                    <Input
-                      placeholder="Ex: GRU"
-                      value={ticketData["quick"]?.departureAirport || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-departure"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Aeroporto Destino *</Label>
-                    <Input
-                      placeholder="Ex: RJ"
-                      value={ticketData["quick"]?.destinationAirport || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-destination"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Ordem de Compra *</Label>
-                    <Input
-                      placeholder="Número da OC"
-                      value={ticketData["quick"]?.purchaseOrderNumber || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-order"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Seção de Datas */}
-            <div className="space-y-4">
-              <div 
-                className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border"
-                onClick={() => toggleSection('dates')}
-              >
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span className="font-medium">Datas e Horários</span>
-                </div>
-                {expandedSections.dates ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <div>
+                <Label className="text-xs font-medium">Origem *</Label>
+                <Input
+                  placeholder="GRU"
+                  value={ticketData["quick"]?.departureAirport || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-departure"
+                />
               </div>
-              
-              {expandedSections.dates && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Data da Compra</Label>
-                    <Input
-                      type="date"
-                      value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
-                      onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-purchase-date"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Data de Ida</Label>
-                    <Input
-                      type="date"
-                      value={ticketData["quick"]?.actualDepartureDate || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-departure-date"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Horário de Ida</Label>
-                    <Input
-                      type="time"
-                      value={ticketData["quick"]?.actualDepartureTime || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-departure-time"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Data de Volta *</Label>
-                    <Input
-                      type="date"
-                      value={ticketData["quick"]?.actualReturnDate || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-return-date"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Horário de Volta</Label>
-                    <Input
-                      type="time"
-                      value={ticketData["quick"]?.actualReturnTime || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                      className="mt-1"
-                      data-testid="input-quick-return-time"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Seção Adicional */}
-            <div className="space-y-4">
-              <div 
-                className="flex items-center justify-between cursor-pointer p-3 bg-white dark:bg-gray-800 rounded-lg border"
-                onClick={() => toggleSection('additional')}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">💳 Dados Adicionais</span>
-                </div>
-                {expandedSections.additional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <div>
+                <Label className="text-xs font-medium">Destino *</Label>
+                <Input
+                  placeholder="RJ"
+                  value={ticketData["quick"]?.destinationAirport || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-destination"
+                />
               </div>
-              
-              {expandedSections.additional && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Últimos 4 dígitos do cartão</Label>
-                    <Input
-                      placeholder="1234"
-                      maxLength={4}
-                      value={ticketData["quick"]?.cardLastFourDigits || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      className="mt-1"
-                      data-testid="input-quick-card-digits"
-                    />
-                  </div>
-                </div>
-              )}
+              <div>
+                <Label className="text-xs font-medium">Ordem Compra *</Label>
+                <Input
+                  placeholder="OC123"
+                  value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-order"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Data Ida *</Label>
+                <Input
+                  type="date"
+                  value={ticketData["quick"]?.actualDepartureDate || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-departure-date"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Hora Ida *</Label>
+                <Input
+                  type="time"
+                  value={ticketData["quick"]?.actualDepartureTime || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-departure-time"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Data Volta *</Label>
+                <Input
+                  type="date"
+                  value={ticketData["quick"]?.actualReturnDate || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-return-date"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Hora Volta *</Label>
+                <Input
+                  type="time"
+                  value={ticketData["quick"]?.actualReturnTime || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-return-time"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Data Compra</Label>
+                <Input
+                  type="date"
+                  value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-purchase-date"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium">4 Dígitos Cartão</Label>
+                <Input
+                  placeholder="1234"
+                  maxLength={4}
+                  value={ticketData["quick"]?.cardLastFourDigits || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  className="h-8 text-sm"
+                  data-testid="input-quick-card-digits"
+                />
+              </div>
             </div>
 
             {/* Campo de Anexos na Tela Principal */}
