@@ -479,6 +479,20 @@ export default function Tickets() {
                         <Label className="text-xs text-muted-foreground">Função</Label>
                         <p className="font-medium">{getFunctionName(selectedGroup.representative.functionId)}</p>
                       </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
+                        <p className="font-medium text-blue-700 dark:text-blue-300">
+                          {selectedGroup.representative.flightDepartureDate ? formatDate(selectedGroup.representative.flightDepartureDate) : "Não definido"}
+                          {selectedGroup.representative.flightDepartureSuggestedTime && ` às ${selectedGroup.representative.flightDepartureSuggestedTime}`}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
+                        <p className="font-medium text-blue-700 dark:text-blue-300">
+                          {selectedGroup.representative.flightReturnDate ? formatDate(selectedGroup.representative.flightReturnDate) : "Não definido"}
+                          {selectedGroup.representative.flightReturnSuggestedTime && ` às ${selectedGroup.representative.flightReturnSuggestedTime}`}
+                        </p>
+                      </div>
                     </div>
                     {selectedGroup.inclusions.length > 1 && (
                       <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 rounded border">
@@ -560,26 +574,6 @@ export default function Tickets() {
                           </div>
                         </div>
 
-                        {/* Sugestões de Voo */}
-                        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                          <h4 className="font-medium text-foreground mb-3">Sugestões de Voo da Escalação</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
-                              <p className="font-medium text-blue-700 dark:text-blue-300">
-                                {selectedGroup.representative.flightDepartureDate ? formatDate(selectedGroup.representative.flightDepartureDate) : "Não definido"}
-                                {selectedGroup.representative.flightDepartureSuggestedTime && ` às ${selectedGroup.representative.flightDepartureSuggestedTime}`}
-                              </p>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
-                              <p className="font-medium text-blue-700 dark:text-blue-300">
-                                {selectedGroup.representative.flightReturnDate ? formatDate(selectedGroup.representative.flightReturnDate) : "Não definido"}
-                                {selectedGroup.representative.flightReturnSuggestedTime && ` às ${selectedGroup.representative.flightReturnSuggestedTime}`}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
 
                         {/* Formulário de Compra */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
