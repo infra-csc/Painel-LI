@@ -12,11 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import { getAvailablePreFunctions } from "@shared/pre-functions";
 import type { User } from "@shared/schema";
 
 const functionSchema = z.object({
   name: z.string().min(1, "Nome da função é obrigatório"),
+  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1"),
   description: z.string().optional(),
   userId: z.string().optional(),
 });
@@ -42,6 +42,7 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     resolver: zodResolver(functionSchema),
     defaultValues: {
       name: "",
+      quantity: 1,
       description: "",
       userId: "",
     },
@@ -52,17 +53,29 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
   });
   
   const approvedUsers = users.filter(user => user.status === 'approved');
-  const preFunctions = getAvailablePreFunctions();
 
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => {
-      const response = await apiRequest("POST", "/api/functions", data);
-      return response.json();
+      const functions = [];
+      // Criar múltiplas funções com o mesmo nome
+      for (let i = 0; i < data.quantity; i++) {
+        const response = await apiRequest("POST", "/api/functions", {
+          name: data.name,
+          description: data.description,
+          userId: data.userId,
+        });
+        const result = await response.json();
+        functions.push(result);
+      }
+      return functions;
     },
-    onSuccess: () => {
+    onSuccess: (functions) => {
+      const quantity = functions.length;
       toast({
         title: "Sucesso",
-        description: "Função criada com sucesso",
+        description: quantity === 1 
+          ? "Função criada com sucesso"
+          : `${quantity} funções criadas com sucesso`,
       });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/functions"] });
@@ -71,7 +84,7 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     onError: () => {
       toast({
         title: "Erro",
-        description: "Erro ao criar função",
+        description: "Erro ao criar função(ões)",
         variant: "destructive",
       });
     },
@@ -90,7 +103,7 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md" data-testid="modal-function">
         <DialogHeader>
-          <DialogTitle>Adicionar Nova Função</DialogTitle>
+          <DialogTitle>Adicionar Função</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -102,18 +115,32 @@ export default function FunctionModal({ open, onClose }: FunctionModalProps) {
                 <FormItem>
                   <FormLabel>Nome da Função *</FormLabel>
                   <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger data-testid="select-function-name">
-                        <SelectValue placeholder="Selecione ou digite uma função" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {preFunctions.map((func) => (
-                          <SelectItem key={func} value={func}>
-                            {func}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input 
+                      placeholder="Digite o nome da função"
+                      {...field}
+                      data-testid="input-function-name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantidade *</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number"
+                      min="1"
+                      placeholder="1"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      data-testid="input-function-quantity"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
