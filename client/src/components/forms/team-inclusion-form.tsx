@@ -95,8 +95,8 @@ export default function TeamInclusionForm() {
 
         // Create first record: from first date to last date with number of days as dailyRates
         if (sortedDates.length > 1) {
-          const firstDate = sortedDates[0].date;
-          const lastDate = sortedDates[sortedDates.length - 1].date;
+          const firstDate = sortedDates[0].date; // Start date: 05/09
+          const lastDate = sortedDates[sortedDates.length - 1].date; // End date: 06/09
           const numberOfDays = sortedDates.length; // Number of different dates = number of dailyRates
           
           const firstPayload = {
