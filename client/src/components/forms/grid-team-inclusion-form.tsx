@@ -229,23 +229,17 @@ export default function GridTeamInclusionForm() {
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
       // For each position i, create a record from position i to the end
-      // The daily rate is the maximum value found in the subsequence from i to end
+      // The daily rate is the specific value at position i
       for (let i = 0; i < sortedDates.length; i++) {
         const startDate = sortedDates[i];
         const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
         
-        // Calculate max daily rate from position i to end
-        let maxDailyRate = 0;
-        for (let j = i; j < sortedDates.length; j++) {
-          const currentRate = row.dailyRates[sortedDates[j]];
-          if (currentRate > maxDailyRate) {
-            maxDailyRate = currentRate;
-          }
-        }
+        // Use the daily rate value at position i
+        const dailyRateAtPosition = row.dailyRates[sortedDates[i]];
         
         ranges.push({
           functionId: row.functionId,
-          dailyRate: maxDailyRate,
+          dailyRate: dailyRateAtPosition, // Use specific value at position i
           startDate: startDate,
           endDate: endDate,
           travelInfo: {

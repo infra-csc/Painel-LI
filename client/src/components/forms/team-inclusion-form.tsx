@@ -94,25 +94,19 @@ export default function TeamInclusionForm() {
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
         // For each position i, create a record from position i to the end
-        // The daily rate is the maximum value found in the subsequence from i to end
+        // The daily rate is the specific value at position i
         for (let i = 0; i < sortedDates.length; i++) {
           const startDate = sortedDates[i].date;
           const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
           
-          // Calculate max daily rate from position i to end
-          let maxDailyRates = 0;
-          for (let j = i; j < sortedDates.length; j++) {
-            const currentRate = sortedDates[j].dailyRates;
-            if (currentRate > maxDailyRates) {
-              maxDailyRates = currentRate;
-            }
-          }
+          // Use the daily rate value at position i
+          const dailyRatesAtPosition = sortedDates[i].dailyRates;
           
           const payload = {
             ...data,
             scheduleStartDate: startDate,
             scheduleEndDate: endDate,
-            dailyRates: maxDailyRates,
+            dailyRates: dailyRatesAtPosition, // Use specific value at position i
             status: "planejado",
             phase: "inclusao",
             userId: user?.id,
