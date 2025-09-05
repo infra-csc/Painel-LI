@@ -115,7 +115,7 @@ export default function Tickets() {
 
   const getEventLocation = (eventId: string) => {
     const event = events?.find(e => e.id === eventId);
-    return event?.location || event?.city || "Destino não informado";
+    return event?.location || "Destino não informado";
   };
 
   const isDateUrgent = (dateStr: string) => {
