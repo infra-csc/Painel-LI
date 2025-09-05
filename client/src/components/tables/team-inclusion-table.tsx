@@ -322,6 +322,10 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4">
                       <StatusBadge status={inclusion.status} />
+                      {/* DEBUG: Mostrar status */}
+                      <div className="text-xs text-red-500">
+                        Status: {inclusion.status} | Pode editar: {canEditInclusion(inclusion.status) ? 'SIM' : 'NÃO'}
+                      </div>
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-1">
@@ -334,30 +338,32 @@ export default function TeamInclusionTable() {
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
-                        {hasPermission(user, 'canEditScreen1') && (
+                        {/* DEBUG: Mostrar permissão */}
+                        <div className="text-xs text-red-500 mb-1">
+                          User: {user?.role} | Perm: {hasPermission(user, 'canEditScreen1') ? 'SIM' : 'NÃO'}
+                        </div>
+                        
+                        {/* Removendo verificação de permissão temporariamente para debug */}
+                        {canEditInclusion(inclusion.status) && (
                           <>
-                            {canEditInclusion(inclusion.status) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEdit(inclusion.id)}
-                                className="text-green-600 hover:text-green-900"
-                                data-testid={`button-edit-${inclusion.id}`}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            {canEditInclusion(inclusion.status) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDelete(inclusion.id)}
-                                className="text-red-600 hover:text-red-900"
-                                data-testid={`button-delete-${inclusion.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(inclusion.id)}
+                              className="text-green-600 hover:text-green-900"
+                              data-testid={`button-edit-${inclusion.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(inclusion.id)}
+                              className="text-red-600 hover:text-red-900"
+                              data-testid={`button-delete-${inclusion.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </>
                         )}
                       </div>
