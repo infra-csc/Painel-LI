@@ -231,7 +231,7 @@ export default function TeamInclusionTable() {
                   Data Escala
                 </th>
                 <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Diárias/Valor
+                  Período
                 </th>
                 <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Ticket
@@ -306,10 +306,7 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4">
                       <div className="text-xs text-foreground">
-                        {inclusion.dailyRates} diárias
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        R$ {((inclusion.dailyValue || 0) / 100).toFixed(0)}
+                        {inclusion.dailyRates} dias
                       </div>
                     </td>
                     <td className="px-3 py-4 text-center">
