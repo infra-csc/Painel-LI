@@ -1,30 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import StatusBadge from "@/components/common/status-badge";
-import CollaboratorModal from "@/components/modals/collaborator-modal";
-import { Plus, User, Save, Copy } from "lucide-react";
+import { User } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function Scaling() {
-  const [selectedCollaborators, setSelectedCollaborators] = useState<Record<string, string>>({});
-  const [observations, setObservations] = useState<Record<string, string>>({});
-  const [dailyValues, setDailyValues] = useState<Record<string, number>>({});
-  const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
-  const [currentArea, setCurrentArea] = useState<string>("");
-  const [currentEventName, setCurrentEventName] = useState<string>("");
-  const [currentFunctionName, setCurrentFunctionName] = useState<string>("");
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
@@ -33,8 +18,7 @@ export default function Scaling() {
     hasTicket: "all",
     searchId: "",
   });
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  
   const { user } = useAuth();
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
@@ -62,28 +46,6 @@ export default function Scaling() {
     queryKey: ["/api/collaborators"],
   });
 
-  const updateTeamInclusionMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Escalação atualizada com sucesso",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar escalação",
-        variant: "destructive",
-      });
-    },
-  });
-
-
   // Filter inclusions that are in planning phase or scaling phase
   const scalingInclusions = filteredTeamInclusions?.filter(
     inclusion => {
@@ -103,18 +65,6 @@ export default function Scaling() {
     }
   ) || [];
 
-  // Group inclusions by event
-  const groupedByEvent = scalingInclusions.reduce((acc, inclusion) => {
-    const eventId = inclusion.eventId;
-    if (!acc[eventId]) {
-      acc[eventId] = [];
-    }
-    acc[eventId].push(inclusion);
-    return acc;
-  }, {} as Record<string, TeamInclusion[]>);
-
-  const eventIds = Object.keys(groupedByEvent);
-
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
   };
@@ -123,113 +73,15 @@ export default function Scaling() {
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
   };
 
-
   const getCollaboratorName = (collaboratorId?: string) => {
-    if (!collaboratorId) return "";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "";
+    if (!collaboratorId) return "Não definido";
+    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
-    // Parse manual para evitar problemas de timezone
     const [year, month, day] = dateStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    return date.toLocaleDateString("pt-BR");
-  };
-
-  const handleCollaboratorSelect = (inclusionId: string, collaboratorId: string) => {
-    setSelectedCollaborators(prev => ({
-      ...prev,
-      [inclusionId]: collaboratorId
-    }));
-  };
-
-  const handleObservationChange = (inclusionId: string, observation: string) => {
-    setObservations(prev => ({
-      ...prev,
-      [inclusionId]: observation
-    }));
-  };
-
-  const handleDailyValueChange = (inclusionId: string, value: number) => {
-    setDailyValues(prev => ({
-      ...prev,
-      [inclusionId]: value
-    }));
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const handleSaveWithoutConfirm = (inclusion: TeamInclusion) => {
-    const collaboratorId = selectedCollaborators[inclusion.id] || inclusion.collaboratorId;
-    const observation = observations[inclusion.id] || inclusion.observations;
-    const dailyValue = dailyValues[inclusion.id];
-
-    updateTeamInclusionMutation.mutate({
-      id: inclusion.id,
-      data: {
-        collaboratorId,
-        observations: observation,
-        dailyValue: dailyValue ? Math.round(dailyValue * 100) : inclusion.dailyValue // Store in cents
-      }
-    });
-  };
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copiado",
-      description: `${label} copiado para a área de transferência`,
-    });
-  };
-
-  const calculateProgress = (inclusion: TeamInclusion) => {
-    let completed = 0;
-    let total = 1; // Only the escalation action matters
-    
-    // Check if escalation is complete (collaborator assigned and confirmed)
-    if (inclusion.collaboratorId && (inclusion.status === "escalacao" || inclusion.status === "passagem" || inclusion.status === "fechamento" || inclusion.status === "aprovacao" || inclusion.status === "aprovado")) {
-      completed = 1;
-    }
-    
-    return { completed, total };
-  };
-
-  const handleConfirmScaling = (inclusion: TeamInclusion) => {
-    const collaboratorId = selectedCollaborators[inclusion.id] || inclusion.collaboratorId;
-    const observation = observations[inclusion.id] || inclusion.observations;
-
-    if (!collaboratorId) {
-      toast({
-        title: "Erro",
-        description: "Selecione um colaborador antes de confirmar a escalação",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // If the inclusion doesn't need a ticket, skip ticket phase and go directly to closure
-    const needsTicket = inclusion.needsTicket;
-    const nextStatus = needsTicket ? "passagem" : "fechamento";
-    const nextPhase = needsTicket ? "passagem" : "fechamento";
-
-    const dailyValue = dailyValues[inclusion.id];
-
-    updateTeamInclusionMutation.mutate({
-      id: inclusion.id,
-      data: {
-        collaboratorId,
-        observations: observation,
-        dailyValue: dailyValue ? Math.round(dailyValue * 100) : inclusion.dailyValue, // Store in cents
-        status: nextStatus,
-        phase: nextPhase
-      }
-    });
+    return `${day}/${month}/${year}`;
   };
 
   if (isLoading) {
@@ -253,411 +105,116 @@ export default function Scaling() {
   }
 
   return (
-    <>
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="scaling" />
-          <WorkflowIndicator currentPhase="escalacao" />
-          
-          <div className="bg-card rounded-lg shadow-sm border border-border">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-2xl font-bold text-foreground">Escalação</h2>
-              <p className="text-muted-foreground mt-1">
-                Selecione colaboradores para as funções e confirme as escalações
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <NavigationTabs activeTab="scaling" />
+        <WorkflowIndicator currentPhase="escalacao" />
+        
+        <div className="bg-card rounded-lg shadow-sm border border-border">
+          <div className="px-6 py-4 border-b border-border">
+            <h2 className="text-2xl font-bold text-foreground">Escalação - Visualização</h2>
+            <p className="text-muted-foreground mt-1">
+              Lista de escalações com informações detalhadas
+            </p>
+          </div>
+
+          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+
+          {scalingInclusions.length === 0 ? (
+            <div className="p-12 text-center">
+              <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                Nenhuma escalação encontrada
+              </h3>
+              <p className="text-muted-foreground">
+                Não há registros de escalação para exibir com os filtros atuais.
               </p>
             </div>
-
-            <UniversalFilters filters={filters} onFiltersChange={setFilters} />
-
-            {scalingInclusions.length === 0 ? (
-              <div className="p-12 text-center">
-                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  Nenhuma escalação pendente
-                </h3>
-                <p className="text-muted-foreground">
-                  Todas as inclusões de equipe já foram escaladas ou não há registros para escalar.
-                </p>
-              </div>
-            ) : eventIds.length === 1 ? (
-              // Single event - show directly without tabs
-              <div>
-                <div className="px-6 py-4 border-b border-border bg-muted/30">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    {getEventName(eventIds[0])}
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Função
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Datas / Diárias
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Valor Diária
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Colaborador
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Observação
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Ações
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-card divide-y divide-border">
-                      {groupedByEvent[eventIds[0]].map((inclusion) => (
-                      <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-mono text-foreground">
-                              #{inclusion.inclusionNumber || 'N/A'}
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="p-1 h-6 w-6"
-                              onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
-                              data-testid={`button-copy-id-${inclusion.id}`}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-foreground">
-                            {getFunctionName(inclusion.functionId)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Área: {inclusion.area}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-foreground">
-                            {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {inclusion.dailyRates} diárias
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm text-muted-foreground">R$</span>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              placeholder="0.00"
-                              value={dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "")}
-                              onChange={(e) => handleDailyValueChange(inclusion.id, parseFloat(e.target.value) || 0)}
-                              disabled={inclusion.status === "escalacao"}
-                              className="w-24 text-sm"
-                              data-testid={`input-daily-value-${inclusion.id}`}
-                            />
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Total: {formatCurrency((dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2 items-center max-w-xs">
-                            <Select 
-                              value={selectedCollaborators[inclusion.id] || inclusion.collaboratorId || ""} 
-                              onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
-                              disabled={inclusion.status === "escalacao"}
-                            >
-                              <SelectTrigger className="flex-1 min-w-[220px]" data-testid={`select-collaborator-${inclusion.id}`}>
-                                <SelectValue placeholder="Selecione colaborador" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {collaborators?.map((collaborator) => (
-                                  <SelectItem key={collaborator.id} value={collaborator.id}>
-                                    {collaborator.fullName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="p-1 h-8 w-8 shrink-0"
-                              onClick={() => {
-                                setCurrentArea(inclusion.area || "");
-                                setCurrentEventName(getEventName(inclusion.eventId));
-                                setCurrentFunctionName(getFunctionName(inclusion.functionId));
-                                setShowCollaboratorModal(true);
-                              }}
-                              data-testid={`button-add-collaborator-${inclusion.id}`}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-2">
-                            {inclusion.observations && (
-                              <div className="p-2 bg-muted rounded text-sm">
-                                <span className="text-xs text-muted-foreground block mb-1">Observação da Inclusão de Equipe:</span>
-                                {inclusion.observations}
-                              </div>
-                            )}
-                            <Textarea
-                              rows={2}
-                              value={observations[inclusion.id] || ""}
-                              onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
-                              disabled={inclusion.status === "escalacao"}
-                              className="min-w-0 max-w-xs"
-                              data-testid={`textarea-observation-${inclusion.id}`}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={inclusion.status} />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          {inclusion.status === "planejado" && (
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleSaveWithoutConfirm(inclusion)}
-                                disabled={updateTeamInclusionMutation.isPending}
-                                data-testid={`button-save-${inclusion.id}`}
-                              >
-                                <Save className="w-4 h-4 mr-1" />
-                                Salvar
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleConfirmScaling(inclusion)}
-                                disabled={updateTeamInclusionMutation.isPending}
-                                data-testid={`button-confirm-${inclusion.id}`}
-                              >
-                                <Save className="w-4 h-4 mr-1" />
-                                {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                              </Button>
-                            </div>
-                          )}
-                          {inclusion.status === "escalacao" && (
-                            <span className="text-sm text-muted-foreground">Escalado</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              // Multiple events - show tabs
-              <Tabs defaultValue={eventIds[0]} className="w-full">
-                <div className="px-6 py-4 border-b border-border">
-                  <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {eventIds.map((eventId) => (
-                      <TabsTrigger key={eventId} value={eventId} className="text-sm">
-                        {getEventName(eventId)}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </div>
-                {eventIds.map((eventId) => (
-                  <TabsContent key={eventId} value={eventId} className="mt-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-muted">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              ID
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Função
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Datas / Diárias
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Valor Diária
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Colaborador
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Observação
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Status
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Ações
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-card divide-y divide-border">
-                          {groupedByEvent[eventId].map((inclusion) => (
-                            <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-scaling-${inclusion.id}`}>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-mono text-foreground">
-                                    #{inclusion.inclusionNumber || 'N/A'}
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="p-1 h-6 w-6"
-                                    onClick={() => copyToClipboard(inclusion.inclusionNumber?.toString() || inclusion.id, "ID")}
-                                    data-testid={`button-copy-id-${inclusion.id}`}
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-foreground">
-                                  {getFunctionName(inclusion.functionId)}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  Área: {inclusion.area}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-foreground">
-                                  {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {inclusion.dailyRates} diárias
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-sm text-muted-foreground">R$</span>
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    placeholder="0.00"
-                                    value={dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : "")}
-                                    onChange={(e) => handleDailyValueChange(inclusion.id, parseFloat(e.target.value) || 0)}
-                                    disabled={inclusion.status === "escalacao"}
-                                    className="w-24 text-sm"
-                                    data-testid={`input-daily-value-${inclusion.id}`}
-                                  />
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Total: {formatCurrency((dailyValues[inclusion.id] || (inclusion.dailyValue ? inclusion.dailyValue / 100 : 0)) * inclusion.dailyRates)}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex gap-2 items-center max-w-xs">
-                                  <Select 
-                                    value={selectedCollaborators[inclusion.id] || inclusion.collaboratorId || ""} 
-                                    onValueChange={(value) => handleCollaboratorSelect(inclusion.id, value)}
-                                    disabled={inclusion.status === "escalacao"}
-                                  >
-                                    <SelectTrigger className="flex-1 min-w-[220px]" data-testid={`select-collaborator-${inclusion.id}`}>
-                                      <SelectValue placeholder="Selecione o colaborador" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {collaborators?.map((collaborator) => (
-                                        <SelectItem key={collaborator.id} value={collaborator.id}>
-                                          {collaborator.fullName}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    className="p-1 h-8 w-8 shrink-0"
-                                    onClick={() => {
-                                      setCurrentArea(inclusion.area || "");
-                                      setCurrentEventName(getEventName(inclusion.eventId));
-                                      setCurrentFunctionName(getFunctionName(inclusion.functionId));
-                                      setShowCollaboratorModal(true);
-                                    }}
-                                    data-testid={`button-add-collaborator-${inclusion.id}`}
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="space-y-2">
-                                  <Textarea
-                                    placeholder="Observações sobre a escalação (opcional)"
-                                    value={observations[inclusion.id] || inclusion.observations || ""}
-                                    onChange={(e) => handleObservationChange(inclusion.id, e.target.value)}
-                                    className="w-full h-20 text-sm resize-none"
-                                    disabled={inclusion.status === "escalacao"}
-                                    data-testid={`textarea-observation-${inclusion.id}`}
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <StatusBadge status={inclusion.status} />
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right">
-                                {inclusion.status === "planejado" && (
-                                  <div className="flex gap-2 justify-end">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleSaveWithoutConfirm(inclusion)}
-                                      disabled={updateTeamInclusionMutation.isPending}
-                                      data-testid={`button-save-${inclusion.id}`}
-                                    >
-                                      <Save className="w-4 h-4 mr-1" />
-                                      Salvar
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleConfirmScaling(inclusion)}
-                                      disabled={updateTeamInclusionMutation.isPending}
-                                      data-testid={`button-confirm-${inclusion.id}`}
-                                    >
-                                      <Save className="w-4 h-4 mr-1" />
-                                      {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                                    </Button>
-                                  </div>
-                                )}
-                                {inclusion.status === "escalacao" && (
-                                  <span className="text-sm text-muted-foreground">Escalado</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            )}
-          </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Função
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Colaborador
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Datas de Trabalho
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Datas de Passagem
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Horários
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-card divide-y divide-border">
+                  {scalingInclusions.map((inclusion) => (
+                    <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm font-mono text-foreground">
+                          #{inclusion.inclusionNumber || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-foreground">
+                          {getFunctionName(inclusion.functionId)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Evento: {getEventName(inclusion.eventId)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-foreground">
+                          {getCollaboratorName(inclusion.collaboratorId)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-foreground">
+                          {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {inclusion.dailyRates} diárias
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-foreground">
+                          Ida: {formatDate(inclusion.flightDepartureDate) || "N/A"}
+                        </div>
+                        <div className="text-sm text-foreground">
+                          Retorno: {formatDate(inclusion.flightReturnDate) || "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-foreground">
+                          Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}
+                        </div>
+                        <div className="text-sm text-foreground">
+                          Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <StatusBadge status={inclusion.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
-
-      <CollaboratorModal 
-        open={showCollaboratorModal} 
-        onClose={() => setShowCollaboratorModal(false)}
-        defaultArea={currentArea}
-        eventName={currentEventName}
-        functionName={currentFunctionName}
-      />
-    </>
+    </div>
   );
 }
