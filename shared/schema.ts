@@ -56,6 +56,9 @@ export const collaborators = pgTable("collaborators", {
   phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
   status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, inativo
+  approvalNotes: text("approval_notes"), // observações do administrador
+  approvedBy: varchar("approved_by").references(() => users.id), // quem aprovou/rejeitou
+  approvedAt: timestamp("approved_at"), // quando foi aprovado/rejeitado
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -12,11 +12,13 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogDescription 
 } from "@/components/ui/dialog";
 import { 
   Check, 
@@ -41,6 +43,9 @@ export default function CollaboratorManagement() {
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
+  const [approvalNotes, setApprovalNotes] = useState('');
   
   const { toast } = useToast();
 
@@ -49,8 +54,13 @@ export default function CollaboratorManagement() {
   });
 
   const updateCollaboratorMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiRequest("PATCH", `/api/collaborators/${id}`, { status });
+    mutationFn: async ({ id, status, approvalNotes }: { id: string; status: string; approvalNotes?: string }) => {
+      const payload: any = { status };
+      if (approvalNotes) {
+        payload.approvalNotes = approvalNotes;
+        payload.approvedAt = new Date().toISOString();
+      }
+      const response = await apiRequest("PATCH", `/api/collaborators/${id}`, payload);
       return response.json();
     },
     onSuccess: () => {
@@ -60,6 +70,8 @@ export default function CollaboratorManagement() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       setShowDetailsModal(false);
+      setShowApprovalModal(false);
+      setApprovalNotes('');
     },
     onError: () => {
       toast({
@@ -92,12 +104,27 @@ export default function CollaboratorManagement() {
     return <Badge className={config.color}>{config.label}</Badge>;
   };
 
-  const handleApprove = (id: string) => {
-    updateCollaboratorMutation.mutate({ id, status: "aprovado" });
+  const handleApprove = (collaborator: Collaborator) => {
+    setSelectedCollaborator(collaborator);
+    setApprovalAction('approve');
+    setShowApprovalModal(true);
   };
 
-  const handleReject = (id: string) => {
-    updateCollaboratorMutation.mutate({ id, status: "rejeitado" });
+  const handleReject = (collaborator: Collaborator) => {
+    setSelectedCollaborator(collaborator);
+    setApprovalAction('reject');
+    setShowApprovalModal(true);
+  };
+
+  const handleConfirmApproval = () => {
+    if (!selectedCollaborator) return;
+    
+    const status = approvalAction === 'approve' ? 'aprovado' : 'rejeitado';
+    updateCollaboratorMutation.mutate({ 
+      id: selectedCollaborator.id, 
+      status,
+      approvalNotes: approvalNotes.trim() || undefined
+    });
   };
 
   const handleViewDetails = (collaborator: Collaborator) => {
@@ -304,7 +331,7 @@ export default function CollaboratorManagement() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleApprove(collaborator.id)}
+                                onClick={() => handleApprove(collaborator)}
                                 disabled={updateCollaboratorMutation.isPending}
                                 className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50"
                               >
@@ -314,7 +341,7 @@ export default function CollaboratorManagement() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleReject(collaborator.id)}
+                                onClick={() => handleReject(collaborator)}
                                 disabled={updateCollaboratorMutation.isPending}
                                 className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
@@ -393,11 +420,20 @@ export default function CollaboratorManagement() {
                 </div>
               </div>
 
+              {selectedCollaborator.approvalNotes && (
+                <div>
+                  <label className="text-sm font-medium text-foreground">Observações da Aprovação</label>
+                  <div className="text-sm text-muted-foreground mt-1 p-3 bg-muted rounded">
+                    {selectedCollaborator.approvalNotes}
+                  </div>
+                </div>
+              )}
+
               {selectedCollaborator.status === "pendente" && (
                 <div className="flex gap-3 justify-end pt-4 border-t">
                   <Button
                     variant="outline"
-                    onClick={() => handleReject(selectedCollaborator.id)}
+                    onClick={() => handleReject(selectedCollaborator)}
                     disabled={updateCollaboratorMutation.isPending}
                     className="text-red-600 hover:text-red-700"
                   >
@@ -405,7 +441,7 @@ export default function CollaboratorManagement() {
                     Rejeitar
                   </Button>
                   <Button
-                    onClick={() => handleApprove(selectedCollaborator.id)}
+                    onClick={() => handleApprove(selectedCollaborator)}
                     disabled={updateCollaboratorMutation.isPending}
                     className="text-green-600 hover:text-green-700"
                   >
@@ -414,6 +450,68 @@ export default function CollaboratorManagement() {
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Aprovação */}
+      <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {approvalAction === 'approve' ? 'Aprovar' : 'Rejeitar'} Colaborador
+            </DialogTitle>
+            <DialogDescription>
+              {approvalAction === 'approve' 
+                ? 'Tem certeza que deseja aprovar este colaborador?' 
+                : 'Tem certeza que deseja rejeitar este colaborador?'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCollaborator && (
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm font-medium text-foreground mb-1">Colaborador</div>
+                <div className="text-sm text-muted-foreground">
+                  {selectedCollaborator.fullName}
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Observações {approvalAction === 'approve' ? '(opcional)' : '(recomendado)'}
+                </label>
+                <Textarea
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  placeholder={approvalAction === 'approve' 
+                    ? 'Comentários sobre a aprovação...' 
+                    : 'Motivo da rejeição...'}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowApprovalModal(false)}
+                  disabled={updateCollaboratorMutation.isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleConfirmApproval}
+                  disabled={updateCollaboratorMutation.isPending}
+                  className={approvalAction === 'approve' 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-red-600 hover:bg-red-700'}
+                >
+                  {updateCollaboratorMutation.isPending ? 'Processando...' : 
+                   (approvalAction === 'approve' ? 'Confirmar Aprovação' : 'Confirmar Rejeição')}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
