@@ -93,57 +93,42 @@ export default function TeamInclusionForm() {
           .map(d => ({ date: d.date, dateObj: new Date(d.date), dailyRates: d.dailyRates }))
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-        // Check if all values are the same
-        const allValues = sortedDates.map(entry => entry.dailyRates);
-        const allEqual = allValues.every(val => val === allValues[0]);
+        // Always create TWO records:
+        // 1st: Full period with number of days as daily rate
+        // 2nd: Last date with its specific value
         
-        if (allEqual) {
-          // All values are equal: create ONE record with total daily rates
-          const startDate = sortedDates[0].date;
-          const endDate = sortedDates[sortedDates.length - 1].date;
-          const totalDailyRates = allValues.reduce((sum, val) => sum + val, 0);
-          
-          const payload = {
-            ...data,
-            scheduleStartDate: startDate,
-            scheduleEndDate: endDate,
-            dailyRates: totalDailyRates, // Sum of all values
-            status: "planejado",
-            phase: "inclusao",
-            userId: user?.id,
-          };
-          delete payload.dailyRatesByDate;
-          const response = await apiRequest("POST", "/api/team-inclusions", payload);
-          entries.push(await response.json());
-        } else {
-          // Values are different: create records for unique values only
-          const seenValues = new Set();
-          
-          for (let i = 0; i < sortedDates.length; i++) {
-            const dailyRatesAtPosition = sortedDates[i].dailyRates;
-            
-            // Only create record if we haven't seen this value before
-            if (!seenValues.has(dailyRatesAtPosition)) {
-              seenValues.add(dailyRatesAtPosition);
-              
-              const startDate = sortedDates[i].date;
-              const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
-              
-              const payload = {
-                ...data,
-                scheduleStartDate: startDate,
-                scheduleEndDate: endDate,
-                dailyRates: dailyRatesAtPosition, // Use specific value at position i
-                status: "planejado",
-                phase: "inclusao",
-                userId: user?.id,
-              };
-              delete payload.dailyRatesByDate;
-              const response = await apiRequest("POST", "/api/team-inclusions", payload);
-              entries.push(await response.json());
-            }
-          }
-        }
+        const startDate = sortedDates[0].date;
+        const endDate = sortedDates[sortedDates.length - 1].date;
+        const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
+        const lastDayValue = sortedDates[sortedDates.length - 1].dailyRates;
+        
+        // 1st record: Full period with number of days
+        const periodPayload = {
+          ...data,
+          scheduleStartDate: startDate,
+          scheduleEndDate: endDate,
+          dailyRates: numberOfDays, // Number of days in period
+          status: "planejado",
+          phase: "inclusao",
+          userId: user?.id,
+        };
+        delete periodPayload.dailyRatesByDate;
+        const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
+        entries.push(await periodResponse.json());
+        
+        // 2nd record: Last date with its value
+        const lastPayload = {
+          ...data,
+          scheduleStartDate: endDate, // Last date only
+          scheduleEndDate: endDate,
+          dailyRates: lastDayValue, // Value at last date
+          status: "planejado",
+          phase: "inclusao",
+          userId: user?.id,
+        };
+        delete lastPayload.dailyRatesByDate;
+        const lastResponse = await apiRequest("POST", "/api/team-inclusions", lastPayload);
+        entries.push(await lastResponse.json());
       } else {
         // Single entry with date range
         let diffDays = 1;
