@@ -81,6 +81,38 @@ export default function Tickets() {
     },
   });
 
+  // Helper functions
+  const getEventName = (eventId: string) => {
+    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+  };
+
+  const getFunctionName = (functionId: string) => {
+    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+  };
+
+  const getCollaboratorName = (collaboratorId?: string) => {
+    if (!collaboratorId) return "Não escalado";
+    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  const formatDate = (dateStr: string) => {
+    // Avoid Date object to prevent timezone issues
+    // Format directly from YYYY-MM-DD string to DD/MM/YYYY
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const getTicket = (inclusionId: string) => {
+    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+  };
+
   // Filter inclusions that need tickets - show all that need tickets (pending or processed)
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
@@ -160,37 +192,6 @@ export default function Tickets() {
       return true;
     });
   }, [ticketInclusions, filters.ticketStatus, tickets]);
-
-  const getEventName = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
-  };
-
-  const getFunctionName = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
-  };
-
-  const getCollaboratorName = (collaboratorId?: string) => {
-    if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
-  };
-
-  const formatDate = (dateStr: string) => {
-    // Avoid Date object to prevent timezone issues
-    // Format directly from YYYY-MM-DD string to DD/MM/YYYY
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  };
-
-  const getTicket = (inclusionId: string) => {
-    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
-  };
 
   const handleTicketDataChange = (groupKey: string, field: string, value: any) => {
     setTicketData(prev => ({
