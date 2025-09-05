@@ -121,11 +121,15 @@ export default function TeamInclusionForm() {
           
           // If value changed from previous, create a record
           if (currentValue !== previousValue) {
+            // For first change (second record), use the value
+            // For subsequent changes, use 1 daily rate
+            const dailyRateToUse = (i === 1) ? currentValue : 1;
+            
             const changePayload = {
               ...data,
               scheduleStartDate: currentEntry.date,
               scheduleEndDate: endDate, // Always until end of period
-              dailyRates: currentValue,
+              dailyRates: dailyRateToUse,
               status: "planejado",
               phase: "inclusao",
               userId: user?.id,

@@ -254,11 +254,15 @@ export default function GridTeamInclusionForm() {
         const currentDate = sortedDates[i];
         const currentValue = row.dailyRates[currentDate];
         
-        // If value changed from previous, create a record
+        // If value changed from previous, create a record with value or 1 daily rate
         if (currentValue !== previousValue) {
+          // For first change (second record), use the value
+          // For subsequent changes, use 1 daily rate
+          const dailyRateToUse = (i === 1) ? currentValue : 1;
+          
           ranges.push({
             functionId: row.functionId,
-            dailyRate: currentValue,
+            dailyRate: dailyRateToUse,
             startDate: currentDate,
             endDate: endDate, // Always until end of period
             travelInfo: {
