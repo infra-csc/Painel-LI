@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import CommentsModal from "@/components/modals/comments-modal";
 
 export default function Scaling() {
   const [filters, setFilters] = useState({
@@ -34,6 +35,10 @@ export default function Scaling() {
     observations: "",
     dailyValue: 0,
   });
+  
+  // Estados para o modal de comentários
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedInclusionForComments, setSelectedInclusionForComments] = useState<string | null>(null);
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -135,6 +140,12 @@ export default function Scaling() {
       dailyValue: 0, // Always start empty, user must input value
     });
     setShowModal(true);
+  };
+
+  const handleViewComments = (e: React.MouseEvent, inclusionId: string) => {
+    e.stopPropagation(); // Evita que o click na linha seja acionado
+    setSelectedInclusionForComments(inclusionId);
+    setShowCommentsModal(true);
   };
 
   const handleSave = () => {
@@ -338,7 +349,11 @@ export default function Scaling() {
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <Eye className="w-4 h-4 text-muted-foreground" />
+                                  <Eye 
+                                    className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
+                                    onClick={(e) => handleViewComments(e, inclusion.id)}
+                                    title="Ver comentários"
+                                  />
                                 </div>
                               </td>
                               <td className="px-4 py-4">
@@ -439,7 +454,11 @@ export default function Scaling() {
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <Eye className="w-4 h-4 text-muted-foreground" />
+                                  <Eye 
+                                    className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
+                                    onClick={(e) => handleViewComments(e, inclusion.id)}
+                                    title="Ver comentários"
+                                  />
                                 </div>
                               </td>
                               <td className="px-3 py-4">
@@ -710,6 +729,13 @@ export default function Scaling() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Comentários */}
+      <CommentsModal
+        open={showCommentsModal}
+        onClose={() => setShowCommentsModal(false)}
+        teamInclusionId={selectedInclusionForComments || ""}
+      />
     </div>
   );
 }
