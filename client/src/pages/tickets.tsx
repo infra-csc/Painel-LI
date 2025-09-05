@@ -349,13 +349,14 @@ export default function Tickets() {
                 <p className="text-muted-foreground">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
               </div>
               <div className="text-right">
-                <div className="text-sm text-muted-foreground">Total de passagens</div>
-                <div className="text-2xl font-bold text-primary">{ticketInclusions.length}</div>
-                <div className="text-sm text-green-600">
-                  {ticketInclusions.filter(inc => getTicket(inc.id)).length} compradas
+                <div className="text-sm text-muted-foreground">
+                  {filteredTicketInclusions.length === ticketInclusions.length 
+                    ? "Total de passagens" 
+                    : `Mostrando ${filteredTicketInclusions.length} de ${ticketInclusions.length}`}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Mostrando: {filteredTicketInclusions.length}
+                <div className="text-2xl font-bold text-primary">{filteredTicketInclusions.length}</div>
+                <div className="text-sm text-green-600">
+                  {ticketInclusions.filter(inc => getTicket(inc.id)).length} compradas do total
                 </div>
               </div>
             </div>
