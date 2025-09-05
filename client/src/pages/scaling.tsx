@@ -143,6 +143,35 @@ export default function Scaling() {
     });
   };
 
+  const handleConfirmEscalation = () => {
+    if (!selectedInclusion) return;
+
+    if (!modalData.collaboratorId) {
+      toast({
+        title: "Erro",
+        description: "Selecione um colaborador antes de confirmar a escalação",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If the inclusion doesn't need a ticket, skip ticket phase and go directly to closure
+    const needsTicket = selectedInclusion.needsTicket;
+    const nextStatus = needsTicket ? "passagem" : "fechamento";
+    const nextPhase = needsTicket ? "passagem" : "fechamento";
+
+    updateTeamInclusionMutation.mutate({
+      id: selectedInclusion.id,
+      data: {
+        collaboratorId: modalData.collaboratorId,
+        observations: modalData.observations,
+        dailyValue: modalData.dailyValue ? Math.round(modalData.dailyValue * 100) : null, // Store in cents
+        status: nextStatus,
+        phase: nextPhase
+      }
+    });
+  };
+
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
   };
@@ -653,12 +682,21 @@ export default function Scaling() {
                   Cancelar
                 </Button>
                 <Button 
+                  variant="outline"
                   onClick={handleSave}
                   disabled={updateTeamInclusionMutation.isPending}
                   className="flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+                <Button 
+                  onClick={handleConfirmEscalation}
+                  disabled={updateTeamInclusionMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
                 </Button>
               </div>
             </div>
