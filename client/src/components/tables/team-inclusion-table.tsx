@@ -400,13 +400,21 @@ export default function TeamInclusionTable() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
+              const startDate = formData.get('scheduleStartDate') as string;
+              const endDate = formData.get('scheduleEndDate') as string;
+              
+              // Calcular diárias automaticamente
+              const start = new Date(startDate);
+              const end = new Date(endDate);
+              const timeDiff = end.getTime() - start.getTime();
+              const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 para incluir ambos os dias
+              
               const data = {
                 functionId: formData.get('functionId') as string,
-                dailyRates: parseInt(formData.get('dailyRates') as string),
-                dailyValue: Math.round(parseFloat(formData.get('dailyValue') as string) * 100),
+                dailyRates: dailyRates,
                 needsTicket: formData.get('needsTicket') === 'true',
-                scheduleStartDate: formData.get('scheduleStartDate') as string,
-                scheduleEndDate: formData.get('scheduleEndDate') as string,
+                scheduleStartDate: startDate,
+                scheduleEndDate: endDate,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
@@ -428,37 +436,25 @@ export default function TeamInclusionTable() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Quantidade de Diárias</label>
-                  <input
-                    type="number"
-                    name="dailyRates"
-                    defaultValue={editingInclusion.dailyRates}
-                    className="w-full p-2 border rounded"
-                    min="1"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Valor da Diária (R$)</label>
-                  <input
-                    type="number"
-                    name="dailyValue"
-                    defaultValue={((editingInclusion.dailyValue || 0) / 100).toFixed(2)}
-                    step="0.01"
-                    className="w-full p-2 border rounded"
-                    min="0"
-                    required
-                  />
-                </div>
-                
-                <div>
                   <label className="block text-sm font-medium mb-1">Data Início</label>
                   <input
                     type="date"
                     name="scheduleStartDate"
                     defaultValue={editingInclusion.scheduleStartDate}
                     className="w-full p-2 border rounded"
+                    onChange={(e) => {
+                      const startDate = e.target.value;
+                      const endDateInput = e.target.form?.querySelector('input[name="scheduleEndDate"]') as HTMLInputElement;
+                      const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+                      
+                      if (startDate && endDateInput?.value && dailyRatesDisplay) {
+                        const start = new Date(startDate);
+                        const end = new Date(endDateInput.value);
+                        const timeDiff = end.getTime() - start.getTime();
+                        const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+                        dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
+                      }
+                    }}
                     required
                   />
                 </div>
@@ -470,8 +466,33 @@ export default function TeamInclusionTable() {
                     name="scheduleEndDate"
                     defaultValue={editingInclusion.scheduleEndDate}
                     className="w-full p-2 border rounded"
+                    onChange={(e) => {
+                      const endDate = e.target.value;
+                      const startDateInput = e.target.form?.querySelector('input[name="scheduleStartDate"]') as HTMLInputElement;
+                      const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+                      
+                      if (endDate && startDateInput?.value && dailyRatesDisplay) {
+                        const start = new Date(startDateInput.value);
+                        const end = new Date(endDate);
+                        const timeDiff = end.getTime() - start.getTime();
+                        const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+                        dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
+                      }
+                    }}
                     required
                   />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantidade de Diárias (Calculado)</label>
+                  <input
+                    type="text"
+                    id="dailyRatesDisplay"
+                    defaultValue={editingInclusion.dailyRates.toString()}
+                    className="w-full p-2 border rounded bg-gray-100 text-gray-600"
+                    readOnly
+                  />
+                  <small className="text-xs text-gray-500">Calculado automaticamente baseado nas datas</small>
                 </div>
                 
                 <div>
