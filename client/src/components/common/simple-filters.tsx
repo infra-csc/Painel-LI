@@ -117,7 +117,7 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os Colaboradores</SelectItem>
-              {collaborators?.map((collaborator) => (
+              {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
                 <SelectItem key={collaborator.id} value={collaborator.id}>
                   {collaborator.fullName}
                 </SelectItem>

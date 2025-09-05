@@ -557,7 +557,7 @@ export default function Scaling() {
                     <SelectValue placeholder="Selecione um colaborador" />
                   </SelectTrigger>
                   <SelectContent>
-                    {collaborators?.map((collaborator) => (
+                    {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
                       <SelectItem key={collaborator.id} value={collaborator.id}>
                         {collaborator.fullName}
                       </SelectItem>
