@@ -93,20 +93,21 @@ export default function TeamInclusionForm() {
           .map(d => ({ date: d.date, dateObj: new Date(d.date), dailyRates: d.dailyRates }))
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-        // For each position i, create a record from position i to the end
-        // The daily rate is the specific value at position i
-        for (let i = 0; i < sortedDates.length; i++) {
-          const startDate = sortedDates[i].date;
-          const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
-          
-          // Use the daily rate value at position i
-          const dailyRatesAtPosition = sortedDates[i].dailyRates;
+        // Check if all values are the same
+        const allValues = sortedDates.map(entry => entry.dailyRates);
+        const allEqual = allValues.every(val => val === allValues[0]);
+        
+        if (allEqual) {
+          // All values are equal: create ONE record with total daily rates
+          const startDate = sortedDates[0].date;
+          const endDate = sortedDates[sortedDates.length - 1].date;
+          const totalDailyRates = allValues.reduce((sum, val) => sum + val, 0);
           
           const payload = {
             ...data,
             scheduleStartDate: startDate,
             scheduleEndDate: endDate,
-            dailyRates: dailyRatesAtPosition, // Use specific value at position i
+            dailyRates: totalDailyRates, // Sum of all values
             status: "planejado",
             phase: "inclusao",
             userId: user?.id,
@@ -114,6 +115,28 @@ export default function TeamInclusionForm() {
           delete payload.dailyRatesByDate;
           const response = await apiRequest("POST", "/api/team-inclusions", payload);
           entries.push(await response.json());
+        } else {
+          // Values are different: create multiple records (previous logic)
+          for (let i = 0; i < sortedDates.length; i++) {
+            const startDate = sortedDates[i].date;
+            const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
+            
+            // Use the daily rate value at position i
+            const dailyRatesAtPosition = sortedDates[i].dailyRates;
+            
+            const payload = {
+              ...data,
+              scheduleStartDate: startDate,
+              scheduleEndDate: endDate,
+              dailyRates: dailyRatesAtPosition, // Use specific value at position i
+              status: "planejado",
+              phase: "inclusao",
+              userId: user?.id,
+            };
+            delete payload.dailyRatesByDate;
+            const response = await apiRequest("POST", "/api/team-inclusions", payload);
+            entries.push(await response.json());
+          }
         }
       } else {
         // Single entry with date range

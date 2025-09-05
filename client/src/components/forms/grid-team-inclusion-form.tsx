@@ -228,18 +228,19 @@ export default function GridTeamInclusionForm() {
       // Sort dates chronologically
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-      // For each position i, create a record from position i to the end
-      // The daily rate is the specific value at position i
-      for (let i = 0; i < sortedDates.length; i++) {
-        const startDate = sortedDates[i];
-        const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
-        
-        // Use the daily rate value at position i
-        const dailyRateAtPosition = row.dailyRates[sortedDates[i]];
+      // Check if all values are the same
+      const allValues = sortedDates.map(date => row.dailyRates[date]);
+      const allEqual = allValues.every(val => val === allValues[0]);
+      
+      if (allEqual) {
+        // All values are equal: create ONE record with total daily rates
+        const startDate = sortedDates[0];
+        const endDate = sortedDates[sortedDates.length - 1];
+        const totalDailyRates = allValues.reduce((sum, val) => sum + val, 0);
         
         ranges.push({
           functionId: row.functionId,
-          dailyRate: dailyRateAtPosition, // Use specific value at position i
+          dailyRate: totalDailyRates, // Sum of all values
           startDate: startDate,
           endDate: endDate,
           travelInfo: {
@@ -249,6 +250,28 @@ export default function GridTeamInclusionForm() {
             horarioRetorno: row.horarioRetorno,
           },
         });
+      } else {
+        // Values are different: create multiple records (previous logic)
+        for (let i = 0; i < sortedDates.length; i++) {
+          const startDate = sortedDates[i];
+          const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
+          
+          // Use the daily rate value at position i
+          const dailyRateAtPosition = row.dailyRates[sortedDates[i]];
+          
+          ranges.push({
+            functionId: row.functionId,
+            dailyRate: dailyRateAtPosition, // Use specific value at position i
+            startDate: startDate,
+            endDate: endDate,
+            travelInfo: {
+              ida: row.ida,
+              chegada: row.chegada,
+              retorno: row.retorno,
+              horarioRetorno: row.horarioRetorno,
+            },
+          });
+        }
       }
     });
 
