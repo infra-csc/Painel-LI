@@ -251,26 +251,32 @@ export default function GridTeamInclusionForm() {
           },
         });
       } else {
-        // Values are different: create multiple records (previous logic)
+        // Values are different: create records for unique values only
+        const seenValues = new Set();
+        
         for (let i = 0; i < sortedDates.length; i++) {
-          const startDate = sortedDates[i];
-          const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
-          
-          // Use the daily rate value at position i
           const dailyRateAtPosition = row.dailyRates[sortedDates[i]];
           
-          ranges.push({
-            functionId: row.functionId,
-            dailyRate: dailyRateAtPosition, // Use specific value at position i
-            startDate: startDate,
-            endDate: endDate,
-            travelInfo: {
-              ida: row.ida,
-              chegada: row.chegada,
-              retorno: row.retorno,
-              horarioRetorno: row.horarioRetorno,
-            },
-          });
+          // Only create record if we haven't seen this value before
+          if (!seenValues.has(dailyRateAtPosition)) {
+            seenValues.add(dailyRateAtPosition);
+            
+            const startDate = sortedDates[i];
+            const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
+            
+            ranges.push({
+              functionId: row.functionId,
+              dailyRate: dailyRateAtPosition, // Use specific value at position i
+              startDate: startDate,
+              endDate: endDate,
+              travelInfo: {
+                ida: row.ida,
+                chegada: row.chegada,
+                retorno: row.retorno,
+                horarioRetorno: row.horarioRetorno,
+              },
+            });
+          }
         }
       }
     });

@@ -116,26 +116,32 @@ export default function TeamInclusionForm() {
           const response = await apiRequest("POST", "/api/team-inclusions", payload);
           entries.push(await response.json());
         } else {
-          // Values are different: create multiple records (previous logic)
+          // Values are different: create records for unique values only
+          const seenValues = new Set();
+          
           for (let i = 0; i < sortedDates.length; i++) {
-            const startDate = sortedDates[i].date;
-            const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
-            
-            // Use the daily rate value at position i
             const dailyRatesAtPosition = sortedDates[i].dailyRates;
             
-            const payload = {
-              ...data,
-              scheduleStartDate: startDate,
-              scheduleEndDate: endDate,
-              dailyRates: dailyRatesAtPosition, // Use specific value at position i
-              status: "planejado",
-              phase: "inclusao",
-              userId: user?.id,
-            };
-            delete payload.dailyRatesByDate;
-            const response = await apiRequest("POST", "/api/team-inclusions", payload);
-            entries.push(await response.json());
+            // Only create record if we haven't seen this value before
+            if (!seenValues.has(dailyRatesAtPosition)) {
+              seenValues.add(dailyRatesAtPosition);
+              
+              const startDate = sortedDates[i].date;
+              const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
+              
+              const payload = {
+                ...data,
+                scheduleStartDate: startDate,
+                scheduleEndDate: endDate,
+                dailyRates: dailyRatesAtPosition, // Use specific value at position i
+                status: "planejado",
+                phase: "inclusao",
+                userId: user?.id,
+              };
+              delete payload.dailyRatesByDate;
+              const response = await apiRequest("POST", "/api/team-inclusions", payload);
+              entries.push(await response.json());
+            }
           }
         }
       } else {
