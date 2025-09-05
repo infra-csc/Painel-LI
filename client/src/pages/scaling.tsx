@@ -64,6 +64,17 @@ export default function Scaling() {
     queryKey: ["/api/collaborators"],
   });
 
+  // Helper function to determine if escalation is completed
+  const isEscalated = (inclusion: TeamInclusion) => {
+    return inclusion.collaboratorId && (
+      inclusion.status === "escalacao" || 
+      inclusion.status === "passagem" || 
+      inclusion.status === "fechamento" || 
+      inclusion.status === "aprovacao" || 
+      inclusion.status === "aprovado"
+    );
+  };
+
   // Filter inclusions - now shows all phases to keep records visible
   const scalingInclusions = filteredTeamInclusions?.filter(
     inclusion => {
@@ -86,17 +97,6 @@ export default function Scaling() {
       return idMatch;
     }
   ) || [];
-
-  // Helper function to determine if escalation is completed
-  const isEscalated = (inclusion: TeamInclusion) => {
-    return inclusion.collaboratorId && (
-      inclusion.status === "escalacao" || 
-      inclusion.status === "passagem" || 
-      inclusion.status === "fechamento" || 
-      inclusion.status === "aprovacao" || 
-      inclusion.status === "aprovado"
-    );
-  };
 
   const updateTeamInclusionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
