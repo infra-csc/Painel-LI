@@ -965,6 +965,12 @@ export default function Tickets() {
                             <p className="font-medium">{ticket.purchaseOrderNumber}</p>
                           </div>
                         )}
+                        {ticket.cardLastFourDigits && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Últimos 4 Dígitos do Cartão</Label>
+                            <p className="font-medium font-mono">****{ticket.cardLastFourDigits}</p>
+                          </div>
+                        )}
                         {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
                           <div className="md:col-span-2 lg:col-span-3">
                             <Label className="text-xs text-muted-foreground">IDs dos Anexos</Label>
@@ -1051,6 +1057,20 @@ export default function Tickets() {
                               placeholder="Número da OC"
                               value={data.purchaseOrderNumber || ""}
                               onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "purchaseOrderNumber", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`cardLastFourDigits-${selectedGroup.groupKey}`} className="text-sm font-medium">
+                              Últimos 4 Dígitos do Cartão
+                            </Label>
+                            <Input
+                              id={`cardLastFourDigits-${selectedGroup.groupKey}`}
+                              placeholder="1234"
+                              maxLength={4}
+                              value={data.cardLastFourDigits || ""}
+                              onChange={(e) => handleTicketDataChange(selectedGroup.groupKey, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              className="mt-1"
+                              data-testid={`input-card-digits-${selectedGroup.groupKey}`}
                             />
                           </div>
                         </div>
