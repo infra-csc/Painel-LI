@@ -682,10 +682,10 @@ export default function Scaling() {
                   Cancelar
                 </Button>
                 <Button 
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleSave}
                   disabled={updateTeamInclusionMutation.isPending}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
                 >
                   <Save className="w-4 h-4" />
                   {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar"}
