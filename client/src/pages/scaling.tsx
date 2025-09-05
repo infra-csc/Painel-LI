@@ -84,6 +84,10 @@ export default function Scaling() {
   });
 
 
+  // Debug: Log total team inclusions
+  console.log("Total teamInclusions:", teamInclusions?.length);
+  console.log("Filtered teamInclusions:", filteredTeamInclusions?.length);
+  
   // Filter inclusions that are in planning phase or scaling phase
   const scalingInclusions = filteredTeamInclusions?.filter(
     inclusion => {
@@ -91,6 +95,18 @@ export default function Scaling() {
       const idMatch = !filters.searchId || 
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
         inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
+      
+      // Debug: Log each inclusion
+      if (inclusion.status === "planejado") {
+        console.log("Found planejado inclusion:", {
+          id: inclusion.id.substring(0, 8) + "...",
+          status: inclusion.status,
+          eventId: inclusion.eventId?.substring(0, 8) + "...",
+          functionId: inclusion.functionId?.substring(0, 8) + "...",
+          statusMatch,
+          idMatch
+        });
+      }
       
       // Apply universal filters
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -102,6 +118,9 @@ export default function Scaling() {
       return statusMatch && idMatch;
     }
   ) || [];
+  
+  // Debug: Log final result
+  console.log("Scaling inclusions:", scalingInclusions?.length);
 
   // Group inclusions by event
   const groupedByEvent = scalingInclusions.reduce((acc, inclusion) => {
