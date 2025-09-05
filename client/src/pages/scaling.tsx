@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Comment } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 
@@ -66,6 +66,12 @@ export default function Scaling() {
 
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
+  });
+
+  // Query para buscar comentários da inclusão selecionada
+  const { data: comments } = useQuery<Comment[]>({
+    queryKey: ["/api/comments", selectedInclusion?.id],
+    enabled: !!selectedInclusion?.id && showModal,
   });
 
   // Helper function to determine if escalation is completed
@@ -142,10 +148,16 @@ export default function Scaling() {
     setShowModal(true);
   };
 
-  const handleViewComments = (e: React.MouseEvent, inclusionId: string) => {
+  const handleViewComments = (e: React.MouseEvent, inclusion: TeamInclusion) => {
     e.stopPropagation(); // Evita que o click na linha seja acionado
-    setSelectedInclusionForComments(inclusionId);
-    setShowCommentsModal(true);
+    // Abrir o modal da escalação com os dados da inclusão
+    setSelectedInclusion(inclusion);
+    setModalData({
+      collaboratorId: inclusion.collaboratorId || "",
+      observations: inclusion.observations || "",
+      dailyValue: 0,
+    });
+    setShowModal(true);
   };
 
   const handleSave = () => {
@@ -207,6 +219,33 @@ export default function Scaling() {
     if (!dateStr) return "N/A";
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}/${year}`;
+  };
+
+  const formatDateTime = (date: Date) => {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(date));
+  };
+
+  const getPhaseLabel = (phase: string) => {
+    switch (phase) {
+      case "inclusao":
+        return "Inclusão de Equipe";
+      case "escalacao":
+        return "Escalação";
+      case "passagem":
+        return "Compra de Passagem";
+      case "fechamento":
+        return "Fechamento";
+      case "aprovacao":
+        return "Aprovação";
+      default:
+        return phase;
+    }
   };
 
   if (isLoading) {
@@ -351,8 +390,8 @@ export default function Scaling() {
                                   </div>
                                   <Eye 
                                     className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
-                                    onClick={(e) => handleViewComments(e, inclusion.id)}
-                                    title="Ver comentários"
+                                    onClick={(e) => handleViewComments(e, inclusion)}
+                                    title="Ver detalhes e comentários"
                                   />
                                 </div>
                               </td>
@@ -456,8 +495,8 @@ export default function Scaling() {
                                   </div>
                                   <Eye 
                                     className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
-                                    onClick={(e) => handleViewComments(e, inclusion.id)}
-                                    title="Ver comentários"
+                                    onClick={(e) => handleViewComments(e, inclusion)}
+                                    title="Ver detalhes e comentários"
                                   />
                                 </div>
                               </td>
@@ -702,6 +741,37 @@ export default function Scaling() {
                 )}
               </div>
 
+              {/* Seção de Comentários */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium mb-3">Comentários</h3>
+                {comments && comments.length > 0 ? (
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className="bg-muted p-3 rounded-lg">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="text-sm font-medium text-foreground">
+                            {comment.userId}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDateTime(comment.createdAt)}
+                          </div>
+                        </div>
+                        <div className="text-sm text-foreground mb-2">
+                          {comment.content}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {getPhaseLabel(comment.phase)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-4 bg-muted rounded-lg">
+                    Nenhum comentário registrado para esta inclusão.
+                  </div>
+                )}
+              </div>
+
               {/* Botões */}
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button variant="outline" onClick={() => setShowModal(false)}>
@@ -730,12 +800,6 @@ export default function Scaling() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Comentários */}
-      <CommentsModal
-        open={showCommentsModal}
-        onClose={() => setShowCommentsModal(false)}
-        teamInclusionId={selectedInclusionForComments || ""}
-      />
     </div>
   );
 }
