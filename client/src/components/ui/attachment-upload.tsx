@@ -19,6 +19,9 @@ export default function AttachmentUpload({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  
+  // Debug log
+  console.log("AttachmentUpload renderizando com attachmentIds:", attachmentIds);
 
   const generateAttachmentId = () => {
     return `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
@@ -99,9 +102,9 @@ export default function AttachmentUpload({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-4 border-2 border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
       <div className="flex items-center justify-between">
-        <Label>Anexos da Passagem</Label>
+        <Label className="text-lg font-semibold text-blue-700 dark:text-blue-300">📎 Anexos da Passagem</Label>
         {attachmentIds.length > 1 && (
           <Button
             type="button"
