@@ -63,6 +63,7 @@ export default function GridTeamInclusionForm() {
   const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
+  const [showEventSelect, setShowEventSelect] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -338,57 +339,64 @@ export default function GridTeamInclusionForm() {
     });
   };
 
-  const saveTemplate = () => {
-    if (functionRows.length === 0) {
+  const loadFromEvent = async (eventId: string) => {
+    try {
+      const response = await fetch(`/api/team-inclusions?eventId=${eventId}`);
+      if (!response.ok) throw new Error('Erro ao carregar inclusões');
+      
+      const inclusions = await response.json();
+      
+      if (inclusions.length === 0) {
+        toast({
+          title: "Evento vazio",
+          description: "Este evento não possui inclusões salvas.",
+        });
+        return;
+      }
+
+      // Agrupar inclusões por função e extrair datas
+      const functionMap = new Map();
+      const allDates = new Set<string>();
+
+      inclusions.forEach((inclusion: any) => {
+        allDates.add(inclusion.date);
+        
+        if (!functionMap.has(inclusion.functionId)) {
+          functionMap.set(inclusion.functionId, {
+            functionId: inclusion.functionId,
+            functionName: inclusion.functionName || 'Função',
+            needsTicket: inclusion.needsTicket || false,
+            departureDate: inclusion.departureDate || '',
+            arrivalTime: inclusion.arrivalTime || '',
+            returnDate: inclusion.returnDate || '',
+            returnTime: inclusion.returnTime || '',
+            dailyRates: {}
+          });
+        }
+        
+        const func = functionMap.get(inclusion.functionId);
+        func.dailyRates[inclusion.date] = inclusion.dailyRate || 0;
+      });
+
+      const sortedDates = Array.from(allDates).sort();
+      const loadedFunctions = Array.from(functionMap.values());
+
+      setDates(sortedDates);
+      setFunctionRows(loadedFunctions);
+      setShowGrid(true);
+
+      toast({
+        title: "Configurações carregadas",
+        description: `Carregadas ${loadedFunctions.length} funções de evento anterior.`,
+      });
+
+    } catch (error) {
       toast({
         title: "Erro",
-        description: "Não há configurações para salvar.",
+        description: "Erro ao carregar configurações do evento.",
         variant: "destructive"
       });
-      return;
     }
-
-    const templateName = prompt("Nome do template:");
-    if (!templateName) return;
-
-    const templates = JSON.parse(localStorage.getItem('grid-templates') || '{}');
-    templates[templateName] = {
-      functionRows,
-      dates,
-      timestamp: Date.now()
-    };
-    
-    localStorage.setItem('grid-templates', JSON.stringify(templates));
-    toast({
-      title: "Template salvo",
-      description: `Template "${templateName}" salvo com sucesso.`,
-    });
-  };
-
-  const loadTemplate = () => {
-    const templates = JSON.parse(localStorage.getItem('grid-templates') || '{}');
-    const templateNames = Object.keys(templates);
-    
-    if (templateNames.length === 0) {
-      toast({
-        title: "Nenhum template",
-        description: "Não há templates salvos.",
-      });
-      return;
-    }
-
-    const templateName = prompt(`Templates disponíveis: ${templateNames.join(', ')}\n\nDigite o nome do template:`);
-    if (!templateName || !templates[templateName]) return;
-
-    const template = templates[templateName];
-    setFunctionRows(template.functionRows);
-    setDates(template.dates);
-    setShowGrid(true);
-    
-    toast({
-      title: "Template carregado",
-      description: `Template "${templateName}" carregado com sucesso.`,
-    });
   };
 
   const removeFunction = (functionId: string) => {
@@ -660,24 +668,16 @@ export default function GridTeamInclusionForm() {
                       <HelpCircle className="w-4 h-4" />
                       Ajuda
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Templates
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={saveTemplate}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Salvar Template
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={loadTemplate}>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Carregar Template
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      type="button"
+                      onClick={() => setShowEventSelect(true)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Carregar de Evento
+                    </Button>
                     <Button
                       type="button"
                       onClick={openFunctionSelect}
@@ -719,7 +719,7 @@ export default function GridTeamInclusionForm() {
                           <label className="flex items-center gap-2">
                             <Checkbox
                               checked={autoSave}
-                              onCheckedChange={setAutoSave}
+                              onCheckedChange={(checked) => setAutoSave(checked === true)}
                               className="w-3 h-3"
                             />
                             Auto-salvar ativo
@@ -952,6 +952,35 @@ export default function GridTeamInclusionForm() {
             <Button variant="outline" onClick={() => setShowFunctionSelect(false)} className="w-full">
               Cancelar
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para selecionar evento anterior */}
+      <Dialog open={showEventSelect} onOpenChange={setShowEventSelect}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Carregar de Evento Anterior</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Selecione um evento que já possui inclusões salvas:
+            </p>
+            <Select onValueChange={(eventId) => {
+              loadFromEvent(eventId);
+              setShowEventSelect(false);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um evento" />
+              </SelectTrigger>
+              <SelectContent>
+                {events?.map((event) => (
+                  <SelectItem key={event.id} value={event.id}>
+                    {event.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </DialogContent>
       </Dialog>
