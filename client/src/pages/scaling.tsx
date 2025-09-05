@@ -49,11 +49,14 @@ export default function Scaling() {
     queryKey: ["/api/functions"],
   });
 
-  // Filtrar teamInclusions para mostrar apenas as funções atribuídas ao usuário
+  // Filtrar teamInclusions - administradores veem tudo, outros apenas suas funções
   const userFunctionIds = functions?.filter(f => f.userId === user?.id).map(f => f.id) || [];
-  const filteredTeamInclusions = teamInclusions?.filter(ti => 
-    userFunctionIds.includes(ti.functionId)
-  ) || [];
+  const filteredTeamInclusions = teamInclusions?.filter(ti => {
+    // Administradores veem todas as inclusões
+    if (user?.role === 'administrador') return true;
+    // Outros usuários veem apenas suas funções atribuídas
+    return userFunctionIds.includes(ti.functionId);
+  }) || [];
 
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
