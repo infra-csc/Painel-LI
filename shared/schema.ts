@@ -55,7 +55,7 @@ export const collaborators = pgTable("collaborators", {
   type: text("type").notNull(), // casa, freela, local
   phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
-  status: text("status").notNull().default("ativo"), // ativo, inativo
+  status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, inativo
   createdAt: timestamp("created_at").defaultNow(),
 });
 

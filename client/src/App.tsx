@@ -13,6 +13,7 @@ import Closure from "@/pages/closure";
 import Approval from "@/pages/approval";
 import Consultation from "@/pages/consultation";
 import AdminUsers from "@/pages/admin-users";
+import CollaboratorManagement from "@/pages/collaborator-management";
 import AuthPage from "@/pages/auth-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
 import UserRegistration from "@/pages/user-registration";
@@ -84,6 +85,11 @@ function Router() {
           <Route path="/admin-users">
             <ProtectedRoute permission="canAccessAdminUsers">
               <AdminUsers />
+            </ProtectedRoute>
+          </Route>
+          <Route path="/collaborators">
+            <ProtectedRoute permission="canAccessAdminUsers">
+              <CollaboratorManagement />
             </ProtectedRoute>
           </Route>
           <Route component={NotFound} />

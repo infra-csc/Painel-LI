@@ -319,6 +319,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/collaborators/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const collaboratorData = insertCollaboratorSchema.partial().parse(req.body);
+      const collaborator = await storage.updateCollaborator(id, collaboratorData);
+      res.json(collaborator);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar colaborador" });
+    }
+  });
+
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {
     try {
