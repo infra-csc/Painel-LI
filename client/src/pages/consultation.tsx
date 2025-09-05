@@ -276,35 +276,113 @@ export default function Consultation() {
                         </CardHeader>
 
                         <CardContent className="pt-0">
-                          <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                          {/* Informações Principais */}
+                          <div className="grid grid-cols-3 gap-2 text-xs mb-3">
                             <div>
                               <span className="font-medium text-foreground">{getEventName(inclusion.eventId)}</span>
                               <div className="text-muted-foreground">{getFunctionName(inclusion.functionId)}</div>
+                              {inclusion.area && (
+                                <div className="text-muted-foreground">Área: {inclusion.area}</div>
+                              )}
                             </div>
                             <div>
                               <span className="font-medium text-foreground">{getCollaboratorName(inclusion.collaboratorId || undefined)}</span>
-                              <div className="text-muted-foreground">{formatDate(inclusion.createdAt?.toString())}</div>
+                              <div className="text-muted-foreground">
+                                Criado: {formatDate(inclusion.createdAt?.toString())} por {getUserName(inclusion.userId)}
+                              </div>
+                              {inclusion.updatedBy && (
+                                <div className="text-muted-foreground">
+                                  Editado por {getUserName(inclusion.updatedBy)}
+                                </div>
+                              )}
                             </div>
                             <div>
                               <div className="text-muted-foreground">
+                                <strong>Cronograma:</strong>
+                              </div>
+                              <div className="text-muted-foreground">
                                 {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
                               </div>
+                              {inclusion.dailyValue > 0 && (
+                                <div className="text-muted-foreground">
+                                  💰 R$ {(inclusion.dailyValue / 100).toFixed(2)}/dia
+                                </div>
+                              )}
                             </div>
                           </div>
-                          
+
+                          {/* Detalhes de Voos se disponível */}
+                          {(inclusion.flightDepartureDate || inclusion.flightReturnDate) && (
+                            <div className="bg-blue-50 p-2 rounded mb-2">
+                              <div className="text-xs font-medium text-blue-800 mb-1">✈️ Sugestões de Voo</div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {inclusion.flightDepartureDate && (
+                                  <div>
+                                    <span className="text-muted-foreground">Ida:</span> {formatDate(inclusion.flightDepartureDate)}
+                                    {inclusion.flightDepartureSuggestedTime && ` às ${inclusion.flightDepartureSuggestedTime}`}
+                                  </div>
+                                )}
+                                {inclusion.flightReturnDate && (
+                                  <div>
+                                    <span className="text-muted-foreground">Volta:</span> {formatDate(inclusion.flightReturnDate)}
+                                    {inclusion.flightReturnSuggestedTime && ` às ${inclusion.flightReturnSuggestedTime}`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Detalhes da Passagem se comprada */}
+                          {ticket && (
+                            <div className="bg-green-50 p-2 rounded mb-2">
+                              <div className="text-xs font-medium text-green-800 mb-1">✈️ Passagem Comprada</div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>Valor: {formatCurrency(ticket.value || 0)}</div>
+                                <div>Compra: {formatDate(ticket.purchaseDate)}</div>
+                                <div>{ticket.departureAirport} → {ticket.destinationAirport}</div>
+                                {ticket.purchaseOrderNumber && (
+                                  <div>OC: {ticket.purchaseOrderNumber}</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Detalhes Financeiros se registrado */}
+                          {financialRecord && (
+                            <div className="bg-purple-50 p-2 rounded mb-2">
+                              <div className="text-xs font-medium text-purple-800 mb-1">💰 Registro Financeiro</div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>Valor: {formatCurrency(financialRecord.actualValue || 0)}</div>
+                                <div>Método: {financialRecord.paymentMethod}</div>
+                                {financialRecord.transactionDate && (
+                                  <div>Data: {formatDate(financialRecord.transactionDate)}</div>
+                                )}
+                                {financialRecord.purchaseOrderNumber && (
+                                  <div>OC: {financialRecord.purchaseOrderNumber}</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Badges de Status */}
                           <div className="flex flex-wrap gap-1 mb-2">
-                            {ticket && (
-                              <Badge variant="default" className="text-xs">✈️ Passagem</Badge>
-                            )}
-                            {financialRecord && (
-                              <Badge variant="secondary" className="text-xs">💰 Financeiro</Badge>
-                            )}
                             {inclusion.needsTicket && (
                               <Badge variant="outline" className="text-xs">🎫 Precisa Passagem</Badge>
                             )}
                             {inclusion.emergencyRecord && (
                               <Badge variant="destructive" className="text-xs">🚨 Emergencial</Badge>
                             )}
+                            {(() => {
+                              const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+                              if (collaborator?.approvedBy) {
+                                return (
+                                  <Badge variant="default" className="text-xs">
+                                    ✅ Aprovado por {getUserName(collaborator.approvedBy)}
+                                  </Badge>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
 
                           <div className="flex items-center justify-end gap-1 pt-2 border-t border-border/30">
