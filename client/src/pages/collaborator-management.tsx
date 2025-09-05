@@ -316,7 +316,7 @@ export default function CollaboratorManagement() {
                         {getStatusBadge(collaborator.status)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-3">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -330,22 +330,23 @@ export default function CollaboratorManagement() {
                             <>
                               <Button
                                 size="sm"
-                                variant="ghost"
                                 onClick={() => handleApprove(collaborator)}
                                 disabled={updateCollaboratorMutation.isPending}
-                                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                className="bg-green-500 hover:bg-green-600 text-white border-green-500 hover:border-green-600 px-3 py-2 h-8"
                               >
-                                <Check className="w-4 h-4" />
+                                <Check className="w-4 h-4 mr-1" />
+                                Aprovar
                               </Button>
                               
                               <Button
                                 size="sm"
-                                variant="ghost"
+                                variant="destructive"
                                 onClick={() => handleReject(collaborator)}
                                 disabled={updateCollaboratorMutation.isPending}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="bg-red-500 hover:bg-red-600 text-white border-red-500 hover:border-red-600 px-3 py-2 h-8"
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-4 h-4 mr-1" />
+                                Rejeitar
                               </Button>
                             </>
                           )}
@@ -432,10 +433,10 @@ export default function CollaboratorManagement() {
               {selectedCollaborator.status === "pendente" && (
                 <div className="flex gap-3 justify-end pt-4 border-t">
                   <Button
-                    variant="outline"
+                    variant="destructive"
                     onClick={() => handleReject(selectedCollaborator)}
                     disabled={updateCollaboratorMutation.isPending}
-                    className="text-red-600 hover:text-red-700"
+                    className="bg-red-500 hover:bg-red-600"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Rejeitar
@@ -443,7 +444,7 @@ export default function CollaboratorManagement() {
                   <Button
                     onClick={() => handleApprove(selectedCollaborator)}
                     disabled={updateCollaboratorMutation.isPending}
-                    className="text-green-600 hover:text-green-700"
+                    className="bg-green-500 hover:bg-green-600 text-white"
                   >
                     <Check className="w-4 h-4 mr-2" />
                     Aprovar
