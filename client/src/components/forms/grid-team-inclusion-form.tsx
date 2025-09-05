@@ -230,12 +230,22 @@ export default function GridTeamInclusionForm() {
 
       // Always create TWO records:
       // 1st: Full period with number of days as daily rate
-      // 2nd: Last date with its specific value
+      // 2nd: Date with maximum value
       
       const startDate = sortedDates[0];
       const endDate = sortedDates[sortedDates.length - 1];
       const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
-      const lastDayValue = row.dailyRates[sortedDates[sortedDates.length - 1]];
+      
+      // Find maximum value and its date
+      let maxValue = 0;
+      let maxValueDate = sortedDates[0];
+      for (const date of sortedDates) {
+        const value = row.dailyRates[date];
+        if (value > maxValue) {
+          maxValue = value;
+          maxValueDate = date;
+        }
+      }
       
       // 1st record: Full period with number of days
       ranges.push({
@@ -251,12 +261,12 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // 2nd record: Last date with its value
+      // 2nd record: Date with maximum value
       ranges.push({
         functionId: row.functionId,
-        dailyRate: lastDayValue, // Value at last date
-        startDate: endDate, // Last date only
-        endDate: endDate,
+        dailyRate: maxValue, // Maximum value found
+        startDate: maxValueDate, // Date where max value appears
+        endDate: maxValueDate,
         travelInfo: {
           ida: row.ida,
           chegada: row.chegada,

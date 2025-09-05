@@ -95,12 +95,21 @@ export default function TeamInclusionForm() {
 
         // Always create TWO records:
         // 1st: Full period with number of days as daily rate
-        // 2nd: Last date with its specific value
+        // 2nd: Date with maximum value
         
         const startDate = sortedDates[0].date;
         const endDate = sortedDates[sortedDates.length - 1].date;
         const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
-        const lastDayValue = sortedDates[sortedDates.length - 1].dailyRates;
+        
+        // Find maximum value and its date
+        let maxValue = 0;
+        let maxValueDate = sortedDates[0].date;
+        for (const entry of sortedDates) {
+          if (entry.dailyRates > maxValue) {
+            maxValue = entry.dailyRates;
+            maxValueDate = entry.date;
+          }
+        }
         
         // 1st record: Full period with number of days
         const periodPayload = {
@@ -116,19 +125,19 @@ export default function TeamInclusionForm() {
         const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
         entries.push(await periodResponse.json());
         
-        // 2nd record: Last date with its value
-        const lastPayload = {
+        // 2nd record: Date with maximum value
+        const maxPayload = {
           ...data,
-          scheduleStartDate: endDate, // Last date only
-          scheduleEndDate: endDate,
-          dailyRates: lastDayValue, // Value at last date
+          scheduleStartDate: maxValueDate, // Date where max value appears
+          scheduleEndDate: maxValueDate,
+          dailyRates: maxValue, // Maximum value found
           status: "planejado",
           phase: "inclusao",
           userId: user?.id,
         };
-        delete lastPayload.dailyRatesByDate;
-        const lastResponse = await apiRequest("POST", "/api/team-inclusions", lastPayload);
-        entries.push(await lastResponse.json());
+        delete maxPayload.dailyRatesByDate;
+        const maxResponse = await apiRequest("POST", "/api/team-inclusions", maxPayload);
+        entries.push(await maxResponse.json());
       } else {
         // Single entry with date range
         let diffDays = 1;
