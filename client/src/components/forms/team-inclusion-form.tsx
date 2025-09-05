@@ -93,25 +93,17 @@ export default function TeamInclusionForm() {
           .map(d => ({ date: d.date, dateObj: new Date(d.date), dailyRates: d.dailyRates }))
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-        // Always create THREE records:
-        // 1st: Full period with number of days as daily rate
-        // 2nd: Second position value from its date to end of period
-        // 3rd: Always 1 daily rate on last date
-        
+        // Logic: Create records when value changes from previous
         const startDate = sortedDates[0].date;
         const endDate = sortedDates[sortedDates.length - 1].date;
-        const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
+        const numberOfDays = sortedDates.length;
         
-        // Get second position date and value (if exists)
-        const secondDate = sortedDates.length > 1 ? sortedDates[1].date : sortedDates[0].date;
-        const secondValue = sortedDates.length > 1 ? sortedDates[1].dailyRates : sortedDates[0].dailyRates;
-        
-        // 1st record: Full period with number of days
+        // 1st record: Always full period with number of days
         const periodPayload = {
           ...data,
           scheduleStartDate: startDate,
           scheduleEndDate: endDate,
-          dailyRates: numberOfDays, // Number of days in period
+          dailyRates: numberOfDays,
           status: "planejado",
           phase: "inclusao",
           userId: user?.id,
@@ -120,33 +112,30 @@ export default function TeamInclusionForm() {
         const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
         entries.push(await periodResponse.json());
         
-        // 2nd record: Second position value from its date to end of period
-        const secondPayload = {
-          ...data,
-          scheduleStartDate: secondDate, // Second date
-          scheduleEndDate: endDate, // Until end of period
-          dailyRates: secondValue, // Second position value
-          status: "planejado",
-          phase: "inclusao",
-          userId: user?.id,
-        };
-        delete secondPayload.dailyRatesByDate;
-        const secondResponse = await apiRequest("POST", "/api/team-inclusions", secondPayload);
-        entries.push(await secondResponse.json());
+        // Create additional records for each value change
+        let previousValue = sortedDates[0].dailyRates;
         
-        // 3rd record: Always 1 daily rate on last date
-        const lastPayload = {
-          ...data,
-          scheduleStartDate: endDate, // Last date only
-          scheduleEndDate: endDate,
-          dailyRates: 1, // Always 1 daily rate
-          status: "planejado",
-          phase: "inclusao",
-          userId: user?.id,
-        };
-        delete lastPayload.dailyRatesByDate;
-        const lastResponse = await apiRequest("POST", "/api/team-inclusions", lastPayload);
-        entries.push(await lastResponse.json());
+        for (let i = 1; i < sortedDates.length; i++) {
+          const currentEntry = sortedDates[i];
+          const currentValue = currentEntry.dailyRates;
+          
+          // If value changed from previous, create a record
+          if (currentValue !== previousValue) {
+            const changePayload = {
+              ...data,
+              scheduleStartDate: currentEntry.date,
+              scheduleEndDate: endDate, // Always until end of period
+              dailyRates: currentValue,
+              status: "planejado",
+              phase: "inclusao",
+              userId: user?.id,
+            };
+            delete changePayload.dailyRatesByDate;
+            const changeResponse = await apiRequest("POST", "/api/team-inclusions", changePayload);
+            entries.push(await changeResponse.json());
+            previousValue = currentValue;
+          }
+        }
       } else {
         // Single entry with date range
         let diffDays = 1;

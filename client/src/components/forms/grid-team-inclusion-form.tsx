@@ -228,23 +228,15 @@ export default function GridTeamInclusionForm() {
       // Sort dates chronologically
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-      // Always create THREE records:
-      // 1st: Full period with number of days as daily rate
-      // 2nd: Second position value from its date to end of period
-      // 3rd: Always 1 daily rate on last date
-      
+      // Logic: Create records when value changes from previous
       const startDate = sortedDates[0];
       const endDate = sortedDates[sortedDates.length - 1];
-      const numberOfDays = sortedDates.length; // Number of dates = daily rates for period
+      const numberOfDays = sortedDates.length;
       
-      // Get second position date and value (if exists)
-      const secondDate = sortedDates.length > 1 ? sortedDates[1] : sortedDates[0];
-      const secondValue = row.dailyRates[secondDate];
-      
-      // 1st record: Full period with number of days
+      // 1st record: Always full period with number of days
       ranges.push({
         functionId: row.functionId,
-        dailyRate: numberOfDays, // Number of days in period
+        dailyRate: numberOfDays,
         startDate: startDate,
         endDate: endDate,
         travelInfo: {
@@ -255,33 +247,30 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // 2nd record: Second position value from its date to end of period
-      ranges.push({
-        functionId: row.functionId,
-        dailyRate: secondValue, // Second position value
-        startDate: secondDate, // Second date
-        endDate: endDate, // Until end of period
-        travelInfo: {
-          ida: row.ida,
-          chegada: row.chegada,
-          retorno: row.retorno,
-          horarioRetorno: row.horarioRetorno,
-        },
-      });
+      // Create additional records for each value change
+      let previousValue = row.dailyRates[sortedDates[0]];
       
-      // 3rd record: Always 1 daily rate on last date
-      ranges.push({
-        functionId: row.functionId,
-        dailyRate: 1, // Always 1 daily rate
-        startDate: endDate, // Last date only
-        endDate: endDate,
-        travelInfo: {
-          ida: row.ida,
-          chegada: row.chegada,
-          retorno: row.retorno,
-          horarioRetorno: row.horarioRetorno,
-        },
-      });
+      for (let i = 1; i < sortedDates.length; i++) {
+        const currentDate = sortedDates[i];
+        const currentValue = row.dailyRates[currentDate];
+        
+        // If value changed from previous, create a record
+        if (currentValue !== previousValue) {
+          ranges.push({
+            functionId: row.functionId,
+            dailyRate: currentValue,
+            startDate: currentDate,
+            endDate: endDate, // Always until end of period
+            travelInfo: {
+              ida: row.ida,
+              chegada: row.chegada,
+              retorno: row.retorno,
+              horarioRetorno: row.horarioRetorno,
+            },
+          });
+          previousValue = currentValue;
+        }
+      }
     });
 
     return ranges;
