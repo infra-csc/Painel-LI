@@ -218,57 +218,72 @@ export default function GridTeamInclusionForm() {
     const ranges: ProcessedRange[] = [];
 
     functionRows.forEach(row => {
-      
       if (dates.length === 0) return;
 
-      let currentRate = row.dailyRates[dates[0]];
-      let startDate = dates[0];
-      let endDate = dates[0];
+      // Get dates with daily rates > 0
+      const datesWithRates = dates.filter(date => row.dailyRates[date] > 0);
+      
+      if (datesWithRates.length === 0) return;
 
-      for (let i = 1; i < dates.length; i++) {
-        const date = dates[i];
-        if (row.dailyRates[date] === currentRate) {
-          // Mesmo número, continua o range
-          endDate = date;
-        } else {
-          // Número mudou, fecha o range atual
-          ranges.push({
-            functionId: row.functionId,
-            dailyRate: currentRate,
-            startDate,
-            endDate,
-            travelInfo: {
-              ida: row.ida,
-              chegada: row.chegada,
-              retorno: row.retorno,
-              horarioRetorno: row.horarioRetorno,
-            },
-          });
+      // Sort dates chronologically
+      const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-          // Inicia novo range
-          currentRate = row.dailyRates[date];
-          startDate = date;
-          endDate = date;
-        }
+      if (sortedDates.length > 1) {
+        // Multiple dates: Create TWO ranges
+        
+        // 1st range: Period from first to last date with numberOfDays as dailyRate
+        const firstDate = sortedDates[0];
+        const lastDate = sortedDates[sortedDates.length - 1];
+        const numberOfDays = sortedDates.length; // Number of different dates
+        
+        ranges.push({
+          functionId: row.functionId,
+          dailyRate: numberOfDays, // Number of days as daily rates
+          startDate: firstDate,
+          endDate: lastDate,
+          travelInfo: {
+            ida: row.ida,
+            chegada: row.chegada,
+            retorno: row.retorno,
+            horarioRetorno: row.horarioRetorno,
+          },
+        });
+        
+        // 2nd range: Last date only with 1 daily rate
+        ranges.push({
+          functionId: row.functionId,
+          dailyRate: 1, // Always 1 for single day
+          startDate: lastDate,
+          endDate: lastDate,
+          travelInfo: {
+            ida: row.ida,
+            chegada: row.chegada,
+            retorno: row.retorno,
+            horarioRetorno: row.horarioRetorno,
+          },
+        });
+        
+      } else {
+        // Single date: Create ONE range only
+        const singleDate = sortedDates[0];
+        const dailyRate = row.dailyRates[singleDate];
+        
+        ranges.push({
+          functionId: row.functionId,
+          dailyRate: dailyRate,
+          startDate: singleDate,
+          endDate: singleDate,
+          travelInfo: {
+            ida: row.ida,
+            chegada: row.chegada,
+            retorno: row.retorno,
+            horarioRetorno: row.horarioRetorno,
+          },
+        });
       }
-
-      // Adiciona o último range
-      ranges.push({
-        functionId: row.functionId,
-        dailyRate: currentRate,
-        startDate,
-        endDate,
-        travelInfo: {
-          ida: row.ida,
-          chegada: row.chegada,
-          retorno: row.retorno,
-          horarioRetorno: row.horarioRetorno,
-        },
-      });
     });
 
-    // Filtrar apenas ranges que têm alguma diária configurada
-    return ranges.filter(range => range.dailyRate > 0);
+    return ranges;
   };
 
   const calculateDailyRates = (startDate: string, endDate: string): number => {
