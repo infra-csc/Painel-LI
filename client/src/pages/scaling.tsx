@@ -188,7 +188,7 @@ export default function Scaling() {
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
   };
 
-  const getCollaboratorName = (collaboratorId?: string) => {
+  const getCollaboratorName = (collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não definido";
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
