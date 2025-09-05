@@ -226,17 +226,14 @@ export default function TeamInclusionTable() {
                 <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Colaborador
                 </th>
-                <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Data Escala
-                </th>
-                <th className="w-28 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Diárias
-                </th>
-                <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ticket
+                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Data/Diárias
                 </th>
                 <th className="w-24 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
+                </th>
+                <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Pass.
                 </th>
                 <th className="w-20 px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Ações
@@ -302,25 +299,23 @@ export default function TeamInclusionTable() {
                           ? `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`
                           : "Não definidas"}
                       </div>
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="text-xs text-foreground">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         {inclusion.dailyRates} diárias
                       </div>
                     </td>
-                    <td className="px-3 py-4 text-center">
-                      {inclusion.needsTicket ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                          S
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                          N
-                        </span>
-                      )}
-                    </td>
                     <td className="px-3 py-4">
                       <StatusBadge status={inclusion.status} />
+                    </td>
+                    <td className="px-3 py-4 text-center">
+                      {inclusion.needsTicket ? (
+                        <span className="text-green-600 font-bold text-lg" title="Precisa de passagem">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-red-500 font-bold text-lg" title="Não precisa de passagem">
+                          ✗
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-1">
