@@ -113,6 +113,19 @@ export default function Tickets() {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
 
+  const getEventLocation = (eventId: string) => {
+    const event = events?.find(e => e.id === eventId);
+    return event?.location || event?.city || "Destino não informado";
+  };
+
+  const isDateUrgent = (dateStr: string) => {
+    const today = new Date();
+    const targetDate = new Date(dateStr);
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7 && diffDays >= 0; // Próximos 7 dias
+  };
+
   // Filter inclusions that need tickets - show all that need tickets (pending or processed)
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
@@ -360,19 +373,22 @@ export default function Tickets() {
               <table className="w-full table-fixed">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-20 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       ID
                     </th>
-                    <th className="w-48 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-44 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Evento/Função
                     </th>
-                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-48 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Colaborador
                     </th>
-                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Período
+                    <th className="w-36 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Destino
                     </th>
-                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="w-28 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Data Ida
+                    </th>
+                    <th className="w-40 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Voos Sugeridos
                     </th>
                     <th className="w-24 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -421,19 +437,37 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-sm text-foreground">
+                          <div className="text-lg font-bold text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-sm text-foreground">
-                            {formatDate(group.earliestStartDate)} a {formatDate(group.latestEndDate)}
+                          <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-xs text-foreground">
-                            <div>Ida: {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}</div>
-                            <div>Volta: {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}</div>
+                          {(() => {
+                            const departureDate = inclusion.flightDepartureDate || group.earliestStartDate;
+                            const isUrgent = isDateUrgent(departureDate);
+                            return (
+                              <div className={`text-sm font-medium ${isUrgent ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-foreground'}`}>
+                                {formatDate(departureDate)}
+                                {isUrgent && <div className="text-xs">URGENTE!</div>}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                            <div className="flex items-center gap-1">
+                              ✈️ {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
+                              {inclusion.flightDepartureSuggestedTime && <span className="text-xs">({inclusion.flightDepartureSuggestedTime})</span>}
+                            </div>
+                            <div className="flex items-center gap-1 mt-1">
+                              🔄 {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}
+                              {inclusion.flightReturnSuggestedTime && <span className="text-xs">({inclusion.flightReturnSuggestedTime})</span>}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-4">
