@@ -362,6 +362,96 @@ export default function Tickets() {
             </div>
           </div>
 
+          {/* Registro Rápido de Passagens com Anexos */}
+          <div className="p-6 border-b border-border bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300">📎 Registro Rápido com Anexos</h3>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  Registre vários anexos com os mesmos dados para situações especiais
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div>
+                <Label className="text-sm font-medium">Valor da Passagem (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={ticketData["quick"]?.value || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
+                  className="mt-1"
+                  data-testid="input-quick-value"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Aeroporto Origem</Label>
+                <Input
+                  placeholder="Ex: GRU"
+                  value={ticketData["quick"]?.departureAirport || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                  className="mt-1"
+                  data-testid="input-quick-departure"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Aeroporto Destino</Label>
+                <Input
+                  placeholder="Ex: RJ"
+                  value={ticketData["quick"]?.destinationAirport || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                  className="mt-1"
+                  data-testid="input-quick-destination"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Ordem de Compra</Label>
+                <Input
+                  placeholder="Número da OC"
+                  value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                  onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
+                  className="mt-1"
+                  data-testid="input-quick-order"
+                />
+              </div>
+            </div>
+
+            {/* Campo de Anexos na Tela Principal */}
+            <div className="mt-4">
+              <AttachmentUpload
+                attachmentIds={ticketData["quick"]?.attachmentIds || []}
+                onAttachmentsChange={(attachmentIds) => 
+                  handleTicketDataChange("quick", "attachmentIds", attachmentIds)
+                }
+                disabled={false}
+              />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Preencha os dados comuns que serão aplicados a várias passagens
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Limpar campos do registro rápido
+                  setTicketData(prev => {
+                    const newData = { ...prev };
+                    delete newData["quick"];
+                    return newData;
+                  });
+                }}
+                disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
+                data-testid="button-clear-quick"
+              >
+                Limpar Campos
+              </Button>
+            </div>
+          </div>
+
           <SimpleFilters filters={filters} onFiltersChange={setFilters} />
           
           {/* Filtro de Status de Passagem */}

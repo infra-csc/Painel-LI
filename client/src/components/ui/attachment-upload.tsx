@@ -19,9 +19,6 @@ export default function AttachmentUpload({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  
-  // Debug log
-  console.log("AttachmentUpload renderizando com attachmentIds:", attachmentIds);
 
   const generateAttachmentId = () => {
     return `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
