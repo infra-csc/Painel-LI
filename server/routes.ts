@@ -278,6 +278,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/functions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const functionData = insertFunctionSchema.partial().parse(req.body);
+      const func = await storage.updateFunction(id, functionData);
+      res.json(func);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar função" });
+    }
+  });
+
+  app.delete("/api/functions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteFunction(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao deletar função" });
+    }
+  });
+
   // Collaborators routes
   app.get("/api/collaborators", async (req, res) => {
     try {

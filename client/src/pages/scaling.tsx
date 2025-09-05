@@ -15,6 +15,7 @@ import CollaboratorModal from "@/components/modals/collaborator-modal";
 import { Plus, User, Save, Copy } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Scaling() {
   const [selectedCollaborators, setSelectedCollaborators] = useState<Record<string, string>>({});
@@ -34,6 +35,7 @@ export default function Scaling() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -46,6 +48,12 @@ export default function Scaling() {
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
+
+  // Filtrar teamInclusions para mostrar apenas as funções atribuídas ao usuário
+  const userFunctionIds = functions?.filter(f => f.userId === user?.id).map(f => f.id) || [];
+  const filteredTeamInclusions = teamInclusions?.filter(ti => 
+    userFunctionIds.includes(ti.functionId)
+  ) || [];
 
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
@@ -74,7 +82,7 @@ export default function Scaling() {
 
 
   // Filter inclusions that are in planning phase or scaling phase
-  const scalingInclusions = teamInclusions?.filter(
+  const scalingInclusions = filteredTeamInclusions?.filter(
     inclusion => {
       const statusMatch = inclusion.status === "planejado" || inclusion.status === "escalacao";
       const idMatch = !filters.searchId || 

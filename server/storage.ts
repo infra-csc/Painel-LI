@@ -35,6 +35,7 @@ export interface IStorage {
   getFunction(id: string): Promise<Function | undefined>;
   createFunction(func: InsertFunction): Promise<Function>;
   updateFunction(id: string, func: Partial<InsertFunction>): Promise<Function>;
+  deleteFunction(id: string): Promise<void>;
   getFunctionsByUser(userId: string): Promise<Function[]>;
   
   // Collaborators
@@ -222,6 +223,13 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...funcUpdate };
     this.functions.set(id, updated);
     return updated;
+  }
+
+  async deleteFunction(id: string): Promise<void> {
+    if (!this.functions.has(id)) {
+      throw new Error("Function not found");
+    }
+    this.functions.delete(id);
   }
 
   // Collaborators
@@ -490,6 +498,10 @@ export class DatabaseStorage implements IStorage {
   async updateFunction(id: string, functionData: Partial<InsertFunction>): Promise<Function> {
     const [func] = await db.update(functions).set(functionData).where(eq(functions.id, id)).returning();
     return func;
+  }
+
+  async deleteFunction(id: string): Promise<void> {
+    await db.delete(functions).where(eq(functions.id, id));
   }
 
   // Collaborators

@@ -27,7 +27,6 @@ type GridFormData = z.infer<typeof gridFormSchema>;
 interface FunctionRow {
   functionId: string;
   functionName: string;
-  userId: string;
   ida: string;
   chegada: string;
   retorno: string;
@@ -146,7 +145,6 @@ export default function GridTeamInclusionForm() {
       return {
         functionId: func.id,
         functionName: func.name,
-        userId: "none",
         ida: "",
         chegada: "",
         retorno: "",
@@ -177,13 +175,6 @@ export default function GridTeamInclusionForm() {
     ));
   };
 
-  const updateUser = (functionId: string, userId: string) => {
-    setFunctionRows(prev => prev.map(row => 
-      row.functionId === functionId 
-        ? { ...row, userId }
-        : row
-    ));
-  };
 
   const addCustomFunction = () => {
     const customId = `custom-${Date.now()}`;
@@ -195,7 +186,6 @@ export default function GridTeamInclusionForm() {
     const newRow: FunctionRow = {
       functionId: customId,
       functionName: `Função ${functionRows.filter(r => r.isCustom).length + 1}`,
-      userId: "none",
       ida: "",
       chegada: "",
       retorno: "",
@@ -228,8 +218,6 @@ export default function GridTeamInclusionForm() {
     const ranges: ProcessedRange[] = [];
 
     functionRows.forEach(row => {
-      // Pula se não tem usuário atribuído
-      if (!row.userId || row.userId === "none") return;
       
       if (dates.length === 0) return;
 
@@ -314,11 +302,12 @@ export default function GridTeamInclusionForm() {
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
         
         const functionRow = functionRows.find(r => r.functionId === range.functionId);
+        const selectedFunction = functions?.find(f => f.id === range.functionId);
         
         await createTeamInclusionMutation.mutateAsync({
           eventId,
           functionId: functionRow?.isCustom ? null : range.functionId, // null se for custom
-          userId: functionRow?.userId && functionRow.userId !== "none" ? functionRow.userId : user?.id,
+          userId: selectedFunction?.userId || user?.id, // usa userId da função
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
@@ -447,7 +436,6 @@ export default function GridTeamInclusionForm() {
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-32">Usuário</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
@@ -474,21 +462,6 @@ export default function GridTeamInclusionForm() {
                               ) : (
                                 row.functionName
                               )}
-                            </td>
-                            <td className="px-2 py-2 border-r">
-                              <Select value={row.userId} onValueChange={(val) => updateUser(row.functionId, val)}>
-                                <SelectTrigger className="h-7">
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">-- Selecione --</SelectItem>
-                                  {collaborators?.map((collaborator) => (
-                                    <SelectItem key={collaborator.id} value={collaborator.id}>
-                                      {collaborator.name || collaborator.email}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
