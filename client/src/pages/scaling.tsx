@@ -24,6 +24,7 @@ export default function Scaling() {
     functionId: "all",
     collaboratorId: "all",
     status: "all",
+    escalationStatus: "all",
     searchId: "",
   });
   
@@ -74,6 +75,13 @@ export default function Scaling() {
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      
+      // Apply escalation status filter
+      if (filters.escalationStatus !== "all") {
+        const escalated = isEscalated(inclusion);
+        if (filters.escalationStatus === "pending" && escalated) return false;
+        if (filters.escalationStatus === "escalated" && !escalated) return false;
+      }
       
       return idMatch;
     }

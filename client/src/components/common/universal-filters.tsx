@@ -10,7 +10,7 @@ interface UniversalFiltersProps {
     functionId: string;
     collaboratorId: string;
     status: string;
-    hasTicket: string;
+    escalationStatus: string;
     searchId: string;
   };
   onFiltersChange: (filters: any) => void;
@@ -38,11 +38,6 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
     { value: "aprovado", label: "Aprovado" }
   ];
 
-  const ticketOptions = [
-    { value: "all", label: "Todos" },
-    { value: "with", label: "Com Passagem" },
-    { value: "without", label: "Sem Passagem" }
-  ];
 
   const clearFilters = () => {
     onFiltersChange({
@@ -50,7 +45,7 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
       functionId: "all", 
       collaboratorId: "all",
       status: "all",
-      hasTicket: "all",
+      escalationStatus: "all",
       searchId: ""
     });
   };
@@ -169,22 +164,20 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
 
         <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-foreground mb-1">
-            Passagem
+            Escalação
           </label>
           <Select 
-            value={filters.hasTicket} 
-            onValueChange={(value) => onFiltersChange({ ...filters, hasTicket: value })}
-            data-testid="filter-ticket"
+            value={filters.escalationStatus} 
+            onValueChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
+            data-testid="filter-escalation"
           >
             <SelectTrigger>
-              <SelectValue placeholder="Filtrar por passagem" />
+              <SelectValue placeholder="Filtrar por escalação" />
             </SelectTrigger>
             <SelectContent>
-              {ticketOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="pending">Pendentes de Escalação</SelectItem>
+              <SelectItem value="escalated">Já Escalados</SelectItem>
             </SelectContent>
           </Select>
         </div>
