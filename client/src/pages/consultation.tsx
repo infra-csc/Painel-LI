@@ -123,51 +123,50 @@ export default function Consultation() {
       fechamento: "📊",
       aprovacao: "✔️"
     };
-    return phases[phase as keyof typeof phases] || "📋";
+    return phases[phase as keyof typeof phases] || "📄";
   };
 
   const getPhaseLabel = (phase: string) => {
-    const labels = {
+    const phases = {
       inclusao: "Inclusão",
-      escalacao: "Escalação",
+      escalacao: "Escalação", 
       passagem: "Passagem",
       fechamento: "Fechamento",
       aprovacao: "Aprovação"
     };
-    return labels[phase as keyof typeof labels] || phase;
+    return phases[phase as keyof typeof phases] || phase;
   };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value);
+    }).format(value / 100);
   };
 
-  const getTicket = (inclusionId: string) => {
+  const getTicket = (inclusionId: string): Ticket | undefined => {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
 
-  const getFinancial = (inclusionId: string) => {
+  const getFinancial = (inclusionId: string): Financial | undefined => {
     return financial?.find(fin => fin.teamInclusionId === inclusionId);
   };
 
-  const getTotalValue = (inclusion: TeamInclusion) => {
+  const getTotalValue = (inclusion: TeamInclusion): number => {
     const ticket = getTicket(inclusion.id);
     const financialRecord = getFinancial(inclusion.id);
     
-    // Se foi aprovado, usar valores reais; senão usar valores planejados
-    if (inclusion.status === "aprovado") {
-      const ticketValue = ticket?.value || 0;
-      const dailyRatesValue = (financialRecord?.actualValue || 0);
-      const feeValue = financialRecord?.actualFee || 0;
-      return (ticketValue + dailyRatesValue + feeValue) / 100;
-    } else {
-      // Valores planejados: soma de passagens + diárias (considerando agrupamentos)
-      const plannedDailyValue = ((inclusion.dailyValue || 0) * inclusion.dailyRates) / 100;
-      const plannedTicketValue = inclusion.needsTicket ? (ticket?.value || 0) / 100 : 0;
-      return plannedDailyValue + plannedTicketValue;
+    let total = 0;
+    if (ticket?.value) total += ticket.value;
+    if (financialRecord?.actualValue) total += financialRecord.actualValue;
+    if (inclusion.dailyValue > 0) {
+      const startDate = new Date(inclusion.scheduleStartDate);
+      const endDate = new Date(inclusion.scheduleEndDate);
+      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      total += inclusion.dailyValue * days;
     }
+    
+    return total;
   };
 
   const handleViewComments = (inclusionId: string) => {
@@ -187,23 +186,23 @@ export default function Consultation() {
         <NavigationTabs activeTab="consultation" />
         <WorkflowIndicator currentPhase="consulta" />
         
-        <div className="space-y-6">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <div className="space-y-4">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">📋 Log Detalhado de Registros</h2>
-                <p className="text-muted-foreground">Visualize todas as informações completas dos registros com detalhes de cada etapa do processo.</p>
+                <h2 className="text-xl font-bold text-foreground mb-2">📋 Log Detalhado de Registros</h2>
+                <p className="text-muted-foreground text-sm">Visualize todas as informações completas dos registros.</p>
               </div>
               <div className="flex gap-3">
-                <div className="text-sm font-medium text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                <div className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
                   ✅ {teamInclusions?.filter(ti => ti.status === "aprovado").length || 0} aprovados
                 </div>
-                <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                <div className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
                   📊 {teamInclusions?.length || 0} total
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex gap-2 items-center">
+            <div className="mt-3 flex gap-2 items-center">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <input
@@ -230,22 +229,22 @@ export default function Consultation() {
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
-          {/* Timeline Log Detalhado */}
+          {/* Cards Compactos */}
           <div className="bg-card rounded-lg shadow-sm border border-border">
-            <div className="px-6 py-4 border-b border-border">
-              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                🔍 Timeline Completo - Log Detalhado dos Registros
-                <Badge variant="outline" className="ml-2">{filteredInclusions.length} registros</Badge>
+            <div className="px-4 py-3 border-b border-border">
+              <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                🔍 Timeline Completo - Log dos Registros
+                <Badge variant="outline" className="ml-2 text-xs">{filteredInclusions.length} registros</Badge>
               </h3>
             </div>
             
-            <div className="p-6">
+            <div className="p-4">
               {filteredInclusions?.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
+                <div className="text-center py-8 text-muted-foreground">
                   📄 Nenhum registro encontrado para os filtros selecionados
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {filteredInclusions?.map((inclusion) => {
                     const ticket = getTicket(inclusion.id);
                     const financialRecord = getFinancial(inclusion.id);
@@ -255,35 +254,20 @@ export default function Consultation() {
                     const progress = inclusion.status === "aprovado" ? 100 : ((currentPhaseIndex + 1) / phases.length) * 100;
                     
                     return (
-                      <Card
-                        key={inclusion.id}
-                        className="hover:shadow-md transition-all"
-                        data-testid={`log-entry-${inclusion.id}`}
-                      >
+                      <Card key={inclusion.id} className="hover:shadow-md transition-all">
                         <CardHeader className="pb-2">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-1.5 bg-primary/10 rounded-full">
-                                <span className="text-lg">{getPhaseIcon(inclusion.phase)}</span>
-                              </div>
-                              <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                  #{inclusion.inclusionNumber || 'N/A'}
-                                  <StatusBadge status={inclusion.status} />
-                                </CardTitle>
-                                <p className="text-xs text-muted-foreground">
-                                  {getPhaseLabel(inclusion.phase)} • {formatDate(inclusion.createdAt?.toString())}
-                                </p>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{getPhaseIcon(inclusion.phase)}</span>
+                              <CardTitle className="text-sm font-bold">#{inclusion.inclusionNumber || 'N/A'}</CardTitle>
+                              <StatusBadge status={inclusion.status} />
+                              <span className="text-xs text-muted-foreground">{getPhaseLabel(inclusion.phase)}</span>
                             </div>
-                            
                             <div className="text-right">
-                              <div className="text-lg font-bold text-primary">
-                                {formatCurrency(totalValue)}
-                              </div>
-                              <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                              <div className="text-base font-bold text-primary">{formatCurrency(totalValue)}</div>
+                              <div className="w-16 bg-gray-200 rounded-full h-1">
                                 <div 
-                                  className="bg-primary h-1.5 rounded-full transition-all" 
+                                  className="bg-primary h-1 rounded-full transition-all" 
                                   style={{ width: `${progress}%` }}
                                 ></div>
                               </div>
@@ -291,259 +275,38 @@ export default function Consultation() {
                           </div>
                         </CardHeader>
 
-                        <CardContent className="pt-2">
-                          {/* Grid de Informações Compactas */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                        <CardContent className="pt-0">
+                          <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                            <div>
+                              <span className="font-medium text-foreground">{getEventName(inclusion.eventId)}</span>
+                              <div className="text-muted-foreground">{getFunctionName(inclusion.functionId)}</div>
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground">{getCollaboratorName(inclusion.collaboratorId || undefined)}</span>
+                              <div className="text-muted-foreground">{formatDate(inclusion.createdAt?.toString())}</div>
+                            </div>
+                            <div>
+                              <div className="text-muted-foreground">
+                                {formatDate(inclusion.scheduleStartDate)} - {formatDate(inclusion.scheduleEndDate)}
+                              </div>
+                            </div>
+                          </div>
                           
-                          {/* Informações Básicas */}
-                          <div className="space-y-1.5">
-                            <h4 className="font-medium text-foreground text-xs mb-1">🎪 Evento</h4>
-                            <div className="space-y-1">
-                              <div className="text-xs">
-                                <span className="text-muted-foreground block">Evento:</span>
-                                <span className="font-medium">{getEventName(inclusion.eventId)}</span>
-                              </div>
-                              <div className="text-xs">
-                                <span className="text-muted-foreground block">Função:</span>
-                                <span className="font-medium">{getFunctionName(inclusion.functionId)}</span>
-                              </div>
-                              <div className="text-xs">
-                                <span className="text-muted-foreground block">Colaborador:</span>
-                                <span className="font-medium">{getCollaboratorName(inclusion.collaboratorId || undefined)}</span>
-                                {(() => {
-                                  const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
-                                  if (collaborator?.approvedBy) {
-                                    return (
-                                      <div className="text-xs text-green-600 mt-1">
-                                        ✅ Aprovado por {getUserName(collaborator.approvedBy)}
-                                        {collaborator.approvedAt && ` em ${formatDate(collaborator.approvedAt.toString())}`}
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
-                              {inclusion.area && (
-                                <div>
-                                  <span className="text-muted-foreground">Área:</span>
-                                  <div className="font-medium">{inclusion.area}</div>
-                                </div>
-                              )}
-                            </div>
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {ticket && (
+                              <Badge variant="default" className="text-xs">✈️ Passagem</Badge>
+                            )}
+                            {financialRecord && (
+                              <Badge variant="secondary" className="text-xs">💰 Financeiro</Badge>
+                            )}
+                            {inclusion.needsTicket && (
+                              <Badge variant="outline" className="text-xs">🎫 Precisa Passagem</Badge>
+                            )}
+                            {inclusion.emergencyRecord && (
+                              <Badge variant="destructive" className="text-xs">🚨 Emergencial</Badge>
+                            )}
                           </div>
 
-                          {/* Informações de Cronograma */}
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-foreground border-b border-border pb-1">📅 Cronograma</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">📋 Período Planejado:</span>
-                                <div className="font-medium">
-                                  {formatDate(inclusion.scheduleStartDate)} → {formatDate(inclusion.scheduleEndDate)}
-                                </div>
-                              </div>
-                              {(inclusion.actualStartDate || inclusion.actualEndDate) && (
-                                <div>
-                                  <span className="text-muted-foreground">✅ Período Real:</span>
-                                  <div className="font-medium">
-                                    {formatDate(inclusion.actualStartDate)} → {formatDate(inclusion.actualEndDate)}
-                                  </div>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-muted-foreground">💰 Diárias:</span>
-                                <div className="font-medium">
-                                  Planejadas: {inclusion.dailyRates} 
-                                  {inclusion.actualDailyRates && ` • Realizadas: ${inclusion.actualDailyRates}`}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">💵 Valor por diária:</span>
-                                <div className="font-medium text-green-600">
-                                  {formatCurrency((inclusion.dailyValue || 0) / 100)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Informações de Voo */}
-                          {inclusion.needsTicket && (
-                            <div className="space-y-3">
-                              <h4 className="font-medium text-foreground border-b border-border pb-1">✈️ Informações de Voo</h4>
-                              <div className="space-y-2 text-sm">
-                                {ticket ? (
-                                  <>
-                                    <div>
-                                      <span className="text-muted-foreground">🛫 Rota:</span>
-                                      <div className="font-medium">{ticket.departureAirport} → {ticket.destinationAirport}</div>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">📅 Ida:</span>
-                                      <div className="font-medium">
-                                        {formatDate(ticket.actualDepartureDate)} 
-                                        {ticket.actualDepartureTime && ` às ${ticket.actualDepartureTime}`}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">📅 Volta:</span>
-                                      <div className="font-medium">
-                                        {formatDate(ticket.actualReturnDate)} 
-                                        {ticket.actualReturnTime && ` às ${ticket.actualReturnTime}`}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">💸 Valor:</span>
-                                      <div className="font-medium text-green-600">
-                                        {formatCurrency(ticket.value ? ticket.value / 100 : 0)}
-                                      </div>
-                                    </div>
-                                    {ticket.purchaseOrderNumber && (
-                                      <div>
-                                        <span className="text-muted-foreground">🧾 Ordem de Compra:</span>
-                                        <div className="font-medium font-mono">{ticket.purchaseOrderNumber}</div>
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div className="text-orange-600 font-medium">
-                                    ⏳ Passagem ainda não adquirida
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Informações Financeiras */}
-                          {financialRecord && (
-                            <div className="space-y-3">
-                              <h4 className="font-medium text-foreground border-b border-border pb-1">💰 Detalhes Financeiros</h4>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <span className="text-muted-foreground">💵 Valor Planejado:</span>
-                                  <div className="font-medium">
-                                    {formatCurrency((financialRecord.plannedValue || 0) / 100)}
-                                  </div>
-                                </div>
-                                {financialRecord.actualValue && (
-                                  <div>
-                                    <span className="text-muted-foreground">✅ Valor Real:</span>
-                                    <div className="font-medium text-green-600">
-                                      {formatCurrency(financialRecord.actualValue / 100)}
-                                    </div>
-                                  </div>
-                                )}
-                                {financialRecord.actualFee && (
-                                  <div>
-                                    <span className="text-muted-foreground">🎯 Cachê:</span>
-                                    <div className="font-medium text-blue-600">
-                                      {formatCurrency(financialRecord.actualFee / 100)}
-                                    </div>
-                                  </div>
-                                )}
-                                <div>
-                                  <span className="text-muted-foreground">📊 Status:</span>
-                                  <div className="font-medium">
-                                    {financialRecord.approved ? "✅ Aprovado" : "⏳ Pendente"}
-                                  </div>
-                                </div>
-                                {financialRecord.updatedBy && (
-                                  <div>
-                                    <span className="text-muted-foreground">✏️ Última edição:</span>
-                                    <div className="font-medium text-blue-600 text-xs">
-                                      {getUserName(financialRecord.updatedBy)}
-                                      {financialRecord.updatedAt && ` em ${formatDate(financialRecord.updatedAt.toString())}`}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Observações */}
-                          {(inclusion.observations || inclusion.actualObservations) && (
-                            <div className="space-y-3">
-                              <h4 className="font-medium text-foreground border-b border-border pb-1">📝 Observações</h4>
-                              <div className="space-y-2 text-sm">
-                                {inclusion.observations && (
-                                  <div>
-                                    <span className="text-muted-foreground">📋 Planejamento:</span>
-                                    <div className="font-medium bg-muted/30 p-2 rounded text-xs">
-                                      {inclusion.observations}
-                                    </div>
-                                  </div>
-                                )}
-                                {inclusion.actualObservations && (
-                                  <div>
-                                    <span className="text-muted-foreground">✅ Realizadas:</span>
-                                    <div className="font-medium bg-green-50 dark:bg-green-900/30 p-2 rounded text-xs">
-                                      {inclusion.actualObservations}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Informações de Auditoria */}
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-foreground border-b border-border pb-1">👤 Auditoria & Responsáveis</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">👨‍💼 Responsável pela Função:</span>
-                                <div className="font-medium">{getUserName(inclusion.userId)}</div>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">📝 Criado por:</span>
-                                <div className="font-medium">{getUserName(inclusion.userId)}</div>
-                              </div>
-                              {inclusion.updatedBy && (
-                                <div>
-                                  <span className="text-muted-foreground">✏️ Última edição por:</span>
-                                  <div className="font-medium text-blue-600">{getUserName(inclusion.updatedBy)}</div>
-                                </div>
-                              )}
-                              {financialRecord?.approvedBy && (
-                                <div>
-                                  <span className="text-muted-foreground">✅ Aprovação Financeira:</span>
-                                  <div className="font-medium text-green-600">
-                                    {getUserName(financialRecord.approvedBy)} 
-                                    {financialRecord.approvedAt && ` em ${formatDate(financialRecord.approvedAt.toString())}`}
-                                  </div>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-muted-foreground">📅 Última Atualização:</span>
-                                <div className="font-medium">
-                                  {formatDate(inclusion.updatedAt?.toString())}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Marcadores especiais */}
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-foreground border-b border-border pb-1">🏷️ Marcadores</h4>
-                            <div className="flex flex-wrap gap-2 text-sm">
-                              {inclusion.emergencyRecord && (
-                                <Badge variant="destructive" className="text-xs">
-                                  🚨 Emergencial
-                                </Badge>
-                              )}
-                              {inclusion.needsTicket && (
-                                <Badge variant="secondary" className="text-xs">
-                                  ✈️ Precisa Passagem
-                                </Badge>
-                              )}
-                              {inclusion.dailyValue > 0 && (
-                                <Badge variant="outline" className="text-xs">
-                                  💰 R$ {(inclusion.dailyValue / 100).toFixed(2)}/dia
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                          {/* Actions */}
                           <div className="flex items-center justify-end gap-1 pt-2 border-t border-border/30">
                             <Button
                               size="sm"
@@ -584,9 +347,9 @@ export default function Consultation() {
         teamInclusionId={selectedInclusion || ""}
       />
 
-      {/* Summary Modal - Simplified */}
+      {/* Summary Modal */}
       <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>📋 Resumo Completo do Registro</DialogTitle>
           </DialogHeader>
@@ -599,7 +362,7 @@ export default function Consultation() {
             
             return (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <h4 className="font-medium">Evento</h4>
                     <p>{getEventName(inclusion.eventId)}</p>
@@ -617,22 +380,25 @@ export default function Consultation() {
                     <StatusBadge status={inclusion.status} />
                   </div>
                 </div>
-                
+
                 {ticket && (
-                  <div>
-                    <h4 className="font-medium">Informações de Voo</h4>
-                    <p>{ticket.departureAirport} → {ticket.destinationAirport}</p>
-                    <p>Valor: {formatCurrency(ticket.value ? ticket.value / 100 : 0)}</p>
+                  <div className="bg-green-50 p-3 rounded border">
+                    <h4 className="font-medium text-green-800">✈️ Informações da Passagem</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                      <div>Valor: {formatCurrency(ticket.value || 0)}</div>
+                      <div>Origem: {ticket.departureAirport}</div>
+                      <div>Destino: {ticket.destinationAirport}</div>
+                    </div>
                   </div>
                 )}
-                
+
                 {financialRecord && (
-                  <div>
-                    <h4 className="font-medium">Informações Financeiras</h4>
-                    <p>Planejado: {formatCurrency((financialRecord.plannedValue || 0) / 100)}</p>
-                    {financialRecord.actualValue && (
-                      <p>Real: {formatCurrency(financialRecord.actualValue / 100)}</p>
-                    )}
+                  <div className="bg-blue-50 p-3 rounded border">
+                    <h4 className="font-medium text-blue-800">💰 Informações Financeiras</h4>
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                      <div>Valor: {formatCurrency(financialRecord.actualValue || 0)}</div>
+                      <div>Método: {financialRecord.paymentMethod}</div>
+                    </div>
                   </div>
                 )}
               </div>
