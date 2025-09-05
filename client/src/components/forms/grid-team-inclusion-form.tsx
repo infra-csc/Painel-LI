@@ -256,10 +256,10 @@ export default function GridTeamInclusionForm() {
         const allSame = allValues.every(val => val === allValues[0]);
         
         if (allSame) {
-          // All same non-1 value: create one record with that value
+          // All same non-1 value: create another record with number of days
           ranges.push({
             functionId: row.functionId,
-            dailyRate: allValues[0],
+            dailyRate: numberOfDays,
             startDate: startDate,
             endDate: endDate,
             travelInfo: {

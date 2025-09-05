@@ -112,32 +112,54 @@ export default function TeamInclusionForm() {
         const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
         entries.push(await periodResponse.json());
         
-        // Create additional records for each value change
-        let previousValue = sortedDates[0].dailyRates;
+        // Check if any value is different from 1
+        const hasNonOneValue = sortedDates.some(entry => entry.dailyRates !== 1);
         
-        for (let i = 1; i < sortedDates.length; i++) {
-          const currentEntry = sortedDates[i];
-          const currentValue = currentEntry.dailyRates;
+        if (hasNonOneValue) {
+          // If all values are the same (and not 1), create one additional record
+          const allValues = sortedDates.map(entry => entry.dailyRates);
+          const allSame = allValues.every(val => val === allValues[0]);
           
-          // If value changed from previous, create a record
-          if (currentValue !== previousValue) {
-            // For first change (second record), use the value
-            // For subsequent changes, use 1 daily rate
-            const dailyRateToUse = (i === 1) ? currentValue : 1;
-            
-            const changePayload = {
+          if (allSame) {
+            // All same non-1 value: create another record with number of days
+            const samePayload = {
               ...data,
-              scheduleStartDate: currentEntry.date,
-              scheduleEndDate: endDate, // Always until end of period
-              dailyRates: dailyRateToUse,
+              scheduleStartDate: startDate,
+              scheduleEndDate: endDate,
+              dailyRates: numberOfDays,
               status: "planejado",
               phase: "inclusao",
               userId: user?.id,
             };
-            delete changePayload.dailyRatesByDate;
-            const changeResponse = await apiRequest("POST", "/api/team-inclusions", changePayload);
-            entries.push(await changeResponse.json());
-            previousValue = currentValue;
+            delete samePayload.dailyRatesByDate;
+            const sameResponse = await apiRequest("POST", "/api/team-inclusions", samePayload);
+            entries.push(await sameResponse.json());
+          } else {
+            // Values change: create records for each change
+            let previousValue = sortedDates[0].dailyRates;
+            
+            for (let i = 1; i < sortedDates.length; i++) {
+              const currentEntry = sortedDates[i];
+              const currentValue = currentEntry.dailyRates;
+              
+              if (currentValue !== previousValue) {
+                const dailyRateToUse = (i === 1) ? currentValue : 1;
+                
+                const changePayload = {
+                  ...data,
+                  scheduleStartDate: currentEntry.date,
+                  scheduleEndDate: endDate,
+                  dailyRates: dailyRateToUse,
+                  status: "planejado",
+                  phase: "inclusao",
+                  userId: user?.id,
+                };
+                delete changePayload.dailyRatesByDate;
+                const changeResponse = await apiRequest("POST", "/api/team-inclusions", changePayload);
+                entries.push(await changeResponse.json());
+                previousValue = currentValue;
+              }
+            }
           }
         }
       } else {
