@@ -84,28 +84,30 @@ export default function TeamInclusionForm() {
 
   const createTeamInclusionMutation = useMutation({
     mutationFn: async (data: TeamInclusionFormData) => {
-      // Create multiple entries based on dailyRatesByDate
+      // Create single entry with total daily rates
       const entries = [];
       
       if (dailyRatesByDate.length > 0) {
-        // Create one entry per individual daily rate (not per date)
-        for (const dateEntry of dailyRatesByDate) {
-          // Create multiple entries for each daily rate on this date
-          for (let i = 0; i < dateEntry.dailyRates; i++) {
-            const payload = {
-              ...data,
-              scheduleStartDate: dateEntry.date,
-              scheduleEndDate: dateEntry.date,
-              dailyRates: 1, // Each entry represents 1 diária
-              status: "planejado",
-              phase: "inclusao",
-              userId: user?.id,
-            };
-            delete payload.dailyRatesByDate; // Remove this field from API call
-            const response = await apiRequest("POST", "/api/team-inclusions", payload);
-            entries.push(await response.json());
-          }
-        }
+        // Calculate total daily rates from all dates
+        const totalDailyRates = dailyRatesByDate.reduce((sum, dateEntry) => sum + dateEntry.dailyRates, 0);
+        
+        // Get start and end dates from the range
+        const sortedDates = dailyRatesByDate.map(d => d.date).sort();
+        const scheduleStartDate = sortedDates[0];
+        const scheduleEndDate = sortedDates[sortedDates.length - 1];
+        
+        const payload = {
+          ...data,
+          scheduleStartDate,
+          scheduleEndDate,
+          dailyRates: totalDailyRates, // Total sum of all daily rates
+          status: "planejado",
+          phase: "inclusao",
+          userId: user?.id,
+        };
+        delete payload.dailyRatesByDate; // Remove this field from API call
+        const response = await apiRequest("POST", "/api/team-inclusions", payload);
+        entries.push(await response.json());
       } else {
         // Single entry with date range
         let diffDays = 1;
