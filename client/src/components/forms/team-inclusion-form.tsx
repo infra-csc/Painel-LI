@@ -93,52 +93,26 @@ export default function TeamInclusionForm() {
           .map(d => ({ date: d.date, dateObj: new Date(d.date), dailyRates: d.dailyRates }))
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-        if (sortedDates.length > 1) {
-          // Multiple dates: Create TWO records
+        // For each position i, create a record from position i to the end
+        // The daily rate is the maximum value found in the subsequence from i to end
+        for (let i = 0; i < sortedDates.length; i++) {
+          const startDate = sortedDates[i].date;
+          const endDate = sortedDates[sortedDates.length - 1].date; // Always to the last date
           
-          // 1st record: Period from first to last date with numberOfDays as dailyRates
-          const firstDate = sortedDates[0].date; // 05/09
-          const lastDate = sortedDates[sortedDates.length - 1].date; // 06/09
-          const numberOfDays = sortedDates.length; // 2
-          
-          const periodPayload = {
-            ...data,
-            scheduleStartDate: firstDate,
-            scheduleEndDate: lastDate,
-            dailyRates: numberOfDays, // 2 diárias for the period
-            status: "planejado",
-            phase: "inclusao",
-            userId: user?.id,
-          };
-          delete periodPayload.dailyRatesByDate;
-          const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
-          entries.push(await periodResponse.json());
-          
-          // 2nd record: Last date only with 1 diária
-          const lastDate2 = sortedDates[sortedDates.length - 1].date; // 06/09
-          
-          const singlePayload = {
-            ...data,
-            scheduleStartDate: lastDate2,
-            scheduleEndDate: lastDate2,
-            dailyRates: 1, // 1 diária for single day
-            status: "planejado",
-            phase: "inclusao",
-            userId: user?.id,
-          };
-          delete singlePayload.dailyRatesByDate;
-          const singleResponse = await apiRequest("POST", "/api/team-inclusions", singlePayload);
-          entries.push(await singleResponse.json());
-          
-        } else {
-          // Single date: Create ONE record only
-          const singleDate = sortedDates[0];
+          // Calculate max daily rate from position i to end
+          let maxDailyRates = 0;
+          for (let j = i; j < sortedDates.length; j++) {
+            const currentRate = sortedDates[j].dailyRates;
+            if (currentRate > maxDailyRates) {
+              maxDailyRates = currentRate;
+            }
+          }
           
           const payload = {
             ...data,
-            scheduleStartDate: singleDate.date,
-            scheduleEndDate: singleDate.date,
-            dailyRates: singleDate.dailyRates,
+            scheduleStartDate: startDate,
+            scheduleEndDate: endDate,
+            dailyRates: maxDailyRates,
             status: "planejado",
             phase: "inclusao",
             userId: user?.id,

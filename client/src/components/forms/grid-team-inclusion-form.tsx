@@ -228,51 +228,26 @@ export default function GridTeamInclusionForm() {
       // Sort dates chronologically
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-      if (sortedDates.length > 1) {
-        // Multiple dates: Create TWO ranges
+      // For each position i, create a record from position i to the end
+      // The daily rate is the maximum value found in the subsequence from i to end
+      for (let i = 0; i < sortedDates.length; i++) {
+        const startDate = sortedDates[i];
+        const endDate = sortedDates[sortedDates.length - 1]; // Always to the last date
         
-        // 1st range: Period from first to last date with numberOfDays as dailyRate
-        const firstDate = sortedDates[0];
-        const lastDate = sortedDates[sortedDates.length - 1];
-        const numberOfDays = sortedDates.length; // Number of different dates
-        
-        ranges.push({
-          functionId: row.functionId,
-          dailyRate: numberOfDays, // Number of days as daily rates
-          startDate: firstDate,
-          endDate: lastDate,
-          travelInfo: {
-            ida: row.ida,
-            chegada: row.chegada,
-            retorno: row.retorno,
-            horarioRetorno: row.horarioRetorno,
-          },
-        });
-        
-        // 2nd range: Last date only with 1 daily rate
-        ranges.push({
-          functionId: row.functionId,
-          dailyRate: 1, // Always 1 for single day
-          startDate: lastDate,
-          endDate: lastDate,
-          travelInfo: {
-            ida: row.ida,
-            chegada: row.chegada,
-            retorno: row.retorno,
-            horarioRetorno: row.horarioRetorno,
-          },
-        });
-        
-      } else {
-        // Single date: Create ONE range only
-        const singleDate = sortedDates[0];
-        const dailyRate = row.dailyRates[singleDate];
+        // Calculate max daily rate from position i to end
+        let maxDailyRate = 0;
+        for (let j = i; j < sortedDates.length; j++) {
+          const currentRate = row.dailyRates[sortedDates[j]];
+          if (currentRate > maxDailyRate) {
+            maxDailyRate = currentRate;
+          }
+        }
         
         ranges.push({
           functionId: row.functionId,
-          dailyRate: dailyRate,
-          startDate: singleDate,
-          endDate: singleDate,
+          dailyRate: maxDailyRate,
+          startDate: startDate,
+          endDate: endDate,
           travelInfo: {
             ida: row.ida,
             chegada: row.chegada,
