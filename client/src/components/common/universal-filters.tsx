@@ -9,14 +9,15 @@ interface UniversalFiltersProps {
     eventId: string;
     functionId: string;
     collaboratorId: string;
-    status: string;
+    status?: string;
     escalationStatus: string;
     searchId: string;
   };
   onFiltersChange: (filters: any) => void;
+  hideStatusFilter?: boolean;
 }
 
-export default function UniversalFilters({ filters, onFiltersChange }: UniversalFiltersProps) {
+export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false }: UniversalFiltersProps) {
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -40,14 +41,19 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
 
 
   const clearFilters = () => {
-    onFiltersChange({
+    const baseFilters = {
       eventId: "all",
       functionId: "all", 
       collaboratorId: "all",
-      status: "all",
       escalationStatus: "all",
       searchId: ""
-    });
+    };
+    
+    if (!hideStatusFilter) {
+      baseFilters.status = "all";
+    }
+    
+    onFiltersChange(baseFilters);
   };
 
   return (
@@ -140,27 +146,29 @@ export default function UniversalFilters({ filters, onFiltersChange }: Universal
           </Select>
         </div>
 
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Status
-          </label>
-          <Select 
-            value={filters.status} 
-            onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
-            data-testid="filter-status"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar status" />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!hideStatusFilter && (
+          <div className="flex-1 min-w-48">
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Status
+            </label>
+            <Select 
+              value={filters.status} 
+              onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
+              data-testid="filter-status"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-foreground mb-1">

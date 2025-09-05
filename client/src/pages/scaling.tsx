@@ -23,7 +23,6 @@ export default function Scaling() {
     eventId: "all",
     functionId: "all",
     collaboratorId: "all",
-    status: "all",
     escalationStatus: "all",
     searchId: "",
   });
@@ -234,7 +233,7 @@ export default function Scaling() {
             </p>
           </div>
 
-          <UniversalFilters filters={filters} onFiltersChange={setFilters} />
+          <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
 
           {scalingInclusions.length === 0 ? (
             <div className="p-12 text-center">
