@@ -132,85 +132,182 @@ export default function Scaling() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Função
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Colaborador
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Datas de Trabalho
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Datas de Passagem
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Horários
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-card divide-y divide-border">
-                  {scalingInclusions.map((inclusion) => (
-                    <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm font-mono text-foreground">
-                          #{inclusion.inclusionNumber || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm font-medium text-foreground">
-                          {getFunctionName(inclusion.functionId)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Evento: {getEventName(inclusion.eventId)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-foreground">
-                          {getCollaboratorName(inclusion.collaboratorId)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-foreground">
-                          {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {inclusion.dailyRates} diárias
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-foreground">
-                          Ida: {formatDate(inclusion.flightDepartureDate) || "N/A"}
-                        </div>
-                        <div className="text-sm text-foreground">
-                          Retorno: {formatDate(inclusion.flightReturnDate) || "N/A"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-foreground">
-                          Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}
-                        </div>
-                        <div className="text-sm text-foreground">
-                          Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <StatusBadge status={inclusion.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-8">
+              {/* Módulo 1: Escalações SEM passagem */}
+              {(() => {
+                const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
+                return withoutTicket.length > 0 && (
+                  <div>
+                    <div className="px-6 py-4 bg-blue-50 dark:bg-blue-950/50 border-l-4 border-blue-500">
+                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        Escalações sem Passagem ({withoutTicket.length})
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Funções que não necessitam de emissão de passagens aéreas
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              ID
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Evento
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Função
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Colaborador
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Data Início e Fim
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Quantidade de Diárias
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                          {withoutTicket.map((inclusion) => (
+                            <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm font-mono text-foreground">
+                                  #{inclusion.inclusionNumber || 'N/A'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm font-medium text-foreground">
+                                  {getEventName(inclusion.eventId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm font-medium text-foreground">
+                                  {getFunctionName(inclusion.functionId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  {getCollaboratorName(inclusion.collaboratorId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground font-medium">
+                                  {inclusion.dailyRates} diárias
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Módulo 2: Escalações COM passagem */}
+              {(() => {
+                const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
+                return withTicket.length > 0 && (
+                  <div>
+                    <div className="px-6 py-4 bg-green-50 dark:bg-green-950/50 border-l-4 border-green-500">
+                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        Escalações com Passagem ({withTicket.length})
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Funções que necessitam de emissão de passagens aéreas
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              ID
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Evento
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Função
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Colaborador
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Data Início e Fim
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Datas de Passagens
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Horários Sugeridos
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Status
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                          {withTicket.map((inclusion) => (
+                            <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm font-mono text-foreground">
+                                  #{inclusion.inclusionNumber || 'N/A'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm font-medium text-foreground">
+                                  {getEventName(inclusion.eventId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm font-medium text-foreground">
+                                  {getFunctionName(inclusion.functionId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  {getCollaboratorName(inclusion.collaboratorId)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  <div>Ida: {formatDate(inclusion.flightDepartureDate) || "N/A"}</div>
+                                  <div>Retorno: {formatDate(inclusion.flightReturnDate) || "N/A"}</div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="text-sm text-foreground">
+                                  <div>Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}</div>
+                                  <div>Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}</div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <StatusBadge status={inclusion.status} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
