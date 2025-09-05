@@ -6,14 +6,14 @@ import { Paperclip, X, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AttachmentUploadProps {
-  attachmentId?: string;
-  onAttachmentChange: (attachmentId: string | undefined) => void;
+  attachmentIds?: string[];
+  onAttachmentsChange: (attachmentIds: string[]) => void;
   disabled?: boolean;
 }
 
 export default function AttachmentUpload({ 
-  attachmentId, 
-  onAttachmentChange, 
+  attachmentIds = [], 
+  onAttachmentsChange, 
   disabled = false 
 }: AttachmentUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
@@ -56,7 +56,8 @@ export default function AttachmentUpload({
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const newAttachmentId = generateAttachmentId();
-      onAttachmentChange(newAttachmentId);
+      const updatedIds = [...attachmentIds, newAttachmentId];
+      onAttachmentsChange(updatedIds);
       
       toast({
         title: "Anexo carregado",
@@ -77,66 +78,97 @@ export default function AttachmentUpload({
     }
   };
 
-  const removeAttachment = () => {
-    onAttachmentChange(undefined);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const removeAttachment = (attachmentToRemove: string) => {
+    const updatedIds = attachmentIds.filter(id => id !== attachmentToRemove);
+    onAttachmentsChange(updatedIds);
     toast({
       title: "Anexo removido",
       description: "O anexo foi removido com sucesso",
     });
   };
 
+  const clearAllAttachments = () => {
+    onAttachmentsChange([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    toast({
+      title: "Anexos removidos",
+      description: "Todos os anexos foram removidos",
+    });
+  };
+
   return (
-    <div className="space-y-2">
-      <Label>Anexo da Passagem</Label>
-      
-      {!attachmentId ? (
-        <div className="flex items-center gap-2">
-          <Input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={handleFileSelect}
-            disabled={disabled || isUploading}
-            className="flex-1"
-            data-testid="input-attachment-file"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isUploading}
-            data-testid="button-select-attachment"
-          >
-            <Paperclip className="h-4 w-4" />
-            {isUploading ? "Carregando..." : "Anexar"}
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 p-2 border rounded-md bg-green-50 dark:bg-green-900/20">
-          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <span className="flex-1 text-sm font-mono text-green-700 dark:text-green-300" data-testid="text-attachment-id">
-            ID: {attachmentId}
-          </span>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>Anexos da Passagem</Label>
+        {attachmentIds.length > 1 && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={removeAttachment}
+            onClick={clearAllAttachments}
             disabled={disabled}
-            data-testid="button-remove-attachment"
+            className="text-red-600 hover:text-red-700 text-xs"
+            data-testid="button-clear-all-attachments"
+          >
+            Remover todos
+          </Button>
+        )}
+      </div>
+      
+      {/* Lista de anexos existentes */}
+      {attachmentIds.map((attachmentId, index) => (
+        <div key={attachmentId} className="flex items-center gap-2 p-2 border rounded-md bg-green-50 dark:bg-green-900/20">
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <div className="flex-1">
+            <span className="text-sm font-mono text-green-700 dark:text-green-300" data-testid={`text-attachment-id-${index}`}>
+              ID: {attachmentId}
+            </span>
+            <div className="text-xs text-green-600 dark:text-green-400">
+              Anexo {index + 1} de {attachmentIds.length}
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => removeAttachment(attachmentId)}
+            disabled={disabled}
+            data-testid={`button-remove-attachment-${index}`}
             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300"
           >
             <X className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      ))}
+
+      {/* Campo para adicionar novo anexo */}
+      <div className="flex items-center gap-2">
+        <Input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          onChange={handleFileSelect}
+          disabled={disabled || isUploading}
+          className="flex-1"
+          data-testid="input-attachment-file"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isUploading}
+          data-testid="button-add-attachment"
+        >
+          <Paperclip className="h-4 w-4" />
+          {isUploading ? "Carregando..." : "Adicionar Anexo"}
+        </Button>
+      </div>
       
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        Formatos: PDF, JPG, PNG. Tamanho máximo: 5MB
+        Formatos: PDF, JPG, PNG. Tamanho máximo: 5MB por arquivo. Você pode adicionar múltiplos anexos.
       </p>
     </div>
   );

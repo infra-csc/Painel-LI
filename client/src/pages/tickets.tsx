@@ -258,7 +258,7 @@ export default function Tickets() {
         destinationAirport: data.destinationAirport,
         purchaseOrderNumber: data.purchaseOrderNumber || null,
         fileUrl: data.fileUrl || null,
-        attachmentId: data.attachmentId || null,
+        attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
         cardLastFourDigits: data.cardLastFourDigits || null
       });
 
@@ -620,12 +620,17 @@ export default function Tickets() {
                             <p className="font-medium">{ticket.purchaseOrderNumber}</p>
                           </div>
                         )}
-                        {ticket.attachmentId && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground">ID do Anexo</Label>
-                            <p className="font-mono text-sm bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-green-700 dark:text-green-300">
-                              {ticket.attachmentId}
-                            </p>
+                        {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
+                          <div className="md:col-span-2 lg:col-span-3">
+                            <Label className="text-xs text-muted-foreground">IDs dos Anexos</Label>
+                            <div className="space-y-2 mt-1">
+                              {ticket.attachmentIds.map((attachmentId, index) => (
+                                <div key={attachmentId} className="font-mono text-sm bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-green-700 dark:text-green-300 flex items-center justify-between">
+                                  <span>ID: {attachmentId}</span>
+                                  <span className="text-xs opacity-70">Anexo {index + 1}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         <div className="md:col-span-2 lg:col-span-3">
@@ -705,12 +710,12 @@ export default function Tickets() {
                           </div>
                         </div>
 
-                        {/* Campo de Anexo */}
+                        {/* Campo de Anexos */}
                         <div className="mt-4">
                           <AttachmentUpload
-                            attachmentId={data.attachmentId}
-                            onAttachmentChange={(attachmentId) => 
-                              handleTicketDataChange(selectedGroup.groupKey, "attachmentId", attachmentId)
+                            attachmentIds={data.attachmentIds || []}
+                            onAttachmentsChange={(attachmentIds) => 
+                              handleTicketDataChange(selectedGroup.groupKey, "attachmentIds", attachmentIds)
                             }
                             disabled={createTicketMutation.isPending}
                           />
