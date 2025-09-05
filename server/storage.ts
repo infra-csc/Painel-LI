@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
-  users, events, functions, collaborators, teamInclusions, tickets, financial, comments,
+  users, events, functions, collaborators, teamInclusions, tickets, financial, comments, systemLogs,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -9,7 +9,8 @@ import {
   type TeamInclusion, type InsertTeamInclusion,
   type Ticket, type InsertTicket,
   type Financial, type InsertFinancial,
-  type Comment, type InsertComment
+  type Comment, type InsertComment,
+  type SystemLog, type InsertSystemLog
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -66,6 +67,10 @@ export interface IStorage {
   // Comments
   getComments(teamInclusionId: string): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
+  
+  // System Logs
+  getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]>;
+  createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
 }
 
 export class MemStorage implements IStorage {
@@ -77,6 +82,8 @@ export class MemStorage implements IStorage {
   private tickets: Map<string, Ticket> = new Map();
   private financials: Map<string, Financial> = new Map();
   private comments: Map<string, Comment> = new Map();
+  private systemLogs: Map<string, SystemLog> = new Map();
+  private logCounter: number = 1;
 
   constructor() {
     // Initialize with demo data
@@ -595,7 +602,58 @@ export class DatabaseStorage implements IStorage {
 
   async createComment(commentData: InsertComment): Promise<Comment> {
     const [comment] = await db.insert(comments).values(commentData).returning();
+    
+    // Create log entry for comment creation
+    await this.createSystemLog({
+      action: "create",
+      entityType: "comment",
+      entityId: comment.teamInclusionId,
+      entityName: `Comentário na inclusão ${comment.teamInclusionId}`,
+      details: `Novo comentário adicionado: "${commentData.content.substring(0, 50)}..."`,
+      newData: JSON.stringify(comment),
+      userId: commentData.userId,
+      userName: "Usuário", // Would normally fetch from user table
+    });
+    
     return comment;
+  }
+  
+  // System Logs
+  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]> {
+    let query = db.select().from(systemLogs);
+    
+    // Apply filters if provided
+    if (filters?.days) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - filters.days);
+      // This would need proper date filtering in production
+    }
+    
+    const logs = await query;
+    
+    let filteredLogs = logs;
+    
+    if (filters) {
+      if (filters.entityType && filters.entityType !== "all") {
+        filteredLogs = filteredLogs.filter(log => log.entityType === filters.entityType);
+      }
+      if (filters.action && filters.action !== "all") {
+        filteredLogs = filteredLogs.filter(log => log.action === filters.action);
+      }
+      if (filters.days) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - filters.days);
+        filteredLogs = filteredLogs.filter(log => new Date(log.createdAt) >= cutoffDate);
+      }
+    }
+    
+    // Sort by creation time, newest first
+    return filteredLogs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createSystemLog(logData: InsertSystemLog): Promise<SystemLog> {
+    const [log] = await db.insert(systemLogs).values(logData).returning();
+    return log;
   }
 }
 

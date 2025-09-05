@@ -93,6 +93,7 @@ function Router() {
               <CollaboratorManagement />
             </ProtectedRoute>
           </Route>
+          <Route path="/system-log" component={PublicLog} />
           <Route component={NotFound} />
         </>
       ) : (
