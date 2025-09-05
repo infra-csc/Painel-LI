@@ -130,7 +130,7 @@ export default function GridTeamInclusionForm() {
       datesList.push(dateStr);
     }
 
-    // Criar linhas para cada função
+    // Criar linhas para cada função - limpar campos se já existem
     const rows: FunctionRow[] = (functions || []).map(func => {
       const dailyRates: { [date: string]: number } = {};
       datesList.forEach(date => {
