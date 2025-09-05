@@ -304,9 +304,6 @@ export default function Scaling() {
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Status
-                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -361,9 +358,6 @@ export default function Scaling() {
                                     Pendente
                                   </div>
                                 )}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <StatusBadge status={inclusion.status} />
                               </td>
                             </tr>
                           ))}
