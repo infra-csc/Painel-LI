@@ -401,6 +401,7 @@ export default function TeamInclusionTable() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const data = {
+                functionId: formData.get('functionId') as string,
                 dailyRates: parseInt(formData.get('dailyRates') as string),
                 dailyValue: Math.round(parseFloat(formData.get('dailyValue') as string) * 100),
                 needsTicket: formData.get('needsTicket') === 'true',
@@ -410,6 +411,22 @@ export default function TeamInclusionTable() {
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Função</label>
+                  <select
+                    name="functionId"
+                    defaultValue={editingInclusion.functionId}
+                    className="w-full p-2 border rounded"
+                    required
+                  >
+                    {functions?.map((func) => (
+                      <option key={func.id} value={func.id}>
+                        {func.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
                 <div>
                   <label className="block text-sm font-medium mb-1">Quantidade de Diárias</label>
                   <input
