@@ -75,6 +75,14 @@ export default function TeamInclusionTable() {
     setShowCommentsModal(true);
   };
 
+  const handleEdit = (inclusionId: string) => {
+    // For now, just show a toast - edit functionality can be implemented later
+    toast({
+      title: "Função em desenvolvimento",
+      description: "A edição de inclusões será implementada em breve",
+    });
+  };
+
   const deleteTeamInclusionMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
@@ -320,15 +328,26 @@ export default function TeamInclusionTable() {
                           <MessageCircle className="w-4 h-4" />
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(inclusion.id)}
-                            className="text-red-600 hover:text-red-900"
-                            data-testid={`button-delete-${inclusion.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(inclusion.id)}
+                              className="text-green-600 hover:text-green-900"
+                              data-testid={`button-edit-${inclusion.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(inclusion.id)}
+                              className="text-red-600 hover:text-red-900"
+                              data-testid={`button-delete-${inclusion.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
