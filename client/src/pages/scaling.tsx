@@ -49,9 +49,6 @@ export default function Scaling() {
     queryKey: ["/api/functions"],
   });
 
-  // Debug temporário para ver o role do usuário
-  console.log("User role:", user?.role);
-  
   // Filtrar teamInclusions - administradores veem tudo, outros apenas suas funções
   const userFunctionIds = functions?.filter(f => f.userId === user?.id).map(f => f.id) || [];
   const filteredTeamInclusions = teamInclusions?.filter(ti => {
