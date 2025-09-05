@@ -14,6 +14,8 @@ import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schem
 export default function TeamInclusionTable() {
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingInclusion, setEditingInclusion] = useState<TeamInclusion | null>(null);
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
@@ -76,12 +78,35 @@ export default function TeamInclusionTable() {
   };
 
   const handleEdit = (inclusionId: string) => {
-    // For now, just show a toast - edit functionality can be implemented later
-    toast({
-      title: "Função em desenvolvimento",
-      description: "A edição de inclusões será implementada em breve",
-    });
+    const inclusion = teamInclusions?.find(i => i.id === inclusionId);
+    if (inclusion) {
+      setEditingInclusion(inclusion);
+      setShowEditModal(true);
+    }
   };
+
+  const updateTeamInclusionMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Inclusão atualizada com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      setShowEditModal(false);
+      setEditingInclusion(null);
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar inclusão",
+        variant: "destructive",
+      });
+    },
+  });
 
   const canEditInclusion = (status: string) => {
     // Pode editar até a confirmação de escalação (antes da passagem)
@@ -365,6 +390,109 @@ export default function TeamInclusionTable() {
         onClose={() => setShowCommentsModal(false)}
         teamInclusionId={selectedInclusion || ""}
       />
+      
+      {/* Modal de Edição */}
+      {showEditModal && editingInclusion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-96 max-h-96 overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">Editar Inclusão #{editingInclusion.inclusionNumber}</h2>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const data = {
+                dailyRates: parseInt(formData.get('dailyRates') as string),
+                dailyValue: Math.round(parseFloat(formData.get('dailyValue') as string) * 100),
+                needsTicket: formData.get('needsTicket') === 'true',
+                scheduleStartDate: formData.get('scheduleStartDate') as string,
+                scheduleEndDate: formData.get('scheduleEndDate') as string,
+              };
+              updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantidade de Diárias</label>
+                  <input
+                    type="number"
+                    name="dailyRates"
+                    defaultValue={editingInclusion.dailyRates}
+                    className="w-full p-2 border rounded"
+                    min="1"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Valor da Diária (R$)</label>
+                  <input
+                    type="number"
+                    name="dailyValue"
+                    defaultValue={((editingInclusion.dailyValue || 0) / 100).toFixed(2)}
+                    step="0.01"
+                    className="w-full p-2 border rounded"
+                    min="0"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Data Início</label>
+                  <input
+                    type="date"
+                    name="scheduleStartDate"
+                    defaultValue={editingInclusion.scheduleStartDate}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Data Fim</label>
+                  <input
+                    type="date"
+                    name="scheduleEndDate"
+                    defaultValue={editingInclusion.scheduleEndDate}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Precisa de Passagem?</label>
+                  <select
+                    name="needsTicket"
+                    defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 mt-6">
+                <button
+                  type="submit"
+                  disabled={updateTeamInclusionMutation.isPending}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingInclusion(null);
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
