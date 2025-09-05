@@ -261,10 +261,10 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // 2nd record: Date with maximum value
+      // 2nd record: Date with maximum value but always 1 daily rate
       ranges.push({
         functionId: row.functionId,
-        dailyRate: maxValue, // Maximum value found
+        dailyRate: 1, // Always 1 daily rate
         startDate: maxValueDate, // Date where max value appears
         endDate: maxValueDate,
         travelInfo: {
