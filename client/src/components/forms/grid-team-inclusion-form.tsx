@@ -140,9 +140,9 @@ export default function GridTeamInclusionForm() {
       return {
         functionId: func.id,
         functionName: func.name,
-        ida: "none",
+        ida: "",
         chegada: "",
-        retorno: "none",
+        retorno: "",
         horarioRetorno: "",
         dailyRates,
       };
@@ -268,7 +268,7 @@ export default function GridTeamInclusionForm() {
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
           dailyValue: range.dailyRate * 5000, // R$ 50,00 por diária como exemplo
-          needsTicket: range.travelInfo.ida !== "" && range.travelInfo.ida !== "none" || range.travelInfo.retorno !== "" && range.travelInfo.retorno !== "none",
+          needsTicket: range.travelInfo.ida !== "" || range.travelInfo.retorno !== "",
           observations: `Escalação por grade: ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
@@ -410,45 +410,38 @@ export default function GridTeamInclusionForm() {
                               {row.functionName}
                             </td>
                             <td className="px-2 py-2 border-r">
-                              <Select value={row.ida} onValueChange={(val) => updateTravelInfo(row.functionId, 'ida', val)}>
-                                <SelectTrigger className="h-7">
-                                  <SelectValue placeholder="---" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">---</SelectItem>
-                                  <SelectItem value="sáb">sáb</SelectItem>
-                                  <SelectItem value="sex">sex</SelectItem>
-                                  <SelectItem value="qui">qui</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Input 
+                                value={row.ida} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'ida', e.target.value.slice(0, 3))}
+                                placeholder="sáb"
+                                className="h-7 text-center"
+                                maxLength={3}
+                              />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.chegada} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'chegada', e.target.value)}
-                                placeholder="10h"
+                                placeholder="até..."
                                 className="h-7 text-center"
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
-                              <Select value={row.retorno} onValueChange={(val) => updateTravelInfo(row.functionId, 'retorno', val)}>
-                                <SelectTrigger className="h-7">
-                                  <SelectValue placeholder="---" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">---</SelectItem>
-                                  <SelectItem value="dom">dom</SelectItem>
-                                  <SelectItem value="seg">seg</SelectItem>
-                                  <SelectItem value="ter">ter</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Input 
+                                value={row.retorno} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'retorno', e.target.value.slice(0, 3))}
+                                placeholder="dom"
+                                className="h-7 text-center"
+                                maxLength={3}
+                              />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.horarioRetorno} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
+                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value.slice(0, 10))}
                                 placeholder="14-18h"
                                 className="h-7 text-center"
+                                maxLength={10}
                               />
                             </td>
                             {dates.map(date => (
