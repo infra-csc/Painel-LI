@@ -91,8 +91,11 @@ export default function TeamInclusionForm() {
         // Calculate total daily rates from all dates
         const totalDailyRates = dailyRatesByDate.reduce((sum, dateEntry) => sum + dateEntry.dailyRates, 0);
         
-        // Get start and end dates from the range
-        const sortedDates = dailyRatesByDate.map(d => d.date).sort();
+        // Get start and end dates from the range (properly sort by Date object)
+        const sortedDates = dailyRatesByDate
+          .map(d => ({ date: d.date, dateObj: new Date(d.date) }))
+          .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+          .map(d => d.date);
         const scheduleStartDate = sortedDates[0];
         const scheduleEndDate = sortedDates[sortedDates.length - 1];
         
