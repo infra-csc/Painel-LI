@@ -247,24 +247,21 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // Create additional records for each value change
-      let previousValue = row.dailyRates[sortedDates[0]];
+      // Check if any value is different from 1
+      const hasNonOneValue = sortedDates.some(date => row.dailyRates[date] !== 1);
       
-      for (let i = 1; i < sortedDates.length; i++) {
-        const currentDate = sortedDates[i];
-        const currentValue = row.dailyRates[currentDate];
+      if (hasNonOneValue) {
+        // If all values are the same (and not 1), create one additional record
+        const allValues = sortedDates.map(date => row.dailyRates[date]);
+        const allSame = allValues.every(val => val === allValues[0]);
         
-        // If value changed from previous, create a record with value or 1 daily rate
-        if (currentValue !== previousValue) {
-          // For first change (second record), use the value
-          // For subsequent changes, use 1 daily rate
-          const dailyRateToUse = (i === 1) ? currentValue : 1;
-          
+        if (allSame) {
+          // All same non-1 value: create one record with that value
           ranges.push({
             functionId: row.functionId,
-            dailyRate: dailyRateToUse,
-            startDate: currentDate,
-            endDate: endDate, // Always until end of period
+            dailyRate: allValues[0],
+            startDate: startDate,
+            endDate: endDate,
             travelInfo: {
               ida: row.ida,
               chegada: row.chegada,
@@ -272,7 +269,32 @@ export default function GridTeamInclusionForm() {
               horarioRetorno: row.horarioRetorno,
             },
           });
-          previousValue = currentValue;
+        } else {
+          // Values change: create records for each change
+          let previousValue = row.dailyRates[sortedDates[0]];
+          
+          for (let i = 1; i < sortedDates.length; i++) {
+            const currentDate = sortedDates[i];
+            const currentValue = row.dailyRates[currentDate];
+            
+            if (currentValue !== previousValue) {
+              const dailyRateToUse = (i === 1) ? currentValue : 1;
+              
+              ranges.push({
+                functionId: row.functionId,
+                dailyRate: dailyRateToUse,
+                startDate: currentDate,
+                endDate: endDate,
+                travelInfo: {
+                  ida: row.ida,
+                  chegada: row.chegada,
+                  retorno: row.retorno,
+                  horarioRetorno: row.horarioRetorno,
+                },
+              });
+              previousValue = currentValue;
+            }
+          }
         }
       }
     });
