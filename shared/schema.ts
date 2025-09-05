@@ -90,6 +90,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   userId: varchar("user_id").notNull().references(() => users.id), // usuário responsável pela função
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 });
 
 // Tickets table
@@ -109,6 +110,8 @@ export const tickets = pgTable("tickets", {
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 });
 
 // Financial table
@@ -125,6 +128,8 @@ export const financial = pgTable("financial", {
   approvedAt: timestamp("approved_at"),
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
 });
 
 // Comments table

@@ -364,7 +364,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = req.body;
+      const updates = { 
+        ...req.body, 
+        updatedAt: new Date(),
+        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+      };
       const inclusion = await storage.updateTeamInclusion(id, updates);
       res.json(inclusion);
     } catch (error) {
@@ -402,6 +406,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/tickets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = { 
+        ...req.body, 
+        updatedAt: new Date(),
+        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+      };
+      const ticket = await storage.updateTicket(id, updates);
+      res.json(ticket);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar passagem" });
+    }
+  });
+
   // Financial routes
   app.get("/api/financial", async (req, res) => {
     try {
@@ -419,6 +438,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(financial);
     } catch (error) {
       res.status(400).json({ message: "Dados inválidos" });
+    }
+  });
+
+  app.patch("/api/financial/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = { 
+        ...req.body, 
+        updatedAt: new Date(),
+        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+      };
+      const financial = await storage.updateFinancial(id, updates);
+      res.json(financial);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar dados financeiros" });
     }
   });
 

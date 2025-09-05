@@ -277,6 +277,7 @@ export default function Consultation() {
                               <p className="text-sm text-muted-foreground mt-1">
                                 📅 Criado em {formatDate(inclusion.createdAt?.toString())} por {getUserName(inclusion.userId)} • 
                                 🔄 Atualizado em {formatDate(inclusion.updatedAt?.toString())}
+                                {inclusion.updatedBy && ` por ${getUserName(inclusion.updatedBy)}`}
                               </p>
                             </div>
                           </div>
@@ -454,6 +455,15 @@ export default function Consultation() {
                                     {financialRecord.approved ? "✅ Aprovado" : "⏳ Pendente"}
                                   </div>
                                 </div>
+                                {financialRecord.updatedBy && (
+                                  <div>
+                                    <span className="text-muted-foreground">✏️ Última edição:</span>
+                                    <div className="font-medium text-blue-600 text-xs">
+                                      {getUserName(financialRecord.updatedBy)}
+                                      {financialRecord.updatedAt && ` em ${formatDate(financialRecord.updatedAt.toString())}`}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
@@ -495,6 +505,12 @@ export default function Consultation() {
                                 <span className="text-muted-foreground">📝 Criado por:</span>
                                 <div className="font-medium">{getUserName(inclusion.userId)}</div>
                               </div>
+                              {inclusion.updatedBy && (
+                                <div>
+                                  <span className="text-muted-foreground">✏️ Última edição por:</span>
+                                  <div className="font-medium text-blue-600">{getUserName(inclusion.updatedBy)}</div>
+                                </div>
+                              )}
                               {financialRecord?.approvedBy && (
                                 <div>
                                   <span className="text-muted-foreground">✅ Aprovação Financeira:</span>
