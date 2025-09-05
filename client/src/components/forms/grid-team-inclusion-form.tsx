@@ -146,7 +146,7 @@ export default function GridTeamInclusionForm() {
       return {
         functionId: func.id,
         functionName: func.name,
-        userId: "",
+        userId: "none",
         ida: "",
         chegada: "",
         retorno: "",
@@ -195,7 +195,7 @@ export default function GridTeamInclusionForm() {
     const newRow: FunctionRow = {
       functionId: customId,
       functionName: `Função ${functionRows.filter(r => r.isCustom).length + 1}`,
-      userId: "",
+      userId: "none",
       ida: "",
       chegada: "",
       retorno: "",
@@ -229,7 +229,7 @@ export default function GridTeamInclusionForm() {
 
     functionRows.forEach(row => {
       // Pula se não tem usuário atribuído
-      if (!row.userId) return;
+      if (!row.userId || row.userId === "none") return;
       
       if (dates.length === 0) return;
 
@@ -318,7 +318,7 @@ export default function GridTeamInclusionForm() {
         await createTeamInclusionMutation.mutateAsync({
           eventId,
           functionId: functionRow?.isCustom ? null : range.functionId, // null se for custom
-          userId: functionRow?.userId || user?.id,
+          userId: functionRow?.userId && functionRow.userId !== "none" ? functionRow.userId : user?.id,
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
@@ -481,7 +481,7 @@ export default function GridTeamInclusionForm() {
                                   <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">-- Selecione --</SelectItem>
+                                  <SelectItem value="none">-- Selecione --</SelectItem>
                                   {collaborators?.map((collaborator) => (
                                     <SelectItem key={collaborator.id} value={collaborator.id}>
                                       {collaborator.name || collaborator.email}
