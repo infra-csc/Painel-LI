@@ -537,6 +537,7 @@ export default function GridTeamInclusionForm() {
           dailyRates: dailyRatesCount,
           dailyValue: range.dailyRate * 5000,
           needsTicket: functionRow?.needsTicket || false,
+          status: "planejado", // Status para aparecer na escalação
           observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
