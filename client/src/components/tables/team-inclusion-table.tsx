@@ -84,11 +84,10 @@ export default function TeamInclusionTable() {
   };
 
   const canEditInclusion = (status: string) => {
-    // Pode editar apenas até a confirmação de escalação
-    // Status que permitem edição: inclusao, escalacao
+    // Pode editar até a confirmação de escalação (antes da passagem)
     // Status que NÃO permitem edição: passagem, fechamento, aprovacao, aprovado
-    const editableStatuses = ['inclusao', 'escalacao'];
-    return editableStatuses.includes(status);
+    const nonEditableStatuses = ['passagem', 'fechamento', 'aprovacao', 'aprovado'];
+    return !nonEditableStatuses.includes(status);
   };
 
   const deleteTeamInclusionMutation = useMutation({
@@ -322,10 +321,6 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4">
                       <StatusBadge status={inclusion.status} />
-                      {/* DEBUG: Mostrar status */}
-                      <div className="text-xs text-red-500">
-                        Status: {inclusion.status} | Pode editar: {canEditInclusion(inclusion.status) ? 'SIM' : 'NÃO'}
-                      </div>
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-1">
@@ -338,13 +333,7 @@ export default function TeamInclusionTable() {
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
-                        {/* DEBUG: Mostrar permissão */}
-                        <div className="text-xs text-red-500 mb-1">
-                          User: {user?.role} | Perm: {hasPermission(user, 'canEditScreen1') ? 'SIM' : 'NÃO'}
-                        </div>
-                        
-                        {/* Removendo verificação de permissão temporariamente para debug */}
-                        {canEditInclusion(inclusion.status) && (
+                        {hasPermission(user, 'canEditScreen1') && canEditInclusion(inclusion.status) && (
                           <>
                             <Button
                               size="sm"
