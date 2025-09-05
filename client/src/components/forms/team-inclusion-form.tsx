@@ -125,12 +125,12 @@ export default function TeamInclusionForm() {
         const periodResponse = await apiRequest("POST", "/api/team-inclusions", periodPayload);
         entries.push(await periodResponse.json());
         
-        // 2nd record: Date with maximum value but always 1 daily rate
+        // 2nd record: Maximum value from its date to end of period
         const maxPayload = {
           ...data,
           scheduleStartDate: maxValueDate, // Date where max value appears
-          scheduleEndDate: maxValueDate,
-          dailyRates: 1, // Always 1 daily rate
+          scheduleEndDate: endDate, // Until end of period
+          dailyRates: maxValue, // Maximum value found
           status: "planejado",
           phase: "inclusao",
           userId: user?.id,

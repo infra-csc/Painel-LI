@@ -261,12 +261,12 @@ export default function GridTeamInclusionForm() {
         },
       });
       
-      // 2nd record: Date with maximum value but always 1 daily rate
+      // 2nd record: Maximum value from its date to end of period
       ranges.push({
         functionId: row.functionId,
-        dailyRate: 1, // Always 1 daily rate
+        dailyRate: maxValue, // Maximum value found
         startDate: maxValueDate, // Date where max value appears
-        endDate: maxValueDate,
+        endDate: endDate, // Until end of period
         travelInfo: {
           ida: row.ida,
           chegada: row.chegada,
