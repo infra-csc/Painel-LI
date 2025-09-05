@@ -1,12 +1,20 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
-import { User } from "lucide-react";
+import { User, Eye, Save } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -20,7 +28,16 @@ export default function Scaling() {
     searchId: "",
   });
   
+  const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalData, setModalData] = useState({
+    collaboratorId: "",
+    observations: "",
+    dailyValue: 0,
+  });
+  
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -74,6 +91,59 @@ export default function Scaling() {
       inclusion.status === "aprovacao" || 
       inclusion.status === "aprovado"
     );
+  };
+
+  const updateTeamInclusionMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Escalação atualizada com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      setShowModal(false);
+      setSelectedInclusion(null);
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar escalação",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const handleRowClick = (inclusion: TeamInclusion) => {
+    setSelectedInclusion(inclusion);
+    setModalData({
+      collaboratorId: inclusion.collaboratorId || "",
+      observations: inclusion.observations || "",
+      dailyValue: inclusion.dailyValue ? inclusion.dailyValue / 100 : 0, // Convert from cents
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!selectedInclusion) return;
+
+    updateTeamInclusionMutation.mutate({
+      id: selectedInclusion.id,
+      data: {
+        collaboratorId: modalData.collaboratorId,
+        observations: modalData.observations,
+        dailyValue: modalData.dailyValue ? Math.round(modalData.dailyValue * 100) : null, // Store in cents
+      }
+    });
   };
 
   const getEventName = (eventId: string) => {
@@ -211,10 +281,17 @@ export default function Scaling() {
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
                           {withoutTicket.map((inclusion) => (
-                            <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
+                            <tr 
+                              key={inclusion.id} 
+                              className="hover:bg-accent/30 transition-colors cursor-pointer"
+                              onClick={() => handleRowClick(inclusion)}
+                            >
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-mono text-foreground">
-                                  #{inclusion.inclusionNumber || 'N/A'}
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-mono text-foreground">
+                                    #{inclusion.inclusionNumber || 'N/A'}
+                                  </div>
+                                  <Eye className="w-4 h-4 text-muted-foreground" />
                                 </div>
                               </td>
                               <td className="px-4 py-4">
@@ -308,10 +385,17 @@ export default function Scaling() {
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
                           {withTicket.map((inclusion) => (
-                            <tr key={inclusion.id} className="hover:bg-accent/30 transition-colors">
+                            <tr 
+                              key={inclusion.id} 
+                              className="hover:bg-accent/30 transition-colors cursor-pointer"
+                              onClick={() => handleRowClick(inclusion)}
+                            >
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-mono text-foreground">
-                                  #{inclusion.inclusionNumber || 'N/A'}
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-mono text-foreground">
+                                    #{inclusion.inclusionNumber || 'N/A'}
+                                  </div>
+                                  <Eye className="w-4 h-4 text-muted-foreground" />
                                 </div>
                               </td>
                               <td className="px-4 py-4">
@@ -371,6 +455,207 @@ export default function Scaling() {
           })()}
         </div>
       </div>
+
+      {/* Modal de Detalhes da Escalação */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedInclusion && (
+            <div className="space-y-6">
+              {/* Informações Básicas */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Evento</Label>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {getEventName(selectedInclusion.eventId)}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">ID</Label>
+                  <div className="text-sm text-muted-foreground mt-1 font-mono">
+                    #{selectedInclusion.inclusionNumber || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Função</Label>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {getFunctionName(selectedInclusion.functionId)}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status da Escalação</Label>
+                  <div className="mt-1">
+                    {isEscalated(selectedInclusion) ? (
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        Escalado
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        Pendente
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Seleção de Colaborador */}
+              <div>
+                <Label htmlFor="collaborator" className="text-sm font-medium">
+                  Colaborador *
+                </Label>
+                <Select 
+                  value={modalData.collaboratorId} 
+                  onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Selecione um colaborador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {collaborators?.map((collaborator) => (
+                      <SelectItem key={collaborator.id} value={collaborator.id}>
+                        {collaborator.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Informações de Data */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Data de Início</Label>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {formatDate(selectedInclusion.scheduleStartDate)}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Data de Fim</Label>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {formatDate(selectedInclusion.scheduleEndDate)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações de Passagem (só se needsTicket for true) */}
+              {selectedInclusion.needsTicket && (
+                <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                  <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
+                    Informações de Passagem
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Data de Partida</Label>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {formatDate(selectedInclusion.flightDepartureDate) || "Não definida"}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Data de Retorno</Label>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {formatDate(selectedInclusion.flightReturnDate) || "Não definida"}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {selectedInclusion.flightDepartureSuggestedTime || "Não definido"}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {selectedInclusion.flightReturnSuggestedTime || "Não definido"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Valores e Diárias */}
+              <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/30">
+                <h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-3">
+                  Valores
+                </h4>
+                <div className="grid grid-cols-3 gap-4 items-end">
+                  <div>
+                    <Label htmlFor="dailyValue" className="text-sm font-medium">
+                      Valor da Diária (R$)
+                    </Label>
+                    <Input
+                      id="dailyValue"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={modalData.dailyValue || ""}
+                      onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Quantidade de Diárias</Label>
+                    <div className="text-lg font-semibold text-foreground mt-2 px-3 py-2 bg-muted rounded">
+                      {selectedInclusion.dailyRates}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Valor Total</Label>
+                    <div className="text-lg font-bold text-green-600 dark:text-green-400 mt-2 px-3 py-2 bg-background rounded border">
+                      {formatCurrency((modalData.dailyValue || 0) * selectedInclusion.dailyRates)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <Label htmlFor="observations" className="text-sm font-medium">
+                  Observações
+                </Label>
+                <Textarea
+                  id="observations"
+                  rows={3}
+                  placeholder="Digite observações sobre a escalação..."
+                  value={modalData.observations}
+                  onChange={(e) => setModalData(prev => ({...prev, observations: e.target.value}))}
+                  className="mt-2"
+                />
+                {selectedInclusion.observations && (
+                  <div className="mt-2 p-3 bg-muted rounded text-sm">
+                    <span className="text-xs text-muted-foreground block mb-1">
+                      Observação da Inclusão Original:
+                    </span>
+                    {selectedInclusion.observations}
+                  </div>
+                )}
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button variant="outline" onClick={() => setShowModal(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSave}
+                  disabled={updateTeamInclusionMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
