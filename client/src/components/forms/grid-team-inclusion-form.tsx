@@ -65,6 +65,7 @@ export default function GridTeamInclusionForm() {
   const [autoSave, setAutoSave] = useState(true);
   const [showEventSelect, setShowEventSelect] = useState(false);
   const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean} | null>(null);
+  const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -534,6 +535,9 @@ export default function GridTeamInclusionForm() {
       setDates([]);
       setFunctionRows(loadedFunctions);
       setShowGrid(false); // Grid só aparece depois que selecionar período
+      
+      // Marcar que tem template carregado para aplicar depois
+      setTemplateLoaded(true);
 
       // Mostrar quais funções foram carregadas
       const functionNames = loadedFunctions.map(f => f.functionName).join(', ');
@@ -807,91 +811,12 @@ export default function GridTeamInclusionForm() {
               />
             </div>
 
-            {/* Editor de funções carregadas */}
+            {/* Indicador de template carregado */}
             {functionRows.length > 0 && !showGrid && (
-              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
-                <h4 className="font-semibold text-green-900 dark:text-green-100 mb-3">✅ Template carregado - Edite os horários:</h4>
-                <div className="space-y-3">
-                  {functionRows.map((func, index) => (
-                    <div key={func.functionId} className="bg-white dark:bg-gray-900 p-3 rounded border">
-                      <div className="grid grid-cols-6 gap-3 items-center">
-                        {/* Nome da função */}
-                        <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {func.functionName}
-                        </div>
-                        
-                        {/* Checkbox de passagem */}
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id={`ticket-${func.functionId}`}
-                            checked={func.needsTicket}
-                            onChange={(e) => {
-                              const updated = [...functionRows];
-                              updated[index].needsTicket = e.target.checked;
-                              setFunctionRows(updated);
-                            }}
-                            className="rounded"
-                          />
-                          <label htmlFor={`ticket-${func.functionId}`} className="text-xs">
-                            ✈️ Passagem
-                          </label>
-                        </div>
-
-                        {/* Campos editáveis de horário */}
-                        <input
-                          type="text"
-                          placeholder="Ida"
-                          value={func.ida}
-                          onChange={(e) => {
-                            const updated = [...functionRows];
-                            updated[index].ida = e.target.value;
-                            setFunctionRows(updated);
-                          }}
-                          className="px-2 py-1 text-xs border rounded dark:bg-gray-800 dark:border-gray-600"
-                        />
-                        
-                        <input
-                          type="text"
-                          placeholder="Chegada(até..)"
-                          value={func.chegada}
-                          onChange={(e) => {
-                            const updated = [...functionRows];
-                            updated[index].chegada = e.target.value;
-                            setFunctionRows(updated);
-                          }}
-                          className="px-2 py-1 text-xs border rounded dark:bg-gray-800 dark:border-gray-600"
-                        />
-                        
-                        <input
-                          type="text"
-                          placeholder="Retorno"
-                          value={func.retorno}
-                          onChange={(e) => {
-                            const updated = [...functionRows];
-                            updated[index].retorno = e.target.value;
-                            setFunctionRows(updated);
-                          }}
-                          className="px-2 py-1 text-xs border rounded dark:bg-gray-800 dark:border-gray-600"
-                        />
-                        
-                        <input
-                          type="text"
-                          placeholder="Horário do Retorno"
-                          value={func.horarioRetorno}
-                          onChange={(e) => {
-                            const updated = [...functionRows];
-                            updated[index].horarioRetorno = e.target.value;
-                            setFunctionRows(updated);
-                          }}
-                          className="px-2 py-1 text-xs border rounded dark:bg-gray-800 dark:border-gray-600"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-sm text-green-600 dark:text-green-400 mt-3">
-                  ✅ Edite os horários acima, selecione as datas e clique em "Gerar Grade" para aplicar.
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">📋 Template carregado: {functionRows.length} funções</h4>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  Selecione as datas e clique em "Gerar Grade" - os dados aparecerão direto na planilha para edição.
                 </p>
               </div>
             )}
