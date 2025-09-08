@@ -538,15 +538,25 @@ export default function GridTeamInclusionForm() {
         // Mas vamos guardar as informações de diárias para aplicar no período escolhido
         const func = functionMap.get(inclusion.functionId);
         
-        // Guardar quantas diárias por dia essa função deve ter quando aplicar no novo período
-        if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
-          const startDate = new Date(inclusion.scheduleStartDate);
-          const endDate = new Date(inclusion.scheduleEndDate);
-          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
-          const dailyRatePerDay = Math.ceil((inclusion.dailyRates || 1) / daysDiff);
-          
-          // Salvar para aplicar depois
-          func.defaultDailyRate = dailyRatePerDay;
+        // Extrair quantas diárias por dia do campo observations (que guarda o padrão original)
+        // Formato: "função - X diária(s) por dia - datas..."
+        const observations = inclusion.observations || '';
+        const dailyRateMatch = observations.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
+        
+        if (dailyRateMatch) {
+          // Usar o valor exato que estava na grade original
+          func.defaultDailyRate = parseInt(dailyRateMatch[1]);
+        } else {
+          // Fallback: se não conseguir extrair das observations, calcular como antes
+          if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
+            const startDate = new Date(inclusion.scheduleStartDate);
+            const endDate = new Date(inclusion.scheduleEndDate);
+            const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
+            const dailyRatePerDay = Math.max(1, Math.ceil((inclusion.dailyRates || 1) / daysDiff));
+            func.defaultDailyRate = dailyRatePerDay;
+          } else {
+            func.defaultDailyRate = 1; // Default seguro
+          }
         }
       });
 
