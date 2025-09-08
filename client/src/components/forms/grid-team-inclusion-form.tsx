@@ -495,15 +495,14 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
-      // Criar uma linha para CADA inclusão (preserva duplicatas intencionais)
+      // USAR OS DADOS REAIS DO BANCO - não fazer parsing das observações
       const loadedFunctions: any[] = [];
 
       inclusions.forEach((inclusion: any, index: number) => {
-        // Extrair horários das observações se disponível
+        // Extrair dados de viagem das observações 
         const observations = inclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
         
-        // Parse das observações salvas (formato: "... | Ida: sáb | Chegada: até.. | Retorno: dom | Horário: 14-18h")
         const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
         const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
         const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
@@ -514,20 +513,16 @@ export default function GridTeamInclusionForm() {
         if (retornoMatch) retorno = retornoMatch[1].trim();
         if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
         
-        // Extrair quantas diárias por dia do campo observations  
-        const observations_text = inclusion.observations || '';
-        const dailyRateMatch = observations_text.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
-        
-        let defaultDailyRate = 1;
-        if (dailyRateMatch) {
-          defaultDailyRate = parseInt(dailyRateMatch[1]);
-        }
-        
-        // Buscar o nome correto da função no sistema
+        // Buscar função no sistema
         const systemFunction = functions?.find(f => f.id === inclusion.functionId);
-        const functionName = systemFunction?.name || inclusion.functionName || 'Função';
+        const functionName = systemFunction?.name || 'Função';
         
-        // Criar UMA linha por inclusão (preserva duplicatas)
+        // CALCULAR quantas diárias por dia baseado nos dados reais salvos
+        const startDate = new Date(inclusion.scheduleStartDate);
+        const endDate = new Date(inclusion.scheduleEndDate);
+        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const dailyRatePerDay = Math.round(inclusion.dailyRates / daysDiff);
+        
         loadedFunctions.push({
           functionId: `${inclusion.functionId}-${index}`,
           originalFunctionId: inclusion.functionId,
@@ -539,7 +534,11 @@ export default function GridTeamInclusionForm() {
           horarioRetorno,
           dailyRates: {},
           isCustom: false,
-          defaultDailyRate: defaultDailyRate
+          defaultDailyRate: dailyRatePerDay,
+          // Dados originais para referência
+          originalDailyRates: inclusion.dailyRates,
+          originalStartDate: inclusion.scheduleStartDate,
+          originalEndDate: inclusion.scheduleEndDate
         });
       });
 
