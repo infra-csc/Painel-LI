@@ -339,6 +339,61 @@ export default function GridTeamInclusionForm() {
     });
   };
 
+  const duplicateScheduleOnly = (functionId: string) => {
+    const originalRow = functionRows.find(row => row.functionId === functionId);
+    if (!originalRow) return;
+    
+    setSelectedRowForScheduleCopy(originalRow);
+    setShowFunctionSelectForSchedule(true);
+  };
+
+  const [selectedRowForScheduleCopy, setSelectedRowForScheduleCopy] = useState<FunctionRow | null>(null);
+  const [showFunctionSelectForSchedule, setShowFunctionSelectForSchedule] = useState(false);
+
+  const createRowWithCopiedSchedule = (newFunctionId: string) => {
+    if (!selectedRowForScheduleCopy) return;
+    
+    const selectedFunction = functions?.find(f => f.id === newFunctionId);
+    if (!selectedFunction) return;
+
+    // Verificar se a função já foi adicionada
+    if (functionRows.some(row => row.functionId === newFunctionId)) {
+      toast({
+        title: "Aviso",
+        description: "Esta função já foi adicionada à grade",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Criar nova linha com os horários copiados mas função diferente
+    const dailyRates: { [date: string]: number } = {};
+    dates.forEach(date => {
+      dailyRates[date] = 1; // Valores padrão, não copia as diárias
+    });
+
+    const newRow: FunctionRow = {
+      functionId: selectedFunction.id,
+      functionName: selectedFunction.name,
+      ida: selectedRowForScheduleCopy.ida,           // Copia horário ida
+      chegada: selectedRowForScheduleCopy.chegada,   // Copia horário chegada
+      retorno: selectedRowForScheduleCopy.retorno,   // Copia horário retorno
+      horarioRetorno: selectedRowForScheduleCopy.horarioRetorno, // Copia horário retorno
+      needsTicket: selectedRowForScheduleCopy.needsTicket,       // Copia se precisa passagem
+      dailyRates,                                    // NÃO copia as diárias
+      isCustom: false,
+    };
+
+    setFunctionRows(prev => [...prev, newRow]);
+    setShowFunctionSelectForSchedule(false);
+    setSelectedRowForScheduleCopy(null);
+    
+    toast({
+      title: "Horários copiados",
+      description: `Horários de ${selectedRowForScheduleCopy.functionName} copiados para ${selectedFunction.name}`,
+    });
+  };
+
   const loadFromEvent = async (eventId: string) => {
     try {
       const response = await fetch(`/api/team-inclusions?eventId=${eventId}`);
@@ -842,7 +897,11 @@ export default function GridTeamInclusionForm() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => duplicateFunction(row.functionId)}>
                                     <Copy className="w-3 h-3 mr-2" />
-                                    Duplicar Função
+                                    Duplicar Função Completa
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => duplicateScheduleOnly(row.functionId)}>
+                                    <Calendar className="w-3 h-3 mr-2" />
+                                    Copiar Apenas Horários
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 1)}>
                                     Preencher com 1
@@ -982,6 +1041,58 @@ export default function GridTeamInclusionForm() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para selecionar função ao copiar horários */}
+      <Dialog open={showFunctionSelectForSchedule} onOpenChange={setShowFunctionSelectForSchedule}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Escolher Função para os Horários Copiados</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-3 rounded-lg border">
+              <p className="text-sm font-medium">
+                Copiando horários de: <strong>{selectedRowForScheduleCopy?.functionName}</strong>
+              </p>
+              <div className="text-xs text-muted-foreground mt-1">
+                ✅ Ida: {selectedRowForScheduleCopy?.ida || "(vazio)"} • 
+                Chegada: {selectedRowForScheduleCopy?.chegada || "(vazio)"} • 
+                Retorno: {selectedRowForScheduleCopy?.retorno || "(vazio)"} • 
+                Horário: {selectedRowForScheduleCopy?.horarioRetorno || "(vazio)"}
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Escolha a nova função:</Label>
+              <Select onValueChange={(functionId) => {
+                createRowWithCopiedSchedule(functionId);
+              }}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Selecione uma função" />
+                </SelectTrigger>
+                <SelectContent>
+                  {functions?.filter(func => !functionRows.some(row => row.functionId === func.id)).map((func) => (
+                    <SelectItem key={func.id} value={func.id}>
+                      {func.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+              <p className="text-xs text-yellow-800">
+                <strong>Importante:</strong> Os valores das diárias (1, 2, 3) NÃO serão copiados - ficam todos em "1" por padrão.
+                Apenas os horários de viagem serão copiados.
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowFunctionSelectForSchedule(false)} 
+              className="w-full"
+            >
+              Cancelar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
