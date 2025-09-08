@@ -165,6 +165,18 @@ export default function GridTeamInclusionForm() {
     },
   });
 
+  // Função para carregar automaticamente as datas quando um evento é selecionado
+  useEffect(() => {
+    const selectedEventId = form.watch("eventId");
+    if (selectedEventId && events) {
+      const selectedEvent = events.find(event => event.id === selectedEventId);
+      if (selectedEvent) {
+        form.setValue("startDate", selectedEvent.startDate);
+        form.setValue("endDate", selectedEvent.endDate);
+      }
+    }
+  }, [form.watch("eventId"), events, form]);
+
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
