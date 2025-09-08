@@ -485,32 +485,14 @@ export default function GridTeamInclusionForm() {
         }
         
         if (!functionMap.has(inclusion.functionId)) {
-          // Extrair dados de entrada manual das observações se disponível
-          const observations = inclusion.observations || '';
-          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
-          
-          // Se tem horários de voo salvos, usar eles
-          if (inclusion.flightDepartureDate) {
-            ida = new Date(inclusion.flightDepartureDate).toLocaleDateString('pt-BR', { weekday: 'short' });
-          }
-          if (inclusion.flightDepartureSuggestedTime) {
-            chegada = inclusion.flightDepartureSuggestedTime;
-          }
-          if (inclusion.flightReturnDate) {
-            retorno = new Date(inclusion.flightReturnDate).toLocaleDateString('pt-BR', { weekday: 'short' });
-          }
-          if (inclusion.flightReturnSuggestedTime) {
-            horarioRetorno = inclusion.flightReturnSuggestedTime;
-          }
-          
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
             functionName: inclusion.functionName || 'Função',
             needsTicket: inclusion.needsTicket || false,
-            ida,
-            chegada, 
-            retorno,
-            horarioRetorno,
+            ida: '', // Deixar vazio - usuário preenche manualmente
+            chegada: '', // Deixar vazio - usuário preenche manualmente  
+            retorno: '', // Deixar vazio - usuário preenche manualmente
+            horarioRetorno: '', // Deixar vazio - usuário preenche manualmente
             dailyRates: {},
             isCustom: false,
           });
