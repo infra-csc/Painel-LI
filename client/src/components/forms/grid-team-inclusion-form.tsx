@@ -224,21 +224,26 @@ export default function GridTeamInclusionForm() {
       datesList.push(dateStr);
     }
 
-    // Criar linhas para cada função - limpar campos se já existem e ordenar alfabeticamente
+    // Criar linhas para cada função - aplicar dados salvos se disponíveis
+    const existingFunctionMap = new Map(functionRows.map(row => [row.functionId, row]));
+    
     const rows: FunctionRow[] = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
+      const existingFunction = existingFunctionMap.get(func.id);
       const dailyRates: { [date: string]: number } = {};
+      
       datesList.forEach(date => {
-        dailyRates[date] = 1; // valor padrão
+        // Aplicar valores salvos se disponíveis, senão usar padrão 1
+        dailyRates[date] = existingFunction?.defaultDailyRate || 1;
       });
 
       return {
         functionId: func.id,
         functionName: func.name,
-        ida: "",
-        chegada: "",
-        retorno: "",
-        horarioRetorno: "",
-        needsTicket: false,
+        ida: existingFunction?.ida || "",
+        chegada: existingFunction?.chegada || "",
+        retorno: existingFunction?.retorno || "",
+        horarioRetorno: existingFunction?.horarioRetorno || "",
+        needsTicket: existingFunction?.needsTicket || false,
         dailyRates,
         isCustom: false,
       };
@@ -468,63 +473,55 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
-      // Agrupar inclusões por função e extrair datas
+      // Agrupar inclusões por função - NÃO extrair datas (usuário define depois)
       const functionMap = new Map();
-      const allDates = new Set<string>();
 
       inclusions.forEach((inclusion: any) => {
-        // Adicionar datas do período da inclusão (scheduleStartDate até scheduleEndDate)
-        if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
-          const startDate = new Date(inclusion.scheduleStartDate);
-          const endDate = new Date(inclusion.scheduleEndDate);
-          
-          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0]; // formato YYYY-MM-DD
-            allDates.add(dateStr);
-          }
-        }
-        
         if (!functionMap.has(inclusion.functionId)) {
+          // Extrair horários salvos das observações ou de outros campos salvos
+          const observations = inclusion.observations || '';
+          
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
             functionName: inclusion.functionName || 'Função',
             needsTicket: inclusion.needsTicket || false,
-            ida: '', // Deixar vazio - usuário preenche manualmente
-            chegada: '', // Deixar vazio - usuário preenche manualmente  
-            retorno: '', // Deixar vazio - usuário preenche manualmente
-            horarioRetorno: '', // Deixar vazio - usuário preenche manualmente
-            dailyRates: {},
+            ida: '', // Será preenchido dos dados salvos abaixo
+            chegada: '', 
+            retorno: '', 
+            horarioRetorno: '',
+            dailyRates: {}, // Será preenchido dos dados salvos
             isCustom: false,
+            // Guardar dados originais para referência
+            originalDailyRates: inclusion.dailyRates,
+            originalPeriod: {
+              start: inclusion.scheduleStartDate,
+              end: inclusion.scheduleEndDate
+            }
           });
         }
         
-        // Definir taxa diária para cada dia do período
+        // Não há horários específicos salvos - usuário preenche manualmente
+        // Mas vamos guardar as informações de diárias para aplicar no período escolhido
+        const func = functionMap.get(inclusion.functionId);
+        
+        // Guardar quantas diárias por dia essa função deve ter quando aplicar no novo período
         if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
           const startDate = new Date(inclusion.scheduleStartDate);
           const endDate = new Date(inclusion.scheduleEndDate);
-          const func = functionMap.get(inclusion.functionId);
-          
-          // Calcular número de dias no período
           const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
-          
-          // Distribuir as diárias pelos dias do período
-          // Se dailyRates = 4 e período é 4 dias → cada dia = 1
-          // Se dailyRates = 8 e período é 4 dias → cada dia = 2
           const dailyRatePerDay = Math.ceil((inclusion.dailyRates || 1) / daysDiff);
           
-          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            func.dailyRates[dateStr] = dailyRatePerDay;
-          }
+          // Salvar para aplicar depois
+          func.defaultDailyRate = dailyRatePerDay;
         }
       });
 
-      const sortedDates = Array.from(allDates).sort();
       const loadedFunctions = Array.from(functionMap.values());
 
-      setDates(sortedDates);
+      // NÃO definir datas - usuário escolhe o período
+      setDates([]);
       setFunctionRows(loadedFunctions);
-      setShowGrid(true);
+      setShowGrid(false); // Grid só aparece depois que selecionar período
 
       toast({
         title: "Configurações carregadas",
