@@ -741,12 +741,24 @@ export default function GridTeamInclusionForm() {
         
         const functionRow = functionRows.find(r => r.functionId === range.functionId);
         
-        // Extrair o ID original da função (remover apenas o timestamp único, se existir)
-        // Se o ID contém um timestamp (números longos), remover apenas essa parte
+        // Extrair o ID original da função removendo sufixos criados para uniqueness
+        // Pode ter timestamp (-1234567890123) ou "-copy" ou outras variações
         let originalFunctionId = range.functionId;
-        if (range.functionId.includes('-') && /\d{13}$/.test(range.functionId)) {
-          // Se termina com timestamp de 13 dígitos, remover apenas essa parte
-          originalFunctionId = range.functionId.replace(/-\d{13}$/, '');
+        
+        // Remover sufixos como: -timestamp, -copy, -copy-timestamp, etc.
+        if (range.functionId.includes('-')) {
+          // Tentar encontrar a função correspondente removendo tudo após o primeiro hífen com número ou "copy"
+          const parts = range.functionId.split('-');
+          
+          // Testar diferentes combinações, começando pela mais completa até encontrar uma que existe
+          for (let i = 1; i <= parts.length; i++) {
+            const testId = parts.slice(0, i).join('-');
+            const foundFunction = functions?.find(f => f.id === testId);
+            if (foundFunction) {
+              originalFunctionId = testId;
+              break;
+            }
+          }
         }
         
         const originalFunction = functions?.find(f => f.id === originalFunctionId);
