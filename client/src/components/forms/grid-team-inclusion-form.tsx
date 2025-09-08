@@ -636,6 +636,22 @@ export default function GridTeamInclusionForm() {
       
       if (datesWithRates.length === 0) return;
 
+      // Extrair o ID original da função removendo sufixos criados para uniqueness
+      let originalFunctionId = row.functionId;
+      if (row.functionId.includes('-')) {
+        const parts = row.functionId.split('-');
+        
+        // Testar diferentes combinações até encontrar uma que existe
+        for (let i = 1; i <= parts.length; i++) {
+          const testId = parts.slice(0, i).join('-');
+          const foundFunction = functions?.find(f => f.id === testId);
+          if (foundFunction) {
+            originalFunctionId = testId;
+            break;
+          }
+        }
+      }
+
       // Sort dates chronologically
       const sortedDates = datesWithRates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
@@ -654,7 +670,7 @@ export default function GridTeamInclusionForm() {
         const recordCount = firstValue === 1 ? 1 : firstValue;
         for (let i = 0; i < recordCount; i++) {
           ranges.push({
-            functionId: row.functionId,
+            functionId: originalFunctionId, // Usar ID original
             dailyRate: numberOfDays,
             startDate: startDate,
             endDate: endDate,
@@ -691,7 +707,7 @@ export default function GridTeamInclusionForm() {
             const lastDate = sortedDatesForValue[sortedDatesForValue.length - 1];
             
             ranges.push({
-              functionId: row.functionId,
+              functionId: originalFunctionId, // Usar ID original
               dailyRate: value, // Valor real da diária (quantas diárias por dia)
               startDate: firstDate,
               endDate: lastDate,
