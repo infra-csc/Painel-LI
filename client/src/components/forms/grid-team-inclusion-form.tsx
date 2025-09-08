@@ -64,6 +64,7 @@ export default function GridTeamInclusionForm() {
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   const [showEventSelect, setShowEventSelect] = useState(false);
+  const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean} | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -343,6 +344,51 @@ export default function GridTeamInclusionForm() {
     
     setSelectedRowForScheduleCopy(originalRow);
     setShowFunctionSelectForSchedule(true);
+  };
+
+  // Copiar horários para uso em outras funções existentes
+  const copyScheduleData = (functionId: string) => {
+    const row = functionRows.find(r => r.functionId === functionId);
+    if (!row) return;
+    
+    setCopiedSchedule({
+      ida: row.ida,
+      chegada: row.chegada,
+      retorno: row.retorno,
+      horarioRetorno: row.horarioRetorno,
+      needsTicket: row.needsTicket
+    });
+    
+    toast({
+      title: "Horários copiados",
+      description: `Horários de ${row.functionName} copiados para uso em outras funções.`,
+    });
+  };
+
+  // Colar horários em uma função existente
+  const pasteScheduleData = (functionId: string) => {
+    if (!copiedSchedule) return;
+    
+    const row = functionRows.find(r => r.functionId === functionId);
+    if (!row) return;
+    
+    setFunctionRows(prev => prev.map(r => 
+      r.functionId === functionId 
+        ? { 
+            ...r, 
+            ida: copiedSchedule.ida,
+            chegada: copiedSchedule.chegada,
+            retorno: copiedSchedule.retorno,
+            horarioRetorno: copiedSchedule.horarioRetorno,
+            needsTicket: copiedSchedule.needsTicket
+          }
+        : r
+    ));
+    
+    toast({
+      title: "Horários colados",
+      description: `Horários colados em ${row.functionName} com sucesso.`,
+    });
   };
 
   const [selectedRowForScheduleCopy, setSelectedRowForScheduleCopy] = useState<FunctionRow | null>(null);
@@ -897,8 +943,18 @@ export default function GridTeamInclusionForm() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => duplicateScheduleOnly(row.functionId)}>
                                     <Calendar className="w-3 h-3 mr-2" />
-                                    Copiar Apenas Horários
+                                    Copiar para Nova Função
                                   </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => copyScheduleData(row.functionId)}>
+                                    <Copy className="w-3 h-3 mr-2" />
+                                    Copiar Horários
+                                  </DropdownMenuItem>
+                                  {copiedSchedule && (
+                                    <DropdownMenuItem onClick={() => pasteScheduleData(row.functionId)}>
+                                      <Calendar className="w-3 h-3 mr-2" />
+                                      Colar Horários
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem 
                                     onClick={() => removeFunction(row.functionId)}
                                     className="text-destructive"
