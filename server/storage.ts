@@ -179,8 +179,8 @@ export class MemStorage implements IStorage {
       ...insertEvent, 
       id, 
       createdAt: new Date(), 
-      eventNumber: insertEvent.eventNumber || 1,
-      status: insertEvent.status || 'planejado', 
+      eventNumber: 1,
+      status: 'planejado', 
       observations: insertEvent.observations || null 
     };
     this.events.set(id, event);
@@ -256,7 +256,8 @@ export class MemStorage implements IStorage {
       createdAt: new Date(), 
       status: insertCollaborator.status || 'ativo',
       phone: insertCollaborator.phone || null,
-      collaboratorNumber: insertCollaborator.collaboratorNumber || 1
+      collaboratorNumber: insertCollaborator.collaboratorNumber || 1,
+      approvalNotes: insertCollaborator.approvalNotes || null
     };
     this.collaborators.set(id, collaborator);
     return collaborator;
@@ -290,6 +291,7 @@ export class MemStorage implements IStorage {
       area: insertInclusion.area ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      updatedBy: insertInclusion.updatedBy || null,
       status: insertInclusion.status || 'planejado',
       phase: insertInclusion.phase || 'inclusao',
       observations: insertInclusion.observations ?? null,
@@ -343,6 +345,8 @@ export class MemStorage implements IStorage {
       id,
       teamInclusionId: insertTicket.teamInclusionId,
       createdAt: new Date(),
+      updatedAt: new Date(),
+      updatedBy: insertTicket.updatedBy || null,
       purchaseDate: insertTicket.purchaseDate ?? null,
       actualDepartureDate: insertTicket.actualDepartureDate ?? null,
       actualDepartureTime: insertTicket.actualDepartureTime ?? null,
@@ -353,6 +357,7 @@ export class MemStorage implements IStorage {
       value: insertTicket.value ?? null,
       purchaseOrderNumber: insertTicket.purchaseOrderNumber ?? null,
       fileUrl: insertTicket.fileUrl ?? null,
+      attachmentIds: insertTicket.attachmentIds || null,
       cardLastFourDigits: insertTicket.cardLastFourDigits ?? null
     };
     this.tickets.set(id, ticket);
@@ -382,6 +387,7 @@ export class MemStorage implements IStorage {
       ...insertFinancial, 
       id, 
       createdAt: new Date(),
+      updatedAt: new Date(),
       observations: insertFinancial.observations || null,
       plannedDailyRates: insertFinancial.plannedDailyRates || null,
       actualDailyRates: insertFinancial.actualDailyRates || null,
@@ -414,6 +420,45 @@ export class MemStorage implements IStorage {
     const comment: Comment = { ...insertComment, id, createdAt: new Date() };
     this.comments.set(id, comment);
     return comment;
+  }
+  
+  // System Logs
+  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]> {
+    const logs = Array.from(this.systemLogs.values());
+    
+    let filteredLogs = logs;
+    
+    if (filters) {
+      if (filters.entityType && filters.entityType !== "all") {
+        filteredLogs = filteredLogs.filter(log => log.entityType === filters.entityType);
+      }
+      if (filters.action && filters.action !== "all") {
+        filteredLogs = filteredLogs.filter(log => log.action === filters.action);
+      }
+      if (filters.days) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - filters.days);
+        filteredLogs = filteredLogs.filter(log => log.createdAt && new Date(log.createdAt) >= cutoffDate);
+      }
+    }
+    
+    // Sort by creation time, newest first
+    return filteredLogs.sort((a, b) => {
+      if (!a.createdAt || !b.createdAt) return 0;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
+  async createSystemLog(insertLog: InsertSystemLog): Promise<SystemLog> {
+    const id = randomUUID();
+    const log: SystemLog = { 
+      ...insertLog, 
+      id,
+      logNumber: this.logCounter++,
+      createdAt: new Date() 
+    };
+    this.systemLogs.set(id, log);
+    return log;
   }
 }
 
@@ -643,12 +688,15 @@ export class DatabaseStorage implements IStorage {
       if (filters.days) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - filters.days);
-        filteredLogs = filteredLogs.filter(log => new Date(log.createdAt) >= cutoffDate);
+        filteredLogs = filteredLogs.filter(log => log.createdAt && new Date(log.createdAt) >= cutoffDate);
       }
     }
     
     // Sort by creation time, newest first
-    return filteredLogs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return filteredLogs.sort((a, b) => {
+      if (!a.createdAt || !b.createdAt) return 0;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }
 
   async createSystemLog(logData: InsertSystemLog): Promise<SystemLog> {
