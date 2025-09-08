@@ -201,8 +201,8 @@ export default function GridTeamInclusionForm() {
       datesList.push(dateStr);
     }
 
-    // Criar linhas para cada função - limpar campos se já existem
-    const rows: FunctionRow[] = (functions || []).map(func => {
+    // Criar linhas para cada função - limpar campos se já existem e ordenar alfabeticamente
+    const rows: FunctionRow[] = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
       const dailyRates: { [date: string]: number } = {};
       datesList.forEach(date => {
         dailyRates[date] = 1; // valor padrão
@@ -809,7 +809,7 @@ export default function GridTeamInclusionForm() {
                         </tr>
                       </thead>
                       <tbody>
-                        {functionRows.map(row => (
+                        {functionRows.sort((a, b) => a.functionName.localeCompare(b.functionName)).map(row => (
                           <tr key={row.functionId} className="border-t">
                             <td className="px-3 py-2 border-r font-medium bg-muted/30">
                               {row.functionName}
@@ -984,7 +984,7 @@ export default function GridTeamInclusionForm() {
               Escolha uma função das disponíveis no sistema:
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {functions?.map(func => (
+              {functions?.sort((a, b) => a.name.localeCompare(b.name)).map(func => (
                 <Button
                   key={`${func.id}-${Date.now()}-${Math.random()}`}
                   variant="outline"
@@ -1068,7 +1068,7 @@ export default function GridTeamInclusionForm() {
                   <SelectValue placeholder="Selecione uma função" />
                 </SelectTrigger>
                 <SelectContent>
-                  {functions?.map((func) => (
+                  {functions?.sort((a, b) => a.name.localeCompare(b.name)).map((func) => (
                     <SelectItem key={func.id} value={func.id}>
                       {func.name}
                     </SelectItem>
