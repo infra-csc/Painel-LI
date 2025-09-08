@@ -485,15 +485,34 @@ export default function GridTeamInclusionForm() {
         }
         
         if (!functionMap.has(inclusion.functionId)) {
+          // Extrair dados de entrada manual das observações se disponível
+          const observations = inclusion.observations || '';
+          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
+          
+          // Se tem horários de voo salvos, usar eles
+          if (inclusion.flightDepartureDate) {
+            ida = new Date(inclusion.flightDepartureDate).toLocaleDateString('pt-BR', { weekday: 'short' });
+          }
+          if (inclusion.flightDepartureSuggestedTime) {
+            chegada = inclusion.flightDepartureSuggestedTime;
+          }
+          if (inclusion.flightReturnDate) {
+            retorno = new Date(inclusion.flightReturnDate).toLocaleDateString('pt-BR', { weekday: 'short' });
+          }
+          if (inclusion.flightReturnSuggestedTime) {
+            horarioRetorno = inclusion.flightReturnSuggestedTime;
+          }
+          
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
             functionName: inclusion.functionName || 'Função',
             needsTicket: inclusion.needsTicket || false,
-            ida: inclusion.flightDepartureDate ? new Date(inclusion.flightDepartureDate).toLocaleDateString('pt-BR', { weekday: 'short' }) : '',
-            chegada: inclusion.flightDepartureSuggestedTime || '',
-            retorno: inclusion.flightReturnDate ? new Date(inclusion.flightReturnDate).toLocaleDateString('pt-BR', { weekday: 'short' }) : '',
-            horarioRetorno: inclusion.flightReturnSuggestedTime || '',
-            dailyRates: {}
+            ida,
+            chegada, 
+            retorno,
+            horarioRetorno,
+            dailyRates: {},
+            isCustom: false,
           });
         }
         
@@ -503,9 +522,17 @@ export default function GridTeamInclusionForm() {
           const endDate = new Date(inclusion.scheduleEndDate);
           const func = functionMap.get(inclusion.functionId);
           
+          // Calcular número de dias no período
+          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
+          
+          // Distribuir as diárias pelos dias do período
+          // Se dailyRates = 4 e período é 4 dias → cada dia = 1
+          // Se dailyRates = 8 e período é 4 dias → cada dia = 2
+          const dailyRatePerDay = Math.ceil((inclusion.dailyRates || 1) / daysDiff);
+          
           for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
-            func.dailyRates[dateStr] = inclusion.dailyRates || 1; // Usar o valor de dailyRates da inclusão
+            func.dailyRates[dateStr] = dailyRatePerDay;
           }
         }
       });
