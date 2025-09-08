@@ -255,23 +255,16 @@ export default function GridTeamInclusionForm() {
     const selectedFunction = functions?.find(f => f.id === functionId);
     if (!selectedFunction) return;
 
-    // Verificar se a função já foi adicionada
-    if (functionRows.some(row => row.functionId === functionId)) {
-      toast({
-        title: "Aviso",
-        description: "Esta função já foi adicionada à grade",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const dailyRates: { [date: string]: number } = {};
     dates.forEach(date => {
       dailyRates[date] = 1;
     });
 
+    // Criar ID único para permitir múltiplas instâncias da mesma função
+    const uniqueId = `${selectedFunction.id}-${Date.now()}`;
+
     const newRow: FunctionRow = {
-      functionId: selectedFunction.id,
+      functionId: uniqueId,
       functionName: selectedFunction.name,
       ida: "",
       chegada: "",
@@ -284,6 +277,11 @@ export default function GridTeamInclusionForm() {
 
     setFunctionRows(prev => [...prev, newRow]);
     setShowFunctionSelect(false);
+
+    toast({
+      title: "Função adicionada",
+      description: `${selectedFunction.name} adicionada à grade`,
+    });
   };
 
   const openFunctionSelect = () => {
@@ -356,24 +354,17 @@ export default function GridTeamInclusionForm() {
     const selectedFunction = functions?.find(f => f.id === newFunctionId);
     if (!selectedFunction) return;
 
-    // Verificar se a função já foi adicionada
-    if (functionRows.some(row => row.functionId === newFunctionId)) {
-      toast({
-        title: "Aviso",
-        description: "Esta função já foi adicionada à grade",
-        variant: "destructive",
-      });
-      return;
-    }
-
     // Criar nova linha com os horários copiados mas função diferente
     const dailyRates: { [date: string]: number } = {};
     dates.forEach(date => {
       dailyRates[date] = 1; // Valores padrão, não copia as diárias
     });
 
+    // Criar ID único para permitir múltiplas instâncias
+    const uniqueId = `${selectedFunction.id}-${Date.now()}`;
+
     const newRow: FunctionRow = {
-      functionId: selectedFunction.id,
+      functionId: uniqueId,
       functionName: selectedFunction.name,
       ida: selectedRowForScheduleCopy.ida,           // Copia horário ida
       chegada: selectedRowForScheduleCopy.chegada,   // Copia horário chegada
@@ -581,12 +572,17 @@ export default function GridTeamInclusionForm() {
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
         
         const functionRow = functionRows.find(r => r.functionId === range.functionId);
-        const selectedFunction = functions?.find(f => f.id === range.functionId);
+        
+        // Extrair o ID original da função (remover o timestamp único)
+        const originalFunctionId = range.functionId.includes('-') ? 
+          range.functionId.split('-')[0] : range.functionId;
+        
+        const originalFunction = functions?.find(f => f.id === originalFunctionId);
         
         await createTeamInclusionMutation.mutateAsync({
           eventId,
-          functionId: range.functionId,
-          userId: selectedFunction?.userId || user?.id, // usa userId da função
+          functionId: originalFunctionId, // usar ID original da função
+          userId: originalFunction?.userId || user?.id, // usa userId da função original
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
           dailyRates: dailyRatesCount,
@@ -988,9 +984,9 @@ export default function GridTeamInclusionForm() {
               Escolha uma função das disponíveis no sistema:
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {functions?.filter(func => !functionRows.some(row => row.functionId === func.id)).map(func => (
+              {functions?.map(func => (
                 <Button
-                  key={func.id}
+                  key={`${func.id}-${Date.now()}-${Math.random()}`}
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => addSystemFunction(func.id)}
@@ -1003,9 +999,9 @@ export default function GridTeamInclusionForm() {
                   </div>
                 </Button>
               ))}
-              {(!functions || functions.filter(func => !functionRows.some(row => row.functionId === func.id)).length === 0) && (
+              {(!functions || functions.length === 0) && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  {!functions ? "Carregando funções..." : "Todas as funções já foram adicionadas ou não há funções cadastradas."}
+                  {!functions ? "Carregando funções..." : "Não há funções cadastradas."}
                 </p>
               )}
             </div>
@@ -1072,7 +1068,7 @@ export default function GridTeamInclusionForm() {
                   <SelectValue placeholder="Selecione uma função" />
                 </SelectTrigger>
                 <SelectContent>
-                  {functions?.filter(func => !functionRows.some(row => row.functionId === func.id)).map((func) => (
+                  {functions?.map((func) => (
                     <SelectItem key={func.id} value={func.id}>
                       {func.name}
                     </SelectItem>
