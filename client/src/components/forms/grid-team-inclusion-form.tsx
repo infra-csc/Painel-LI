@@ -552,24 +552,20 @@ export default function GridTeamInclusionForm() {
 
       const loadedFunctions = Array.from(functionMap.values());
 
-      // Usar as datas originais do primeiro registro como base para gerar grade
-      let startDate = '', endDate = '';
-      if (inclusions.length > 0 && inclusions[0].scheduleStartDate && inclusions[0].scheduleEndDate) {
-        startDate = inclusions[0].scheduleStartDate;
-        endDate = inclusions[0].scheduleEndDate;
-      } else {
-        // Fallback: usar próxima semana como padrão
-        const today = new Date();
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-        const endOfWeek = new Date(nextWeek);
-        endOfWeek.setDate(nextWeek.getDate() + 3);
-        
-        startDate = nextWeek.toISOString().split('T')[0];
-        endDate = endOfWeek.toISOString().split('T')[0];
+      // USAR as datas que já estão nos campos do formulário (definidas pelo usuário)
+      const startDate = form.getValues().startDate;
+      const endDate = form.getValues().endDate;
+      
+      if (!startDate || !endDate) {
+        toast({
+          title: "Erro",
+          description: "Defina as datas de início e fim antes de carregar o template do evento.",
+          variant: "destructive"
+        });
+        return;
       }
 
-      // Gerar datas do período
+      // Gerar datas do período usando as datas do formulário
       const datesList: string[] = [];
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -594,9 +590,8 @@ export default function GridTeamInclusionForm() {
         };
       });
 
-      // Definir datas nos campos do formulário
-      form.setValue('startDate', startDate);
-      form.setValue('endDate', endDate);
+      // NÃO alterar as datas se já foram definidas pelo usuário
+      // Usar apenas as datas que o usuário já definiu nos campos
       
       // Aplicar DIRETO na planilha
       setDates(datesList);
