@@ -530,9 +530,13 @@ export default function GridTeamInclusionForm() {
             defaultDailyRate = Math.max(1, Math.ceil((inclusion.dailyRates || 1) / daysDiff));
           }
           
+          // Buscar o nome correto da função no sistema
+          const systemFunction = functions?.find(f => f.id === inclusion.functionId);
+          const functionName = systemFunction?.name || inclusion.functionName || 'Função';
+          
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
-            functionName: inclusion.functionName || 'Função',
+            functionName: functionName,
             needsTicket: inclusion.needsTicket || false,
             ida,
             chegada, 
