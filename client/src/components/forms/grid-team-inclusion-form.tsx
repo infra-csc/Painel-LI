@@ -495,10 +495,22 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
-      // USAR OS DADOS REAIS DO BANCO - não fazer parsing das observações
+      // ORDENAR inclusions por row_order para manter posição original da planilha
+      const sortedInclusions = inclusions.sort((a: any, b: any) => {
+        // Se ambos têm row_order, usar essa ordem
+        if (a.rowOrder !== null && b.rowOrder !== null) {
+          return a.rowOrder - b.rowOrder;
+        }
+        // Se apenas um tem row_order, priorizar o que tem
+        if (a.rowOrder !== null) return -1;
+        if (b.rowOrder !== null) return 1;
+        // Se nenhum tem row_order, manter ordem original (created_at)
+        return 0;
+      });
+      
       const loadedFunctions: any[] = [];
 
-      inclusions.forEach((inclusion: any, index: number) => {
+      sortedInclusions.forEach((inclusion: any, index: number) => {
         // Extrair dados de viagem das observações 
         const observations = inclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
@@ -744,12 +756,30 @@ export default function GridTeamInclusionForm() {
       let successCount = 0;
       
       // Cria um team_inclusion para cada range processado
-      for (const range of ranges) {
+      for (let rangeIndex = 0; rangeIndex < ranges.length; rangeIndex++) {
+        const range = ranges[rangeIndex];
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
         
         // Como range.functionId agora é o ID original, precisamos encontrar a row pelo ID único original  
         const functionRow = functionRows.find(r => {
           // Extrair ID original da row para comparar
+          let rowOriginalId = r.functionId;
+          if (r.functionId.includes('-')) {
+            const parts = r.functionId.split('-');
+            for (let i = 1; i <= parts.length; i++) {
+              const testId = parts.slice(0, i).join('-');
+              const foundFunction = functions?.find(f => f.id === testId);
+              if (foundFunction) {
+                rowOriginalId = testId;
+                break;
+              }
+            }
+          }
+          return rowOriginalId === range.functionId;
+        });
+        
+        // Encontrar a posição original da linha na planilha
+        const rowOrder = functionRows.findIndex(r => {
           let rowOriginalId = r.functionId;
           if (r.functionId.includes('-')) {
             const parts = r.functionId.split('-');
@@ -779,6 +809,7 @@ export default function GridTeamInclusionForm() {
           needsTicket: functionRow?.needsTicket || false,
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
+          rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
           observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)} | Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`,
         });
         
