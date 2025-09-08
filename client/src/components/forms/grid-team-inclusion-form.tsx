@@ -661,22 +661,21 @@ export default function GridTeamInclusionForm() {
       const firstValue = allValues[0];
       
       if (allSame) {
-        // All values are the same: create as many records as the value
-        const recordCount = firstValue === 1 ? 1 : firstValue;
-        for (let i = 0; i < recordCount; i++) {
-          ranges.push({
-            functionId: originalFunctionId, // Usar ID original
-            dailyRate: numberOfDays,
-            startDate: startDate,
-            endDate: endDate,
-            travelInfo: {
-              ida: row.ida,
-              chegada: row.chegada,
-              retorno: row.retorno,
-              horarioRetorno: row.horarioRetorno,
-            },
-          });
-        }
+        // Criar APENAS 1 registro por linha da planilha
+        // dailyRate = dias trabalhados × diárias por dia
+        const totalDailyRates = numberOfDays * firstValue;
+        ranges.push({
+          functionId: originalFunctionId, // Usar ID original
+          dailyRate: totalDailyRates, // Total de diárias (dias × diárias por dia)
+          startDate: startDate,
+          endDate: endDate,
+          travelInfo: {
+            ida: row.ida,
+            chegada: row.chegada,
+            retorno: row.retorno,
+            horarioRetorno: row.horarioRetorno,
+          },
+        });
       } else {
           // Values change: create records for each different value
           
@@ -695,15 +694,16 @@ export default function GridTeamInclusionForm() {
           
           // Criar um registro para cada grupo de valor
           for (const [valueStr, datesForValue] of Object.entries(valueGroups)) {
-            const value = parseInt(valueStr);
+            const dailyRatePerDay = parseInt(valueStr);
             // Ordenar as datas para esse valor específico
             const sortedDatesForValue = datesForValue.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
             const firstDate = sortedDatesForValue[0];
             const lastDate = sortedDatesForValue[sortedDatesForValue.length - 1];
+            const daysInThisGroup = sortedDatesForValue.length;
             
             ranges.push({
               functionId: originalFunctionId, // Usar ID original
-              dailyRate: value, // Valor real da diária (quantas diárias por dia)
+              dailyRate: daysInThisGroup * dailyRatePerDay, // Total: dias × diárias por dia
               startDate: firstDate,
               endDate: lastDate,
               travelInfo: {
