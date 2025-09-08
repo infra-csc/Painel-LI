@@ -995,16 +995,25 @@ export default function GridTeamInclusionForm() {
                     Registros que serão criados ({processGrid().length}):
                   </Label>
                   <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
-                    {processGrid().map((range, index) => (
-                      <div key={index} className="flex justify-between">
-                        <span>
-                          {functions?.find(f => f.id === range.functionId)?.name} - {range.dailyRate} diária(s)
-                        </span>
-                        <span>
-                          {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
-                        </span>
-                      </div>
-                    ))}
+                    {processGrid().map((range, index) => {
+                      // Busca o nome da função no functionRows primeiro, depois na lista de functions
+                      const functionRow = functionRows.find(r => r.functionId === range.functionId);
+                      const functionName = functionRow?.functionName || 
+                                         functions?.find(f => f.id === range.functionId)?.name ||
+                                         functions?.find(f => f.id === range.functionId.split('-')[0])?.name || 
+                                         'Função não encontrada';
+                      
+                      return (
+                        <div key={index} className="flex justify-between">
+                          <span>
+                            {functionName} - {range.dailyRate} diária(s)
+                          </span>
+                          <span>
+                            {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
