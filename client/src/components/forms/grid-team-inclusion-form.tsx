@@ -225,30 +225,53 @@ export default function GridTeamInclusionForm() {
       datesList.push(dateStr);
     }
 
-    // Criar linhas para cada função - aplicar dados salvos se disponíveis
-    const existingFunctionMap = new Map(functionRows.map(row => [row.functionId, row]));
+    // Se há template carregado, usar APENAS essas funções
+    let rows: FunctionRow[] = [];
     
-    const rows: FunctionRow[] = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
-      const existingFunction = existingFunctionMap.get(func.id);
-      const dailyRates: { [date: string]: number } = {};
-      
-      datesList.forEach(date => {
-        // Aplicar valores salvos se disponíveis, senão usar padrão 1
-        dailyRates[date] = (existingFunction as any)?.defaultDailyRate || 1;
-      });
+    if (templateLoaded && functionRows.length > 0) {
+      // Usar template carregado - aplicar nos novos dates
+      rows = functionRows.map(templateFunc => {
+        const dailyRates: { [date: string]: number } = {};
+        
+        datesList.forEach(date => {
+          // Aplicar valor padrão do template
+          dailyRates[date] = (templateFunc as any)?.defaultDailyRate || 1;
+        });
 
-      return {
-        functionId: func.id,
-        functionName: func.name,
-        ida: existingFunction?.ida || "",
-        chegada: existingFunction?.chegada || "",
-        retorno: existingFunction?.retorno || "",
-        horarioRetorno: existingFunction?.horarioRetorno || "",
-        needsTicket: existingFunction?.needsTicket || false,
-        dailyRates,
-        isCustom: false,
-      };
-    });
+        return {
+          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket
+          dailyRates, // Aplica nas novas datas
+        };
+      });
+      
+      // Limpar flag do template
+      setTemplateLoaded(false);
+    } else {
+      // Comportamento normal - todas as funções da base
+      const existingFunctionMap = new Map(functionRows.map(row => [row.functionId, row]));
+      
+      rows = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
+        const existingFunction = existingFunctionMap.get(func.id);
+        const dailyRates: { [date: string]: number } = {};
+        
+        datesList.forEach(date => {
+          // Aplicar valores salvos se disponíveis, senão usar padrão 1
+          dailyRates[date] = (existingFunction as any)?.defaultDailyRate || 1;
+        });
+
+        return {
+          functionId: func.id,
+          functionName: func.name,
+          ida: existingFunction?.ida || "",
+          chegada: existingFunction?.chegada || "",
+          retorno: existingFunction?.retorno || "",
+          horarioRetorno: existingFunction?.horarioRetorno || "",
+          needsTicket: existingFunction?.needsTicket || false,
+          dailyRates,
+          isCustom: false,
+        };
+      });
+    }
 
     setDates(datesList);
     setFunctionRows(rows);
