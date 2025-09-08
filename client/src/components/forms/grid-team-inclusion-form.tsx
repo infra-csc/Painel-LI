@@ -535,10 +535,15 @@ export default function GridTeamInclusionForm() {
       setFunctionRows(loadedFunctions);
       setShowGrid(false); // Grid só aparece depois que selecionar período
 
+      // Mostrar quais funções foram carregadas
+      const functionNames = loadedFunctions.map(f => f.functionName).join(', ');
+      
       toast({
         title: "Configurações carregadas",
-        description: `Carregadas ${loadedFunctions.length} funções de evento anterior.`,
+        description: `Carregadas ${loadedFunctions.length} funções: ${functionNames}`,
       });
+      
+      console.log('Funções carregadas:', loadedFunctions);
 
     } catch (error) {
       toast({
@@ -801,6 +806,29 @@ export default function GridTeamInclusionForm() {
                 )}
               />
             </div>
+
+            {/* Mostrar funções carregadas */}
+            {functionRows.length > 0 && !showGrid && (
+              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">✅ Funções carregadas do evento anterior:</h4>
+                <div className="grid gap-2">
+                  {functionRows.map((func, index) => (
+                    <div key={func.functionId} className="flex items-center gap-4 text-sm">
+                      <span className="font-medium text-green-800 dark:text-green-200">{func.functionName}</span>
+                      <span className="text-green-600 dark:text-green-300">
+                        {func.needsTicket ? '✈️ Com passagem' : '🏠 Sem passagem'}
+                      </span>
+                      <span className="text-green-600 dark:text-green-300">
+                        Ida: {func.ida || 'Vazio'} | Chegada: {func.chegada || 'Vazio'} | Retorno: {func.retorno || 'Vazio'} | Horário: {func.horarioRetorno || 'Vazio'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                  ✅ Configurações prontas! Selecione as datas acima e clique em "Gerar Grade" para aplicar.
+                </p>
+              </div>
+            )}
 
             {/* Botão para gerar grade */}
             <Button
