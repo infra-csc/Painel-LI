@@ -554,23 +554,61 @@ export default function GridTeamInclusionForm() {
 
       const loadedFunctions = Array.from(functionMap.values());
 
-      // NÃO definir datas - usuário escolhe o período
-      setDates([]);
-      setFunctionRows(loadedFunctions);
-      setShowGrid(false); // Grid só aparece depois que selecionar período
-      
-      // Marcar que tem template carregado para aplicar depois
-      setTemplateLoaded(true);
+      // Usar as datas originais do primeiro registro como base para gerar grade
+      let startDate = '', endDate = '';
+      if (inclusions.length > 0 && inclusions[0].scheduleStartDate && inclusions[0].scheduleEndDate) {
+        startDate = inclusions[0].scheduleStartDate;
+        endDate = inclusions[0].scheduleEndDate;
+      } else {
+        // Fallback: usar próxima semana como padrão
+        const today = new Date();
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 7);
+        const endOfWeek = new Date(nextWeek);
+        endOfWeek.setDate(nextWeek.getDate() + 3);
+        
+        startDate = nextWeek.toISOString().split('T')[0];
+        endDate = endOfWeek.toISOString().split('T')[0];
+      }
 
-      // Mostrar quais funções foram carregadas
-      const functionNames = loadedFunctions.map(f => f.functionName).join(', ');
+      // Gerar datas do período
+      const datesList: string[] = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        datesList.push(dateStr);
+      }
+
+      // Aplicar template nas datas carregadas
+      const rows = loadedFunctions.map(templateFunc => {
+        const dailyRates: { [date: string]: number } = {};
+        
+        datesList.forEach(date => {
+          // Aplicar valor padrão do template
+          dailyRates[date] = (templateFunc as any)?.defaultDailyRate || 1;
+        });
+
+        return {
+          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket
+          dailyRates, // Aplica nas novas datas
+        };
+      });
+
+      // Definir datas nos campos do formulário
+      form.setValue('startDate', startDate);
+      form.setValue('endDate', endDate);
+      
+      // Aplicar DIRETO na planilha
+      setDates(datesList);
+      setFunctionRows(rows);
+      setShowGrid(true); // Mostrar planilha DIRETO
       
       toast({
-        title: "Configurações carregadas",
-        description: `Carregadas ${loadedFunctions.length} funções: ${functionNames}`,
+        title: "Template aplicado",
+        description: `${loadedFunctions.length} funções carregadas na planilha`,
       });
-      
-      console.log('Funções carregadas:', loadedFunctions);
 
     } catch (error) {
       toast({
@@ -834,15 +872,6 @@ export default function GridTeamInclusionForm() {
               />
             </div>
 
-            {/* Indicador de template carregado */}
-            {functionRows.length > 0 && !showGrid && (
-              <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">📋 Template carregado: {functionRows.length} funções</h4>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
-                  Selecione as datas e clique em "Gerar Grade" - os dados aparecerão direto na planilha para edição.
-                </p>
-              </div>
-            )}
 
             {/* Botão para gerar grade */}
             <Button
