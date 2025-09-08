@@ -215,6 +215,23 @@ export default function Scaling() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
+  // Função para extrair dados de passagem das observações
+  const extractTravelInfoFromObservations = (observations: string | undefined) => {
+    if (!observations) return { ida: 'N/A', retorno: 'N/A', chegada: 'N/A', horario: 'N/A' };
+    
+    const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+    
+    return {
+      ida: idaMatch ? idaMatch[1].trim() : 'N/A',
+      retorno: retornoMatch ? retornoMatch[1].trim() : 'N/A', 
+      chegada: chegadaMatch ? chegadaMatch[1].trim() : 'N/A',
+      horario: horarioMatch ? horarioMatch[1].trim() : 'N/A'
+    };
+  };
+
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
     const [year, month, day] = dateStr.split('-');
@@ -523,14 +540,28 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  <div>Ida: {formatDate(inclusion.flightDepartureDate) || "N/A"}</div>
-                                  <div>Retorno: {formatDate(inclusion.flightReturnDate) || "N/A"}</div>
+                                  {(() => {
+                                    const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
+                                    return (
+                                      <>
+                                        <div>Ida: {travelInfo.ida}</div>
+                                        <div>Retorno: {travelInfo.retorno}</div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  <div>Partida: {inclusion.flightDepartureSuggestedTime || "N/A"}</div>
-                                  <div>Retorno: {inclusion.flightReturnSuggestedTime || "N/A"}</div>
+                                  {(() => {
+                                    const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
+                                    return (
+                                      <>
+                                        <div>Partida: {travelInfo.chegada}</div>
+                                        <div>Retorno: {travelInfo.horario}</div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                               <td className="px-3 py-4">
