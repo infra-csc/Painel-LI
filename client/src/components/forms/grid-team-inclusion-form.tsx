@@ -473,23 +473,41 @@ export default function GridTeamInclusionForm() {
       const allDates = new Set<string>();
 
       inclusions.forEach((inclusion: any) => {
-        allDates.add(inclusion.date);
+        // Adicionar datas do período da inclusão (scheduleStartDate até scheduleEndDate)
+        if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
+          const startDate = new Date(inclusion.scheduleStartDate);
+          const endDate = new Date(inclusion.scheduleEndDate);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0]; // formato YYYY-MM-DD
+            allDates.add(dateStr);
+          }
+        }
         
         if (!functionMap.has(inclusion.functionId)) {
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
             functionName: inclusion.functionName || 'Função',
             needsTicket: inclusion.needsTicket || false,
-            departureDate: inclusion.departureDate || '',
-            arrivalTime: inclusion.arrivalTime || '',
-            returnDate: inclusion.returnDate || '',
-            returnTime: inclusion.returnTime || '',
+            ida: inclusion.flightDepartureDate ? new Date(inclusion.flightDepartureDate).toLocaleDateString('pt-BR', { weekday: 'short' }) : '',
+            chegada: inclusion.flightDepartureSuggestedTime || '',
+            retorno: inclusion.flightReturnDate ? new Date(inclusion.flightReturnDate).toLocaleDateString('pt-BR', { weekday: 'short' }) : '',
+            horarioRetorno: inclusion.flightReturnSuggestedTime || '',
             dailyRates: {}
           });
         }
         
-        const func = functionMap.get(inclusion.functionId);
-        func.dailyRates[inclusion.date] = inclusion.dailyRate || 0;
+        // Definir taxa diária para cada dia do período
+        if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
+          const startDate = new Date(inclusion.scheduleStartDate);
+          const endDate = new Date(inclusion.scheduleEndDate);
+          const func = functionMap.get(inclusion.functionId);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            func.dailyRates[dateStr] = inclusion.dailyRates || 1; // Usar o valor de dailyRates da inclusão
+          }
+        }
       });
 
       const sortedDates = Array.from(allDates).sort();
@@ -518,7 +536,10 @@ export default function GridTeamInclusionForm() {
   };
 
 
-  const formatDateForDisplay = (dateStr: string) => {
+  const formatDateForDisplay = (dateStr: string | undefined | null) => {
+    if (!dateStr || typeof dateStr !== 'string') {
+      return 'Data inválida';
+    }
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}`;
   };
