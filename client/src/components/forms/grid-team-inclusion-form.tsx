@@ -633,18 +633,22 @@ export default function GridTeamInclusionForm() {
       
       if (datesWithRates.length === 0) return;
 
-      // Extrair o ID original da função removendo sufixos criados para uniqueness
-      let originalFunctionId = row.functionId;
-      if (row.functionId.includes('-')) {
-        const parts = row.functionId.split('-');
-        
-        // Testar diferentes combinações até encontrar uma que existe
-        for (let i = 1; i <= parts.length; i++) {
-          const testId = parts.slice(0, i).join('-');
-          const foundFunction = functions?.find(f => f.id === testId);
-          if (foundFunction) {
-            originalFunctionId = testId;
-            break;
+      // Usar originalFunctionId se existir (função carregada de template) ou extrair do ID
+      let originalFunctionId = (row as any).originalFunctionId || row.functionId;
+      
+      // Se não tem originalFunctionId, tentar extrair do ID único
+      if (!originalFunctionId || originalFunctionId === row.functionId) {
+        if (row.functionId.includes('-')) {
+          const parts = row.functionId.split('-');
+          
+          // Testar diferentes combinações até encontrar uma que existe
+          for (let i = 1; i <= parts.length; i++) {
+            const testId = parts.slice(0, i).join('-');
+            const foundFunction = functions?.find(f => f.id === testId);
+            if (foundFunction) {
+              originalFunctionId = testId;
+              break;
+            }
           }
         }
       }
