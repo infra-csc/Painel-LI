@@ -899,15 +899,6 @@ export default function GridTeamInclusionForm() {
                                     <Calendar className="w-3 h-3 mr-2" />
                                     Copiar Apenas Horários
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 1)}>
-                                    Preencher com 1
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 2)}>
-                                    Preencher com 2
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => fillAllDates(row.functionId, 3)}>
-                                    Preencher com 3
-                                  </DropdownMenuItem>
                                   <DropdownMenuItem 
                                     onClick={() => removeFunction(row.functionId)}
                                     className="text-destructive"
