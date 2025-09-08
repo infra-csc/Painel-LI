@@ -166,9 +166,13 @@ export default function GridTeamInclusionForm() {
   });
 
   // Função para carregar automaticamente as datas quando um evento é selecionado
+  // MAS SOMENTE se os campos estiverem vazios (para não sobrescrever datas manuais)
   useEffect(() => {
     const selectedEventId = form.watch("eventId");
-    if (selectedEventId && events) {
+    const currentStartDate = form.watch("startDate");
+    const currentEndDate = form.watch("endDate");
+    
+    if (selectedEventId && events && !currentStartDate && !currentEndDate) {
       const selectedEvent = events.find(event => event.id === selectedEventId);
       if (selectedEvent) {
         form.setValue("startDate", selectedEvent.startDate);
