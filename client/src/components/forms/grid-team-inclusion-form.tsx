@@ -247,26 +247,23 @@ export default function GridTeamInclusionForm() {
       // Limpar flag do template
       setTemplateLoaded(false);
     } else {
-      // Comportamento normal - todas as funções da base
-      const existingFunctionMap = new Map(functionRows.map(row => [row.functionId, row]));
-      
+      // Grade nova - começar com campos VAZIOS
       rows = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
-        const existingFunction = existingFunctionMap.get(func.id);
         const dailyRates: { [date: string]: number } = {};
         
         datesList.forEach(date => {
-          // Aplicar valores salvos se disponíveis, senão usar padrão 1
-          dailyRates[date] = (existingFunction as any)?.defaultDailyRate || 1;
+          // Grade nova = sem valores (0 = célula vazia)
+          dailyRates[date] = 0;
         });
 
         return {
           functionId: func.id,
           functionName: func.name,
-          ida: existingFunction?.ida || "",
-          chegada: existingFunction?.chegada || "",
-          retorno: existingFunction?.retorno || "",
-          horarioRetorno: existingFunction?.horarioRetorno || "",
-          needsTicket: existingFunction?.needsTicket || false,
+          ida: "", // Vazio para grade nova
+          chegada: "", // Vazio para grade nova
+          retorno: "", // Vazio para grade nova
+          horarioRetorno: "", // Vazio para grade nova
+          needsTicket: false, // Desmarcado para grade nova
           dailyRates,
           isCustom: false,
         };
