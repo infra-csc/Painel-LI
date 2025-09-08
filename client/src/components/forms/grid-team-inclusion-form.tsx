@@ -495,53 +495,57 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
-      // Criar uma linha para CADA inclusão (permite funções duplicadas)
-      const loadedFunctions: any[] = [];
+      // AGRUPAR inclusões por função para evitar duplicatas na planilha
+      const functionGroups: { [functionId: string]: any } = {};
 
-      inclusions.forEach((inclusion: any, index: number) => {
-        // Extrair horários das observações se disponível
-        const observations = inclusion.observations || '';
-        let ida = '', chegada = '', retorno = '', horarioRetorno = '';
+      inclusions.forEach((inclusion: any) => {
+        const functionId = inclusion.functionId;
         
-        // Parse das observações salvas (formato: "... | Ida: sáb | Chegada: até.. | Retorno: dom | Horário: 14-18h")
-        const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-        
-        if (idaMatch) ida = idaMatch[1].trim();
-        if (chegadaMatch) chegada = chegadaMatch[1].trim();
-        if (retornoMatch) retorno = retornoMatch[1].trim();
-        if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
-        
-        // Extrair quantas diárias por dia do campo observations  
-        const observations_text = inclusion.observations || '';
-        const dailyRateMatch = observations_text.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
-        
-        let defaultDailyRate = 1;
-        if (dailyRateMatch) {
-          defaultDailyRate = parseInt(dailyRateMatch[1]);
+        if (!functionGroups[functionId]) {
+          // Primeira inclusão desta função - usar seus dados como base
+          const observations = inclusion.observations || '';
+          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
+          
+          // Parse das observações salvas (formato: "... | Ida: sáb | Chegada: até.. | Retorno: dom | Horário: 14-18h")
+          const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+          
+          if (idaMatch) ida = idaMatch[1].trim();
+          if (chegadaMatch) chegada = chegadaMatch[1].trim();
+          if (retornoMatch) retorno = retornoMatch[1].trim();
+          if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
+          
+          // Extrair quantas diárias por dia do campo observations  
+          const dailyRateMatch = observations.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
+          let defaultDailyRate = 1;
+          if (dailyRateMatch) {
+            defaultDailyRate = parseInt(dailyRateMatch[1]);
+          }
+          
+          // Buscar o nome correto da função no sistema
+          const systemFunction = functions?.find(f => f.id === inclusion.functionId);
+          const functionName = systemFunction?.name || inclusion.functionName || 'Função';
+          
+          functionGroups[functionId] = {
+            functionId: functionId,
+            originalFunctionId: functionId,
+            functionName: functionName,
+            needsTicket: inclusion.needsTicket || false,
+            ida,
+            chegada, 
+            retorno, 
+            horarioRetorno,
+            dailyRates: {},
+            isCustom: false,
+            defaultDailyRate: defaultDailyRate
+          };
         }
-        
-        // Buscar o nome correto da função no sistema
-        const systemFunction = functions?.find(f => f.id === inclusion.functionId);
-        const functionName = systemFunction?.name || inclusion.functionName || 'Função';
-        
-        // Criar UMA ÚNICA linha por inclusão
-        loadedFunctions.push({
-          functionId: `${inclusion.functionId}-${index}`,
-          originalFunctionId: inclusion.functionId,
-          functionName: functionName,
-          needsTicket: inclusion.needsTicket || false,
-          ida,
-          chegada, 
-          retorno, 
-          horarioRetorno,
-          dailyRates: {},
-          isCustom: false,
-          defaultDailyRate: defaultDailyRate
-        });
       });
+
+      // Criar array de funções únicas
+      const loadedFunctions = Object.values(functionGroups);
 
       // USAR as datas que já estão nos campos do formulário (definidas pelo usuário)
       const startDate = form.getValues().startDate;
