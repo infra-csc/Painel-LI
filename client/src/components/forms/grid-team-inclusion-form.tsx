@@ -568,7 +568,7 @@ export default function GridTeamInclusionForm() {
             if (value !== 1) {
               ranges.push({
                 functionId: row.functionId,
-                dailyRate: 1, // Always 1 daily rate
+                dailyRate: value, // Use the actual daily rate value (1-8)
                 startDate: date, // Single date
                 endDate: date, // Single day
                 travelInfo: {
