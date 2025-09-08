@@ -517,11 +517,9 @@ export default function GridTeamInclusionForm() {
         const systemFunction = functions?.find(f => f.id === inclusion.functionId);
         const functionName = systemFunction?.name || 'Função';
         
-        // CALCULAR quantas diárias por dia baseado nos dados reais salvos
-        const startDate = new Date(inclusion.scheduleStartDate);
-        const endDate = new Date(inclusion.scheduleEndDate);
-        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        const dailyRatePerDay = Math.round(inclusion.dailyRates / daysDiff);
+        // USAR EXATAMENTE os dados salvos - extrair diárias por dia das observações
+        const dailyRateMatch = observations.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
+        const dailyRatePerDay = dailyRateMatch ? parseInt(dailyRateMatch[1]) : 1;
         
         loadedFunctions.push({
           functionId: `${inclusion.functionId}-${index}`,
