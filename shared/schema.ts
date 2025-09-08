@@ -185,6 +185,8 @@ export const userApprovalSchema = z.object({
 
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
+  eventNumber: true, // tem valor default com sequence
+  status: true, // tem valor default "planejado"
   createdAt: true,
 });
 
