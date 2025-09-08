@@ -257,7 +257,9 @@ export class MemStorage implements IStorage {
       status: insertCollaborator.status || 'ativo',
       phone: insertCollaborator.phone || null,
       collaboratorNumber: insertCollaborator.collaboratorNumber || 1,
-      approvalNotes: insertCollaborator.approvalNotes || null
+      approvalNotes: insertCollaborator.approvalNotes || null,
+      approvedBy: insertCollaborator.approvedBy || null,
+      approvedAt: insertCollaborator.approvedAt || null
     };
     this.collaborators.set(id, collaborator);
     return collaborator;
@@ -396,7 +398,8 @@ export class MemStorage implements IStorage {
       actualFee: insertFinancial.actualFee || null,
       approved: insertFinancial.approved || false,
       approvedAt: insertFinancial.approvedAt || null,
-      approvedBy: insertFinancial.approvedBy || null
+      approvedBy: insertFinancial.approvedBy || null,
+      updatedBy: insertFinancial.updatedBy || null
     };
     this.financials.set(id, financial);
     return financial;
@@ -455,7 +458,14 @@ export class MemStorage implements IStorage {
       ...insertLog, 
       id,
       logNumber: this.logCounter++,
-      createdAt: new Date() 
+      createdAt: new Date(),
+      userId: insertLog.userId || null,
+      userName: insertLog.userName || null,
+      entityName: insertLog.entityName || null,
+      previousData: insertLog.previousData || null,
+      newData: insertLog.newData || null,
+      ipAddress: insertLog.ipAddress || null,
+      userAgent: insertLog.userAgent || null
     };
     this.systemLogs.set(id, log);
     return log;
