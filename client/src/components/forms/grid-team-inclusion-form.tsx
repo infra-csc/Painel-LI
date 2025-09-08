@@ -581,10 +581,12 @@ export default function GridTeamInclusionForm() {
           }
           
           // Criar um registro para cada grupo de valor
-          for (const [valueStr, dates] of Object.entries(valueGroups)) {
+          for (const [valueStr, datesForValue] of Object.entries(valueGroups)) {
             const value = parseInt(valueStr);
-            const firstDate = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
-            const lastDate = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[dates.length - 1];
+            // Ordenar as datas para esse valor específico
+            const sortedDatesForValue = datesForValue.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+            const firstDate = sortedDatesForValue[0];
+            const lastDate = sortedDatesForValue[sortedDatesForValue.length - 1];
             
             ranges.push({
               functionId: row.functionId,
