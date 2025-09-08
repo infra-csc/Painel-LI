@@ -333,7 +333,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {
     try {
-      const inclusions = await storage.getTeamInclusions();
+      const { eventId } = req.query;
+      
+      let inclusions = await storage.getTeamInclusions();
+      
+      // Filtrar por eventId se fornecido
+      if (eventId && eventId !== 'all') {
+        inclusions = inclusions.filter(inclusion => inclusion.eventId === eventId);
+      }
+      
       res.json(inclusions);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar inclusões de equipe" });
