@@ -495,10 +495,15 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
+      // DEBUG: Verificar quantas inclusões temos
+      console.log(`Carregando ${inclusions.length} inclusões do evento`);
+
       // Criar uma linha para CADA inclusão (permite funções duplicadas)
       const loadedFunctions: any[] = [];
 
-      inclusions.forEach((inclusion: any) => {
+      inclusions.forEach((inclusion: any, index: number) => {
+        console.log(`Processando inclusão ${index + 1}:`, inclusion.functionId);
+        
         // Extrair horários das observações se disponível
         const observations = inclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
@@ -514,28 +519,24 @@ export default function GridTeamInclusionForm() {
         if (retornoMatch) retorno = retornoMatch[1].trim();
         if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
         
-        // Extrair quantas diárias por dia do campo observations
+        // Extrair quantas diárias por dia do campo observations  
         const observations_text = inclusion.observations || '';
         const dailyRateMatch = observations_text.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
         
-        let defaultDailyRate = 1;
+        let defaultDailyRate = 1; // SEMPRE 1 diária por dia, não multiplicar
         if (dailyRateMatch) {
           defaultDailyRate = parseInt(dailyRateMatch[1]);
-        } else if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
-          // Fallback: calcular com base no período e total de diárias
-          const startDate = new Date(inclusion.scheduleStartDate);
-          const endDate = new Date(inclusion.scheduleEndDate);
-          const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)) + 1;
-          defaultDailyRate = Math.max(1, Math.ceil((inclusion.dailyRates || 1) / daysDiff));
         }
+        
+        console.log(`Função: ${inclusion.functionId}, diárias por dia: ${defaultDailyRate}`);
         
         // Buscar o nome correto da função no sistema
         const systemFunction = functions?.find(f => f.id === inclusion.functionId);
         const functionName = systemFunction?.name || inclusion.functionName || 'Função';
         
-        // Criar uma linha única para cada inclusão (permite duplicadas)
+        // Criar UMA ÚNICA linha por inclusão - NÃO multiplicar por diárias
         loadedFunctions.push({
-          functionId: `${inclusion.functionId}-${Date.now()}-${Math.random()}`, // ID único para evitar conflitos na UI
+          functionId: `${inclusion.functionId}-${index}`, // ID único mais simples
           originalFunctionId: inclusion.functionId, // Guardar ID original para salvar
           functionName: functionName,
           needsTicket: inclusion.needsTicket || false,
@@ -548,6 +549,8 @@ export default function GridTeamInclusionForm() {
           defaultDailyRate: defaultDailyRate
         });
       });
+
+      console.log(`Total de linhas criadas: ${loadedFunctions.length}`);
 
       // USAR as datas que já estão nos campos do formulário (definidas pelo usuário)
       const startDate = form.getValues().startDate;
