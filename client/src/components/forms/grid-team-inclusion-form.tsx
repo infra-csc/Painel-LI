@@ -543,25 +543,39 @@ export default function GridTeamInclusionForm() {
           });
         }
       } else {
-          // Values change: create records only for dates with non-1 values
+          // Values change: create records for each different value
           
-          // Create records for all dates with non-1 values
+          // Agrupar datas por valor para criar registros corretos
+          const valueGroups: { [value: number]: string[] } = {};
+          
           for (const date of sortedDates) {
             const value = row.dailyRates[date];
-            if (value !== 1) {
-              ranges.push({
-                functionId: row.functionId,
-                dailyRate: value, // Use the actual daily rate value (1-8)
-                startDate: date, // Single date
-                endDate: date, // Single day
-                travelInfo: {
-                  ida: row.ida,
-                  chegada: row.chegada,
-                  retorno: row.retorno,
-                  horarioRetorno: row.horarioRetorno,
-                },
-              });
+            if (value !== 1 && value > 0) { // Ignorar valores 0 e 1
+              if (!valueGroups[value]) {
+                valueGroups[value] = [];
+              }
+              valueGroups[value].push(date);
             }
+          }
+          
+          // Criar um registro para cada grupo de valor
+          for (const [valueStr, dates] of Object.entries(valueGroups)) {
+            const value = parseInt(valueStr);
+            const firstDate = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+            const lastDate = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[dates.length - 1];
+            
+            ranges.push({
+              functionId: row.functionId,
+              dailyRate: value, // Valor real da diária (quantas diárias por dia)
+              startDate: firstDate,
+              endDate: lastDate,
+              travelInfo: {
+                ida: row.ida,
+                chegada: row.chegada,
+                retorno: row.retorno,
+                horarioRetorno: row.horarioRetorno,
+              },
+            });
           }
       }
     });
@@ -613,11 +627,11 @@ export default function GridTeamInclusionForm() {
           userId: originalFunction?.userId || user?.id, // usa userId da função original
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
-          dailyRates: dailyRatesCount,
-          dailyValue: range.dailyRate * 5000,
+          dailyRates: dailyRatesCount, // número de dias
+          dailyValue: range.dailyRate * dailyRatesCount * 5000, // valor total (diárias por dia * dias * valor unitário)
           needsTicket: functionRow?.needsTicket || false,
           status: "planejado", // Status para aparecer na escalação
-          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
+          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         
         successCount++;
