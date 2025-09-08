@@ -367,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating team inclusion:", error);
       console.error("Request body:", req.body);
-      res.status(400).json({ message: "Dados inválidos", error: error.message });
+      res.status(400).json({ message: "Dados inválidos", error: error instanceof Error ? error.message : String(error) });
     }
   });
 
