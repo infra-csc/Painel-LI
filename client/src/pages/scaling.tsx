@@ -767,14 +767,6 @@ export default function Scaling() {
                   onChange={(e) => setModalData(prev => ({...prev, observations: e.target.value}))}
                   className="mt-2"
                 />
-                {selectedInclusion.observations && (
-                  <div className="mt-2 p-3 bg-muted rounded text-sm">
-                    <span className="text-xs text-muted-foreground block mb-1">
-                      Observação da Inclusão Original:
-                    </span>
-                    {selectedInclusion.observations}
-                  </div>
-                )}
               </div>
 
               {/* Seção de Comentários */}
