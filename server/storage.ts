@@ -588,7 +588,41 @@ export class DatabaseStorage implements IStorage {
 
   // Team Inclusions
   async getTeamInclusions(): Promise<TeamInclusion[]> {
-    return await db.select().from(teamInclusions);
+    return await db
+      .select({
+        id: teamInclusions.id,
+        inclusionNumber: teamInclusions.inclusionNumber,
+        eventId: teamInclusions.eventId,
+        functionId: teamInclusions.functionId,
+        collaboratorId: teamInclusions.collaboratorId,
+        area: teamInclusions.area,
+        scheduleStartDate: teamInclusions.scheduleStartDate,
+        scheduleEndDate: teamInclusions.scheduleEndDate,
+        actualStartDate: teamInclusions.actualStartDate,
+        actualEndDate: teamInclusions.actualEndDate,
+        flightDepartureDate: teamInclusions.flightDepartureDate,
+        flightDepartureSuggestedTime: teamInclusions.flightDepartureSuggestedTime,
+        flightReturnDate: teamInclusions.flightReturnDate,
+        flightReturnSuggestedTime: teamInclusions.flightReturnSuggestedTime,
+        needsTicket: teamInclusions.needsTicket,
+        dailyRates: teamInclusions.dailyRates,
+        dailyValue: teamInclusions.dailyValue,
+        actualDailyRates: teamInclusions.actualDailyRates,
+        observations: teamInclusions.observations,
+        actualObservations: teamInclusions.actualObservations,
+        emergencyRecord: teamInclusions.emergencyRecord,
+        status: teamInclusions.status,
+        phase: teamInclusions.phase,
+        userId: teamInclusions.userId,
+        createdAt: teamInclusions.createdAt,
+        updatedAt: teamInclusions.updatedAt,
+        updatedBy: teamInclusions.updatedBy,
+        functionName: functions.name,
+        eventName: events.name,
+      })
+      .from(teamInclusions)
+      .leftJoin(functions, eq(teamInclusions.functionId, functions.id))
+      .leftJoin(events, eq(teamInclusions.eventId, events.id));
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
