@@ -684,32 +684,37 @@ export default function Scaling() {
                   <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
                     Informações de Passagem
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm font-medium">Data de Partida</Label>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {formatDate(selectedInclusion.flightDepartureDate) || "Não definida"}
+                  {(() => {
+                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm font-medium">Data de Partida</Label>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {travelInfo.ida}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium">Data de Retorno</Label>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {travelInfo.retorno}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {travelInfo.chegada}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {travelInfo.horario}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Data de Retorno</Label>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {formatDate(selectedInclusion.flightReturnDate) || "Não definida"}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {selectedInclusion.flightDepartureSuggestedTime || "Não definido"}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {selectedInclusion.flightReturnSuggestedTime || "Não definido"}
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
 
