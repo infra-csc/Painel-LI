@@ -631,6 +631,7 @@ export default function GridTeamInclusionForm() {
           dailyValue: range.dailyRate * dailyRatesCount * 5000, // valor total (diárias por dia * dias * valor unitário)
           needsTicket: functionRow?.needsTicket || false,
           status: "planejado", // Status para aparecer na escalação
+          phase: "inclusao", // Fase obrigatória
           observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
         });
         

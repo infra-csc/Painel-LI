@@ -357,7 +357,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const inclusion = await storage.createTeamInclusion(inclusionData);
       res.json(inclusion);
     } catch (error) {
-      res.status(400).json({ message: "Dados inválidos" });
+      console.error("Error creating team inclusion:", error);
+      console.error("Request body:", req.body);
+      res.status(400).json({ message: "Dados inválidos", error: error.message });
     }
   });
 
