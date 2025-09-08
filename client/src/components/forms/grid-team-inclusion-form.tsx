@@ -107,6 +107,28 @@ export default function GridTeamInclusionForm() {
     }
   }, [functionRows, dates, autoSave]);
 
+  // Função para salvar rascunho manualmente
+  const saveDraft = () => {
+    if (functionRows.length > 0) {
+      localStorage.setItem('grid-draft-save', JSON.stringify({
+        functionRows,
+        dates,
+        eventId: form.getValues().eventId,
+        timestamp: Date.now()
+      }));
+      toast({
+        title: "Rascunho salvo",
+        description: "Dados da planilha salvos com sucesso!",
+      });
+    } else {
+      toast({
+        title: "Nada para salvar",
+        description: "Adicione funções à grade primeiro.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Load auto-saved data
   useEffect(() => {
     const saved = localStorage.getItem('grid-auto-save');
@@ -615,9 +637,13 @@ export default function GridTeamInclusionForm() {
         
         const functionRow = functionRows.find(r => r.functionId === range.functionId);
         
-        // Extrair o ID original da função (remover o timestamp único)
-        const originalFunctionId = range.functionId.includes('-') ? 
-          range.functionId.split('-')[0] : range.functionId;
+        // Extrair o ID original da função (remover apenas o timestamp único, se existir)
+        // Se o ID contém um timestamp (números longos), remover apenas essa parte
+        let originalFunctionId = range.functionId;
+        if (range.functionId.includes('-') && /\d{13}$/.test(range.functionId)) {
+          // Se termina com timestamp de 13 dígitos, remover apenas essa parte
+          originalFunctionId = range.functionId.replace(/-\d{13}$/, '');
+        }
         
         const originalFunction = functions?.find(f => f.id === originalFunctionId);
         
@@ -1014,17 +1040,32 @@ export default function GridTeamInclusionForm() {
                   </div>
                 </div>
 
-                {/* Botão para salvar */}
-                <Button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isProcessing}
-                  className="w-full"
-                  data-testid="button-save-grid"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isProcessing ? "Criando Escalações..." : `Criar ${processGrid().length} Escalação(ões)`}
-                </Button>
+                {/* Botões de ação */}
+                <div className="space-y-2">
+                  {/* Botão para salvar rascunho */}
+                  <Button
+                    type="button"
+                    onClick={saveDraft}
+                    variant="outline"
+                    className="w-full"
+                    data-testid="button-save-draft"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar Rascunho
+                  </Button>
+                  
+                  {/* Botão para criar escalações */}
+                  <Button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isProcessing}
+                    className="w-full"
+                    data-testid="button-save-grid"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {isProcessing ? "Criando Escalações..." : `Criar ${processGrid().length} Escalação(ões)`}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
