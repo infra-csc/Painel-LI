@@ -233,7 +233,7 @@ export default function GridTeamInclusionForm() {
       
       datesList.forEach(date => {
         // Aplicar valores salvos se disponíveis, senão usar padrão 1
-        dailyRates[date] = existingFunction?.defaultDailyRate || 1;
+        dailyRates[date] = (existingFunction as any)?.defaultDailyRate || 1;
       });
 
       return {
