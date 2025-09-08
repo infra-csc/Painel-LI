@@ -755,33 +755,30 @@ export default function GridTeamInclusionForm() {
       for (const range of ranges) {
         const dailyRatesCount = calculateDailyRates(range.startDate, range.endDate);
         
-        const functionRow = functionRows.find(r => r.functionId === range.functionId);
-        
-        // Extrair o ID original da função removendo sufixos criados para uniqueness
-        // Pode ter timestamp (-1234567890123) ou "-copy" ou outras variações
-        let originalFunctionId = range.functionId;
-        
-        // Remover sufixos como: -timestamp, -copy, -copy-timestamp, etc.
-        if (range.functionId.includes('-')) {
-          // Tentar encontrar a função correspondente removendo tudo após o primeiro hífen com número ou "copy"
-          const parts = range.functionId.split('-');
-          
-          // Testar diferentes combinações, começando pela mais completa até encontrar uma que existe
-          for (let i = 1; i <= parts.length; i++) {
-            const testId = parts.slice(0, i).join('-');
-            const foundFunction = functions?.find(f => f.id === testId);
-            if (foundFunction) {
-              originalFunctionId = testId;
-              break;
+        // Como range.functionId agora é o ID original, precisamos encontrar a row pelo ID único original  
+        const functionRow = functionRows.find(r => {
+          // Extrair ID original da row para comparar
+          let rowOriginalId = r.functionId;
+          if (r.functionId.includes('-')) {
+            const parts = r.functionId.split('-');
+            for (let i = 1; i <= parts.length; i++) {
+              const testId = parts.slice(0, i).join('-');
+              const foundFunction = functions?.find(f => f.id === testId);
+              if (foundFunction) {
+                rowOriginalId = testId;
+                break;
+              }
             }
           }
-        }
+          return rowOriginalId === range.functionId;
+        });
         
-        const originalFunction = functions?.find(f => f.id === originalFunctionId);
+        // O processGrid já retorna IDs originais corretos
+        const originalFunction = functions?.find(f => f.id === range.functionId);
         
         await createTeamInclusionMutation.mutateAsync({
           eventId,
-          functionId: originalFunctionId, // usar ID original da função
+          functionId: range.functionId, // já é o ID original correto
           userId: originalFunction?.userId || user?.id, // usa userId da função original
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
