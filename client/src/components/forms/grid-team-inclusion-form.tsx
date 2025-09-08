@@ -572,7 +572,7 @@ export default function GridTeamInclusionForm() {
           
           for (const date of sortedDates) {
             const value = row.dailyRates[date];
-            if (value !== 1 && value > 0) { // Ignorar valores 0 e 1
+            if (value > 0) { // Incluir todos os valores > 0, incluindo valor 1
               if (!valueGroups[value]) {
                 valueGroups[value] = [];
               }
