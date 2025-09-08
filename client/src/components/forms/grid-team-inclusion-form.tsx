@@ -495,15 +495,10 @@ export default function GridTeamInclusionForm() {
         return;
       }
 
-      // DEBUG: Verificar quantas inclusões temos
-      console.log(`Carregando ${inclusions.length} inclusões do evento`);
-
       // Criar uma linha para CADA inclusão (permite funções duplicadas)
       const loadedFunctions: any[] = [];
 
       inclusions.forEach((inclusion: any, index: number) => {
-        console.log(`Processando inclusão ${index + 1}:`, inclusion.functionId);
-        
         // Extrair horários das observações se disponível
         const observations = inclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
@@ -523,34 +518,30 @@ export default function GridTeamInclusionForm() {
         const observations_text = inclusion.observations || '';
         const dailyRateMatch = observations_text.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
         
-        let defaultDailyRate = 1; // SEMPRE 1 diária por dia, não multiplicar
+        let defaultDailyRate = 1;
         if (dailyRateMatch) {
           defaultDailyRate = parseInt(dailyRateMatch[1]);
         }
-        
-        console.log(`Função: ${inclusion.functionId}, diárias por dia: ${defaultDailyRate}`);
         
         // Buscar o nome correto da função no sistema
         const systemFunction = functions?.find(f => f.id === inclusion.functionId);
         const functionName = systemFunction?.name || inclusion.functionName || 'Função';
         
-        // Criar UMA ÚNICA linha por inclusão - NÃO multiplicar por diárias
+        // Criar UMA ÚNICA linha por inclusão
         loadedFunctions.push({
-          functionId: `${inclusion.functionId}-${index}`, // ID único mais simples
-          originalFunctionId: inclusion.functionId, // Guardar ID original para salvar
+          functionId: `${inclusion.functionId}-${index}`,
+          originalFunctionId: inclusion.functionId,
           functionName: functionName,
           needsTicket: inclusion.needsTicket || false,
           ida,
           chegada, 
           retorno, 
           horarioRetorno,
-          dailyRates: {}, // Será preenchido nas novas datas
+          dailyRates: {},
           isCustom: false,
           defaultDailyRate: defaultDailyRate
         });
       });
-
-      console.log(`Total de linhas criadas: ${loadedFunctions.length}`);
 
       // USAR as datas que já estão nos campos do formulário (definidas pelo usuário)
       const startDate = form.getValues().startDate;
