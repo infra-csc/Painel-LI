@@ -520,46 +520,29 @@ export default function GridTeamInclusionForm() {
       const endDate = sortedDates[sortedDates.length - 1];
       const numberOfDays = sortedDates.length;
       
-      // 1st record: Always full period with number of days
-      ranges.push({
-        functionId: row.functionId,
-        dailyRate: numberOfDays,
-        startDate: startDate,
-        endDate: endDate,
-        travelInfo: {
-          ida: row.ida,
-          chegada: row.chegada,
-          retorno: row.retorno,
-          horarioRetorno: row.horarioRetorno,
-        },
-      });
+      // Check if all values are the same
+      const allValues = sortedDates.map(date => row.dailyRates[date]);
+      const allSame = allValues.every(val => val === allValues[0]);
+      const firstValue = allValues[0];
       
-      // Check if any value is different from 1
-      const hasNonOneValue = sortedDates.some(date => row.dailyRates[date] !== 1);
-      
-      if (hasNonOneValue) {
-        // If all values are the same (and not 1), create one additional record
-        const allValues = sortedDates.map(date => row.dailyRates[date]);
-        const allSame = allValues.every(val => val === allValues[0]);
-        
-        if (allSame) {
-          // All same non-1 value: create as many records as the value
-          const valueCount = allValues[0];
-          for (let i = 0; i < valueCount; i++) {
-            ranges.push({
-              functionId: row.functionId,
-              dailyRate: numberOfDays,
-              startDate: startDate,
-              endDate: endDate,
-              travelInfo: {
-                ida: row.ida,
-                chegada: row.chegada,
-                retorno: row.retorno,
-                horarioRetorno: row.horarioRetorno,
-              },
-            });
-          }
-        } else {
+      if (allSame) {
+        // All values are the same: create as many records as the value
+        const recordCount = firstValue === 1 ? 1 : firstValue;
+        for (let i = 0; i < recordCount; i++) {
+          ranges.push({
+            functionId: row.functionId,
+            dailyRate: numberOfDays,
+            startDate: startDate,
+            endDate: endDate,
+            travelInfo: {
+              ida: row.ida,
+              chegada: row.chegada,
+              retorno: row.retorno,
+              horarioRetorno: row.horarioRetorno,
+            },
+          });
+        }
+      } else {
           // Values change: create records only for dates with non-1 values
           
           // Create records for all dates with non-1 values
@@ -580,7 +563,6 @@ export default function GridTeamInclusionForm() {
               });
             }
           }
-        }
       }
     });
 
