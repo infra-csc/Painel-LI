@@ -478,17 +478,29 @@ export default function GridTeamInclusionForm() {
 
       inclusions.forEach((inclusion: any) => {
         if (!functionMap.has(inclusion.functionId)) {
-          // Extrair horários salvos das observações ou de outros campos salvos
+          // Extrair horários das observações se disponível
           const observations = inclusion.observations || '';
+          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
+          
+          // Parse das observações salvas (formato: "... | Ida: sáb | Chegada: até.. | Retorno: dom | Horário: 14-18h")
+          const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+          
+          if (idaMatch) ida = idaMatch[1].trim();
+          if (chegadaMatch) chegada = chegadaMatch[1].trim();
+          if (retornoMatch) retorno = retornoMatch[1].trim();
+          if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
           
           functionMap.set(inclusion.functionId, {
             functionId: inclusion.functionId,
             functionName: inclusion.functionName || 'Função',
             needsTicket: inclusion.needsTicket || false,
-            ida: '', // Será preenchido dos dados salvos abaixo
-            chegada: '', 
-            retorno: '', 
-            horarioRetorno: '',
+            ida,
+            chegada, 
+            retorno, 
+            horarioRetorno,
             dailyRates: {}, // Será preenchido dos dados salvos
             isCustom: false,
             // Guardar dados originais para referência
@@ -687,7 +699,7 @@ export default function GridTeamInclusionForm() {
           needsTicket: functionRow?.needsTicket || false,
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
-          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)}`,
+          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)} | Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`,
         });
         
         successCount++;
@@ -893,9 +905,9 @@ export default function GridTeamInclusionForm() {
                             </div>
                           </th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada(até..)</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário do Retorno</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
                               <div className="text-xs">
