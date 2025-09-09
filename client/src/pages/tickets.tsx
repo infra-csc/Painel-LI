@@ -827,13 +827,13 @@ export default function Tickets() {
                               <div className="space-y-1">
                                 {travelInfo.chegada !== 'Não definido' && (
                                   <div>
-                                    <span className="text-sm font-medium">Previsão chegada: </span>
+                                    <span className="text-sm font-medium">Horário sugerido: </span>
                                     <span>{travelInfo.chegada}</span>
                                   </div>
                                 )}
                                 {departureTime && (
                                   <div>
-                                    <span className="text-sm font-medium">Horário sugerido: </span>
+                                    <span className="text-sm font-medium">Ida: </span>
                                     <span>{departureTime}</span>
                                   </div>
                                 )}
@@ -862,7 +862,7 @@ export default function Tickets() {
                                 )}
                                 {travelInfo.retorno !== 'Não definido' && (
                                   <div>
-                                    <span className="text-sm font-medium">Partindo: </span>
+                                    <span className="text-sm font-medium">Volta: </span>
                                     <span>{travelInfo.retorno}</span>
                                   </div>
                                 )}
