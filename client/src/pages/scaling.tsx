@@ -703,13 +703,13 @@ export default function Scaling() {
                         {/* Voos Sugeridos - apenas aeroportos e horários, SEM datas */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-sm font-medium">Aeroporto Origem (sugerido)</Label>
+                            <Label className="text-sm font-medium">Ida</Label>
                             <div className="text-sm text-muted-foreground mt-1">
                               {travelInfo.ida !== 'N/A' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
                             </div>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium">Aeroporto Destino (sugerido)</Label>
+                            <Label className="text-sm font-medium">Volta</Label>
                             <div className="text-sm text-muted-foreground mt-1">
                               {travelInfo.retorno !== 'N/A' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
                             </div>
