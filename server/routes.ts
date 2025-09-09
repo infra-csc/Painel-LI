@@ -555,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const attachmentId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
       
       // Obter URL de upload do object storage
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL(attachmentId);
       
       res.json({ 
         attachmentId,
