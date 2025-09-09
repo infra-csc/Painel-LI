@@ -43,6 +43,7 @@ interface FunctionRow {
 interface ProcessedRange {
   functionId: string;
   dailyRate: number;
+  dailyRatePerDay: number; // Quantas diárias por dia (para observação correta)
   startDate: string;
   endDate: string;
   travelInfo: {
