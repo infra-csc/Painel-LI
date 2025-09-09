@@ -1030,7 +1030,6 @@ export default function Tickets() {
                               value={data.actualDepartureTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
                               className="mt-1"
-                              required
                             />
                           </div>
                           <div>
@@ -1044,7 +1043,6 @@ export default function Tickets() {
                               value={data.actualReturnTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
                               className="mt-1"
-                              required
                             />
                           </div>
                           
