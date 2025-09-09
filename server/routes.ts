@@ -340,6 +340,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Função para gerar horários sugeridos automaticamente
+  const generateFlightSuggestions = async (eventId: string) => {
+    const suggestions = {
+      departure: "",
+      return: ""
+    };
+
+    try {
+      const event = await storage.getEvent(eventId);
+      
+      // Mapear cidades para horários típicos de voo
+      const cityFlightSuggestions: Record<string, { departure: string; return: string }> = {
+        "São Paulo": { departure: "08:00", return: "18:00" },
+        "Rio de Janeiro": { departure: "09:00", return: "17:00" },
+        "Brasília": { departure: "07:30", return: "19:00" },
+        "Belo Horizonte": { departure: "08:30", return: "17:30" },
+        "Salvador": { departure: "09:30", return: "16:30" },
+        "Recife": { departure: "09:00", return: "17:00" },
+        "Fortaleza": { departure: "10:00", return: "16:00" },
+        "Curitiba": { departure: "08:00", return: "18:00" },
+        "Porto Alegre": { departure: "07:00", return: "19:00" },
+        "Goiânia": { departure: "08:30", return: "17:30" },
+        "Manaus": { departure: "10:00", return: "15:00" },
+        "Belém": { departure: "09:30", return: "16:30" }
+      };
+
+      // Tentar encontrar cidade no nome ou localização do evento
+      const eventLocation = event?.location || event?.name || "";
+      const foundCity = Object.keys(cityFlightSuggestions).find(city => 
+        eventLocation.toLowerCase().includes(city.toLowerCase())
+      );
+
+      if (foundCity) {
+        suggestions.departure = cityFlightSuggestions[foundCity].departure;
+        suggestions.return = cityFlightSuggestions[foundCity].return;
+      } else {
+        // Horários padrão para locais não mapeados
+        suggestions.departure = "08:00";
+        suggestions.return = "18:00";
+      }
+    } catch (error) {
+      // Em caso de erro, usar horários padrão
+      suggestions.departure = "08:00";
+      suggestions.return = "18:00";
+    }
+
+    return suggestions;
+  };
+
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {
     try {
@@ -370,6 +419,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (cleanedData.actualEndDate === "") cleanedData.actualEndDate = null;
       if (cleanedData.flightDepartureDate === "") cleanedData.flightDepartureDate = null;
       if (cleanedData.flightReturnDate === "") cleanedData.flightReturnDate = null;
+      
+      // Gerar horários sugeridos automaticamente se precisar de passagem
+      if (cleanedData.needsTicket) {
+        const suggestions = await generateFlightSuggestions(cleanedData.eventId);
+        cleanedData.flightDepartureSuggestedTime = suggestions.departure;
+        cleanedData.flightReturnSuggestedTime = suggestions.return;
+      }
       
       const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
       const inclusion = await storage.createTeamInclusion(inclusionData);
