@@ -409,6 +409,17 @@ export default function TeamInclusionTable() {
               const timeDiff = end.getTime() - start.getTime();
               const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 para incluir ambos os dias
               
+              // Montar observações a partir dos campos de viagem
+              const ida = formData.get('ida') as string || '';
+              const chegada = formData.get('chegada') as string || '';
+              const retorno = formData.get('retorno') as string || '';
+              const horarioRetorno = formData.get('horarioRetorno') as string || '';
+              
+              let observations = '';
+              if (ida || chegada || retorno || horarioRetorno) {
+                observations = `Ida: ${ida} | Chegada: ${chegada} | Retorno: ${retorno} | Horário: ${horarioRetorno}`;
+              }
+
               const data = {
                 functionId: formData.get('functionId') as string,
                 collaboratorId: formData.get('collaboratorId') as string || null,
@@ -416,11 +427,7 @@ export default function TeamInclusionTable() {
                 needsTicket: formData.get('needsTicket') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
-                flightDepartureDate: formData.get('flightDepartureDate') as string || null,
-                flightDepartureSuggestedTime: formData.get('flightDepartureSuggestedTime') as string || null,
-                flightReturnDate: formData.get('flightReturnDate') as string || null,
-                flightReturnSuggestedTime: formData.get('flightReturnSuggestedTime') as string || null,
-                observations: formData.get('observations') as string || null,
+                observations: observations || null,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
@@ -534,65 +541,75 @@ export default function TeamInclusionTable() {
 
                 {/* Coluna Direita */}
                 <div className="space-y-4">
-                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
-                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                      Informações de Voo
+                  <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/30">
+                    <h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-3">
+                      Informações de Viagem
                     </h4>
                     
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Data Voo Ida</label>
-                        <input
-                          type="date"
-                          name="flightDepartureDate"
-                          defaultValue={editingInclusion.flightDepartureDate || ""}
-                          className="w-full p-2 border rounded"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Sugestão Ida</label>
+                        <label className="block text-sm font-medium mb-1">Ida</label>
                         <input
                           type="text"
-                          name="flightDepartureSuggestedTime"
-                          defaultValue={editingInclusion.flightDepartureSuggestedTime || ""}
-                          placeholder="Ex: Preferencialmente pela manhã..."
-                          className="w-full p-2 border rounded"
+                          name="ida"
+                          defaultValue={(() => {
+                            const obs = editingInclusion.observations || '';
+                            const match = obs.match(/Ida:\s*([^|]*)/);
+                            return match ? match[1].trim() : '';
+                          })()}
+                          placeholder="sáb"
+                          maxLength={3}
+                          className="w-full p-2 border rounded text-center"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1">Data Voo Volta</label>
-                        <input
-                          type="date"
-                          name="flightReturnDate"
-                          defaultValue={editingInclusion.flightReturnDate || ""}
-                          className="w-full p-2 border rounded"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Sugestão Volta</label>
+                        <label className="block text-sm font-medium mb-1">Chegada</label>
                         <input
                           type="text"
-                          name="flightReturnSuggestedTime"
-                          defaultValue={editingInclusion.flightReturnSuggestedTime || ""}
-                          placeholder="Ex: Final da tarde..."
-                          className="w-full p-2 border rounded"
+                          name="chegada"
+                          defaultValue={(() => {
+                            const obs = editingInclusion.observations || '';
+                            const match = obs.match(/Chegada:\s*([^|]*)/);
+                            return match ? match[1].trim() : '';
+                          })()}
+                          placeholder="até..."
+                          className="w-full p-2 border rounded text-center"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Retorno</label>
+                        <input
+                          type="text"
+                          name="retorno"
+                          defaultValue={(() => {
+                            const obs = editingInclusion.observations || '';
+                            const match = obs.match(/Retorno:\s*([^|]*)/);
+                            return match ? match[1].trim() : '';
+                          })()}
+                          placeholder="dom"
+                          maxLength={3}
+                          className="w-full p-2 border rounded text-center"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Horário Retorno</label>
+                        <input
+                          type="text"
+                          name="horarioRetorno"
+                          defaultValue={(() => {
+                            const obs = editingInclusion.observations || '';
+                            const match = obs.match(/Horário:\s*([^|]*)/);
+                            return match ? match[1].trim() : '';
+                          })()}
+                          placeholder="14-18h"
+                          maxLength={10}
+                          className="w-full p-2 border rounded text-center"
                         />
                       </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Observações</label>
-                    <textarea
-                      name="observations"
-                      defaultValue={editingInclusion.observations || ""}
-                      rows={6}
-                      placeholder="Digite observações sobre a inclusão..."
-                      className="w-full p-2 border rounded"
-                    />
                   </div>
                 </div>
               </div>
