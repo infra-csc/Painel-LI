@@ -568,9 +568,8 @@ export default function GridTeamInclusionForm() {
         const systemFunction = functions?.find(f => f.id === inclusion.functionId);
         const functionName = systemFunction?.name || 'Função';
         
-        // USAR EXATAMENTE os dados salvos - extrair diárias por dia das observações
-        const dailyRateMatch = observations.match(/(\d+)\s+diária\(s\)\s+por\s+dia/);
-        const dailyRatePerDay = dailyRateMatch ? parseInt(dailyRateMatch[1]) : 1;
+        // USAR EXATAMENTE os dados salvos - usar diárias direto do banco
+        // O campo dailyRates já contém o valor total correto
         
         loadedFunctions.push({
           functionId: `${inclusion.functionId}-${index}`,
@@ -583,7 +582,7 @@ export default function GridTeamInclusionForm() {
           horarioRetorno,
           dailyRates: {},
           isCustom: false,
-          defaultDailyRate: dailyRatePerDay,
+          defaultDailyRate: inclusion.dailyRates, // Usar valor direto do banco
           // Dados originais para referência
           originalDailyRates: inclusion.dailyRates,
           originalStartDate: inclusion.scheduleStartDate,
@@ -618,14 +617,22 @@ export default function GridTeamInclusionForm() {
       const rows = loadedFunctions.map(templateFunc => {
         const dailyRates: { [date: string]: number } = {};
         
+        // CALCULAR o valor da diária proporcional ao período original
+        const originalStart = new Date(templateFunc.originalStartDate);
+        const originalEnd = new Date(templateFunc.originalEndDate);
+        const originalDays = Math.ceil((originalEnd.getTime() - originalStart.getTime()) / (1000 * 3600 * 24)) + 1;
+        
+        // Valor diário original = diárias totais / dias originais
+        const dailyValueOriginal = templateFunc.originalDailyRates / originalDays;
+        
         datesList.forEach(date => {
-          // Aplicar valor padrão do template
-          dailyRates[date] = (templateFunc as any)?.defaultDailyRate || 1;
+          // Usar o valor diário calculado, arredondado para o inteiro mais próximo
+          dailyRates[date] = Math.round(dailyValueOriginal);
         });
 
         return {
           ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket
-          dailyRates, // Aplica nas novas datas
+          dailyRates, // Aplica nas novas datas com valores originais
         };
       });
 
@@ -828,7 +835,7 @@ export default function GridTeamInclusionForm() {
           // Salvar horários sugeridos nos campos específicos
           flightDepartureSuggestedTime: functionRow?.ida || null,
           flightReturnSuggestedTime: functionRow?.horarioRetorno || null,
-          observations: "", // Campo vazio conforme solicitado
+          observations: `Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`.replace(/\|\s*\|/g, '|').replace(/^\|\s*/, '').replace(/\s*\|$/, '')
         });
         
         successCount++;
