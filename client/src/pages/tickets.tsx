@@ -882,7 +882,31 @@ export default function Tickets() {
                             <Label className="text-xs text-muted-foreground">Anexos da Passagem</Label>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {ticket.attachmentIds.map((attachmentId, index) => (
-                                <div key={attachmentId} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors">
+                                <div 
+                                  key={attachmentId} 
+                                  className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+                                  onClick={() => {
+                                    // Função para visualizar anexo - preparada para integração futura
+                                    const handleViewAttachment = (attachmentId: string, attachmentIndex: number) => {
+                                      // TODO: Integrar com sistema de storage real (Replit Object Storage)
+                                      // Por enquanto mostra informações do anexo
+                                      
+                                      const attachmentInfo = {
+                                        id: attachmentId,
+                                        name: `Anexo ${attachmentIndex + 1}`,
+                                        type: 'PDF/Imagem', // Detectar tipo real baseado no upload original
+                                        uploadDate: 'Data do upload', // Extrair data real do ID
+                                      };
+                                      
+                                      toast({
+                                        title: `📎 ${attachmentInfo.name}`,
+                                        description: `ID: ${attachmentId}\\nTipo: ${attachmentInfo.type}\\n\\n🔄 Sistema de visualização em desenvolvimento.\\nEm breve você poderá abrir, visualizar e baixar anexos.`,
+                                      });
+                                    };
+                                    
+                                    handleViewAttachment(attachmentId, index);
+                                  }}
+                                >
                                   <FileText className="w-4 h-4 text-blue-600" />
                                   <span className="font-medium text-blue-700 dark:text-blue-300">
                                     Anexo {index + 1}
