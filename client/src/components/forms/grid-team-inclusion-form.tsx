@@ -563,78 +563,99 @@ export default function GridTeamInclusionForm() {
         originalDatesList.push(dateStr);
       }
 
-      // Agrupar inclusões por rowOrder para reconstruir EXATAMENTE a planilha original
-      const rowOrderGroups = new Map<number, any[]>();
+      // Agrupar inclusões por função E rowOrder para reconstruir EXATAMENTE a planilha original
+      const functionRowMap = new Map<string, any[]>();
       
       sortedInclusions.forEach((inclusion: any) => {
-        const rowOrder = inclusion.rowOrder !== null ? inclusion.rowOrder : -1;
-        if (!rowOrderGroups.has(rowOrder)) {
-          rowOrderGroups.set(rowOrder, []);
+        // Criar chave única: functionId + rowOrder
+        const key = `${inclusion.functionId}_${inclusion.rowOrder !== null ? inclusion.rowOrder : 'null'}`;
+        if (!functionRowMap.has(key)) {
+          functionRowMap.set(key, []);
         }
-        rowOrderGroups.get(rowOrder)!.push(inclusion);
+        functionRowMap.get(key)!.push(inclusion);
       });
 
       const loadedFunctions: any[] = [];
 
+      // Agrupar por rowOrder primeiro, depois por função
+      const rowOrderGroups = new Map<number, any[]>();
+      
+      functionRowMap.forEach((inclusions, key) => {
+        const firstInclusion = inclusions[0];
+        const rowOrder = firstInclusion.rowOrder !== null ? firstInclusion.rowOrder : -1;
+        
+        if (!rowOrderGroups.has(rowOrder)) {
+          rowOrderGroups.set(rowOrder, []);
+        }
+        rowOrderGroups.get(rowOrder)!.push({
+          functionId: firstInclusion.functionId,
+          inclusions: inclusions
+        });
+      });
+
       // Ordenar por rowOrder para manter a ordem original
       const sortedRowOrders = Array.from(rowOrderGroups.keys()).sort((a, b) => a - b);
 
-      // Para cada rowOrder (linha original), reconstruir EXATAMENTE
-      sortedRowOrders.forEach((rowOrder, index) => {
-        const rowInclusions = rowOrderGroups.get(rowOrder)!;
-        const firstInclusion = rowInclusions[0];
+      // Para cada rowOrder, processar todas as funções
+      sortedRowOrders.forEach((rowOrder) => {
+        const rowFunctions = rowOrderGroups.get(rowOrder)!;
         
-        // Buscar nome da função no sistema
-        const systemFunction = functions?.find(f => f.id === firstInclusion.functionId);
-        const functionName = systemFunction?.name || 'Função';
-        
-        // Extrair dados de viagem das observações
-        const observations = firstInclusion.observations || '';
-        let ida = '', chegada = '', retorno = '', horarioRetorno = '';
-        
-        const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-        const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-        
-        if (idaMatch) ida = idaMatch[1].trim();
-        if (chegadaMatch) chegada = chegadaMatch[1].trim();
-        if (retornoMatch) retorno = retornoMatch[1].trim();
-        if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
-
-        // Reconstruir EXATAMENTE a distribuição de diárias desta linha
-        const dailyRates: { [date: string]: number } = {};
-        
-        // Inicializar todas as datas com 0
-        originalDatesList.forEach(date => {
-          dailyRates[date] = 0;
-        });
-        
-        // Para cada inclusão desta linha, aplicar exatamente 1 pessoa nos dias trabalhados
-        rowInclusions.forEach(inclusion => {
-          const startDate = inclusion.scheduleStartDate;
-          const endDate = inclusion.scheduleEndDate;
+        rowFunctions.forEach((functionData, index) => {
+          const rowInclusions = functionData.inclusions;
+          const firstInclusion = rowInclusions[0];
           
-          // Aplicar 1 pessoa em cada dia do período desta inclusão
-          for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            if (originalDatesList.includes(dateStr)) {
-              dailyRates[dateStr] += 1; // Sempre +1 pessoa por inclusão
-            }
-          }
-        });
+          // Buscar nome da função no sistema
+          const systemFunction = functions?.find(f => f.id === firstInclusion.functionId);
+          const functionName = systemFunction?.name || 'Função';
+          
+          // Extrair dados de viagem das observações
+          const observations = firstInclusion.observations || '';
+          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
+          
+          const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+          
+          if (idaMatch) ida = idaMatch[1].trim();
+          if (chegadaMatch) chegada = chegadaMatch[1].trim();
+          if (retornoMatch) retorno = retornoMatch[1].trim();
+          if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
 
-        loadedFunctions.push({
-          functionId: `${firstInclusion.functionId}-${index}`,
-          originalFunctionId: firstInclusion.functionId,
-          functionName: functionName,
-          needsTicket: firstInclusion.needsTicket || false,
-          ida,
-          chegada, 
-          retorno, 
-          horarioRetorno,
-          dailyRates,
-          isCustom: false,
+          // Reconstruir EXATAMENTE a distribuição de diárias desta linha
+          const dailyRates: { [date: string]: number } = {};
+          
+          // Inicializar todas as datas com 0
+          originalDatesList.forEach(date => {
+            dailyRates[date] = 0;
+          });
+          
+          // Para cada inclusão desta linha, aplicar exatamente 1 pessoa nos dias trabalhados
+          rowInclusions.forEach((inclusion: any) => {
+            const startDate = inclusion.scheduleStartDate;
+            const endDate = inclusion.scheduleEndDate;
+            
+            // Aplicar 1 pessoa em cada dia do período desta inclusão
+            for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              if (originalDatesList.includes(dateStr)) {
+                dailyRates[dateStr] += 1; // Sempre +1 pessoa por inclusão
+              }
+            }
+          });
+
+          loadedFunctions.push({
+            functionId: `${firstInclusion.functionId}-${loadedFunctions.length}`,
+            originalFunctionId: firstInclusion.functionId,
+            functionName: functionName,
+            needsTicket: firstInclusion.needsTicket || false,
+            ida,
+            chegada, 
+            retorno, 
+            horarioRetorno,
+            dailyRates,
+            isCustom: false,
+          });
         });
       });
 
