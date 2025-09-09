@@ -818,12 +818,6 @@ export default function Tickets() {
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            const event = events?.find(e => e.id === selectedInclusion.eventId);
-                            
-                            // Data: usar específica do voo ou início do evento
-                            const departureDate = selectedInclusion.flightDepartureDate || 
-                                                 selectedInclusion.scheduleStartDate ||
-                                                 event?.startDate;
                             
                             // Horário sugerido
                             const departureTime = selectedInclusion.flightDepartureSuggestedTime || 
@@ -831,10 +825,6 @@ export default function Tickets() {
                             
                             return (
                               <div className="space-y-1">
-                                <div>
-                                  <span className="text-sm font-medium">Data de partida: </span>
-                                  <span>{departureDate ? formatDate(departureDate) : "Não definida"}</span>
-                                </div>
                                 {departureTime && (
                                   <div>
                                     <span className="text-sm font-medium">Horário sugerido: </span>
@@ -857,12 +847,6 @@ export default function Tickets() {
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            const event = events?.find(e => e.id === selectedInclusion.eventId);
-                            
-                            // Data: usar específica do voo ou final do evento
-                            const returnDate = selectedInclusion.flightReturnDate || 
-                                              selectedInclusion.scheduleEndDate ||
-                                              event?.endDate;
                             
                             // Horário sugerido
                             const returnTime = selectedInclusion.flightReturnSuggestedTime || 
@@ -870,10 +854,6 @@ export default function Tickets() {
                             
                             return (
                               <div className="space-y-1">
-                                <div>
-                                  <span className="text-sm font-medium">Data de retorno: </span>
-                                  <span>{returnDate ? formatDate(returnDate) : "Não definida"}</span>
-                                </div>
                                 {returnTime && (
                                   <div>
                                     <span className="text-sm font-medium">Horário sugerido: </span>
