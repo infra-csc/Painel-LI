@@ -25,6 +25,7 @@ export default function Tickets() {
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
+  const [editingTicketId, setEditingTicketId] = useState<string | null>(null); // ID do ticket sendo editado
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: true,
     dates: true,
@@ -70,6 +71,28 @@ export default function Tickets() {
       toast({
         title: "Erro",
         description: "Erro ao registrar passagem",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateTicketMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/tickets/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Passagem atualizada com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      setEditingTicketId(null);
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar passagem",
         variant: "destructive",
       });
     },
@@ -811,7 +834,7 @@ export default function Tickets() {
                     const ticket = getTicket(selectedInclusion.id);
                     const data = ticketData[selectedInclusion.id] || {};
                     
-                    return ticket ? (
+                    return ticket && editingTicketId !== selectedInclusion.id ? (
                       /* Passagem já processada */
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                         <div>
@@ -869,11 +892,37 @@ export default function Tickets() {
                             </div>
                           </div>
                         )}
-                        <div className="md:col-span-2 lg:col-span-3">
+                        <div className="md:col-span-2 lg:col-span-3 flex justify-between items-center">
                           <span className="text-sm text-green-600 font-medium flex items-center">
                             <FileText className="w-4 h-4 mr-1" />
                             Passagem registrada com sucesso
                           </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Mudar para modo de edição
+                              setTicketData(prev => ({
+                                ...prev,
+                                [selectedInclusion.id]: {
+                                  value: (ticket.value / 100).toString(),
+                                  departureAirport: ticket.departureAirport || "",
+                                  destinationAirport: ticket.destinationAirport || "",
+                                  purchaseOrderNumber: ticket.purchaseOrderNumber || "",
+                                  actualDepartureDate: ticket.actualDepartureDate || "",
+                                  actualReturnDate: ticket.actualReturnDate || "",
+                                  actualDepartureTime: ticket.actualDepartureTime || "",
+                                  actualReturnTime: ticket.actualReturnTime || "",
+                                  cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                  attachmentIds: ticket.attachmentIds || []
+                                }
+                              }));
+                              // Forçar re-render para modo de edição
+                              setEditingTicketId(selectedInclusion.id);
+                            }}
+                          >
+                            Editar Dados
+                          </Button>
                         </div>
                       </div>
                     ) : (
@@ -972,7 +1021,7 @@ export default function Tickets() {
                           </div>
                           <div>
                             <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Horário de Ida
+                              Horário de Ida *
                             </Label>
                             <Input
                               id={`actualDepartureTime-${selectedInclusion.id}`}
@@ -981,11 +1030,12 @@ export default function Tickets() {
                               value={data.actualDepartureTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
                               className="mt-1"
+                              required
                             />
                           </div>
                           <div>
                             <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Horário de Volta
+                              Horário de Volta *
                             </Label>
                             <Input
                               id={`actualReturnTime-${selectedInclusion.id}`}
@@ -994,6 +1044,7 @@ export default function Tickets() {
                               value={data.actualReturnTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
                               className="mt-1"
+                              required
                             />
                           </div>
                           
@@ -1032,49 +1083,72 @@ export default function Tickets() {
                           <Button
                             onClick={async () => {
                               // Validar campos obrigatórios
-                              if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber || !data.actualDepartureDate || !data.actualReturnDate) {
+                              if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber || !data.actualDepartureDate || !data.actualReturnDate || !data.actualDepartureTime || !data.actualReturnTime) {
                                 toast({
                                   title: "Erro",
-                                  description: "Preencha todos os campos obrigatórios",
+                                  description: "Preencha todos os campos obrigatórios (incluindo horários)",
                                   variant: "destructive",
                                 });
                                 return;
                               }
 
                               try {
-                                await createTicketMutation.mutateAsync({
-                                  teamInclusionId: selectedInclusion.id,
-                                  value: Math.round(parseFloat(data.value) * 100),
-                                  purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
-                                  actualDepartureDate: data.actualDepartureDate || null,
-                                  actualDepartureTime: data.actualDepartureTime || null,
-                                  actualReturnDate: data.actualReturnDate || null,
-                                  actualReturnTime: data.actualReturnTime || null,
-                                  departureAirport: data.departureAirport,
-                                  destinationAirport: data.destinationAirport,
-                                  purchaseOrderNumber: data.purchaseOrderNumber,
-                                  fileUrl: data.fileUrl || null,
-                                  attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                  cardLastFourDigits: data.cardLastFourDigits || null
-                                });
+                                if (editingTicketId) {
+                                  // Atualizar ticket existente
+                                  await updateTicketMutation.mutateAsync({
+                                    id: ticket.id,
+                                    data: {
+                                      value: Math.round(parseFloat(data.value) * 100),
+                                      actualDepartureDate: data.actualDepartureDate,
+                                      actualDepartureTime: data.actualDepartureTime,
+                                      actualReturnDate: data.actualReturnDate,
+                                      actualReturnTime: data.actualReturnTime,
+                                      departureAirport: data.departureAirport,
+                                      destinationAirport: data.destinationAirport,
+                                      purchaseOrderNumber: data.purchaseOrderNumber,
+                                      cardLastFourDigits: data.cardLastFourDigits || null,
+                                      attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
+                                    }
+                                  });
+                                } else {
+                                  // Criar novo ticket
+                                  await createTicketMutation.mutateAsync({
+                                    teamInclusionId: selectedInclusion.id,
+                                    value: Math.round(parseFloat(data.value) * 100),
+                                    purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+                                    actualDepartureDate: data.actualDepartureDate,
+                                    actualDepartureTime: data.actualDepartureTime,
+                                    actualReturnDate: data.actualReturnDate,
+                                    actualReturnTime: data.actualReturnTime,
+                                    departureAirport: data.departureAirport,
+                                    destinationAirport: data.destinationAirport,
+                                    purchaseOrderNumber: data.purchaseOrderNumber,
+                                    fileUrl: data.fileUrl || null,
+                                    attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
+                                    cardLastFourDigits: data.cardLastFourDigits || null
+                                  });
 
-                                // Atualizar team inclusion para fechamento
-                                await updateTeamInclusionMutation.mutateAsync({
-                                  id: selectedInclusion.id,
-                                  data: {
-                                    status: "fechamento",
-                                    phase: "fechamento"
-                                  }
-                                });
+                                  // Atualizar team inclusion para fechamento (só quando criar novo)
+                                  await updateTeamInclusionMutation.mutateAsync({
+                                    id: selectedInclusion.id,
+                                    data: {
+                                      status: "fechamento",
+                                      phase: "fechamento"
+                                    }
+                                  });
+                                }
 
                                 setShowModal(false);
                               } catch (error) {
                                 // Error is already handled by the mutation
                               }
                             }}
-                            disabled={createTicketMutation.isPending}
+                            disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
                           >
-                            {createTicketMutation.isPending ? "Registrando..." : "Registrar Passagem"}
+                            {(createTicketMutation.isPending || updateTicketMutation.isPending) 
+                              ? (editingTicketId ? "Atualizando..." : "Registrando...") 
+                              : (editingTicketId ? "Atualizar Passagem" : "Registrar Passagem")
+                            }
                           </Button>
                         </div>
                       </div>
