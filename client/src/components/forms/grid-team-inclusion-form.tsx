@@ -563,26 +563,32 @@ export default function GridTeamInclusionForm() {
         originalDatesList.push(dateStr);
       }
 
-      // Agrupar inclusões por função para reconstruir a planilha original
-      const functionGroups = new Map<string, any[]>();
+      // Agrupar inclusões por rowOrder para reconstruir EXATAMENTE a planilha original
+      const rowOrderGroups = new Map<number, any[]>();
+      
       sortedInclusions.forEach((inclusion: any) => {
-        if (!functionGroups.has(inclusion.functionId)) {
-          functionGroups.set(inclusion.functionId, []);
+        const rowOrder = inclusion.rowOrder !== null ? inclusion.rowOrder : -1;
+        if (!rowOrderGroups.has(rowOrder)) {
+          rowOrderGroups.set(rowOrder, []);
         }
-        functionGroups.get(inclusion.functionId)!.push(inclusion);
+        rowOrderGroups.get(rowOrder)!.push(inclusion);
       });
 
       const loadedFunctions: any[] = [];
-      let index = 0;
 
-      // Para cada função, reconstruir a linha EXATA da planilha
-      functionGroups.forEach((functionInclusions, functionId) => {
+      // Ordenar por rowOrder para manter a ordem original
+      const sortedRowOrders = Array.from(rowOrderGroups.keys()).sort((a, b) => a - b);
+
+      // Para cada rowOrder (linha original), reconstruir EXATAMENTE
+      sortedRowOrders.forEach((rowOrder, index) => {
+        const rowInclusions = rowOrderGroups.get(rowOrder)!;
+        const firstInclusion = rowInclusions[0];
+        
         // Buscar nome da função no sistema
-        const systemFunction = functions?.find(f => f.id === functionId);
+        const systemFunction = functions?.find(f => f.id === firstInclusion.functionId);
         const functionName = systemFunction?.name || 'Função';
         
-        // Extrair dados de viagem da primeira inclusão (todas deveriam ter os mesmos)
-        const firstInclusion = functionInclusions[0];
+        // Extrair dados de viagem das observações
         const observations = firstInclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
         
@@ -596,7 +602,7 @@ export default function GridTeamInclusionForm() {
         if (retornoMatch) retorno = retornoMatch[1].trim();
         if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
 
-        // Reconstruir a distribuição EXATA das diárias
+        // Reconstruir EXATAMENTE a distribuição de diárias desta linha
         const dailyRates: { [date: string]: number } = {};
         
         // Inicializar todas as datas com 0
@@ -604,37 +610,23 @@ export default function GridTeamInclusionForm() {
           dailyRates[date] = 0;
         });
         
-        // Para cada inclusão desta função, calcular quantas pessoas por dia
-        functionInclusions.forEach(inclusion => {
+        // Para cada inclusão desta linha, aplicar exatamente 1 pessoa nos dias trabalhados
+        rowInclusions.forEach(inclusion => {
           const startDate = inclusion.scheduleStartDate;
           const endDate = inclusion.scheduleEndDate;
-          const totalDailyRates = inclusion.dailyRates;
           
-          // Calcular dias trabalhados
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          const workingDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1;
-          
-          // Distribuir as diárias igualmente pelos dias trabalhados
-          const dailyRatePerDay = totalDailyRates / workingDays;
-          
-          // Aplicar nas datas correspondentes
-          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          // Aplicar 1 pessoa em cada dia do período desta inclusão
+          for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             if (originalDatesList.includes(dateStr)) {
-              dailyRates[dateStr] += dailyRatePerDay;
+              dailyRates[dateStr] += 1; // Sempre +1 pessoa por inclusão
             }
           }
         });
 
-        // Arredondar os valores para inteiros
-        Object.keys(dailyRates).forEach(date => {
-          dailyRates[date] = Math.round(dailyRates[date]);
-        });
-
         loadedFunctions.push({
-          functionId: `${functionId}-${index}`,
-          originalFunctionId: functionId,
+          functionId: `${firstInclusion.functionId}-${index}`,
+          originalFunctionId: firstInclusion.functionId,
           functionName: functionName,
           needsTicket: firstInclusion.needsTicket || false,
           ida,
@@ -644,8 +636,6 @@ export default function GridTeamInclusionForm() {
           dailyRates,
           isCustom: false,
         });
-        
-        index++;
       });
 
       // Aplicar as datas ORIGINAIS nos campos do formulário
@@ -839,8 +829,8 @@ export default function GridTeamInclusionForm() {
           userId: originalFunction?.userId || user?.id, // usa userId da função original
           scheduleStartDate: range.startDate,
           scheduleEndDate: range.endDate,
-          dailyRates: dailyRatesCount, // número de dias
-          dailyValue: range.dailyRate * dailyRatesCount * 5000, // valor total (diárias por dia * dias * valor unitário)
+          dailyRates: dailyRatesCount, // número de dias trabalhados
+          dailyValue: dailyRatesCount * 5000, // valor total (dias * valor unitário de R$50)
           needsTicket: functionRow?.needsTicket || false,
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
