@@ -79,7 +79,24 @@ export default function AttachmentUpload({
         throw new Error('Erro ao fazer upload do arquivo');
       }
       
-      // 3. Adicionar ID do anexo à lista
+      // 3. Confirmar upload e obter metadata do arquivo
+      const confirmResponse = await fetch(`/api/attachments/${attachmentId}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+        }),
+      });
+      
+      if (!confirmResponse.ok) {
+        throw new Error('Erro ao confirmar upload do arquivo');
+      }
+      
+      // 4. Adicionar ID do anexo à lista
       const updatedIds = [...attachmentIds, attachmentId];
       onAttachmentsChange(updatedIds);
       

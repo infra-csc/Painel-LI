@@ -568,6 +568,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Confirmar upload completo e definir metadados
+  app.post("/api/attachments/:id/confirm", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { fileName, fileType, fileSize } = req.body;
+      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      try {
+        // Verificar se o arquivo existe no storage
+        const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+        
+        // Definir metadados customizados no arquivo
+        await objectFile.setMetadata({
+          metadata: {
+            'custom:originalFileName': fileName,
+            'custom:uploadedAt': new Date().toISOString(),
+          }
+        });
+        
+        res.json({
+          message: "Upload confirmado com sucesso",
+          attachmentId: id,
+          fileName,
+          fileType,
+          fileSize
+        });
+      } catch (error) {
+        if (error instanceof ObjectNotFoundError) {
+          res.status(404).json({ message: "Arquivo não encontrado no storage" });
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao confirmar upload:", error);
+      res.status(500).json({ message: "Erro ao confirmar upload do anexo" });
+    }
+  });
+
   app.get("/api/attachments/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -579,10 +619,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
         const [metadata] = await objectFile.getMetadata();
         
+        // Extrair nome original dos metadados customizados
+        const originalFileName = metadata.metadata?.['custom:originalFileName'] || metadata.name || `Anexo_${id.slice(-8)}`;
+        
         // Retornar informações do arquivo real
         res.json({
           id,
-          name: metadata.name || `Anexo_${id.slice(-8)}`,
+          name: originalFileName,
           type: metadata.contentType || "application/octet-stream",
           size: metadata.size ? `${(parseInt(metadata.size) / 1024 / 1024).toFixed(2)} MB` : "Desconhecido",
           downloadUrl: `/api/attachments/${id}/download`,

@@ -959,6 +959,13 @@ export default function Tickets() {
                                               // Fazer download direto
                                               window.open(attachmentData.downloadUrl, '_blank');
                                             }
+                                          } else {
+                                            // Se não há URL válida, explicar ao usuário
+                                            toast({
+                                              title: "Anexo não disponível",
+                                              description: "Este anexo foi criado antes da implementação do sistema de storage. Não é possível visualizar ou baixar.",
+                                              variant: "destructive",
+                                            });
                                           }
                                         } else {
                                           throw new Error(attachmentData.message || 'Erro ao buscar anexo');
