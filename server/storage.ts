@@ -28,6 +28,7 @@ export interface IStorage {
   // Events
   getEvents(): Promise<Event[]>;
   getEvent(id: string): Promise<Event | undefined>;
+  getEventsWithInclusions(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: string, event: Partial<InsertEvent>): Promise<Event>;
   
@@ -171,6 +172,23 @@ export class MemStorage implements IStorage {
 
   async getEvent(id: string): Promise<Event | undefined> {
     return this.events.get(id);
+  }
+
+  async getEventsWithInclusions(): Promise<Event[]> {
+    // Filtrar eventos que têm inclusões de equipe
+    const allEvents = Array.from(this.events.values());
+    const eventsWithInclusions = [];
+    
+    for (const event of allEvents) {
+      const inclusionsForEvent = Array.from(this.teamInclusions.values())
+        .filter(inclusion => inclusion.eventId === event.id);
+      
+      if (inclusionsForEvent.length > 0) {
+        eventsWithInclusions.push(event);
+      }
+    }
+    
+    return eventsWithInclusions;
   }
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
@@ -526,6 +544,26 @@ export class DatabaseStorage implements IStorage {
   async getEvent(id: string): Promise<Event | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, id));
     return event;
+  }
+
+  async getEventsWithInclusions(): Promise<Event[]> {
+    // Buscar eventos que têm inclusões de equipe usando JOIN
+    const eventsWithTeamInclusions = await db
+      .selectDistinct({ 
+        id: events.id,
+        name: events.name,
+        location: events.location,
+        startDate: events.startDate,
+        endDate: events.endDate,
+        observations: events.observations,
+        eventNumber: events.eventNumber,
+        status: events.status,
+        createdAt: events.createdAt
+      })
+      .from(events)
+      .innerJoin(teamInclusions, eq(events.id, teamInclusions.eventId));
+    
+    return eventsWithTeamInclusions;
   }
 
   async createEvent(eventData: InsertEvent): Promise<Event> {

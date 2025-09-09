@@ -248,6 +248,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get events that have team inclusions (for template loading)
+  app.get("/api/events-with-inclusions", async (req, res) => {
+    try {
+      const eventsWithInclusions = await storage.getEventsWithInclusions();
+      res.json(eventsWithInclusions);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar eventos com escalações" });
+    }
+  });
+
   app.post("/api/events", async (req, res) => {
     try {
       const eventData = insertEventSchema.parse(req.body);

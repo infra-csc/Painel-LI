@@ -197,6 +197,16 @@ export default function GridTeamInclusionForm() {
     queryKey: ["/api/events"],
   });
 
+  // Query para eventos que têm escalações salvas (para template)
+  const { data: eventsWithInclusions } = useQuery<Event[]>({
+    queryKey: ["/api/events-with-inclusions"],
+    queryFn: async () => {
+      const response = await fetch('/api/events-with-inclusions');
+      if (!response.ok) throw new Error('Failed to fetch events with inclusions');
+      return response.json();
+    }
+  });
+
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
