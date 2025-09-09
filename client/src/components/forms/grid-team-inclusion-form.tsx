@@ -706,18 +706,28 @@ export default function GridTeamInclusionForm() {
       const allSame = allValues.every(val => val === allValues[0]);
       const firstValue = allValues[0];
       
-      if (allSame) {
-        // Criar múltiplos registros baseado no número de diárias por dia
-        // firstValue = número de pessoas trabalhando por dia
-        // Cada pessoa trabalha todos os dias = numberOfDays diárias por pessoa
+      // Nova lógica: pensar em pessoas individuais
+      // Determinar quantas pessoas no máximo estão trabalhando em qualquer dia
+      const maxPeoplePerDay = Math.max(...sortedDates.map(date => row.dailyRates[date]));
+      
+      // Para cada pessoa (1 até maxPeoplePerDay)
+      for (let personIndex = 1; personIndex <= maxPeoplePerDay; personIndex++) {
+        // Determinar em quais dias esta pessoa trabalha
+        const workingDates = sortedDates.filter(date => row.dailyRates[date] >= personIndex);
         
-        for (let i = 0; i < firstValue; i++) {
+        if (workingDates.length > 0) {
+          // Ordenar as datas de trabalho
+          const sortedWorkingDates = workingDates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          const personStartDate = sortedWorkingDates[0];
+          const personEndDate = sortedWorkingDates[sortedWorkingDates.length - 1];
+          const personTotalDays = sortedWorkingDates.length;
+          
           ranges.push({
             functionId: originalFunctionId, // Usar ID original
-            dailyRate: numberOfDays, // Cada pessoa trabalha todos os dias (1 pessoa × numberOfDays)
+            dailyRate: personTotalDays, // Total de dias que esta pessoa trabalha
             dailyRatePerDay: 1, // 1 diária por dia por pessoa
-            startDate: startDate,
-            endDate: endDate,
+            startDate: personStartDate,
+            endDate: personEndDate,
             travelInfo: {
               ida: row.ida,
               chegada: row.chegada,
@@ -726,48 +736,6 @@ export default function GridTeamInclusionForm() {
             },
           });
         }
-      } else {
-          // Values change: create records for each different value
-          
-          // Agrupar datas por valor para criar registros corretos
-          const valueGroups: { [value: number]: string[] } = {};
-          
-          for (const date of sortedDates) {
-            const value = row.dailyRates[date];
-            if (value > 0) { // Incluir todos os valores > 0, incluindo valor 1
-              if (!valueGroups[value]) {
-                valueGroups[value] = [];
-              }
-              valueGroups[value].push(date);
-            }
-          }
-          
-          // Criar múltiplos registros para cada grupo de valor
-          for (const [valueStr, datesForValue] of Object.entries(valueGroups)) {
-            const dailyRatePerDay = parseInt(valueStr);
-            // Ordenar as datas para esse valor específico
-            const sortedDatesForValue = datesForValue.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-            const firstDate = sortedDatesForValue[0];
-            const lastDate = sortedDatesForValue[sortedDatesForValue.length - 1];
-            const daysInThisGroup = sortedDatesForValue.length;
-            
-            // Criar múltiplos registros baseado no número de diárias por dia
-            for (let i = 0; i < dailyRatePerDay; i++) {
-              ranges.push({
-                functionId: originalFunctionId, // Usar ID original
-                dailyRate: daysInThisGroup, // Cada pessoa trabalha todos os dias do grupo
-                dailyRatePerDay: 1, // 1 diária por dia por pessoa
-                startDate: firstDate,
-                endDate: lastDate,
-                travelInfo: {
-                  ida: row.ida,
-                  chegada: row.chegada,
-                  retorno: row.retorno,
-                  horarioRetorno: row.horarioRetorno,
-                },
-              });
-            }
-          }
       }
     });
 
