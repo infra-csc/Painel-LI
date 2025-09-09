@@ -1077,7 +1077,10 @@ export default function Tickets() {
 
                         {/* Botões */}
                         <div className="flex gap-3 justify-end pt-4 border-t">
-                          <Button variant="outline" onClick={() => setShowModal(false)}>
+                          <Button variant="outline" onClick={() => {
+                            setShowModal(false);
+                            setEditingTicketId(null);
+                          }}>
                             Cancelar
                           </Button>
                           <Button
