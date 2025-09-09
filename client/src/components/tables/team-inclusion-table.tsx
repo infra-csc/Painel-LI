@@ -394,7 +394,7 @@ export default function TeamInclusionTable() {
       {/* Modal de Edição */}
       {showEditModal && editingInclusion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-96 max-h-96 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[800px] max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Editar Inclusão #{editingInclusion.inclusionNumber}</h2>
             
             <form onSubmit={(e) => {
@@ -411,110 +411,199 @@ export default function TeamInclusionTable() {
               
               const data = {
                 functionId: formData.get('functionId') as string,
+                collaboratorId: formData.get('collaboratorId') as string || null,
                 dailyRates: dailyRates,
                 needsTicket: formData.get('needsTicket') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
+                flightDepartureDate: formData.get('flightDepartureDate') as string || null,
+                flightDepartureSuggestedTime: formData.get('flightDepartureSuggestedTime') as string || null,
+                flightReturnDate: formData.get('flightReturnDate') as string || null,
+                flightReturnSuggestedTime: formData.get('flightReturnSuggestedTime') as string || null,
+                observations: formData.get('observations') as string || null,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Função</label>
-                  <select
-                    name="functionId"
-                    defaultValue={editingInclusion.functionId}
-                    className="w-full p-2 border rounded"
-                    required
-                  >
-                    {functions?.map((func) => (
-                      <option key={func.id} value={func.id}>
-                        {func.name}
-                      </option>
-                    ))}
-                  </select>
+              <div className="grid grid-cols-2 gap-6">
+                {/* Coluna Esquerda */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Função *</label>
+                    <select
+                      name="functionId"
+                      defaultValue={editingInclusion.functionId}
+                      className="w-full p-2 border rounded"
+                      required
+                    >
+                      {functions?.map((func) => (
+                        <option key={func.id} value={func.id}>
+                          {func.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Colaborador</label>
+                    <select
+                      name="collaboratorId"
+                      defaultValue={editingInclusion.collaboratorId || ""}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Selecionar colaborador...</option>
+                      {collaborators?.map((collaborator) => (
+                        <option key={collaborator.id} value={collaborator.id}>
+                          {collaborator.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Data Início *</label>
+                    <input
+                      type="date"
+                      name="scheduleStartDate"
+                      defaultValue={editingInclusion.scheduleStartDate}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => {
+                        const startDate = e.target.value;
+                        const endDateInput = e.target.form?.querySelector('input[name="scheduleEndDate"]') as HTMLInputElement;
+                        const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+                        
+                        if (startDate && endDateInput?.value && dailyRatesDisplay) {
+                          const start = new Date(startDate);
+                          const end = new Date(endDateInput.value);
+                          const timeDiff = end.getTime() - start.getTime();
+                          const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+                          dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
+                        }
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Data Fim *</label>
+                    <input
+                      type="date"
+                      name="scheduleEndDate"
+                      defaultValue={editingInclusion.scheduleEndDate}
+                      className="w-full p-2 border rounded"
+                      onChange={(e) => {
+                        const endDate = e.target.value;
+                        const startDateInput = e.target.form?.querySelector('input[name="scheduleStartDate"]') as HTMLInputElement;
+                        const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+                        
+                        if (endDate && startDateInput?.value && dailyRatesDisplay) {
+                          const start = new Date(startDateInput.value);
+                          const end = new Date(endDate);
+                          const timeDiff = end.getTime() - start.getTime();
+                          const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+                          dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
+                        }
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Quantidade de Diárias (Calculado)</label>
+                    <input
+                      type="text"
+                      id="dailyRatesDisplay"
+                      defaultValue={editingInclusion.dailyRates.toString()}
+                      className="w-full p-2 border rounded bg-gray-100 text-gray-600"
+                      readOnly
+                    />
+                    <small className="text-xs text-gray-500">Calculado automaticamente baseado nas datas</small>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Precisa de Passagem?</label>
+                    <select
+                      name="needsTicket"
+                      defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="false">Não</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Data Início</label>
-                  <input
-                    type="date"
-                    name="scheduleStartDate"
-                    defaultValue={editingInclusion.scheduleStartDate}
-                    className="w-full p-2 border rounded"
-                    onChange={(e) => {
-                      const startDate = e.target.value;
-                      const endDateInput = e.target.form?.querySelector('input[name="scheduleEndDate"]') as HTMLInputElement;
-                      const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+
+                {/* Coluna Direita */}
+                <div className="space-y-4">
+                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
+                      Informações de Voo
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Data Voo Ida</label>
+                        <input
+                          type="date"
+                          name="flightDepartureDate"
+                          defaultValue={editingInclusion.flightDepartureDate || ""}
+                          className="w-full p-2 border rounded"
+                        />
+                      </div>
                       
-                      if (startDate && endDateInput?.value && dailyRatesDisplay) {
-                        const start = new Date(startDate);
-                        const end = new Date(endDateInput.value);
-                        const timeDiff = end.getTime() - start.getTime();
-                        const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-                        dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
-                      }
-                    }}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Data Fim</label>
-                  <input
-                    type="date"
-                    name="scheduleEndDate"
-                    defaultValue={editingInclusion.scheduleEndDate}
-                    className="w-full p-2 border rounded"
-                    onChange={(e) => {
-                      const endDate = e.target.value;
-                      const startDateInput = e.target.form?.querySelector('input[name="scheduleStartDate"]') as HTMLInputElement;
-                      const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Sugestão Ida</label>
+                        <input
+                          type="text"
+                          name="flightDepartureSuggestedTime"
+                          defaultValue={editingInclusion.flightDepartureSuggestedTime || ""}
+                          placeholder="Ex: Preferencialmente pela manhã..."
+                          className="w-full p-2 border rounded"
+                        />
+                      </div>
                       
-                      if (endDate && startDateInput?.value && dailyRatesDisplay) {
-                        const start = new Date(startDateInput.value);
-                        const end = new Date(endDate);
-                        const timeDiff = end.getTime() - start.getTime();
-                        const days = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
-                        dailyRatesDisplay.value = days > 0 ? days.toString() : '1';
-                      }
-                    }}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Quantidade de Diárias (Calculado)</label>
-                  <input
-                    type="text"
-                    id="dailyRatesDisplay"
-                    defaultValue={editingInclusion.dailyRates.toString()}
-                    className="w-full p-2 border rounded bg-gray-100 text-gray-600"
-                    readOnly
-                  />
-                  <small className="text-xs text-gray-500">Calculado automaticamente baseado nas datas</small>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">Precisa de Passagem?</label>
-                  <select
-                    name="needsTicket"
-                    defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="false">Não</option>
-                    <option value="true">Sim</option>
-                  </select>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Data Voo Volta</label>
+                        <input
+                          type="date"
+                          name="flightReturnDate"
+                          defaultValue={editingInclusion.flightReturnDate || ""}
+                          className="w-full p-2 border rounded"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Sugestão Volta</label>
+                        <input
+                          type="text"
+                          name="flightReturnSuggestedTime"
+                          defaultValue={editingInclusion.flightReturnSuggestedTime || ""}
+                          placeholder="Ex: Final da tarde..."
+                          className="w-full p-2 border rounded"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Observações</label>
+                    <textarea
+                      name="observations"
+                      defaultValue={editingInclusion.observations || ""}
+                      rows={6}
+                      placeholder="Digite observações sobre a inclusão..."
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
                 </div>
               </div>
               
-              <div className="flex gap-2 mt-6">
+              <div className="flex gap-2 mt-6 pt-4 border-t">
                 <button
                   type="submit"
                   disabled={updateTeamInclusionMutation.isPending}
                   className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar'}
+                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
                 <button
                   type="button"
