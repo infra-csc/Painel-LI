@@ -500,6 +500,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Attachment routes
+  app.post("/api/attachments/upload", async (req, res) => {
+    try {
+      // TODO: Implementar upload real para object storage
+      // Por enquanto simula upload e retorna ID
+      const attachmentId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+      
+      res.json({ 
+        attachmentId,
+        message: "Upload simulado - integração com storage em desenvolvimento"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao fazer upload do anexo" });
+    }
+  });
+
+  app.get("/api/attachments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // TODO: Implementar download real do object storage
+      // Por enquanto retorna informações do anexo
+      res.json({
+        id,
+        name: `Anexo_${id.slice(-8)}.pdf`,
+        type: "application/pdf", 
+        size: "1.2 MB",
+        url: "#", // URL real do storage será implementada
+        message: "Download em desenvolvimento - integração com storage em andamento"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar anexo" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

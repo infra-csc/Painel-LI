@@ -885,26 +885,38 @@ export default function Tickets() {
                                 <div 
                                   key={attachmentId} 
                                   className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
-                                  onClick={() => {
-                                    // Função para visualizar anexo - preparada para integração futura
-                                    const handleViewAttachment = (attachmentId: string, attachmentIndex: number) => {
-                                      // TODO: Integrar com sistema de storage real (Replit Object Storage)
-                                      // Por enquanto mostra informações do anexo
-                                      
-                                      const attachmentInfo = {
-                                        id: attachmentId,
-                                        name: `Anexo ${attachmentIndex + 1}`,
-                                        type: 'PDF/Imagem', // Detectar tipo real baseado no upload original
-                                        uploadDate: 'Data do upload', // Extrair data real do ID
-                                      };
-                                      
-                                      toast({
-                                        title: `📎 ${attachmentInfo.name}`,
-                                        description: `ID: ${attachmentId}\\nTipo: ${attachmentInfo.type}\\n\\n🔄 Sistema de visualização em desenvolvimento.\\nEm breve você poderá abrir, visualizar e baixar anexos.`,
-                                      });
+                                  onClick={async () => {
+                                    // Função para visualizar anexo com chamada real para API
+                                    const handleViewAttachment = async (attachmentId: string, attachmentIndex: number) => {
+                                      try {
+                                        // Buscar informações do anexo via API
+                                        const response = await fetch(`/api/attachments/${attachmentId}`);
+                                        const attachmentData = await response.json();
+                                        
+                                        if (response.ok) {
+                                          // Mostrar informações reais do anexo
+                                          toast({
+                                            title: `📎 Anexo ${attachmentIndex + 1}`,
+                                            description: `Nome: ${attachmentData.name}\\nTipo: ${attachmentData.type}\\nTamanho: ${attachmentData.size}\\nID: ${attachmentId}\\n\\n${attachmentData.message}`,
+                                          });
+                                          
+                                          // TODO: Quando URL real estiver disponível, abrir anexo
+                                          // if (attachmentData.url && attachmentData.url !== "#") {
+                                          //   window.open(attachmentData.url, '_blank');
+                                          // }
+                                        } else {
+                                          throw new Error(attachmentData.message || 'Erro ao buscar anexo');
+                                        }
+                                      } catch (error) {
+                                        toast({
+                                          title: "Erro ao abrir anexo",
+                                          description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+                                          variant: "destructive",
+                                        });
+                                      }
                                     };
                                     
-                                    handleViewAttachment(attachmentId, index);
+                                    await handleViewAttachment(attachmentId, index);
                                   }}
                                 >
                                   <FileText className="w-4 h-4 text-blue-600" />
