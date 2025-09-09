@@ -831,7 +831,7 @@ export default function GridTeamInclusionForm() {
           // Salvar horários sugeridos nos campos específicos
           flightDepartureSuggestedTime: functionRow?.ida || null,
           flightReturnSuggestedTime: functionRow?.horarioRetorno || null,
-          observations: `${functionRow?.functionName || 'Função'} - ${(range as any).dailyRatePerDay || range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)} | Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`,
+          observations: "", // Campo vazio conforme solicitado
         });
         
         successCount++;
