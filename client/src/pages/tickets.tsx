@@ -131,6 +131,23 @@ export default function Tickets() {
     }).format(value);
   };
 
+  // Função para extrair dados de passagem das observações
+  const extractTravelInfoFromObservations = (observations: string | undefined) => {
+    if (!observations) return { ida: 'N/A', retorno: 'N/A', chegada: 'N/A', horario: 'N/A' };
+    
+    const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+    
+    return {
+      ida: idaMatch ? idaMatch[1].trim() : 'N/A',
+      retorno: retornoMatch ? retornoMatch[1].trim() : 'N/A', 
+      chegada: chegadaMatch ? chegadaMatch[1].trim() : 'N/A',
+      horario: horarioMatch ? horarioMatch[1].trim() : 'N/A'
+    };
+  };
+
   // Filter inclusions that need tickets - show all that need tickets (pending or processed)
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
@@ -671,33 +688,43 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                          {ticket ? (
+                            <div className="text-sm font-medium text-foreground">
+                              {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              -
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                          {ticket ? (
+                            <div className="text-sm font-medium text-foreground">
+                              {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              -
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
-                            const departureDate = inclusion.flightDepartureDate || inclusion.scheduleStartDate;
-                            const isUrgent = isDateUrgent(departureDate);
+                            const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
                             return (
-                              <div className={`text-sm font-medium ${isUrgent ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-foreground'}`}>
-                                {formatDate(departureDate)}
-                                {isUrgent && <div className="text-xs">URGENTE!</div>}
+                              <div className="text-xs text-blue-700 dark:text-blue-300">
+                                <div className="mb-1">
+                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'N/A' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
+                                  {inclusion.flightDepartureSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightDepartureSuggestedTime}</div>}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'N/A' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
+                                  {inclusion.flightReturnSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightReturnSuggestedTime}</div>}
+                                </div>
                               </div>
                             );
                           })()}
-                        </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-sm font-medium text-foreground">
-                            {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : formatDate(inclusion.scheduleEndDate)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-xs text-blue-700 dark:text-blue-300">
-                            <div className="mb-1">
-                              <span className="font-medium">Ida:</span> {inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : "N/A"}
-                              {inclusion.flightDepartureSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightDepartureSuggestedTime}</div>}
-                            </div>
-                            <div>
-                              <span className="font-medium">Volta:</span> {inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : "N/A"}
-                              {inclusion.flightReturnSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightReturnSuggestedTime}</div>}
-                            </div>
-                          </div>
                         </td>
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
