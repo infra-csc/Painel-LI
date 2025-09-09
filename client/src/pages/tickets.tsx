@@ -712,14 +712,19 @@ export default function Tickets() {
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
+                            // Debug específico para escalação #163
+                            if (inclusion.inclusionNumber === 163) {
+                              console.log('🔍 DEBUG #163 - Observações:', inclusion.observations);
+                              console.log('🔍 DEBUG #163 - Travel Info:', travelInfo);
+                            }
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">
-                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'N/A' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
+                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'Não definido' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
                                   {inclusion.flightDepartureSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightDepartureSuggestedTime}</div>}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'N/A' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
+                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'Não definido' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
                                   {inclusion.flightReturnSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightReturnSuggestedTime}</div>}
                                 </div>
                               </div>
