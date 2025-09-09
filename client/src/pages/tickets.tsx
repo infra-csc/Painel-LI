@@ -715,12 +715,12 @@ export default function Tickets() {
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">
-                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'Não definido' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
-                                  {inclusion.flightDepartureSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightDepartureSuggestedTime}</div>}
+                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'Não definido' ? travelInfo.ida : "N/A"}
+                                  {travelInfo.chegada !== 'Não definido' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'Não definido' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : "N/A"}
-                                  {inclusion.flightReturnSuggestedTime && <div className="text-xs text-gray-600">às {inclusion.flightReturnSuggestedTime}</div>}
+                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : "N/A"}
+                                  {travelInfo.horario !== 'Não definido' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
                                 </div>
                               </div>
                             );
