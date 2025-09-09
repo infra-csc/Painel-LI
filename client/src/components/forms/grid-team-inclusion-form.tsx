@@ -983,7 +983,7 @@ export default function GridTeamInclusionForm() {
                       className="flex items-center gap-2"
                     >
                       <Upload className="w-4 h-4" />
-                      Carregar de Evento
+                      Carregar de Evento Anterior
                     </Button>
                     <Button
                       type="button"
@@ -1257,7 +1257,7 @@ export default function GridTeamInclusionForm() {
                       data-testid="button-load-draft"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      Carregar
+                      Carregar Rascunho
                     </Button>
                   </div>
                   
