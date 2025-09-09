@@ -712,11 +712,6 @@ export default function Tickets() {
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
-                            // Debug específico para escalação #163
-                            if (inclusion.inclusionNumber === 163) {
-                              console.log('🔍 DEBUG #163 - Observações:', inclusion.observations);
-                              console.log('🔍 DEBUG #163 - Travel Info:', travelInfo);
-                            }
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">

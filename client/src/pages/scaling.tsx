@@ -142,7 +142,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: "", // Sempre começar vazio para o usuário escrever
+      observations: inclusion.observations || "", // 🔧 PRESERVAR observações existentes (sugestões de voo)
       dailyValue: 0, // Always start empty, user must input value
     });
     setShowModal(true);
@@ -154,7 +154,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: "", // Sempre começar vazio para o usuário escrever
+      observations: inclusion.observations || "", // 🔧 PRESERVAR observações existentes (sugestões de voo)
       dailyValue: 0,
     });
     setShowModal(true);
