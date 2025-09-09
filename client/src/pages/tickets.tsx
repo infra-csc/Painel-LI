@@ -816,13 +816,27 @@ export default function Tickets() {
                       <div>
                         <Label className="text-xs text-muted-foreground">Horário Sugerido - Ida</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedInclusion.flightDepartureSuggestedTime || "Não definido"}
+                          {(() => {
+                            // Priorizar campo específico, senão extrair das observações
+                            if (selectedInclusion.flightDepartureSuggestedTime) {
+                              return selectedInclusion.flightDepartureSuggestedTime;
+                            }
+                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                            return travelInfo.ida !== 'Não definido' ? travelInfo.ida : "Não definido";
+                          })()}
                         </p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Horário Sugerido - Volta</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedInclusion.flightReturnSuggestedTime || "Não definido"}
+                          {(() => {
+                            // Priorizar campo específico, senão extrair das observações
+                            if (selectedInclusion.flightReturnSuggestedTime) {
+                              return selectedInclusion.flightReturnSuggestedTime;
+                            }
+                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                            return travelInfo.horario !== 'Não definido' ? travelInfo.horario : "Não definido";
+                          })()}
                         </p>
                       </div>
                     </div>
