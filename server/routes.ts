@@ -384,15 +384,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      console.log("🔧 PATCH team-inclusion:", id, req.body);
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
         updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
       };
+      console.log("🔧 Updates to apply:", updates);
       const inclusion = await storage.updateTeamInclusion(id, updates);
       res.json(inclusion);
     } catch (error) {
-      res.status(400).json({ message: "Erro ao atualizar inclusão" });
+      console.error("❌ Error updating team inclusion:", error);
+      res.status(400).json({ message: "Erro ao atualizar inclusão", details: error.message });
     }
   });
 
