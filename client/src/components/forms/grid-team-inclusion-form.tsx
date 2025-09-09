@@ -222,6 +222,7 @@ export default function GridTeamInclusionForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events-with-inclusions"] });
     },
     onError: () => {
       toast({
