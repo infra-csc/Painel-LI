@@ -505,63 +505,6 @@ export default function TeamInclusionForm() {
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="flightDepartureDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Voo Ida</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} data-testid="input-departure-date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="flightDepartureSuggestedTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sugestão Ida</FormLabel>
-                      <FormControl>
-                        <Input type="text" placeholder="Ex: Preferencialmente pela manhã, após 10h..." {...field} data-testid="input-departure-time" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="flightReturnDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Voo Volta</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} data-testid="input-return-date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="flightReturnSuggestedTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sugestão Volta</FormLabel>
-                      <FormControl>
-                        <Input type="text" placeholder="Ex: Final da tarde, evitar horário de pico..." {...field} data-testid="input-return-time" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
 
               <FormField
                 control={form.control}

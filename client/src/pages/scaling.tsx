@@ -142,7 +142,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "", // 🔧 PRESERVAR observações existentes (sugestões de voo)
+      observations: "", // 🔧 Campo vazio - usuário deve inserir observações manualmente
       dailyValue: 0, // Always start empty, user must input value
     });
     setShowModal(true);
@@ -154,7 +154,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: inclusion.observations || "", // 🔧 PRESERVAR observações existentes (sugestões de voo)
+      observations: "", // 🔧 Campo vazio - usuário deve inserir observações manualmente
       dailyValue: 0,
     });
     setShowModal(true);
@@ -728,32 +728,6 @@ export default function Scaling() {
                           </div>
                         </div>
                         
-                        {/* Campos para registro individual de datas */}
-                        <div className="border-t pt-4">
-                          <h5 className="text-sm font-medium text-foreground mb-3">Registro Individual de Passagem</h5>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="departureDate" className="text-sm font-medium">Data de Ida</Label>
-                              <Input
-                                id="departureDate"
-                                type="date"
-                                value={modalData.departureDate || ""}
-                                onChange={(e) => setModalData(prev => ({...prev, departureDate: e.target.value}))}
-                                className="mt-1"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="returnDate" className="text-sm font-medium">Data de Volta</Label>
-                              <Input
-                                id="returnDate"
-                                type="date"
-                                value={modalData.returnDate || ""}
-                                onChange={(e) => setModalData(prev => ({...prev, returnDate: e.target.value}))}
-                                className="mt-1"
-                              />
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     );
                   })()}
