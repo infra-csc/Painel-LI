@@ -814,29 +814,37 @@ export default function Tickets() {
                         <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Detalhes da Ida</Label>
+                        <Label className="text-xs text-muted-foreground">Voo de Ida</Label>
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            const departureDate = selectedInclusion.flightDepartureDate;
+                            const event = events?.find(e => e.id === selectedInclusion.eventId);
+                            
+                            // Data: usar específica do voo ou início do evento
+                            const departureDate = selectedInclusion.flightDepartureDate || 
+                                                 selectedInclusion.scheduleStartDate ||
+                                                 event?.startDate;
+                            
+                            // Horário sugerido
                             const departureTime = selectedInclusion.flightDepartureSuggestedTime || 
                                                  (travelInfo.ida !== 'Não definido' ? travelInfo.ida : null);
-                            const chegada = travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : null;
                             
                             return (
                               <div className="space-y-1">
                                 <div>
-                                  <span className="text-sm">Data: </span>
+                                  <span className="text-sm font-medium">Data de partida: </span>
                                   <span>{departureDate ? formatDate(departureDate) : "Não definida"}</span>
                                 </div>
-                                <div>
-                                  <span className="text-sm">Horário: </span>
-                                  <span>{departureTime || "Não definido"}</span>
-                                </div>
-                                {chegada && (
+                                {departureTime && (
                                   <div>
-                                    <span className="text-sm">Chegada: </span>
-                                    <span>{chegada}</span>
+                                    <span className="text-sm font-medium">Horário sugerido: </span>
+                                    <span>{departureTime}</span>
+                                  </div>
+                                )}
+                                {travelInfo.chegada !== 'Não definido' && (
+                                  <div>
+                                    <span className="text-sm font-medium">Previsão chegada: </span>
+                                    <span>{travelInfo.chegada}</span>
                                   </div>
                                 )}
                               </div>
@@ -845,29 +853,37 @@ export default function Tickets() {
                         </div>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Detalhes da Volta</Label>
+                        <Label className="text-xs text-muted-foreground">Voo de Volta</Label>
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            const returnDate = selectedInclusion.flightReturnDate;
+                            const event = events?.find(e => e.id === selectedInclusion.eventId);
+                            
+                            // Data: usar específica do voo ou final do evento
+                            const returnDate = selectedInclusion.flightReturnDate || 
+                                              selectedInclusion.scheduleEndDate ||
+                                              event?.endDate;
+                            
+                            // Horário sugerido
                             const returnTime = selectedInclusion.flightReturnSuggestedTime || 
                                               (travelInfo.horario !== 'Não definido' ? travelInfo.horario : null);
-                            const retorno = travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : null;
                             
                             return (
                               <div className="space-y-1">
                                 <div>
-                                  <span className="text-sm">Data: </span>
+                                  <span className="text-sm font-medium">Data de retorno: </span>
                                   <span>{returnDate ? formatDate(returnDate) : "Não definida"}</span>
                                 </div>
-                                <div>
-                                  <span className="text-sm">Horário: </span>
-                                  <span>{returnTime || "Não definido"}</span>
-                                </div>
-                                {retorno && (
+                                {returnTime && (
                                   <div>
-                                    <span className="text-sm">Partida: </span>
-                                    <span>{retorno}</span>
+                                    <span className="text-sm font-medium">Horário sugerido: </span>
+                                    <span>{returnTime}</span>
+                                  </div>
+                                )}
+                                {travelInfo.retorno !== 'Não definido' && (
+                                  <div>
+                                    <span className="text-sm font-medium">Partindo: </span>
+                                    <span>{travelInfo.retorno}</span>
                                   </div>
                                 )}
                               </div>
