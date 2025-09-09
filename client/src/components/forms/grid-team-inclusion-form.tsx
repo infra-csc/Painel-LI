@@ -676,6 +676,7 @@ export default function GridTeamInclusionForm() {
         ranges.push({
           functionId: originalFunctionId, // Usar ID original
           dailyRate: totalDailyRates, // Total de diárias (dias × diárias por dia)
+          dailyRatePerDay: firstValue, // Quantas diárias por dia (para observação)
           startDate: startDate,
           endDate: endDate,
           travelInfo: {
@@ -713,6 +714,7 @@ export default function GridTeamInclusionForm() {
             ranges.push({
               functionId: originalFunctionId, // Usar ID original
               dailyRate: daysInThisGroup * dailyRatePerDay, // Total: dias × diárias por dia
+              dailyRatePerDay: dailyRatePerDay, // Quantas diárias por dia (para observação)
               startDate: firstDate,
               endDate: lastDate,
               travelInfo: {
@@ -810,7 +812,7 @@ export default function GridTeamInclusionForm() {
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
           rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
-          observations: `${functionRow?.functionName || 'Função'} - ${range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)} | Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`,
+          observations: `${functionRow?.functionName || 'Função'} - ${(range as any).dailyRatePerDay || range.dailyRate} diária(s) por dia - ${formatDateForDisplay(range.startDate)} a ${formatDateForDisplay(range.endDate)} | Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`,
         });
         
         successCount++;
