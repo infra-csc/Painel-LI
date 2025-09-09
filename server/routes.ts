@@ -340,54 +340,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Função para gerar horários sugeridos automaticamente
-  const generateFlightSuggestions = async (eventId: string) => {
-    const suggestions = {
-      departure: "",
-      return: ""
-    };
-
-    try {
-      const event = await storage.getEvent(eventId);
-      
-      // Mapear cidades para horários típicos de voo
-      const cityFlightSuggestions: Record<string, { departure: string; return: string }> = {
-        "São Paulo": { departure: "08:00", return: "18:00" },
-        "Rio de Janeiro": { departure: "09:00", return: "17:00" },
-        "Brasília": { departure: "07:30", return: "19:00" },
-        "Belo Horizonte": { departure: "08:30", return: "17:30" },
-        "Salvador": { departure: "09:30", return: "16:30" },
-        "Recife": { departure: "09:00", return: "17:00" },
-        "Fortaleza": { departure: "10:00", return: "16:00" },
-        "Curitiba": { departure: "08:00", return: "18:00" },
-        "Porto Alegre": { departure: "07:00", return: "19:00" },
-        "Goiânia": { departure: "08:30", return: "17:30" },
-        "Manaus": { departure: "10:00", return: "15:00" },
-        "Belém": { departure: "09:30", return: "16:30" }
-      };
-
-      // Tentar encontrar cidade no nome ou localização do evento
-      const eventLocation = event?.location || event?.name || "";
-      const foundCity = Object.keys(cityFlightSuggestions).find(city => 
-        eventLocation.toLowerCase().includes(city.toLowerCase())
-      );
-
-      if (foundCity) {
-        suggestions.departure = cityFlightSuggestions[foundCity].departure;
-        suggestions.return = cityFlightSuggestions[foundCity].return;
-      } else {
-        // Horários padrão para locais não mapeados
-        suggestions.departure = "08:00";
-        suggestions.return = "18:00";
-      }
-    } catch (error) {
-      // Em caso de erro, usar horários padrão
-      suggestions.departure = "08:00";
-      suggestions.return = "18:00";
-    }
-
-    return suggestions;
-  };
 
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {
@@ -420,12 +372,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (cleanedData.flightDepartureDate === "") cleanedData.flightDepartureDate = null;
       if (cleanedData.flightReturnDate === "") cleanedData.flightReturnDate = null;
       
-      // Gerar horários sugeridos automaticamente se precisar de passagem
-      if (cleanedData.needsTicket) {
-        const suggestions = await generateFlightSuggestions(cleanedData.eventId);
-        cleanedData.flightDepartureSuggestedTime = suggestions.departure;
-        cleanedData.flightReturnSuggestedTime = suggestions.return;
-      }
       
       const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
       const inclusion = await storage.createTeamInclusion(inclusionData);
@@ -465,39 +411,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint para atualizar horários sugeridos em registros existentes
-  app.post("/api/team-inclusions/update-suggested-times", async (req, res) => {
+  // Endpoint para migrar horários das observações para os campos específicos
+  app.post("/api/team-inclusions/migrate-flight-times", async (req, res) => {
     try {
       const inclusions = await storage.getTeamInclusions();
       let updatedCount = 0;
 
       for (const inclusion of inclusions) {
-        // Atualizar apenas se precisar de passagem e não tiver horários definidos
-        if (inclusion.needsTicket && 
+        // Atualizar apenas se não tiver horários definidos mas tiver observações
+        if (inclusion.needsTicket && inclusion.observations && 
             (!inclusion.flightDepartureSuggestedTime || !inclusion.flightReturnSuggestedTime)) {
           
-          const suggestions = await generateFlightSuggestions(inclusion.eventId);
+          // Extrair horários das observações
+          const observations = inclusion.observations;
+          const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+          const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
           
-          await storage.updateTeamInclusion(inclusion.id, {
-            flightDepartureSuggestedTime: suggestions.departure,
-            flightReturnSuggestedTime: suggestions.return,
-            updatedAt: new Date()
-          });
+          const ida = (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : null;
+          const horario = (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : null;
           
-          updatedCount++;
+          if (ida || horario) {
+            await storage.updateTeamInclusion(inclusion.id, {
+              flightDepartureSuggestedTime: ida,
+              flightReturnSuggestedTime: horario,
+              updatedAt: new Date()
+            });
+            
+            updatedCount++;
+          }
         }
       }
 
       res.json({ 
-        message: `Horários sugeridos atualizados com sucesso`,
+        message: `Migração concluída`,
         updatedCount,
         totalProcessed: inclusions.length
       });
     } catch (error) {
-      console.error("Erro ao atualizar horários sugeridos:", error);
-      res.status(500).json({ message: "Erro ao atualizar horários sugeridos" });
+      console.error("Erro ao migrar horários:", error);
+      res.status(500).json({ message: "Erro ao migrar horários das observações" });
     }
   });
+
 
   // Tickets routes
   app.get("/api/tickets", async (req, res) => {
