@@ -573,21 +573,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { fileName, fileType, fileSize } = req.body;
-      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const { ObjectStorageService, ObjectNotFoundError, objectStorageClient } = await import("./objectStorage");
       const objectStorageService = new ObjectStorageService();
       
+      // Função auxiliar para analisar caminho do objeto  
+      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+        if (!path.startsWith("/")) path = `/${path}`;
+        const pathParts = path.split("/");
+        if (pathParts.length < 3) throw new Error("Invalid path: must contain at least a bucket name");
+        const bucketName = pathParts[1];
+        const objectName = pathParts.slice(2).join("/");
+        return { bucketName, objectName };
+      }
+      
       try {
-        // Verificar se o arquivo existe no storage
-        const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
-        
-        // Definir metadados customizados no arquivo
-        await objectFile.setMetadata({
-          metadata: {
-            'custom:originalFileName': fileName,
-            'custom:uploadedAt': new Date().toISOString(),
-          }
-        });
-        
+        // Simplesmente confirmar o upload - o arquivo já foi enviado via presigned URL
+        // Criar um registro interno do anexo para futuras consultas
         res.json({
           message: "Upload confirmado com sucesso",
           attachmentId: id,
@@ -596,11 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileSize
         });
       } catch (error) {
-        if (error instanceof ObjectNotFoundError) {
-          res.status(404).json({ message: "Arquivo não encontrado no storage" });
-        } else {
-          throw error;
-        }
+        throw error;
       }
     } catch (error) {
       console.error("Erro ao confirmar upload:", error);
@@ -611,12 +608,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/attachments/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const { ObjectStorageService, ObjectNotFoundError, objectStorageClient } = await import("./objectStorage");
       const objectStorageService = new ObjectStorageService();
       
       try {
-        // Tentar buscar o arquivo no object storage
-        const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+        // Buscar arquivo diretamente no storage  
+        const privateDir = objectStorageService.getPrivateObjectDir();
+        const fullPath = `${privateDir}/uploads/${id}`;
+        
+        function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+          if (!path.startsWith("/")) path = `/${path}`;
+          const pathParts = path.split("/");
+          if (pathParts.length < 3) throw new Error("Invalid path");
+          return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
+        }
+        
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const bucket = objectStorageClient.bucket(bucketName);
+        const objectFile = bucket.file(objectName);
         const [metadata] = await objectFile.getMetadata();
         
         // Extrair nome original dos metadados customizados
@@ -658,10 +667,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/attachments/:id/download", async (req, res) => {
     try {
       const { id } = req.params;
-      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const { ObjectStorageService, ObjectNotFoundError, objectStorageClient } = await import("./objectStorage");
       const objectStorageService = new ObjectStorageService();
       
-      const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+      // Buscar arquivo diretamente no storage
+      const privateDir = objectStorageService.getPrivateObjectDir();
+      const fullPath = `${privateDir}/uploads/${id}`;
+      
+      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+        if (!path.startsWith("/")) path = `/${path}`;
+        const pathParts = path.split("/");
+        return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
+      }
+      
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      const objectFile = bucket.file(objectName);
+      
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       if (error instanceof Error && error.name === "ObjectNotFoundError") {
@@ -677,10 +699,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/attachments/:id/view", async (req, res) => {
     try {
       const { id } = req.params;
-      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const { ObjectStorageService, ObjectNotFoundError, objectStorageClient } = await import("./objectStorage");
       const objectStorageService = new ObjectStorageService();
       
-      const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+      // Buscar arquivo diretamente no storage
+      const privateDir = objectStorageService.getPrivateObjectDir();
+      const fullPath = `${privateDir}/uploads/${id}`;
+      
+      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+        if (!path.startsWith("/")) path = `/${path}`;
+        const pathParts = path.split("/");
+        return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
+      }
+      
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      const objectFile = bucket.file(objectName);
       
       // Adicionar header para visualização inline
       res.set('Content-Disposition', 'inline');
