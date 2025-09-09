@@ -422,7 +422,6 @@ export default function TeamInclusionTable() {
 
               const data = {
                 functionId: formData.get('functionId') as string,
-                collaboratorId: formData.get('collaboratorId') as string || null,
                 dailyRates: dailyRates,
                 needsTicket: formData.get('needsTicket') === 'true',
                 scheduleStartDate: startDate,
@@ -450,21 +449,6 @@ export default function TeamInclusionTable() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Colaborador</label>
-                    <select
-                      name="collaboratorId"
-                      defaultValue={editingInclusion.collaboratorId || ""}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Selecionar colaborador...</option>
-                      {collaborators?.map((collaborator) => (
-                        <option key={collaborator.id} value={collaborator.id}>
-                          {collaborator.fullName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Data Início *</label>
