@@ -500,10 +500,10 @@ export default function Scaling() {
                               Período / Diárias
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Passagens
+                              Passagens <span className="text-xs opacity-60">(sugestão)</span>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Horários
+                              Horários <span className="text-xs opacity-60">(sugestão)</span>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
