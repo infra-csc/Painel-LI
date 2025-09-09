@@ -814,30 +814,66 @@ export default function Tickets() {
                         <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Horário Sugerido - Ida</Label>
-                        <p className="font-medium text-blue-700 dark:text-blue-300">
+                        <Label className="text-xs text-muted-foreground">Detalhes da Ida</Label>
+                        <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
-                            // Priorizar campo específico, senão extrair das observações
-                            if (selectedInclusion.flightDepartureSuggestedTime) {
-                              return selectedInclusion.flightDepartureSuggestedTime;
-                            }
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            return travelInfo.ida !== 'Não definido' ? travelInfo.ida : "Não definido";
+                            const departureDate = selectedInclusion.flightDepartureDate;
+                            const departureTime = selectedInclusion.flightDepartureSuggestedTime || 
+                                                 (travelInfo.ida !== 'Não definido' ? travelInfo.ida : null);
+                            const chegada = travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : null;
+                            
+                            return (
+                              <div className="space-y-1">
+                                <div>
+                                  <span className="text-sm">Data: </span>
+                                  <span>{departureDate ? formatDate(departureDate) : "Não definida"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-sm">Horário: </span>
+                                  <span>{departureTime || "Não definido"}</span>
+                                </div>
+                                {chegada && (
+                                  <div>
+                                    <span className="text-sm">Chegada: </span>
+                                    <span>{chegada}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
                           })()}
-                        </p>
+                        </div>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Horário Sugerido - Volta</Label>
-                        <p className="font-medium text-blue-700 dark:text-blue-300">
+                        <Label className="text-xs text-muted-foreground">Detalhes da Volta</Label>
+                        <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
-                            // Priorizar campo específico, senão extrair das observações
-                            if (selectedInclusion.flightReturnSuggestedTime) {
-                              return selectedInclusion.flightReturnSuggestedTime;
-                            }
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                            return travelInfo.horario !== 'Não definido' ? travelInfo.horario : "Não definido";
+                            const returnDate = selectedInclusion.flightReturnDate;
+                            const returnTime = selectedInclusion.flightReturnSuggestedTime || 
+                                              (travelInfo.horario !== 'Não definido' ? travelInfo.horario : null);
+                            const retorno = travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : null;
+                            
+                            return (
+                              <div className="space-y-1">
+                                <div>
+                                  <span className="text-sm">Data: </span>
+                                  <span>{returnDate ? formatDate(returnDate) : "Não definida"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-sm">Horário: </span>
+                                  <span>{returnTime || "Não definido"}</span>
+                                </div>
+                                {retorno && (
+                                  <div>
+                                    <span className="text-sm">Partida: </span>
+                                    <span>{retorno}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
                           })()}
-                        </p>
+                        </div>
                       </div>
                     </div>
                   </div>
