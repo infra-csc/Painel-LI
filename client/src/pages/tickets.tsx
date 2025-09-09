@@ -879,12 +879,17 @@ export default function Tickets() {
                         )}
                         {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
                           <div className="md:col-span-2 lg:col-span-3">
-                            <Label className="text-xs text-muted-foreground">IDs dos Anexos</Label>
-                            <div className="space-y-2 mt-1">
+                            <Label className="text-xs text-muted-foreground">Anexos da Passagem</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
                               {ticket.attachmentIds.map((attachmentId, index) => (
-                                <div key={attachmentId} className="font-mono text-sm bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded text-green-700 dark:text-green-300 flex items-center justify-between">
-                                  <span>ID: {attachmentId}</span>
-                                  <span className="text-xs opacity-70">Anexo {index + 1}</span>
+                                <div key={attachmentId} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors">
+                                  <FileText className="w-4 h-4 text-blue-600" />
+                                  <span className="font-medium text-blue-700 dark:text-blue-300">
+                                    Anexo {index + 1}
+                                  </span>
+                                  <span className="text-xs text-blue-500 dark:text-blue-400 font-mono">
+                                    {attachmentId.slice(-8)}
+                                  </span>
                                 </div>
                               ))}
                             </div>
