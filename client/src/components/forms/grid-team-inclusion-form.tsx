@@ -198,13 +198,17 @@ export default function GridTeamInclusionForm() {
   });
 
   // Query para eventos que têm escalações salvas (para template)
-  const { data: eventsWithInclusions } = useQuery<Event[]>({
+  const { data: eventsWithInclusions, refetch: refetchEventsWithInclusions } = useQuery<Event[]>({
     queryKey: ["/api/events-with-inclusions"],
     queryFn: async () => {
       const response = await fetch('/api/events-with-inclusions');
       if (!response.ok) throw new Error('Failed to fetch events with inclusions');
-      return response.json();
-    }
+      const data = await response.json();
+      console.log('🔄 Events with inclusions fetched:', data);
+      return data;
+    },
+    staleTime: 0, // Sempre buscar dados atualizados
+    refetchOnWindowFocus: true // Atualizar quando a janela receber foco
   });
 
   const { data: functions } = useQuery<Function[]>({
@@ -1328,7 +1332,16 @@ export default function GridTeamInclusionForm() {
                 ))}
                 {(!eventsWithInclusions || eventsWithInclusions.length === 0) && (
                   <div className="p-2 text-sm text-muted-foreground text-center">
-                    Nenhum evento com escalações salvas
+                    <div>Nenhum evento com escalações salvas</div>
+                    <button 
+                      className="text-xs underline mt-1"
+                      onClick={() => {
+                        console.log('🔄 Forcing refresh of events with inclusions');
+                        refetchEventsWithInclusions();
+                      }}
+                    >
+                      Atualizar lista
+                    </button>
                   </div>
                 )}
               </SelectContent>
