@@ -900,10 +900,20 @@ export default function Tickets() {
                                             description: `Nome: ${attachmentData.name}\\nTipo: ${attachmentData.type}\\nTamanho: ${attachmentData.size}\\nID: ${attachmentId}\\n\\n${attachmentData.message}`,
                                           });
                                           
-                                          // TODO: Quando URL real estiver disponível, abrir anexo
-                                          // if (attachmentData.url && attachmentData.url !== "#") {
-                                          //   window.open(attachmentData.url, '_blank');
-                                          // }
+                                          // Abrir anexo se disponível
+                                          if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                            // Determinar se abrir inline ou fazer download
+                                            const isViewable = attachmentData.type?.includes('pdf') || 
+                                                             attachmentData.type?.includes('image');
+                                            
+                                            if (isViewable) {
+                                              // Abrir para visualização inline
+                                              window.open(attachmentData.viewUrl, '_blank');
+                                            } else {
+                                              // Fazer download direto
+                                              window.open(attachmentData.downloadUrl, '_blank');
+                                            }
+                                          }
                                         } else {
                                           throw new Error(attachmentData.message || 'Erro ao buscar anexo');
                                         }

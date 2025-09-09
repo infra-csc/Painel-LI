@@ -500,38 +500,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Attachment routes
+  // Attachment routes with real object storage
   app.post("/api/attachments/upload", async (req, res) => {
     try {
-      // TODO: Implementar upload real para object storage
-      // Por enquanto simula upload e retorna ID
+      const { ObjectStorageService } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      // Gerar ID único para o anexo
       const attachmentId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+      
+      // Obter URL de upload do object storage
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       
       res.json({ 
         attachmentId,
-        message: "Upload simulado - integração com storage em desenvolvimento"
+        uploadURL,
+        message: "URL de upload gerada com sucesso"
       });
     } catch (error) {
-      res.status(500).json({ message: "Erro ao fazer upload do anexo" });
+      console.error("Erro ao gerar URL de upload:", error);
+      res.status(500).json({ message: "Erro ao preparar upload do anexo" });
     }
   });
 
   app.get("/api/attachments/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
       
-      // TODO: Implementar download real do object storage
-      // Por enquanto retorna informações do anexo
-      res.json({
-        id,
-        name: `Anexo_${id.slice(-8)}.pdf`,
-        type: "application/pdf", 
-        size: "1.2 MB",
-        url: "#", // URL real do storage será implementada
-        message: "Download em desenvolvimento - integração com storage em andamento"
-      });
+      try {
+        // Tentar buscar o arquivo no object storage
+        const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+        const [metadata] = await objectFile.getMetadata();
+        
+        // Retornar informações do arquivo real
+        res.json({
+          id,
+          name: metadata.name || `Anexo_${id.slice(-8)}`,
+          type: metadata.contentType || "application/octet-stream",
+          size: metadata.size ? `${(parseInt(metadata.size) / 1024 / 1024).toFixed(2)} MB` : "Desconhecido",
+          downloadUrl: `/api/attachments/${id}/download`,
+          viewUrl: `/api/attachments/${id}/view`,
+          message: "Arquivo encontrado no storage"
+        });
+      } catch (error) {
+        if (error instanceof ObjectNotFoundError) {
+          // Arquivo não existe no storage, retornar informação simulada
+          res.json({
+            id,
+            name: `Anexo_${id.slice(-8)}.pdf`,
+            type: "application/pdf", 
+            size: "Arquivo não encontrado",
+            downloadUrl: "#",
+            viewUrl: "#",
+            message: "Arquivo simulado - não foi encontrado no storage real"
+          });
+        } else {
+          throw error;
+        }
+      }
     } catch (error) {
+      console.error("Erro ao buscar anexo:", error);
       res.status(500).json({ message: "Erro ao buscar anexo" });
+    }
+  });
+
+  // Download de anexo
+  app.get("/api/attachments/:id/download", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      if (error instanceof Error && error.name === "ObjectNotFoundError") {
+        res.status(404).json({ message: "Arquivo não encontrado" });
+      } else {
+        console.error("Erro ao fazer download:", error);
+        res.status(500).json({ message: "Erro ao fazer download do anexo" });
+      }
+    }
+  });
+
+  // Visualização de anexo (mesmo que download, mas com headers apropriados)
+  app.get("/api/attachments/:id/view", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      const objectFile = await objectStorageService.getObjectEntityFile(`/objects/uploads/${id}`);
+      
+      // Adicionar header para visualização inline
+      res.set('Content-Disposition', 'inline');
+      
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      if (error instanceof Error && error.name === "ObjectNotFoundError") {
+        res.status(404).json({ message: "Arquivo não encontrado" });
+      } else {
+        console.error("Erro ao visualizar arquivo:", error);
+        res.status(500).json({ message: "Erro ao visualizar anexo" });
+      }
     }
   });
 

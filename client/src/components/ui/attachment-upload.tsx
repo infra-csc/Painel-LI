@@ -52,21 +52,46 @@ export default function AttachmentUpload({
     setIsUploading(true);
 
     try {
-      // Simular upload (substituir pela integração real futuramente)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 1. Obter URL de upload do servidor
+      const uploadResponse = await fetch('/api/attachments/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
-      const newAttachmentId = generateAttachmentId();
-      const updatedIds = [...attachmentIds, newAttachmentId];
+      if (!uploadResponse.ok) {
+        throw new Error('Erro ao obter URL de upload');
+      }
+      
+      const { attachmentId, uploadURL } = await uploadResponse.json();
+      
+      // 2. Fazer upload do arquivo para o object storage
+      const fileUploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+      
+      if (!fileUploadResponse.ok) {
+        throw new Error('Erro ao fazer upload do arquivo');
+      }
+      
+      // 3. Adicionar ID do anexo à lista
+      const updatedIds = [...attachmentIds, attachmentId];
       onAttachmentsChange(updatedIds);
       
       toast({
         title: "Anexo carregado",
-        description: `Arquivo "${file.name}" anexado com sucesso`,
+        description: `Arquivo "${file.name}" anexado com sucesso ao storage`,
       });
     } catch (error) {
+      console.error('Erro no upload:', error);
       toast({
         title: "Erro no upload",
-        description: "Erro ao carregar o anexo",
+        description: error instanceof Error ? error.message : "Erro ao carregar o anexo",
         variant: "destructive",
       });
     } finally {
