@@ -163,13 +163,19 @@ export default function Scaling() {
   const handleSave = () => {
     if (!selectedInclusion) return;
 
+    const updateData: any = {
+      collaboratorId: modalData.collaboratorId,
+      observations: modalData.observations,
+    };
+    
+    // Só incluir dailyValue se foi especificamente editado
+    if (modalData.dailyValue && modalData.dailyValue > 0) {
+      updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
+    }
+    
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
-      data: {
-        collaboratorId: modalData.collaboratorId,
-        observations: modalData.observations,
-        dailyValue: modalData.dailyValue ? Math.round(modalData.dailyValue * 100) : null, // Store in cents
-      }
+      data: updateData
     });
   };
 
@@ -190,15 +196,21 @@ export default function Scaling() {
     const nextStatus = needsTicket ? "passagem" : "fechamento";
     const nextPhase = needsTicket ? "passagem" : "fechamento";
 
+    const updateData: any = {
+      collaboratorId: modalData.collaboratorId,
+      observations: modalData.observations,
+      status: nextStatus,
+      phase: nextPhase
+    };
+    
+    // Só incluir dailyValue se foi especificamente editado
+    if (modalData.dailyValue && modalData.dailyValue > 0) {
+      updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
+    }
+    
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
-      data: {
-        collaboratorId: modalData.collaboratorId,
-        observations: modalData.observations,
-        dailyValue: modalData.dailyValue ? Math.round(modalData.dailyValue * 100) : null, // Store in cents
-        status: nextStatus,
-        phase: nextPhase
-      }
+      data: updateData
     });
   };
 
