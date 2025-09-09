@@ -169,10 +169,7 @@ export default function GridTeamInclusionForm() {
     return false;
   };
 
-  // Carregar rascunho automaticamente
-  useEffect(() => {
-    loadDraft();
-  }, []);
+  // Rascunho será carregado apenas quando o usuário clicar no botão
 
   // Check if user can edit this screen
   if (!hasPermission(user, 'canEditScreen1')) {
