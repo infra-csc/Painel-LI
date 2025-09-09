@@ -131,21 +131,47 @@ export default function GridTeamInclusionForm() {
     }
   };
 
-  // Load auto-saved data
-  useEffect(() => {
-    const saved = localStorage.getItem('grid-auto-save');
-    if (saved) {
+  // Função para carregar rascunho salvo
+  const loadDraft = () => {
+    const draftSaved = localStorage.getItem('grid-draft-save');
+    const autoSaved = localStorage.getItem('grid-auto-save');
+    
+    // Priorizar rascunho manual sobre auto-save
+    const savedData = draftSaved || autoSaved;
+    
+    if (savedData) {
       try {
-        const data = JSON.parse(saved);
-        // Only load if less than 1 hour old
-        if (Date.now() - data.timestamp < 3600000) {
+        const data = JSON.parse(savedData);
+        // Carregar rascunho manual (sem limite de tempo) ou auto-save (com limite de 1 hora)
+        const isValidData = draftSaved || (Date.now() - data.timestamp < 3600000);
+        
+        if (isValidData && data.functionRows && data.functionRows.length > 0) {
           setFunctionRows(data.functionRows || []);
           setDates(data.dates || []);
+          setShowGrid(true); // Mostrar planilha automaticamente
+          
+          // Carregar dados do evento se salvo
+          if (data.eventId) {
+            form.setValue('eventId', data.eventId);
+          }
+          
+          toast({
+            title: "Rascunho carregado",
+            description: `Dados restaurados de ${draftSaved ? 'rascunho salvo' : 'auto-save'}`
+          });
+          
+          return true;
         }
       } catch (e) {
-        console.error('Error loading auto-save data:', e);
+        console.error('Error loading saved data:', e);
       }
     }
+    return false;
+  };
+
+  // Carregar rascunho automaticamente
+  useEffect(() => {
+    loadDraft();
   }, []);
 
   // Check if user can edit this screen
@@ -824,11 +850,15 @@ export default function GridTeamInclusionForm() {
         description: `${successCount} escalação(ões) criada(s) com sucesso!`,
       });
 
-      // Limpa o form após sucesso
+      // Limpa o form e rascunho após sucesso
       form.reset();
       setFunctionRows([]);
       setDates([]);
       setShowGrid(false);
+      
+      // Limpar rascunhos salvos após criar escalações
+      localStorage.removeItem('grid-draft-save');
+      localStorage.removeItem('grid-auto-save');
       
     } catch (error) {
       // Error já tratado no mutation
@@ -1198,17 +1228,38 @@ export default function GridTeamInclusionForm() {
 
                 {/* Botões de ação */}
                 <div className="space-y-2">
-                  {/* Botão para salvar rascunho */}
-                  <Button
-                    type="button"
-                    onClick={saveDraft}
-                    variant="outline"
-                    className="w-full"
-                    data-testid="button-save-draft"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Salvar Rascunho
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Botão para salvar rascunho */}
+                    <Button
+                      type="button"
+                      onClick={saveDraft}
+                      variant="outline"
+                      data-testid="button-save-draft"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Salvar Rascunho
+                    </Button>
+                    
+                    {/* Botão para carregar rascunho */}
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const loaded = loadDraft();
+                        if (!loaded) {
+                          toast({
+                            title: "Nenhum rascunho encontrado",
+                            description: "Não há rascunho salvo para carregar.",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      variant="outline"
+                      data-testid="button-load-draft"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Carregar
+                    </Button>
+                  </div>
                   
                   {/* Botão para criar escalações */}
                   <Button
