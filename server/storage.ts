@@ -329,7 +329,8 @@ export class MemStorage implements IStorage {
       flightDepartureSuggestedTime: insertInclusion.flightDepartureSuggestedTime ?? null,
       flightReturnDate: insertInclusion.flightReturnDate ?? null,
       flightReturnSuggestedTime: insertInclusion.flightReturnSuggestedTime ?? null,
-      needsTicket: insertInclusion.needsTicket || false
+      needsTicket: insertInclusion.needsTicket || false,
+      rowOrder: insertInclusion.rowOrder ?? null
     };
     this.teamInclusions.set(id, inclusion);
     return inclusion;
@@ -657,6 +658,7 @@ export class DatabaseStorage implements IStorage {
         updatedBy: teamInclusions.updatedBy,
         functionName: functions.name,
         eventName: events.name,
+        rowOrder: teamInclusions.rowOrder,
       })
       .from(teamInclusions)
       .leftJoin(functions, eq(teamInclusions.functionId, functions.id))

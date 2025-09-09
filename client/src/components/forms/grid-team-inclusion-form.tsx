@@ -1346,11 +1346,16 @@ export default function GridTeamInclusionForm() {
                 <SelectValue placeholder="Selecione um evento" />
               </SelectTrigger>
               <SelectContent>
-                {events?.map((event) => (
+                {eventsWithInclusions?.map((event) => (
                   <SelectItem key={event.id} value={event.id}>
                     {event.name}
                   </SelectItem>
                 ))}
+                {(!eventsWithInclusions || eventsWithInclusions.length === 0) && (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    Nenhum evento com escalações salvas
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
