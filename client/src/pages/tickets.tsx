@@ -825,16 +825,16 @@ export default function Tickets() {
                             
                             return (
                               <div className="space-y-1">
-                                {departureTime && (
-                                  <div>
-                                    <span className="text-sm font-medium">Horário sugerido: </span>
-                                    <span>{departureTime}</span>
-                                  </div>
-                                )}
                                 {travelInfo.chegada !== 'Não definido' && (
                                   <div>
                                     <span className="text-sm font-medium">Previsão chegada: </span>
                                     <span>{travelInfo.chegada}</span>
+                                  </div>
+                                )}
+                                {departureTime && (
+                                  <div>
+                                    <span className="text-sm font-medium">Horário sugerido: </span>
+                                    <span>{departureTime}</span>
                                   </div>
                                 )}
                               </div>
