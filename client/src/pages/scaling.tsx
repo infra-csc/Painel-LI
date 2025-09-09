@@ -694,34 +694,64 @@ export default function Scaling() {
               {selectedInclusion.needsTicket && (
                 <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
                   <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                    Informações de Passagem
+                    Informações de Passagem <span className="text-xs opacity-60">(sugestões)</span>
                   </h4>
                   {(() => {
                     const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
                     return (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium">Data de Partida</Label>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {travelInfo.ida}
+                      <div className="space-y-4">
+                        {/* Voos Sugeridos - apenas aeroportos e horários, SEM datas */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium">Aeroporto Origem (sugerido)</Label>
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {travelInfo.ida !== 'N/A' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Aeroporto Destino (sugerido)</Label>
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {travelInfo.retorno !== 'N/A' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {travelInfo.chegada !== 'N/A' ? travelInfo.chegada : 'Não definido'}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {travelInfo.horario !== 'N/A' ? travelInfo.horario : 'Não definido'}
+                            </div>
                           </div>
                         </div>
-                        <div>
-                          <Label className="text-sm font-medium">Data de Retorno</Label>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {travelInfo.retorno}
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {travelInfo.chegada}
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {travelInfo.horario}
+                        
+                        {/* Campos para registro individual de datas */}
+                        <div className="border-t pt-4">
+                          <h5 className="text-sm font-medium text-foreground mb-3">Registro Individual de Passagem</h5>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="departureDate" className="text-sm font-medium">Data de Ida</Label>
+                              <Input
+                                id="departureDate"
+                                type="date"
+                                value={modalData.departureDate || ""}
+                                onChange={(e) => setModalData(prev => ({...prev, departureDate: e.target.value}))}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="returnDate" className="text-sm font-medium">Data de Volta</Label>
+                              <Input
+                                id="returnDate"
+                                type="date"
+                                value={modalData.returnDate || ""}
+                                onChange={(e) => setModalData(prev => ({...prev, returnDate: e.target.value}))}
+                                className="mt-1"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

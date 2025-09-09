@@ -742,17 +742,15 @@ export default function Tickets() {
                         <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Sugestão de Ida</Label>
+                        <Label className="text-xs text-muted-foreground">Horário Sugerido - Ida</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedInclusion.flightDepartureDate ? formatDate(selectedInclusion.flightDepartureDate) : "Não definido"}
-                          {selectedInclusion.flightDepartureSuggestedTime && ` às ${selectedInclusion.flightDepartureSuggestedTime}`}
+                          {selectedInclusion.flightDepartureSuggestedTime || "Não definido"}
                         </p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Sugestão de Volta</Label>
+                        <Label className="text-xs text-muted-foreground">Horário Sugerido - Volta</Label>
                         <p className="font-medium text-blue-700 dark:text-blue-300">
-                          {selectedInclusion.flightReturnDate ? formatDate(selectedInclusion.flightReturnDate) : "Não definido"}
-                          {selectedInclusion.flightReturnSuggestedTime && ` às ${selectedInclusion.flightReturnSuggestedTime}`}
+                          {selectedInclusion.flightReturnSuggestedTime || "Não definido"}
                         </p>
                       </div>
                     </div>
@@ -895,6 +893,33 @@ export default function Tickets() {
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                             />
                           </div>
+                          
+                          {/* Datas de Ida e Volta */}
+                          <div>
+                            <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-sm font-medium">
+                              Data de Ida *
+                            </Label>
+                            <Input
+                              id={`actualDepartureDate-${selectedInclusion.id}`}
+                              type="date"
+                              value={data.actualDepartureDate || ""}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
+                              Data de Volta *
+                            </Label>
+                            <Input
+                              id={`actualReturnDate-${selectedInclusion.id}`}
+                              type="date"
+                              value={data.actualReturnDate || ""}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          
                           <div>
                             <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium">
                               Últimos 4 Dígitos do Cartão
@@ -930,7 +955,7 @@ export default function Tickets() {
                           <Button
                             onClick={async () => {
                               // Validar campos obrigatórios
-                              if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber) {
+                              if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber || !data.actualDepartureDate || !data.actualReturnDate) {
                                 toast({
                                   title: "Erro",
                                   description: "Preencha todos os campos obrigatórios",
