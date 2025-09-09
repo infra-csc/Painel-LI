@@ -141,10 +141,10 @@ export default function Tickets() {
     const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
     
     return {
-      ida: idaMatch ? idaMatch[1].trim() : 'N/A',
-      retorno: retornoMatch ? retornoMatch[1].trim() : 'N/A', 
-      chegada: chegadaMatch ? chegadaMatch[1].trim() : 'N/A',
-      horario: horarioMatch ? horarioMatch[1].trim() : 'N/A'
+      ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
+      retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
+      chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
+      horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
     };
   };
 
