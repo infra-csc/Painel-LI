@@ -538,7 +538,7 @@ export default function Tickets() {
 
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
-                    Preencha os dados comuns e selecione as passagens na tabela para aplicar
+                    Preencha os dados comuns (pode ser parcial) e selecione as passagens na tabela para aplicar
                     {selectedTickets.length > 0 && (
                       <span className="text-blue-600 font-medium ml-2">
                         ({selectedTickets.length} passagens selecionadas)
@@ -552,8 +552,6 @@ export default function Tickets() {
                       onClick={handleApplyToSelected}
                       disabled={
                         selectedTickets.length === 0 || 
-                        !ticketData["quick"] || 
-                        Object.keys(ticketData["quick"]).length === 0 ||
                         createTicketMutation.isPending
                       }
                       data-testid="button-apply-to-selected"
