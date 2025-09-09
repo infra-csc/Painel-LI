@@ -690,7 +690,19 @@ export default function Tickets() {
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
-                              {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
+                              {ticket.actualDepartureDate ? (
+                                <div>
+                                  <div>{formatDate(ticket.actualDepartureDate)}</div>
+                                  {(ticket.departureAirport || ticket.actualDepartureTime) && (
+                                    <div className="text-xs text-blue-600">
+                                      {ticket.departureAirport && ticket.actualDepartureTime 
+                                        ? `${ticket.departureAirport} às ${ticket.actualDepartureTime}`
+                                        : ticket.departureAirport || `às ${ticket.actualDepartureTime}`
+                                      }
+                                    </div>
+                                  )}
+                                </div>
+                              ) : "-"}
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground">
@@ -701,7 +713,19 @@ export default function Tickets() {
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
-                              {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
+                              {ticket.actualReturnDate ? (
+                                <div>
+                                  <div>{formatDate(ticket.actualReturnDate)}</div>
+                                  {(ticket.destinationAirport || ticket.actualReturnTime) && (
+                                    <div className="text-xs text-blue-600">
+                                      {ticket.destinationAirport && ticket.actualReturnTime 
+                                        ? `${ticket.destinationAirport} às ${ticket.actualReturnTime}`
+                                        : ticket.destinationAirport || `às ${ticket.actualReturnTime}`
+                                      }
+                                    </div>
+                                  )}
+                                </div>
+                              ) : "-"}
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground">
@@ -943,6 +967,32 @@ export default function Tickets() {
                               type="date"
                               value={data.actualReturnDate || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-sm font-medium">
+                              Horário de Ida
+                            </Label>
+                            <Input
+                              id={`actualDepartureTime-${selectedInclusion.id}`}
+                              type="time"
+                              placeholder="Ex: 08:30"
+                              value={data.actualDepartureTime || ""}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
+                              Horário de Volta
+                            </Label>
+                            <Input
+                              id={`actualReturnTime-${selectedInclusion.id}`}
+                              type="time"
+                              placeholder="Ex: 18:45"
+                              value={data.actualReturnTime || ""}
+                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
                               className="mt-1"
                             />
                           </div>
