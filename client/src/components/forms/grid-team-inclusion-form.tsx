@@ -1225,7 +1225,7 @@ export default function GridTeamInclusionForm() {
                       return (
                         <div key={index} className="flex justify-between">
                           <span>
-                            {functionName} - {range.dailyRate} diária(s)
+                            {functionName} - {range.dailyRatePerDay} diária(s) por dia
                           </span>
                           <span>
                             {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
