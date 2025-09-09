@@ -536,22 +536,54 @@ export default function GridTeamInclusionForm() {
 
       // ORDENAR inclusions por row_order para manter posição original da planilha
       const sortedInclusions = inclusions.sort((a: any, b: any) => {
-        // Se ambos têm row_order, usar essa ordem
         if (a.rowOrder !== null && b.rowOrder !== null) {
           return a.rowOrder - b.rowOrder;
         }
-        // Se apenas um tem row_order, priorizar o que tem
         if (a.rowOrder !== null) return -1;
         if (b.rowOrder !== null) return 1;
-        // Se nenhum tem row_order, manter ordem original (created_at)
         return 0;
       });
-      
-      const loadedFunctions: any[] = [];
 
-      sortedInclusions.forEach((inclusion: any, index: number) => {
-        // Extrair dados de viagem das observações 
-        const observations = inclusion.observations || '';
+      // Encontrar as datas ORIGINAIS do evento (min e max das inclusões)
+      let minDate = sortedInclusions[0]?.scheduleStartDate;
+      let maxDate = sortedInclusions[0]?.scheduleEndDate;
+      
+      sortedInclusions.forEach((inclusion: any) => {
+        if (inclusion.scheduleStartDate < minDate) minDate = inclusion.scheduleStartDate;
+        if (inclusion.scheduleEndDate > maxDate) maxDate = inclusion.scheduleEndDate;
+      });
+
+      // Gerar TODAS as datas do período original
+      const originalDatesList: string[] = [];
+      const start = new Date(minDate);
+      const end = new Date(maxDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        originalDatesList.push(dateStr);
+      }
+
+      // Agrupar inclusões por função para reconstruir a planilha original
+      const functionGroups = new Map<string, any[]>();
+      sortedInclusions.forEach((inclusion: any) => {
+        if (!functionGroups.has(inclusion.functionId)) {
+          functionGroups.set(inclusion.functionId, []);
+        }
+        functionGroups.get(inclusion.functionId)!.push(inclusion);
+      });
+
+      const loadedFunctions: any[] = [];
+      let index = 0;
+
+      // Para cada função, reconstruir a linha EXATA da planilha
+      functionGroups.forEach((functionInclusions, functionId) => {
+        // Buscar nome da função no sistema
+        const systemFunction = functions?.find(f => f.id === functionId);
+        const functionName = systemFunction?.name || 'Função';
+        
+        // Extrair dados de viagem da primeira inclusão (todas deveriam ter os mesmos)
+        const firstInclusion = functionInclusions[0];
+        const observations = firstInclusion.observations || '';
         let ida = '', chegada = '', retorno = '', horarioRetorno = '';
         
         const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
@@ -563,90 +595,71 @@ export default function GridTeamInclusionForm() {
         if (chegadaMatch) chegada = chegadaMatch[1].trim();
         if (retornoMatch) retorno = retornoMatch[1].trim();
         if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
+
+        // Reconstruir a distribuição EXATA das diárias
+        const dailyRates: { [date: string]: number } = {};
         
-        // Buscar função no sistema
-        const systemFunction = functions?.find(f => f.id === inclusion.functionId);
-        const functionName = systemFunction?.name || 'Função';
+        // Inicializar todas as datas com 0
+        originalDatesList.forEach(date => {
+          dailyRates[date] = 0;
+        });
         
-        // USAR EXATAMENTE os dados salvos - usar diárias direto do banco
-        // O campo dailyRates já contém o valor total correto
-        
+        // Para cada inclusão desta função, calcular quantas pessoas por dia
+        functionInclusions.forEach(inclusion => {
+          const startDate = inclusion.scheduleStartDate;
+          const endDate = inclusion.scheduleEndDate;
+          const totalDailyRates = inclusion.dailyRates;
+          
+          // Calcular dias trabalhados
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          const workingDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1;
+          
+          // Distribuir as diárias igualmente pelos dias trabalhados
+          const dailyRatePerDay = totalDailyRates / workingDays;
+          
+          // Aplicar nas datas correspondentes
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            if (originalDatesList.includes(dateStr)) {
+              dailyRates[dateStr] += dailyRatePerDay;
+            }
+          }
+        });
+
+        // Arredondar os valores para inteiros
+        Object.keys(dailyRates).forEach(date => {
+          dailyRates[date] = Math.round(dailyRates[date]);
+        });
+
         loadedFunctions.push({
-          functionId: `${inclusion.functionId}-${index}`,
-          originalFunctionId: inclusion.functionId,
+          functionId: `${functionId}-${index}`,
+          originalFunctionId: functionId,
           functionName: functionName,
-          needsTicket: inclusion.needsTicket || false,
+          needsTicket: firstInclusion.needsTicket || false,
           ida,
           chegada, 
           retorno, 
           horarioRetorno,
-          dailyRates: {},
+          dailyRates,
           isCustom: false,
-          defaultDailyRate: inclusion.dailyRates, // Usar valor direto do banco
-          // Dados originais para referência
-          originalDailyRates: inclusion.dailyRates,
-          originalStartDate: inclusion.scheduleStartDate,
-          originalEndDate: inclusion.scheduleEndDate
         });
+        
+        index++;
       });
 
-      // USAR as datas que já estão nos campos do formulário (definidas pelo usuário)
-      const startDate = form.getValues().startDate;
-      const endDate = form.getValues().endDate;
+      // Aplicar as datas ORIGINAIS nos campos do formulário
+      form.setValue('startDate', minDate);
+      form.setValue('endDate', maxDate);
       
-      if (!startDate || !endDate) {
-        toast({
-          title: "Erro",
-          description: "Defina as datas de início e fim antes de carregar o template do evento.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Gerar datas do período usando as datas do formulário
-      const datesList: string[] = [];
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        datesList.push(dateStr);
-      }
-
-      // Aplicar template nas datas carregadas
-      const rows = loadedFunctions.map(templateFunc => {
-        const dailyRates: { [date: string]: number } = {};
-        
-        // CALCULAR o valor da diária proporcional ao período original
-        const originalStart = new Date(templateFunc.originalStartDate);
-        const originalEnd = new Date(templateFunc.originalEndDate);
-        const originalDays = Math.ceil((originalEnd.getTime() - originalStart.getTime()) / (1000 * 3600 * 24)) + 1;
-        
-        // Valor diário original = diárias totais / dias originais
-        const dailyValueOriginal = templateFunc.originalDailyRates / originalDays;
-        
-        datesList.forEach(date => {
-          // Usar o valor diário calculado, arredondado para o inteiro mais próximo
-          dailyRates[date] = Math.round(dailyValueOriginal);
-        });
-
-        return {
-          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket
-          dailyRates, // Aplica nas novas datas com valores originais
-        };
-      });
-
-      // NÃO alterar as datas se já foram definidas pelo usuário
-      // Usar apenas as datas que o usuário já definiu nos campos
-      
-      // Aplicar DIRETO na planilha
-      setDates(datesList);
-      setFunctionRows(rows);
-      setShowGrid(true); // Mostrar planilha DIRETO
+      // Aplicar DIRETO na planilha com dados ORIGINAIS
+      setDates(originalDatesList);
+      setFunctionRows(loadedFunctions);
+      setShowGrid(true);
       
       toast({
-        title: "Template aplicado",
-        description: `${loadedFunctions.length} funções carregadas na planilha`,
+        title: "Evento carregado",
+        description: `Réplica fiel: ${loadedFunctions.length} funções carregadas com dados originais`,
       });
 
     } catch (error) {
