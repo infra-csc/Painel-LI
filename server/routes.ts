@@ -465,6 +465,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint para atualizar horários sugeridos em registros existentes
+  app.post("/api/team-inclusions/update-suggested-times", async (req, res) => {
+    try {
+      const inclusions = await storage.getTeamInclusions();
+      let updatedCount = 0;
+
+      for (const inclusion of inclusions) {
+        // Atualizar apenas se precisar de passagem e não tiver horários definidos
+        if (inclusion.needsTicket && 
+            (!inclusion.flightDepartureSuggestedTime || !inclusion.flightReturnSuggestedTime)) {
+          
+          const suggestions = await generateFlightSuggestions(inclusion.eventId);
+          
+          await storage.updateTeamInclusion(inclusion.id, {
+            flightDepartureSuggestedTime: suggestions.departure,
+            flightReturnSuggestedTime: suggestions.return,
+            updatedAt: new Date()
+          });
+          
+          updatedCount++;
+        }
+      }
+
+      res.json({ 
+        message: `Horários sugeridos atualizados com sucesso`,
+        updatedCount,
+        totalProcessed: inclusions.length
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar horários sugeridos:", error);
+      res.status(500).json({ message: "Erro ao atualizar horários sugeridos" });
+    }
+  });
+
   // Tickets routes
   app.get("/api/tickets", async (req, res) => {
     try {
