@@ -522,12 +522,6 @@ export default function Scaling() {
                               Período / Diárias
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Passagens <span className="text-xs opacity-60">(sugestão)</span>
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Horários <span className="text-xs opacity-60">(sugestão)</span>
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
                           </tr>
@@ -570,16 +564,6 @@ export default function Scaling() {
                                 </div>
                                 <div className="text-xs text-muted-foreground font-medium">
                                   {inclusion.dailyRates} diárias
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  -
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  -
                                 </div>
                               </td>
                               <td className="px-3 py-4">
