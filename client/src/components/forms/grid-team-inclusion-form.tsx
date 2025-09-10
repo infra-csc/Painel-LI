@@ -1124,7 +1124,6 @@ export default function GridTeamInclusionForm() {
                               <Input 
                                 value={row.horarioRetorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
-                                placeholder=""
                                 className="h-7 text-center !bg-white dark:!bg-white !text-black dark:!text-black"
                                 maxLength={15}
                               />
