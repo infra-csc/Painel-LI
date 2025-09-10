@@ -890,7 +890,7 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {selectedInclusion?.status !== 'escalacao' && (
+                {!isEscalated(selectedInclusion) && (
                   <>
                     <Button 
                       variant="secondary"
