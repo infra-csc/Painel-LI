@@ -13,10 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment } from "@shared/schema";
 
 export default function Tickets() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all", 
@@ -122,6 +124,23 @@ export default function Tickets() {
   });
 
   const [ticketData, setTicketData] = useState<Record<string, any>>({});
+  const [observationsData, setObservationsData] = useState<{ [inclusionId: string]: string }>({});
+
+  // Função para criar comentário automático com observações
+  const createObservationComment = async (inclusionId: string, observations: string) => {
+    if (!user || !observations.trim()) return;
+    
+    try {
+      await apiRequest("POST", "/api/comments", {
+        teamInclusionId: inclusionId,
+        userId: user.id,
+        content: `Observações da passagem: ${observations}`,
+        phase: "passagem"
+      });
+    } catch (error) {
+      console.error("Erro ao criar comentário de observação:", error);
+    }
+  };
 
   const getTicket = (inclusionId: string): Ticket | undefined => {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
@@ -1170,13 +1189,14 @@ export default function Tickets() {
                           <div>
                             <Textarea
                               placeholder="Digite observações sobre a compra de passagem..."
-                              value={selectedInclusion.observations || ""}
+                              value={observationsData[selectedInclusion.id] || ""}
                               onChange={(e) => {
-                                // Aqui você pode implementar a atualização das observações se necessário
-                                // Por enquanto será apenas visualização
+                                setObservationsData(prev => ({
+                                  ...prev,
+                                  [selectedInclusion.id]: e.target.value
+                                }));
                               }}
                               className="min-h-[100px]"
-                              readOnly
                             />
                           </div>
                         </div>
@@ -1301,7 +1321,27 @@ export default function Tickets() {
                                   });
                                 }
 
+                                // Criar comentário automático se há observações
+                                const observations = observationsData[selectedInclusion.id];
+                                if (observations && observations.trim()) {
+                                  await createObservationComment(selectedInclusion.id, observations);
+                                }
+
                                 setShowModal(false);
+                                setEditingTicketId(null);
+                                
+                                // Limpar dados do formulário e observações
+                                setTicketData(prev => {
+                                  const newData = { ...prev };
+                                  delete newData[selectedInclusion.id];
+                                  return newData;
+                                });
+                                
+                                setObservationsData(prev => {
+                                  const newData = { ...prev };
+                                  delete newData[selectedInclusion.id];
+                                  return newData;
+                                });
                               } catch (error) {
                                 // Error is already handled by the mutation
                               }
