@@ -437,6 +437,12 @@ export class MemStorage implements IStorage {
     return Array.from(this.comments.values()).filter(comment => comment.teamInclusionId === teamInclusionId);
   }
 
+  async getAllComments(): Promise<Comment[]> {
+    return Array.from(this.comments.values()).sort((a, b) => 
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+  }
+
   async createComment(insertComment: InsertComment): Promise<Comment> {
     const id = randomUUID();
     const comment: Comment = { ...insertComment, id, createdAt: new Date() };

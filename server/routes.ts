@@ -545,6 +545,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/all-comments", async (req, res) => {
+    try {
+      const comments = await storage.getAllComments();
+      res.json(comments);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar todos os comentários" });
+    }
+  });
+
   // Attachment routes with real object storage
   app.post("/api/attachments/upload", async (req, res) => {
     try {

@@ -74,6 +74,15 @@ export default function Consultation() {
     queryKey: ["/api/users"],
   });
 
+  // Buscar comentários para mostrar na consulta geral
+  const { data: allComments } = useQuery<any[]>({
+    queryKey: ["/api/all-comments"],
+    queryFn: async () => {
+      const response = await fetch('/api/all-comments');
+      return response.json();
+    },
+  });
+
   // Filter inclusions based on current filters
   const filteredInclusions = teamInclusions?.filter(inclusion => {
     // Apply ID search filter first (using inclusion number)
@@ -160,13 +169,26 @@ export default function Consultation() {
     if (ticket?.value) total += ticket.value;
     if (financialRecord?.actualValue) total += financialRecord.actualValue;
     if (inclusion.dailyValue > 0) {
-      const startDate = new Date(inclusion.scheduleStartDate);
-      const endDate = new Date(inclusion.scheduleEndDate);
+      const startDate = new Date(inclusion.scheduleStartDate || '');
+      const endDate = new Date(inclusion.scheduleEndDate || '');
       const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       total += inclusion.dailyValue * days;
     }
     
     return total;
+  };
+
+  // Buscar comentários de uma inclusão específica
+  const getInclusionComments = (inclusionId: string) => {
+    return allComments?.filter(comment => comment.teamInclusionId === inclusionId) || [];
+  };
+
+  // Buscar último comentário por fase
+  const getLastCommentByPhase = (inclusionId: string, phase: string) => {
+    const comments = getInclusionComments(inclusionId);
+    return comments
+      .filter(comment => comment.phase === phase)
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
   };
 
   const handleViewComments = (inclusionId: string) => {
@@ -309,8 +331,56 @@ export default function Consultation() {
                             </div>
                           )}
 
+                          {/* Comentários do Fluxo de Trabalho */}
+                          {(() => {
+                            const comments = getInclusionComments(inclusion.id);
+                            const recentComments = comments
+                              .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                              .slice(0, 2); // Mostrar apenas os 2 comentários mais recentes
+
+                            return recentComments.length > 0 && (
+                              <div className="bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded-lg mt-2">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <MessageCircle className="w-3 h-3 text-blue-600" />
+                                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                                    Timeline do Fluxo ({comments.length} comentários)
+                                  </span>
+                                </div>
+                                <div className="space-y-1">
+                                  {recentComments.map((comment) => (
+                                    <div key={comment.id} className="text-xs">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-blue-600 font-medium">
+                                          {getPhaseIcon(comment.phase)} {getPhaseLabel(comment.phase)}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          • {getUserName(comment.userId)}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          • {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}
+                                        </span>
+                                      </div>
+                                      <div className="text-foreground mt-0.5 pl-1 border-l-2 border-blue-200 dark:border-blue-800">
+                                        {comment.content.length > 80 
+                                          ? `${comment.content.substring(0, 80)}...` 
+                                          : comment.content
+                                        }
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {comments.length > 2 && (
+                                    <div className="text-xs text-blue-600 cursor-pointer hover:underline"
+                                         onClick={() => handleViewComments(inclusion.id)}>
+                                      Ver todos os {comments.length} comentários →
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {/* Badges simples */}
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1 mt-2">
                             {inclusion.needsTicket && (
                               <Badge variant="outline" className="text-xs">🎫 Precisa Passagem</Badge>
                             )}
