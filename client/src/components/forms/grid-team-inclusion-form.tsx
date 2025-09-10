@@ -1069,10 +1069,10 @@ export default function GridTeamInclusionForm() {
                               <span>Passagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Chegada(até..)</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário do Retorno</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Ida</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário de Chegada</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Retorno</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário de Partida</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
                               <div className="text-xs">
@@ -1099,36 +1099,36 @@ export default function GridTeamInclusionForm() {
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.ida} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'ida', e.target.value.slice(0, 3))}
-                                placeholder="sáb"
+                                onChange={(e) => updateTravelInfo(row.functionId, 'ida', e.target.value)}
+                                placeholder="sáb, 15/12"
                                 className="h-7 text-center"
-                                maxLength={3}
+                                maxLength={15}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.chegada} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'chegada', e.target.value)}
-                                placeholder="até..."
+                                placeholder="9h, manhã"
                                 className="h-7 text-center"
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.retorno} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'retorno', e.target.value.slice(0, 3))}
-                                placeholder="dom"
+                                onChange={(e) => updateTravelInfo(row.functionId, 'retorno', e.target.value)}
+                                placeholder="dom, 17/12"
                                 className="h-7 text-center"
-                                maxLength={3}
+                                maxLength={15}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 value={row.horarioRetorno} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value.slice(0, 10))}
-                                placeholder="14-18h"
+                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
+                                placeholder="18h, tarde"
                                 className="h-7 text-center"
-                                maxLength={10}
+                                maxLength={15}
                               />
                             </td>
                             {dates.map(date => (
