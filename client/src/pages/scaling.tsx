@@ -696,47 +696,6 @@ export default function Scaling() {
                 </div>
               </div>
 
-              {/* Informações de Passagem (só se needsTicket for true) */}
-              {selectedInclusion.needsTicket && (
-                <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
-                  <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                    Sugestões de Viagem <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
-                  </h4>
-                  {(() => {
-                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
-                    return (
-                      <div className="space-y-4">
-                        {/* Passagens e Horários Sugeridos */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm font-medium">DIAS DE VIAGEM</Label>
-                            <div className="mt-2 space-y-1">
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Dia de Ida:</span> {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : '-'}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Dia de Retorno:</span> {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : '-'}
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="text-sm font-medium">HORÁRIOS</Label>
-                            <div className="mt-2 space-y-1">
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Chegada:</span> {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '-'}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Partida:</span> {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '-'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
 
 
               {/* Valores e Diárias */}
