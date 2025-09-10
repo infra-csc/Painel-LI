@@ -756,33 +756,6 @@ export default function Scaling() {
                 </Select>
               </div>
 
-              {/* Dados do Colaborador Selecionado - só após escalação confirmada */}
-              {modalData.collaboratorId && isEscalationConfirmed(selectedInclusion) && (() => {
-                const collaborator = getCollaborator(modalData.collaboratorId);
-                if (!collaborator) return null;
-                return (
-                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                      Dados do Colaborador
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Documento</Label>
-                        <p className="text-sm font-medium">
-                          {collaborator.documentType?.toUpperCase() || 'DOC'}: {collaborator.officialDocument || 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>
-                        <p className="text-sm font-medium">
-                          {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* Informações de Data */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
