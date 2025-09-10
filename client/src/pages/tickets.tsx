@@ -1263,6 +1263,78 @@ export default function Tickets() {
                           }}>
                             Cancelar
                           </Button>
+                          
+                          {/* Botão Salvar - para dados parciais */}
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                if (editingTicketId || getTicket(selectedInclusion.id)) {
+                                  // Atualizar ticket existente com dados parciais
+                                  const ticketToUpdate = getTicket(selectedInclusion.id);
+                                  if (ticketToUpdate) {
+                                    await updateTicketMutation.mutateAsync({
+                                      id: ticketToUpdate.id,
+                                      data: {
+                                        value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
+                                        actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
+                                        actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
+                                        actualReturnDate: data.actualReturnDate || ticketToUpdate.actualReturnDate,
+                                        actualReturnTime: data.actualReturnTime || ticketToUpdate.actualReturnTime,
+                                        departureAirport: data.departureAirport || ticketToUpdate.departureAirport,
+                                        destinationAirport: data.destinationAirport || ticketToUpdate.destinationAirport,
+                                        purchaseOrderNumber: data.purchaseOrderNumber || ticketToUpdate.purchaseOrderNumber,
+                                        cardLastFourDigits: data.cardLastFourDigits || ticketToUpdate.cardLastFourDigits,
+                                        attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
+                                      }
+                                    });
+                                  }
+                                } else if (data.value || data.departureAirport || data.destinationAirport || data.purchaseOrderNumber) {
+                                  // Criar novo ticket com dados parciais (se pelo menos um campo estiver preenchido)
+                                  await createTicketMutation.mutateAsync({
+                                    teamInclusionId: selectedInclusion.id,
+                                    value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
+                                    purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
+                                    actualDepartureDate: data.actualDepartureDate || null,
+                                    actualDepartureTime: data.actualDepartureTime || null,
+                                    actualReturnDate: data.actualReturnDate || null,
+                                    actualReturnTime: data.actualReturnTime || null,
+                                    departureAirport: data.departureAirport || "",
+                                    destinationAirport: data.destinationAirport || "",
+                                    purchaseOrderNumber: data.purchaseOrderNumber || "",
+                                    fileUrl: data.fileUrl || null,
+                                    attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
+                                    cardLastFourDigits: data.cardLastFourDigits || null
+                                  });
+                                }
+
+                                // Criar comentário automático se há observações
+                                const observations = observationsData[selectedInclusion.id];
+                                if (observations && observations.trim()) {
+                                  await createObservationComment(selectedInclusion.id, observations);
+                                }
+
+                                toast({
+                                  title: "Sucesso",
+                                  description: "Dados salvos com sucesso",
+                                });
+
+                                setShowModal(false);
+                                setEditingTicketId(null);
+                              } catch (error) {
+                                toast({
+                                  title: "Erro",
+                                  description: "Erro ao salvar dados",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
+                          >
+                            {(createTicketMutation.isPending || updateTicketMutation.isPending) ? "Salvando..." : "Salvar"}
+                          </Button>
+
+                          {/* Botão Registrar Passagem - para dados obrigatórios */}
                           <Button
                             onClick={async () => {
                               // Validar campos obrigatórios
