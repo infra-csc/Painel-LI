@@ -466,11 +466,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tickets", async (req, res) => {
     try {
+      console.log("📝 Dados recebidos:", JSON.stringify(req.body, null, 2));
       const ticketData = insertTicketSchema.parse(req.body);
+      console.log("✅ Dados validados:", JSON.stringify(ticketData, null, 2));
       const ticket = await storage.createTicket(ticketData);
       res.json(ticket);
     } catch (error) {
-      res.status(400).json({ message: "Dados inválidos" });
+      console.error("❌ Erro na validação:", error);
+      res.status(400).json({ message: "Dados inválidos", error: error.message });
     }
   });
 
