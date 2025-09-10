@@ -507,31 +507,9 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {isEscalationConfirmed(inclusion) ? (
-                                  <div className="space-y-1">
-                                    <div className="text-sm font-medium text-foreground">
-                                      {getCollaboratorName(inclusion.collaboratorId)}
-                                    </div>
-                                    {(() => {
-                                      const collaborator = getCollaborator(inclusion.collaboratorId);
-                                      if (!collaborator) return null;
-                                      return (
-                                        <div className="text-xs text-muted-foreground space-y-0.5">
-                                          <div>
-                                            <span className="font-medium">{collaborator.documentType?.toUpperCase() || 'DOC'}:</span> {collaborator.officialDocument || 'N/A'}
-                                          </div>
-                                          <div>
-                                            <span className="font-medium">Nascimento:</span> {collaborator.birthDate ? formatDate(collaborator.birthDate || undefined) : 'N/A'}
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-foreground">
-                                    {getCollaboratorName(inclusion.collaboratorId)}
-                                  </div>
-                                )}
+                                <div className="text-sm text-foreground">
+                                  {getCollaboratorName(inclusion.collaboratorId)}
+                                </div>
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
@@ -624,31 +602,9 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {isEscalationConfirmed(inclusion) ? (
-                                  <div className="space-y-1">
-                                    <div className="text-sm font-medium text-foreground">
-                                      {getCollaboratorName(inclusion.collaboratorId)}
-                                    </div>
-                                    {(() => {
-                                      const collaborator = getCollaborator(inclusion.collaboratorId);
-                                      if (!collaborator) return null;
-                                      return (
-                                        <div className="text-xs text-muted-foreground space-y-0.5">
-                                          <div>
-                                            <span className="font-medium">{collaborator.documentType?.toUpperCase() || 'DOC'}:</span> {collaborator.officialDocument || 'N/A'}
-                                          </div>
-                                          <div>
-                                            <span className="font-medium">Nascimento:</span> {collaborator.birthDate ? formatDate(collaborator.birthDate || undefined) : 'N/A'}
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-foreground">
-                                    {getCollaboratorName(inclusion.collaboratorId)}
-                                  </div>
-                                )}
+                                <div className="text-sm text-foreground">
+                                  {getCollaboratorName(inclusion.collaboratorId)}
+                                </div>
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
@@ -755,6 +711,33 @@ export default function Scaling() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Dados do Colaborador Selecionado - só após escalação confirmada */}
+              {modalData.collaboratorId && isEscalationConfirmed(selectedInclusion) && (() => {
+                const collaborator = getCollaborator(modalData.collaboratorId);
+                if (!collaborator) return null;
+                return (
+                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
+                      Dados do Colaborador
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Documento</Label>
+                        <p className="text-sm font-medium">
+                          {collaborator.documentType?.toUpperCase() || 'DOC'}: {collaborator.officialDocument || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>
+                        <p className="text-sm font-medium">
+                          {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Informações de Data */}
               <div className="grid grid-cols-2 gap-4">
