@@ -701,9 +701,6 @@ export default function Scaling() {
                     <div className="text-sm font-medium">
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      Colaborador escalado - não é possível alterar
-                    </div>
                   </div>
                 ) : (
                   // Select normal quando ainda não escalado
