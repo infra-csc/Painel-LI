@@ -691,41 +691,6 @@ export default function Scaling() {
 
 
 
-              {/* Valores e Diárias */}
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <h4 className="text-sm font-medium text-muted-foreground mb-3">
-                  Valores
-                </h4>
-                <div className="grid grid-cols-3 gap-4 items-end">
-                  <div>
-                    <Label htmlFor="dailyValue" className="text-sm font-medium">
-                      Valor da Diária (R$)
-                    </Label>
-                    <Input
-                      id="dailyValue"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={modalData.dailyValue || ""}
-                      onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
-                      className="mt-2"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Quantidade de Diárias</Label>
-                    <div className="text-lg font-semibold text-foreground mt-2 px-3 py-2 bg-muted rounded">
-                      {selectedInclusion.dailyRates}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Valor Total</Label>
-                    <div className="text-sm text-muted-foreground mt-1">
-                      {formatCurrency((modalData.dailyValue || 0) * selectedInclusion.dailyRates)}
-                    </div>
-                  </div>
-                </div>
-              </div>
 
 
               {/* Informações de Passagem - só para inclusões que necessitam de passagem */}
@@ -970,6 +935,42 @@ export default function Scaling() {
               })()}
 
               {/* Seção de Comentários */}
+              {/* Valores e Diárias - Movido para antes dos comentários */}
+              <div className="border rounded-lg p-3 bg-muted/30 mb-4">
+                <h4 className="text-xs font-medium text-muted-foreground mb-2">
+                  Valores
+                </h4>
+                <div className="grid grid-cols-3 gap-3 items-end">
+                  <div>
+                    <Label htmlFor="dailyValue" className="text-xs font-medium">
+                      Valor da Diária (R$)
+                    </Label>
+                    <Input
+                      id="dailyValue"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={modalData.dailyValue || ""}
+                      onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
+                      className="mt-1 text-xs h-8"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium">Quantidade de Diárias</Label>
+                    <div className="text-sm font-semibold text-foreground mt-1 px-2 py-1 bg-muted rounded text-center">
+                      {selectedInclusion.dailyRates}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Valor Total</Label>
+                    <div className="text-xs text-muted-foreground mt-1 font-medium">
+                      {formatCurrency((modalData.dailyValue || 0) * selectedInclusion.dailyRates)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="border-t pt-4">
                 <h3 className="text-lg font-medium mb-3">Comentários</h3>
                 {comments && comments.length > 0 ? (
