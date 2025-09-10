@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamInclusion, Event, Function, Collaborator, Comment } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 
@@ -68,11 +68,20 @@ export default function Scaling() {
     queryKey: ["/api/collaborators"],
   });
 
+  const { data: tickets } = useQuery<Ticket[]>({
+    queryKey: ["/api/tickets"],
+  });
+
   // Query para buscar comentários da inclusão selecionada
   const { data: comments } = useQuery<Comment[]>({
     queryKey: ["/api/comments", selectedInclusion?.id],
     enabled: !!selectedInclusion?.id && showModal,
   });
+
+  // Função para buscar ticket de uma inclusão
+  const getTicket = (inclusionId: string): Ticket | undefined => {
+    return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
+  };
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -694,7 +703,7 @@ export default function Scaling() {
                     Sugestões de Viagem <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
                   </h4>
                   {(() => {
-                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
                     return (
                       <div className="space-y-4">
                         {/* Passagens e Horários Sugeridos */}
@@ -766,6 +775,84 @@ export default function Scaling() {
                 </div>
               </div>
 
+
+              {/* Seção de Anexos da Passagem */}
+              {(() => {
+                const ticket = getTicket(selectedInclusion.id);
+                return ticket?.attachmentIds && ticket.attachmentIds.length > 0 && (
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-medium mb-3">Anexos da Passagem</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {ticket.attachmentIds.map((attachmentId, index) => (
+                        <div 
+                          key={attachmentId} 
+                          className="flex items-center gap-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-3 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+                          onClick={async () => {
+                            try {
+                              // Buscar informações do anexo
+                              const response = await fetch(`/api/attachments/${attachmentId}`);
+                              const attachmentData = await response.json();
+                              
+                              if (response.ok) {
+                                toast({
+                                  title: `📎 Anexo ${index + 1}`,
+                                  description: `Nome: ${attachmentData.name || 'Anexo da passagem'}\\nTipo: ${attachmentData.type || 'N/A'}\\nTamanho: ${attachmentData.size || 'N/A'}`,
+                                });
+                                
+                                // Abrir anexo se disponível
+                                if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                  const isViewable = attachmentData.type?.includes('pdf') || 
+                                                   attachmentData.type?.includes('image');
+                                  
+                                  if (isViewable) {
+                                    window.open(attachmentData.viewUrl, '_blank');
+                                  } else {
+                                    // Download para outros tipos
+                                    const link = document.createElement('a');
+                                    link.href = attachmentData.downloadUrl || attachmentData.viewUrl;
+                                    link.download = attachmentData.name || `anexo-${index + 1}`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  }
+                                }
+                              } else {
+                                throw new Error(attachmentData.message || 'Erro ao buscar anexo');
+                              }
+                            } catch (error) {
+                              console.error('Erro ao abrir anexo:', error);
+                              toast({
+                                title: "Erro",
+                                description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 dark:text-blue-300 font-medium text-sm">
+                                {index + 1}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                              Anexo {index + 1} da Passagem
+                            </div>
+                            <div className="text-xs text-blue-700 dark:text-blue-300">
+                              Clique para visualizar
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Seção de Comentários */}
               <div className="border-t pt-4">
