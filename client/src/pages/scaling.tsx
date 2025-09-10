@@ -724,26 +724,51 @@ export default function Scaling() {
                     {(() => {
                       const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
                       return (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">Dias Sugeridos</Label>
-                            <div className="mt-2 space-y-1">
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Ida:</span> {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : 'Não informado'}
+                        <div className="space-y-6">
+                          {/* Viagem de IDA */}
+                          <div className="bg-blue-25 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                              </svg>
+                              <Label className="text-sm font-semibold text-blue-700 dark:text-blue-300">🛫 VIAGEM DE IDA</Label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Data Sugerida</span>
+                                <div className="text-sm text-foreground font-medium mt-1">
+                                  {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : 'Não informado'}
+                                </div>
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Retorno:</span> {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : 'Não informado'}
+                              <div>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Horário Sugerido</span>
+                                <div className="text-sm text-foreground font-medium mt-1">
+                                  {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : 'Não informado'}
+                                </div>
                               </div>
                             </div>
                           </div>
-                          <div>
-                            <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">Horários Sugeridos</Label>
-                            <div className="mt-2 space-y-1">
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Chegada:</span> {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : 'Não informado'}
+
+                          {/* Viagem de VOLTA */}
+                          <div className="bg-blue-25 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                              </svg>
+                              <Label className="text-sm font-semibold text-blue-700 dark:text-blue-300">🛬 VIAGEM DE VOLTA</Label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Data Sugerida</span>
+                                <div className="text-sm text-foreground font-medium mt-1">
+                                  {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : 'Não informado'}
+                                </div>
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Partida:</span> {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}
+                              <div>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Horário Sugerido</span>
+                                <div className="text-sm text-foreground font-medium mt-1">
+                                  {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}
+                                </div>
                               </div>
                             </div>
                           </div>
