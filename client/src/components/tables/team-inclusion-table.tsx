@@ -537,14 +537,22 @@ export default function TeamInclusionTable() {
                       <div>
                         <label className="block text-sm font-medium mb-1">Dia de Ida</label>
                         <input
-                          type="text"
+                          type="date"
                           name="ida"
                           defaultValue={(() => {
                             const obs = editingInclusion.observations || '';
                             const match = obs.match(/Ida:\s*([^|]*)/);
-                            return match ? match[1].trim() : '';
+                            const dateStr = match ? match[1].trim() : '';
+                            // Tentar converter para formato YYYY-MM-DD se possível
+                            if (dateStr && dateStr.includes('/')) {
+                              const parts = dateStr.split('/');
+                              if (parts.length === 2) {
+                                const currentYear = new Date().getFullYear();
+                                return `${currentYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                              }
+                            }
+                            return '';
                           })()}
-                          placeholder="Ex: sábado, 15/12"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
@@ -567,14 +575,22 @@ export default function TeamInclusionTable() {
                       <div>
                         <label className="block text-sm font-medium mb-1">Dia de Retorno</label>
                         <input
-                          type="text"
+                          type="date"
                           name="retorno"
                           defaultValue={(() => {
                             const obs = editingInclusion.observations || '';
                             const match = obs.match(/Retorno:\s*([^|]*)/);
-                            return match ? match[1].trim() : '';
+                            const dateStr = match ? match[1].trim() : '';
+                            // Tentar converter para formato YYYY-MM-DD se possível
+                            if (dateStr && dateStr.includes('/')) {
+                              const parts = dateStr.split('/');
+                              if (parts.length === 2) {
+                                const currentYear = new Date().getFullYear();
+                                return `${currentYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                              }
+                            }
+                            return '';
                           })()}
-                          placeholder="Ex: domingo, 17/12"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>

@@ -1098,11 +1098,10 @@ export default function GridTeamInclusionForm() {
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
+                                type="date"
                                 value={row.ida} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'ida', e.target.value)}
-                                placeholder="sáb, 15/12"
                                 className="h-7 text-center"
-                                maxLength={15}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
@@ -1115,11 +1114,10 @@ export default function GridTeamInclusionForm() {
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
+                                type="date"
                                 value={row.retorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'retorno', e.target.value)}
-                                placeholder="dom, 17/12"
                                 className="h-7 text-center"
-                                maxLength={15}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
