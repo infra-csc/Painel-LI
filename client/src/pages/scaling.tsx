@@ -692,8 +692,8 @@ export default function Scaling() {
 
 
               {/* Valores e Diárias */}
-              <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/30">
-                <h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-3">
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h4 className="text-sm font-medium text-muted-foreground mb-3">
                   Valores
                 </h4>
                 <div className="grid grid-cols-3 gap-4 items-end">
