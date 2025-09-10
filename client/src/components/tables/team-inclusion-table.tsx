@@ -535,7 +535,7 @@ export default function TeamInclusionTable() {
                     
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Ida</label>
+                        <label className="block text-sm font-medium mb-1">Dia de Ida</label>
                         <input
                           type="text"
                           name="ida"
@@ -544,13 +544,13 @@ export default function TeamInclusionTable() {
                             const match = obs.match(/Ida:\s*([^|]*)/);
                             return match ? match[1].trim() : '';
                           })()}
-                          placeholder="sáb"
+                          placeholder="Ex: sábado, 15/12"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1">Chegada</label>
+                        <label className="block text-sm font-medium mb-1">Horário de Chegada</label>
                         <input
                           type="text"
                           name="chegada"
@@ -559,13 +559,13 @@ export default function TeamInclusionTable() {
                             const match = obs.match(/Chegada:\s*([^|]*)/);
                             return match ? match[1].trim() : '';
                           })()}
-                          placeholder="9h"
+                          placeholder="Ex: 9h, manhã"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1">Retorno</label>
+                        <label className="block text-sm font-medium mb-1">Dia de Retorno</label>
                         <input
                           type="text"
                           name="retorno"
@@ -574,13 +574,13 @@ export default function TeamInclusionTable() {
                             const match = obs.match(/Retorno:\s*([^|]*)/);
                             return match ? match[1].trim() : '';
                           })()}
-                          placeholder="dom"
+                          placeholder="Ex: domingo, 17/12"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1">Horário Retorno</label>
+                        <label className="block text-sm font-medium mb-1">Horário de Partida</label>
                         <input
                           type="text"
                           name="horarioRetorno"
@@ -589,14 +589,14 @@ export default function TeamInclusionTable() {
                             const match = obs.match(/Horário:\s*([^|]*)/);
                             return match ? match[1].trim() : '';
                           })()}
-                          placeholder="14-18h"
+                          placeholder="Ex: 18h, final da tarde"
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
                     </div>
                     
                     <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950/20 rounded text-xs text-blue-700 dark:text-blue-300">
-                      <strong>Dica:</strong> Use formatos curtos como "sáb", "9h", "dom", "14-18h"
+                      <strong>Dica:</strong> Use descrições claras como "sábado", "9h", "domingo", "18h" ou datas específicas
                     </div>
                   </div>
                 </div>

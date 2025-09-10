@@ -709,24 +709,24 @@ export default function Scaling() {
                         {/* Passagens e Horários Sugeridos */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-sm font-medium">PASSAGENS (SUGESTÃO)</Label>
+                            <Label className="text-sm font-medium">DIAS DE VIAGEM</Label>
                             <div className="mt-2 space-y-1">
                               <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Ida:</span> {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : '-'}
+                                <span className="font-medium">Dia de Ida:</span> {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : '-'}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : '-'}
+                                <span className="font-medium">Dia de Retorno:</span> {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : '-'}
                               </div>
                             </div>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium">HORÁRIOS (SUGESTÃO)</Label>
+                            <Label className="text-sm font-medium">HORÁRIOS</Label>
                             <div className="mt-2 space-y-1">
                               <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Partida:</span> {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '-'}
+                                <span className="font-medium">Chegada:</span> {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '-'}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                <span className="font-medium">Retorno:</span> {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '-'}
+                                <span className="font-medium">Partida:</span> {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '-'}
                               </div>
                             </div>
                           </div>
