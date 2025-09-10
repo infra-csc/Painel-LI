@@ -41,6 +41,11 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
     enabled: open && !!teamInclusionId,
   });
 
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    enabled: open,
+  });
+
   const createCommentMutation = useMutation({
     mutationFn: async (data: CommentFormData) => {
       if (!user) throw new Error("User not authenticated");
@@ -103,6 +108,14 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
     }
   };
 
+  const getUserName = (userId: string): string => {
+    if (user?.id === userId) {
+      return "Você";
+    }
+    const commentUser = users?.find(u => u.id === userId);
+    return commentUser?.name || "Usuário";
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden" data-testid="modal-comments">
@@ -130,7 +143,7 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {user?.id === comment.userId ? "Você" : "Usuário"}
+                      {getUserName(comment.userId)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(comment.createdAt || new Date())}

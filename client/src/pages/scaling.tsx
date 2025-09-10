@@ -74,6 +74,10 @@ export default function Scaling() {
     enabled: !!selectedInclusion?.id && showModal,
   });
 
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
   // Helper function to determine if escalation is completed
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
@@ -242,6 +246,14 @@ export default function Scaling() {
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(date));
+  };
+
+  const getUserName = (userId: string): string => {
+    if (user?.id === userId) {
+      return "Você";
+    }
+    const commentUser = users?.find(u => u.id === userId);
+    return commentUser?.name || "Usuário";
   };
 
   const getPhaseLabel = (phase: string) => {
@@ -705,7 +717,7 @@ export default function Scaling() {
                       <div key={comment.id} className="bg-muted p-3 rounded-lg">
                         <div className="flex justify-between items-start mb-2">
                           <div className="text-sm font-medium text-foreground">
-                            {comment.userId}
+                            {getUserName(comment.userId)}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {formatDateTime(comment.createdAt)}
