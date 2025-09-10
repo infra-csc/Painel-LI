@@ -40,6 +40,9 @@ export default function Scaling() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedInclusionForComments, setSelectedInclusionForComments] = useState<string | null>(null);
   
+  // Estado para novo comentário inline
+  const [newComment, setNewComment] = useState("");
+  
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -75,8 +78,46 @@ export default function Scaling() {
   // Query para buscar comentários da inclusão selecionada
   const { data: comments } = useQuery<Comment[]>({
     queryKey: ["/api/comments", selectedInclusion?.id],
-    enabled: !!selectedInclusion?.id && showModal,
+    enabled: !!selectedInclusion?.id,
   });
+
+  // Mutation para adicionar comentário inline
+  const addCommentMutation = useMutation({
+    mutationFn: async (content: string) => {
+      if (!user || !selectedInclusion) throw new Error("User or inclusion not found");
+      
+      const payload = {
+        teamInclusionId: selectedInclusion.id,
+        userId: user.id,
+        content,
+        phase: "escalacao",
+      };
+
+      const response = await apiRequest("POST", "/api/comments", payload);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Comentário adicionado com sucesso",
+      });
+      setNewComment("");
+      queryClient.invalidateQueries({ queryKey: ["/api/comments", selectedInclusion?.id] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro", 
+        description: "Erro ao adicionar comentário",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddComment = () => {
+    if (newComment.trim()) {
+      addCommentMutation.mutate(newComment.trim());
+    }
+  };
 
   // Função para buscar ticket de uma inclusão
   const getTicket = (inclusionId: string): Ticket | undefined => {
@@ -586,29 +627,10 @@ export default function Scaling() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
-              </DialogTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (selectedInclusion) {
-                    setSelectedInclusionForComments(selectedInclusion.id);
-                    setShowCommentsModal(true);
-                  }
-                }}
-                className="flex items-center gap-2"
-                data-testid="button-open-comments"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Comentários
-              </Button>
-            </div>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
+            </DialogTitle>
           </DialogHeader>
           
           {selectedInclusion && (
@@ -973,8 +995,10 @@ export default function Scaling() {
 
               <div className="border-t pt-4">
                 <h3 className="text-lg font-medium mb-3">Comentários</h3>
+                
+                {/* Lista de comentários existentes */}
                 {comments && comments.length > 0 ? (
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                  <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
                     {comments.map((comment) => (
                       <div key={comment.id} className="bg-muted p-3 rounded-lg">
                         <div className="flex justify-between items-start mb-2">
@@ -995,10 +1019,32 @@ export default function Scaling() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground text-center py-4 bg-muted rounded-lg">
+                  <div className="text-sm text-muted-foreground text-center py-4 bg-muted rounded-lg mb-4">
                     Nenhum comentário registrado para esta inclusão.
                   </div>
                 )}
+
+                {/* Formulário para adicionar novo comentário */}
+                <div className="border-t border-border pt-4">
+                  <div className="flex space-x-3">
+                    <Textarea 
+                      rows={2}
+                      placeholder="Adicionar comentário..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="flex-1"
+                      data-testid="textarea-comment-inline"
+                    />
+                    <Button 
+                      onClick={handleAddComment}
+                      disabled={addCommentMutation.isPending || !newComment.trim()}
+                      className="flex items-center gap-2"
+                      data-testid="button-add-comment-inline"
+                    >
+                      {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Botões */}
