@@ -142,6 +142,11 @@ export default function Tickets() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
+  const getCollaborator = (collaboratorId?: string) => {
+    if (!collaboratorId) return null;
+    return collaborators?.find(c => c.id === collaboratorId) || null;
+  };
+
   const getEventLocation = (eventId: string) => {
     const event = events?.find(e => e.id === eventId);
     return event?.location || "Destino não informado";
@@ -828,6 +833,29 @@ export default function Tickets() {
                         <Label className="text-xs text-muted-foreground">Função</Label>
                         <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
+                      
+                      {/* Dados do Documento do Colaborador */}
+                      {(() => {
+                        const collaborator = getCollaborator(selectedInclusion.collaboratorId || undefined);
+                        if (!collaborator) return null;
+                        
+                        return (
+                          <>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Documento</Label>
+                              <p className="font-medium">
+                                {collaborator.documentType?.toUpperCase() || 'N/A'}: {collaborator.officialDocument || 'N/A'}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>
+                              <p className="font-medium">
+                                {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
+                              </p>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div>
                         <Label className="text-xs text-muted-foreground">Voo de Ida</Label>
                         <div className="font-medium text-blue-700 dark:text-blue-300">

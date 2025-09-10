@@ -124,7 +124,7 @@ export default function Scaling() {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
   };
 
-  const { data: users } = useQuery<User[]>({
+  const { data: users } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
 
@@ -132,6 +132,16 @@ export default function Scaling() {
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
       inclusion.status === "escalacao" || 
+      inclusion.status === "passagem" || 
+      inclusion.status === "fechamento" || 
+      inclusion.status === "aprovacao" || 
+      inclusion.status === "aprovado"
+    );
+  };
+
+  // Helper function to determine if escalation is confirmed (após confirmar escalação)
+  const isEscalationConfirmed = (inclusion: TeamInclusion) => {
+    return inclusion.collaboratorId && (
       inclusion.status === "passagem" || 
       inclusion.status === "fechamento" || 
       inclusion.status === "aprovacao" || 
@@ -281,6 +291,11 @@ export default function Scaling() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
+  const getCollaborator = (collaboratorId?: string | null) => {
+    if (!collaboratorId) return null;
+    return collaborators?.find(c => c.id === collaboratorId) || null;
+  };
+
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
@@ -288,7 +303,8 @@ export default function Scaling() {
     return `${day}/${month}/${year}`;
   };
 
-  const formatDateTime = (date: Date) => {
+  const formatDateTime = (date: Date | null) => {
+    if (!date) return "N/A";
     return new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",
       month: "2-digit",
@@ -477,7 +493,7 @@ export default function Scaling() {
                                   <Eye 
                                     className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
                                     onClick={(e) => handleViewComments(e, inclusion)}
-                                    title="Ver detalhes e comentários"
+
                                   />
                                 </div>
                               </td>
@@ -490,9 +506,31 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getCollaboratorName(inclusion.collaboratorId)}
-                                </div>
+                                {isEscalationConfirmed(inclusion) ? (
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-medium text-foreground">
+                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                    </div>
+                                    {(() => {
+                                      const collaborator = getCollaborator(inclusion.collaboratorId);
+                                      if (!collaborator) return null;
+                                      return (
+                                        <div className="text-xs text-muted-foreground space-y-0.5">
+                                          <div>
+                                            <span className="font-medium">{collaborator.documentType?.toUpperCase() || 'DOC'}:</span> {collaborator.officialDocument || 'N/A'}
+                                          </div>
+                                          <div>
+                                            <span className="font-medium">Nascimento:</span> {collaborator.birthDate ? formatDate(collaborator.birthDate || undefined) : 'N/A'}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-foreground">
+                                    {getCollaboratorName(inclusion.collaboratorId)}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
@@ -572,7 +610,7 @@ export default function Scaling() {
                                   <Eye 
                                     className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
                                     onClick={(e) => handleViewComments(e, inclusion)}
-                                    title="Ver detalhes e comentários"
+
                                   />
                                 </div>
                               </td>
@@ -585,9 +623,31 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getCollaboratorName(inclusion.collaboratorId)}
-                                </div>
+                                {isEscalationConfirmed(inclusion) ? (
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-medium text-foreground">
+                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                    </div>
+                                    {(() => {
+                                      const collaborator = getCollaborator(inclusion.collaboratorId);
+                                      if (!collaborator) return null;
+                                      return (
+                                        <div className="text-xs text-muted-foreground space-y-0.5">
+                                          <div>
+                                            <span className="font-medium">{collaborator.documentType?.toUpperCase() || 'DOC'}:</span> {collaborator.officialDocument || 'N/A'}
+                                          </div>
+                                          <div>
+                                            <span className="font-medium">Nascimento:</span> {collaborator.birthDate ? formatDate(collaborator.birthDate || undefined) : 'N/A'}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-foreground">
+                                    {getCollaboratorName(inclusion.collaboratorId)}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
