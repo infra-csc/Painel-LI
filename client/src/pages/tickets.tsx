@@ -124,23 +124,6 @@ export default function Tickets() {
   });
 
   const [ticketData, setTicketData] = useState<Record<string, any>>({});
-  const [observationsData, setObservationsData] = useState<{ [inclusionId: string]: string }>({});
-
-  // Função para criar comentário automático com observações
-  const createObservationComment = async (inclusionId: string, observations: string) => {
-    if (!user || !observations.trim()) return;
-    
-    try {
-      await apiRequest("POST", "/api/comments", {
-        teamInclusionId: inclusionId,
-        userId: user.id,
-        content: `Observações da passagem: ${observations}`,
-        phase: "passagem"
-      });
-    } catch (error) {
-      console.error("Erro ao criar comentário de observação:", error);
-    }
-  };
 
   const getTicket = (inclusionId: string): Ticket | undefined => {
     return tickets?.find(ticket => ticket.teamInclusionId === inclusionId);
@@ -1183,23 +1166,6 @@ export default function Tickets() {
                           />
                         </div>
 
-                        {/* Seção de Observações */}
-                        <div className="space-y-4 border-t pt-4">
-                          <h4 className="font-medium text-foreground">Observações</h4>
-                          <div>
-                            <Textarea
-                              placeholder="Digite observações sobre a compra de passagem..."
-                              value={observationsData[selectedInclusion.id] || ""}
-                              onChange={(e) => {
-                                setObservationsData(prev => ({
-                                  ...prev,
-                                  [selectedInclusion.id]: e.target.value
-                                }));
-                              }}
-                              className="min-h-[100px]"
-                            />
-                          </div>
-                        </div>
 
                         {/* Seção de Comentários */}
                         <div className="space-y-4 border-t pt-4">
@@ -1308,11 +1274,7 @@ export default function Tickets() {
                                   });
                                 }
 
-                                // Criar comentário automático se há observações
-                                const observations = observationsData[selectedInclusion.id];
-                                if (observations && observations.trim()) {
-                                  await createObservationComment(selectedInclusion.id, observations);
-                                }
+
 
                                 toast({
                                   title: "Sucesso",
@@ -1396,23 +1358,13 @@ export default function Tickets() {
                                   });
                                 }
 
-                                // Criar comentário automático se há observações
-                                const observations = observationsData[selectedInclusion.id];
-                                if (observations && observations.trim()) {
-                                  await createObservationComment(selectedInclusion.id, observations);
-                                }
+
 
                                 setShowModal(false);
                                 setEditingTicketId(null);
                                 
-                                // Limpar dados do formulário e observações
+                                // Limpar dados do formulário
                                 setTicketData(prev => {
-                                  const newData = { ...prev };
-                                  delete newData[selectedInclusion.id];
-                                  return newData;
-                                });
-                                
-                                setObservationsData(prev => {
                                   const newData = { ...prev };
                                   delete newData[selectedInclusion.id];
                                   return newData;
