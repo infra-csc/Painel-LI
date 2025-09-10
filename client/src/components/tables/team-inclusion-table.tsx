@@ -568,7 +568,7 @@ export default function TeamInclusionTable() {
                             return match ? match[1].trim() : '';
                           })()}
                           placeholder="Ex: 9h, manhã"
-                          className="w-full p-2 border rounded text-sm"
+                          className="w-full p-2 border rounded text-sm bg-white"
                         />
                       </div>
                       
@@ -606,7 +606,7 @@ export default function TeamInclusionTable() {
                             return match ? match[1].trim() : '';
                           })()}
                           placeholder="Ex: 18h, final da tarde"
-                          className="w-full p-2 border rounded text-sm"
+                          className="w-full p-2 border rounded text-sm bg-white"
                         />
                       </div>
                     </div>
