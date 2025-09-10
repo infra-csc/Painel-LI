@@ -256,6 +256,23 @@ export default function Scaling() {
     return commentUser?.name || "Usuário";
   };
 
+  // Função para extrair dados de passagem das observações
+  const extractTravelInfoFromObservations = (observations: string | undefined) => {
+    if (!observations) return { ida: 'N/A', retorno: 'N/A', chegada: 'N/A', horario: 'N/A' };
+    
+    const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+    const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+    
+    return {
+      ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
+      retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
+      chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
+      horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
+    };
+  };
+
   const getPhaseLabel = (phase: string) => {
     switch (phase) {
       case "inclusao":
@@ -669,6 +686,48 @@ export default function Scaling() {
                   </div>
                 </div>
               </div>
+
+              {/* Informações de Passagem (só se needsTicket for true) */}
+              {selectedInclusion.needsTicket && (
+                <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                  <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
+                    Sugestões de Viagem <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
+                  </h4>
+                  {(() => {
+                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                    return (
+                      <div className="space-y-4">
+                        {/* Passagens e Horários Sugeridos */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium">PASSAGENS (SUGESTÃO)</Label>
+                            <div className="mt-2 space-y-1">
+                              <div className="text-sm text-muted-foreground">
+                                <span className="font-medium">Ida:</span> {travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : '-'}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : '-'}
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">HORÁRIOS (SUGESTÃO)</Label>
+                            <div className="mt-2 space-y-1">
+                              <div className="text-sm text-muted-foreground">
+                                <span className="font-medium">Partida:</span> {travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '-'}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                <span className="font-medium">Retorno:</span> {travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '-'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
 
               {/* Valores e Diárias */}
