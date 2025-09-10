@@ -888,24 +888,7 @@ export default function Scaling() {
               {/* Botões */}
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button variant="outline" onClick={() => setShowModal(false)}>
-                  Cancelar
-                </Button>
-                <Button 
-                  variant="secondary"
-                  onClick={handleSave}
-                  disabled={updateTeamInclusionMutation.isPending}
-                  className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
-                >
-                  <Save className="w-4 h-4" />
-                  {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-                <Button 
-                  onClick={handleConfirmEscalation}
-                  disabled={updateTeamInclusionMutation.isPending}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                  Fechar
                 </Button>
               </div>
             </div>
