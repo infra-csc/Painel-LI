@@ -227,22 +227,6 @@ export default function Scaling() {
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
-  // Função para extrair dados de passagem das observações
-  const extractTravelInfoFromObservations = (observations: string | undefined) => {
-    if (!observations) return { ida: 'N/A', retorno: 'N/A', chegada: 'N/A', horario: 'N/A' };
-    
-    const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-    
-    return {
-      ida: idaMatch ? idaMatch[1].trim() : 'N/A',
-      retorno: retornoMatch ? retornoMatch[1].trim() : 'N/A', 
-      chegada: chegadaMatch ? chegadaMatch[1].trim() : 'N/A',
-      horario: horarioMatch ? horarioMatch[1].trim() : 'N/A'
-    };
-  };
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
@@ -552,28 +536,12 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  {(() => {
-                                    const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
-                                    return (
-                                      <>
-                                        <div>Ida: {travelInfo.ida}</div>
-                                        <div>Retorno: {travelInfo.retorno}</div>
-                                      </>
-                                    );
-                                  })()}
+                                  -
                                 </div>
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  {(() => {
-                                    const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
-                                    return (
-                                      <>
-                                        <div>Partida: {travelInfo.chegada}</div>
-                                        <div>Retorno: {travelInfo.horario}</div>
-                                      </>
-                                    );
-                                  })()}
+                                  -
                                 </div>
                               </td>
                               <td className="px-3 py-4">
@@ -690,49 +658,6 @@ export default function Scaling() {
                 </div>
               </div>
 
-              {/* Informações de Passagem (só se needsTicket for true) */}
-              {selectedInclusion.needsTicket && (
-                <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
-                  <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                    Informações de Passagem <span className="text-xs opacity-60">(sugestões)</span>
-                  </h4>
-                  {(() => {
-                    const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
-                    return (
-                      <div className="space-y-4">
-                        {/* Voos Sugeridos - apenas aeroportos e horários, SEM datas */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm font-medium">Ida</Label>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {travelInfo.ida !== 'N/A' ? travelInfo.ida.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="text-sm font-medium">Volta</Label>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {travelInfo.retorno !== 'N/A' ? travelInfo.retorno.replace(/\d{2}\/\d{2}\/\d{4}\s*/, '') : 'Não definido'}
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="text-sm font-medium">Horário Sugerido - Partida</Label>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {travelInfo.chegada !== 'N/A' ? travelInfo.chegada : 'Não definido'}
-                            </div>
-                          </div>
-                          <div>
-                            <Label className="text-sm font-medium">Horário Sugerido - Retorno</Label>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {travelInfo.horario !== 'N/A' ? travelInfo.horario : 'Não definido'}
-                            </div>
-                          </div>
-                        </div>
-                        
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
 
               {/* Valores e Diárias */}
               <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/30">
@@ -770,20 +695,6 @@ export default function Scaling() {
                 </div>
               </div>
 
-              {/* Observações */}
-              <div>
-                <Label htmlFor="observations" className="text-sm font-medium">
-                  Observações
-                </Label>
-                <Textarea
-                  id="observations"
-                  rows={3}
-                  placeholder="Digite observações sobre a escalação..."
-                  value={modalData.observations}
-                  onChange={(e) => setModalData(prev => ({...prev, observations: e.target.value}))}
-                  className="mt-2"
-                />
-              </div>
 
               {/* Seção de Comentários */}
               <div className="border-t pt-4">
