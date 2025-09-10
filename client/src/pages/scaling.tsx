@@ -404,25 +404,19 @@ export default function Scaling() {
                       <table className="w-full">
                         <thead className="bg-muted">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               ID
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Evento
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Função / Evento
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Função
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Colaborador
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Data Início e Fim
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              Período / Diárias
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Quantidade de Diárias
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
                           </tr>
@@ -434,7 +428,7 @@ export default function Scaling() {
                               className="hover:bg-accent/30 transition-colors cursor-pointer"
                               onClick={() => handleRowClick(inclusion)}
                             >
-                              <td className="px-4 py-4 whitespace-nowrap">
+                              <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
@@ -446,28 +440,24 @@ export default function Scaling() {
                                   />
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
-                                <div className="text-sm font-medium text-foreground">
-                                  {getEventName(inclusion.eventId)}
-                                </div>
-                              </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm font-medium text-foreground">
                                   {getFunctionName(inclusion.functionId)}
                                 </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {getEventName(inclusion.eventId)}
+                                </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   {getCollaboratorName(inclusion.collaboratorId)}
                                 </div>
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
                                   {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
                                 </div>
-                              </td>
-                              <td className="px-4 py-4">
-                                <div className="text-sm text-foreground font-medium">
+                                <div className="text-xs text-muted-foreground font-medium">
                                   {inclusion.dailyRates} diárias
                                 </div>
                               </td>
