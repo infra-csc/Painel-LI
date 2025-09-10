@@ -1109,7 +1109,7 @@ export default function GridTeamInclusionForm() {
                                 value={row.chegada} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'chegada', e.target.value)}
                                 placeholder="9h, manhã"
-                                className="h-7 text-center bg-white dark:bg-white"
+                                className="h-7 text-center !bg-white dark:!bg-white"
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
@@ -1125,7 +1125,7 @@ export default function GridTeamInclusionForm() {
                                 value={row.horarioRetorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
                                 placeholder="18h, tarde"
-                                className="h-7 text-center bg-white dark:bg-white"
+                                className="h-7 text-center !bg-white dark:!bg-white"
                                 maxLength={15}
                               />
                             </td>
