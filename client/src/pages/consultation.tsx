@@ -180,7 +180,8 @@ export default function Consultation() {
 
   // Buscar comentários de uma inclusão específica
   const getInclusionComments = (inclusionId: string) => {
-    return allComments?.filter(comment => comment.teamInclusionId === inclusionId) || [];
+    if (!Array.isArray(allComments)) return [];
+    return allComments.filter(comment => comment.teamInclusionId === inclusionId);
   };
 
   // Buscar último comentário por fase

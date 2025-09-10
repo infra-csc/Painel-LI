@@ -67,6 +67,7 @@ export interface IStorage {
   
   // Comments
   getComments(teamInclusionId: string): Promise<Comment[]>;
+  getAllComments(): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
   
   // System Logs
