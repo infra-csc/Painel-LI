@@ -54,11 +54,14 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
         teamInclusionId,
         userId: user.id,
         content: data.content,
-        phase: "inclusao", // Current phase
+        phase: "escalacao", // Current phase
       };
 
+      console.log("Sending payload:", payload);
       const response = await apiRequest("POST", "/api/comments", payload);
-      return response.json();
+      const result = await response.json();
+      console.log("Comment created:", result);
+      return result;
     },
     onSuccess: () => {
       toast({
@@ -78,6 +81,9 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
   });
 
   const onSubmit = (data: CommentFormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("User:", user);
+    console.log("TeamInclusionId:", teamInclusionId);
     createCommentMutation.mutate(data);
   };
 
