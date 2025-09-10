@@ -775,7 +775,7 @@ export default function Scaling() {
                                 Passagem Comprada
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                Valor: {formatCurrency(ticket.value / 100)}
+                                Valor: {formatCurrency((ticket.value || 0) / 100)}
                               </span>
                             </div>
 
