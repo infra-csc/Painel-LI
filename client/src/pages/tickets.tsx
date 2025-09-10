@@ -788,7 +788,7 @@ export default function Tickets() {
                         </td>
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
-                            const travelInfo = extractTravelInfoFromObservations(inclusion.observations);
+                            const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined);
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">
@@ -839,7 +839,7 @@ export default function Tickets() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs text-muted-foreground">Colaborador</Label>
-                        <p className="font-medium">{getCollaboratorName(selectedInclusion.collaboratorId)}</p>
+                        <p className="font-medium">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Função</Label>
@@ -849,7 +849,7 @@ export default function Tickets() {
                         <Label className="text-xs text-muted-foreground">Voo de Ida</Label>
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
-                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
                             
                             // Horário sugerido
                             const departureTime = selectedInclusion.flightDepartureSuggestedTime || 
@@ -878,7 +878,7 @@ export default function Tickets() {
                         <Label className="text-xs text-muted-foreground">Voo de Volta</Label>
                         <div className="font-medium text-blue-700 dark:text-blue-300">
                           {(() => {
-                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations);
+                            const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
                             
                             // Horário sugerido
                             const returnTime = selectedInclusion.flightReturnSuggestedTime || 
@@ -1039,7 +1039,7 @@ export default function Tickets() {
                               setTicketData(prev => ({
                                 ...prev,
                                 [selectedInclusion.id]: {
-                                  value: (ticket.value / 100).toString(),
+                                  value: ((ticket.value || 0) / 100).toString(),
                                   departureAirport: ticket.departureAirport || "",
                                   destinationAirport: ticket.destinationAirport || "",
                                   purchaseOrderNumber: ticket.purchaseOrderNumber || "",
@@ -1350,8 +1350,10 @@ export default function Tickets() {
                               try {
                                 if (editingTicketId) {
                                   // Atualizar ticket existente
-                                  await updateTicketMutation.mutateAsync({
-                                    id: ticket.id,
+                                  const ticket = getTicket(selectedInclusion.id);
+                                  if (ticket) {
+                                    await updateTicketMutation.mutateAsync({
+                                      id: ticket.id,
                                     data: {
                                       value: Math.round(parseFloat(data.value) * 100),
                                       actualDepartureDate: data.actualDepartureDate,
@@ -1364,7 +1366,8 @@ export default function Tickets() {
                                       cardLastFourDigits: data.cardLastFourDigits || null,
                                       attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
                                     }
-                                  });
+                                    });
+                                  }
                                 } else {
                                   // Criar novo ticket
                                   await createTicketMutation.mutateAsync({
