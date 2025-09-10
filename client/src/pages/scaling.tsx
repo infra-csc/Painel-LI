@@ -695,21 +695,34 @@ export default function Scaling() {
                 <Label htmlFor="collaborator" className="text-sm font-medium">
                   Colaborador *
                 </Label>
-                <Select 
-                  value={modalData.collaboratorId} 
-                  onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
-                >
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Selecione um colaborador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
-                      <SelectItem key={collaborator.id} value={collaborator.id}>
-                        {collaborator.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isEscalationConfirmed(selectedInclusion) ? (
+                  // Colaborador fixo quando já escalado
+                  <div className="mt-2 px-3 py-2 bg-muted rounded-md border">
+                    <div className="text-sm font-medium">
+                      {getCollaboratorName(modalData.collaboratorId)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Colaborador escalado - não é possível alterar
+                    </div>
+                  </div>
+                ) : (
+                  // Select normal quando ainda não escalado
+                  <Select 
+                    value={modalData.collaboratorId} 
+                    onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue placeholder="Selecione um colaborador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
+                        <SelectItem key={collaborator.id} value={collaborator.id}>
+                          {collaborator.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Dados do Colaborador Selecionado - só após escalação confirmada */}
