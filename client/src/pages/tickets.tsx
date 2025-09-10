@@ -1,18 +1,20 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
 import AttachmentUpload from "@/components/ui/attachment-upload";
+import CommentsModal from "@/components/modals/comments-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { TeamInclusion, Event, Function, Collaborator, Ticket } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment } from "@shared/schema";
 
 export default function Tickets() {
   const [filters, setFilters] = useState({
@@ -31,6 +33,7 @@ export default function Tickets() {
     dates: true,
     additional: false
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -52,6 +55,16 @@ export default function Tickets() {
 
   const { data: tickets } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
+  });
+
+  const { data: users } = useQuery<any[]>({
+    queryKey: ["/api/users"],
+  });
+
+  // Buscar comentários para mostrar na modal
+  const { data: comments } = useQuery<Comment[]>({
+    queryKey: ["/api/comments", selectedInclusion?.id],
+    enabled: !!selectedInclusion?.id,
   });
 
   const createTicketMutation = useMutation({
@@ -1151,6 +1164,77 @@ export default function Tickets() {
                           />
                         </div>
 
+                        {/* Seção de Observações */}
+                        <div className="space-y-4 border-t pt-4">
+                          <h4 className="font-medium text-foreground">Observações</h4>
+                          <div>
+                            <Textarea
+                              placeholder="Digite observações sobre a compra de passagem..."
+                              value={selectedInclusion.observations || ""}
+                              onChange={(e) => {
+                                // Aqui você pode implementar a atualização das observações se necessário
+                                // Por enquanto será apenas visualização
+                              }}
+                              className="min-h-[100px]"
+                              readOnly
+                            />
+                          </div>
+                        </div>
+
+                        {/* Seção de Comentários */}
+                        <div className="space-y-4 border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium text-foreground">Comentários</h4>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowCommentsModal(true)}
+                              className="flex items-center gap-2"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              Ver/Adicionar Comentários
+                            </Button>
+                          </div>
+                          
+                          {/* Últimos comentários */}
+                          <div className="bg-muted/50 rounded-lg p-3">
+                            {comments && comments.length > 0 ? (
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  Últimos comentários ({comments.length} total):
+                                </p>
+                                {comments.slice(-2).map((comment) => (
+                                  <div key={comment.id} className="text-sm">
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <span>{users?.find(u => u.id === comment.userId)?.name || 'Usuário'}</span>
+                                      <span>•</span>
+                                      <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('pt-BR') : ''}</span>
+                                      <span>•</span>
+                                      <span className="capitalize">{comment.phase}</span>
+                                    </div>
+                                    <p className="text-foreground mt-1">
+                                      {comment.content.length > 100 
+                                        ? `${comment.content.substring(0, 100)}...` 
+                                        : comment.content
+                                      }
+                                    </p>
+                                  </div>
+                                ))}
+                                {comments.length > 2 && (
+                                  <p className="text-xs text-muted-foreground cursor-pointer hover:underline"
+                                     onClick={() => setShowCommentsModal(true)}>
+                                    Ver todos os {comments.length} comentários →
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Nenhum comentário registrado para esta inclusão.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Botões */}
                         <div className="flex gap-3 justify-end pt-4 border-t">
                           <Button variant="outline" onClick={() => {
@@ -1238,6 +1322,13 @@ export default function Tickets() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Modal de Comentários */}
+        <CommentsModal
+          open={showCommentsModal}
+          onClose={() => setShowCommentsModal(false)}
+          teamInclusionId={selectedInclusion?.id || ""}
+        />
       </div>
     </div>
   );
