@@ -234,23 +234,33 @@ export default function Tickets() {
       if (!existing) {
         deduplicationMap.set(key, inclusion);
       } else {
-        // Apply precedence based on filter
-        if (filters.inclusionStatus === "cancelado") {
-          // For cancelled filter, prefer cancelled records
-          if (inclusion.status === "cancelado" && existing.status !== "cancelado") {
-            deduplicationMap.set(key, inclusion);
+        // Always keep the most current record - prefer the one with the most advanced status
+        // Status order: cancelado > aprovado > aprovacao > fechamento > passagem > aguardando_passagem
+        const statusPriority = (status: string) => {
+          switch (status) {
+            case 'cancelado': return 6;
+            case 'aprovado': return 5;
+            case 'aprovacao': return 4;
+            case 'fechamento': return 3;
+            case 'passagem': return 2;
+            case 'aguardando_passagem': return 1;
+            default: return 0;
           }
-        } else {
-          // For active/all filters, prefer non-cancelled records
-          if (existing.status === "cancelado" && inclusion.status !== "cancelado") {
-            deduplicationMap.set(key, inclusion);
-          }
+        };
+        
+        const currentPriority = statusPriority(inclusion.status);
+        const existingPriority = statusPriority(existing.status);
+        
+        // Replace if current has higher priority, or same priority but newer ID
+        if (currentPriority > existingPriority || 
+           (currentPriority === existingPriority && inclusion.id > existing.id)) {
+          deduplicationMap.set(key, inclusion);
         }
       }
     }
     
     return Array.from(deduplicationMap.values());
-  }, [ticketInclusions, filters.inclusionStatus]);
+  }, [ticketInclusions]);
 
   // Apply ticket status filter directly to individual inclusions
   const filteredTicketInclusions = useMemo(() => {
