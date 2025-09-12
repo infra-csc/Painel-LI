@@ -104,6 +104,10 @@
     @apply bg-red-100 text-red-800 border border-red-200; 
   }
   
+  .status-cancelado { 
+    @apply bg-gray-100 text-gray-800 border border-gray-200; 
+  }
+  
   .workflow-step {
     @apply relative flex items-center justify-center w-10 h-10 rounded-full border-2 bg-card;
   }

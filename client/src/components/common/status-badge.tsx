@@ -19,6 +19,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "status-aprovado"; // Verde - completo
       case "rejeitado":
         return "status-rejeitado"; // Vermelho - erro/problema
+      case "cancelado":
+        return "status-cancelado"; // Cinza - cancelado
       default:
         return "status-planejado";
     }
@@ -40,6 +42,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Aprovado";
       case "rejeitado":
         return "Rejeitado";
+      case "cancelado":
+        return "Cancelado";
       default:
         return "Aguardando Escalação";
     }

@@ -21,7 +21,7 @@ export default function TeamInclusionTable() {
     functionId: "all",
     collaboratorId: "all",
     status: "all",
-    hasTicket: "all",
+    escalationStatus: "all",
     searchId: "",
   });
   const { toast } = useToast();
@@ -188,8 +188,8 @@ export default function TeamInclusionTable() {
     if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
     if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
     if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-    if (filters.hasTicket === "with" && !inclusion.needsTicket) return false;
-    if (filters.hasTicket === "without" && inclusion.needsTicket) return false;
+    if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
+    if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
     if (filters.searchId && !(
       (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
       inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
@@ -507,7 +507,7 @@ export default function TeamInclusionTable() {
                     <input
                       type="date"
                       name="scheduleStartDate"
-                      defaultValue={editingInclusion.scheduleStartDate}
+                      defaultValue={editingInclusion.scheduleStartDate || ""}
                       className="w-full p-2 border rounded"
                       onChange={(e) => {
                         const startDate = e.target.value;
@@ -531,7 +531,7 @@ export default function TeamInclusionTable() {
                     <input
                       type="date"
                       name="scheduleEndDate"
-                      defaultValue={editingInclusion.scheduleEndDate}
+                      defaultValue={editingInclusion.scheduleEndDate || ""}
                       className="w-full p-2 border rounded"
                       onChange={(e) => {
                         const endDate = e.target.value;
