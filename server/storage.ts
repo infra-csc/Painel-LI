@@ -15,7 +15,7 @@ import {
   type FunctionUser, type InsertFunctionUser,
   type FunctionManager, type InsertFunctionManager
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -715,7 +715,7 @@ export class DatabaseStorage implements IStorage {
 
   async removeUserFromFunction(functionId: string, userId: string): Promise<void> {
     await db.delete(functionUsers)
-      .where(eq(functionUsers.functionId, functionId) && eq(functionUsers.userId, userId));
+      .where(and(eq(functionUsers.functionId, functionId), eq(functionUsers.userId, userId)));
   }
 
   async getUserFunctions(userId: string): Promise<Function[]> {
@@ -749,7 +749,7 @@ export class DatabaseStorage implements IStorage {
 
   async removeManagerFromFunction(functionId: string, userId: string): Promise<void> {
     await db.delete(functionManagers)
-      .where(eq(functionManagers.functionId, functionId) && eq(functionManagers.userId, userId));
+      .where(and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId)));
   }
 
   async getUserManagedFunctions(userId: string): Promise<Function[]> {
@@ -775,7 +775,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({ count: sql`count(*)`.as('count') })
       .from(functionManagers)
-      .where(eq(functionManagers.functionId, functionId) && eq(functionManagers.userId, userId));
+      .where(and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId)));
     
     return Number(result[0]?.count) > 0;
   }

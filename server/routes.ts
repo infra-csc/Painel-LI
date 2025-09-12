@@ -324,6 +324,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Function Users routes
+  app.get("/api/functions/:id/users", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const functionUsers = await storage.getFunctionUsers(id);
+      res.json(functionUsers);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar usuários da função" });
+    }
+  });
+
+  app.post("/api/functions/:id/users", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      
+      const functionUser = await storage.addUserToFunction({
+        functionId: id,
+        userId: userId
+      });
+      res.json(functionUser);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao adicionar usuário à função" });
+    }
+  });
+
+  app.delete("/api/functions/:functionId/users/:userId", async (req, res) => {
+    try {
+      const { functionId, userId } = req.params;
+      await storage.removeUserFromFunction(functionId, userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao remover usuário da função" });
+    }
+  });
+
+  // Function Managers routes
+  app.get("/api/functions/:id/managers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const functionManagers = await storage.getFunctionManagers(id);
+      res.json(functionManagers);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar responsáveis da função" });
+    }
+  });
+
+  app.post("/api/functions/:id/managers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.body;
+      
+      const functionManager = await storage.addManagerToFunction({
+        functionId: id,
+        userId: userId
+      });
+      res.json(functionManager);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao adicionar responsável à função" });
+    }
+  });
+
+  app.delete("/api/functions/:functionId/managers/:userId", async (req, res) => {
+    try {
+      const { functionId, userId } = req.params;
+      await storage.removeManagerFromFunction(functionId, userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao remover responsável da função" });
+    }
+  });
+
   // Collaborators routes
   app.get("/api/collaborators", async (req, res) => {
     try {
@@ -425,12 +497,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Função não encontrada" });
       }
 
-      // Authorization check: Admin or function responsible can modify
+      // Authorization check: Admin or function manager can modify
       const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
-      const isFunctionResponsible = func.userId === userId;
+      const isFunctionManager = await storage.isUserFunctionManager(currentInclusion.functionId, userId);
+      const isLegacyResponsible = func.userId === userId; // Compatibilidade com o campo antigo
       
-      if (!isAdmin && !isFunctionResponsible) {
-        return res.status(403).json({ message: "Sem permissão para modificar esta escalação. Apenas o responsável pela função pode confirmar escalações." });
+      if (!isAdmin && !isFunctionManager && !isLegacyResponsible) {
+        return res.status(403).json({ message: "Sem permissão para modificar esta escalação. Apenas responsáveis pela função podem confirmar escalações." });
       }
 
       console.log("🔧 PATCH team-inclusion:", id, req.body);
