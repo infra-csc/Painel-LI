@@ -25,6 +25,7 @@ export default function Tickets() {
     collaboratorId: "all",
     searchId: "",
     ticketStatus: "all", // all, pending, processed
+    inclusionStatus: "active", // all, active (excludes cancelado)
   });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -212,6 +213,9 @@ export default function Tickets() {
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
         inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
       )) return false;
+      
+      // Filter by inclusion status - by default, hide cancelled inclusions
+      if (filters.inclusionStatus === "active" && inclusion.status === "cancelado") return false;
       
       return true;
     }
@@ -613,10 +617,23 @@ export default function Tickets() {
                   value={filters.ticketStatus}
                   onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
                   className="px-3 py-1 border border-border rounded bg-background text-foreground text-sm"
+                  data-testid="filter-ticket-status"
                 >
                   <option value="all">Todos</option>
                   <option value="pending">Pendentes</option>
                   <option value="processed">Compradas</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-foreground">Status da Inclusão:</label>
+                <select
+                  value={filters.inclusionStatus}
+                  onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
+                  className="px-3 py-1 border border-border rounded bg-background text-foreground text-sm"
+                  data-testid="filter-inclusion-status"
+                >
+                  <option value="active">Ativas</option>
+                  <option value="all">Todas</option>
                 </select>
               </div>
             </div>
