@@ -168,17 +168,32 @@ export default function Scaling() {
   };
 
   // Helper functions for getting names
-  const getEventName = (eventId: string) => {
+  const getEventName = (eventId: string | null) => {
+    if (!eventId) return "Evento não encontrado";
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
   };
 
-  const getFunctionName = (functionId: string) => {
+  const getFunctionName = (functionId: string | null) => {
+    if (!functionId) return "Função não encontrada";
     return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
   };
 
   const getCollaboratorName = (collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não escalado";
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  // Check if user can manage function (is responsible for it)
+  const canManageFunction = (functionId: string) => {
+    if (!user || !functions) return false;
+    if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator') return true;
+    const func = functions.find(f => f.id === functionId);
+    return func?.userId === user.id;
+  };
+
+  // Check if user can confirm escalation (only responsible for function)
+  const canConfirmEscalation = (inclusion: TeamInclusion) => {
+    return canManageFunction(inclusion.functionId);
   };
 
   // Filter and sort inclusions using memoization
