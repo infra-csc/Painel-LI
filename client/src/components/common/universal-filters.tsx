@@ -186,6 +186,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="pending">Pendentes de Escalação</SelectItem>
               <SelectItem value="escalated">Já Escalados</SelectItem>
+              <SelectItem value="cancelado">Cancelados</SelectItem>
             </SelectContent>
           </Select>
         </div>

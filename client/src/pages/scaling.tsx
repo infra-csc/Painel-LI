@@ -165,8 +165,10 @@ export default function Scaling() {
       // Apply escalation status filter
       if (filters.escalationStatus !== "all") {
         const escalated = isEscalated(inclusion);
-        if (filters.escalationStatus === "pending" && escalated) return false;
-        if (filters.escalationStatus === "escalated" && !escalated) return false;
+        const isCanceled = inclusion.status === "cancelado";
+        if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
+        if (filters.escalationStatus === "escalated" && (!escalated || isCanceled)) return false;
+        if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
       }
       
       return idMatch;
@@ -520,7 +522,12 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {isEscalated(inclusion) ? (
+                                {inclusion.status === "cancelado" ? (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                    Cancelado
+                                  </div>
+                                ) : isEscalated(inclusion) ? (
                                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                     Escalado
@@ -615,7 +622,12 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {isEscalated(inclusion) ? (
+                                {inclusion.status === "cancelado" ? (
+                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                    Cancelado
+                                  </div>
+                                ) : isEscalated(inclusion) ? (
                                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                     Escalado
