@@ -24,8 +24,6 @@ import type { Function, User as UserType, FunctionUser, FunctionManager } from "
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   description: z.string().optional(),
-  responsibleArea: z.string().optional(),
-  userId: z.string().optional(),
 });
 
 type FunctionFormData = z.infer<typeof functionFormSchema>;
@@ -57,8 +55,6 @@ export default function Functions() {
     defaultValues: {
       name: "",
       description: "",
-      responsibleArea: "",
-      userId: "none",
     },
   });
 
@@ -72,11 +68,7 @@ export default function Functions() {
 
   const createFunctionMutation = useMutation({
     mutationFn: async (data: FunctionFormData) => {
-      const payload = {
-        ...data,
-        userId: data.userId && data.userId !== "none" ? data.userId : null,
-      };
-      const response = await apiRequest("POST", "/api/functions", payload);
+      const response = await apiRequest("POST", "/api/functions", data);
       return response.json();
     },
     onSuccess: () => {
@@ -98,11 +90,7 @@ export default function Functions() {
 
   const updateFunctionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: FunctionFormData }) => {
-      const payload = {
-        ...data,
-        userId: data.userId && data.userId !== "none" ? data.userId : null,
-      };
-      const response = await apiRequest("PATCH", `/api/functions/${id}`, payload);
+      const response = await apiRequest("PATCH", `/api/functions/${id}`, data);
       return response.json();
     },
     onSuccess: () => {
@@ -149,16 +137,12 @@ export default function Functions() {
       form.reset({
         name: functionToEdit.name,
         description: functionToEdit.description || "",
-        responsibleArea: functionToEdit.responsibleArea || "",
-        userId: functionToEdit.userId || "none",
       });
     } else {
       setEditingFunction(null);
       form.reset({
         name: "",
         description: "",
-        responsibleArea: "",
-        userId: "none",
       });
     }
     setIsDialogOpen(true);
@@ -184,11 +168,6 @@ export default function Functions() {
     }
   };
 
-  const getAssignedUserName = (userId: string | null) => {
-    if (!userId) return "Não atribuída";
-    const assignedUser = users?.find(u => u.id === userId);
-    return assignedUser ? (assignedUser.name || assignedUser.email) : "Usuário não encontrado";
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -257,46 +236,6 @@ export default function Functions() {
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="responsibleArea"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Área Responsável</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Ex: Produção" {...field} data-testid="input-responsible-area" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-
-                        <FormField
-                          control={form.control}
-                          name="userId"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Usuário Responsável</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger data-testid="select-function-user">
-                                    <SelectValue placeholder="Selecione um usuário" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">Não atribuir</SelectItem>
-                                  {users?.map((user) => (
-                                    <SelectItem key={user.id} value={user.id}>
-                                      {user.name || user.email}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
 
                         <div className="flex gap-2 pt-4">
                           <Button type="button" variant="outline" onClick={handleCloseDialog} className="flex-1">
@@ -324,8 +263,6 @@ export default function Functions() {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Descrição</TableHead>
-                      <TableHead>Área</TableHead>
-                      <TableHead>Usuário Atribuído</TableHead>
                       <TableHead>Usuários</TableHead>
                       <TableHead>Responsáveis</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -337,13 +274,6 @@ export default function Functions() {
                         <TableCell className="font-medium">{func.name}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {func.description || "Sem descrição"}
-                        </TableCell>
-                        <TableCell>{func.responsibleArea || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            {getAssignedUserName(func.userId)}
-                          </div>
                         </TableCell>
                         <TableCell>
                           <FunctionUsersCell functionId={func.id} />
@@ -376,7 +306,7 @@ export default function Functions() {
                     ))}
                     {(!functions || functions.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                           Nenhuma função cadastrada. Clique em "Nova Função" para criar a primeira.
                         </TableCell>
                       </TableRow>
@@ -410,10 +340,8 @@ function FunctionUsersCell({ functionId }: { functionId: string }) {
 
   const addUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/functions/${functionId}/users`, {
-        method: "POST",
-        body: { userId },
-      });
+      const response = await apiRequest("POST", `/api/functions/${functionId}/users`, { userId });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/users`] });
@@ -427,9 +355,8 @@ function FunctionUsersCell({ functionId }: { functionId: string }) {
 
   const removeUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/functions/${functionId}/users/${userId}`, {
-        method: "DELETE",
-      });
+      const response = await apiRequest("DELETE", `/api/functions/${functionId}/users/${userId}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/users`] });
@@ -535,10 +462,8 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
 
   const addManagerMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/functions/${functionId}/managers`, {
-        method: "POST",
-        body: { userId },
-      });
+      const response = await apiRequest("POST", `/api/functions/${functionId}/managers`, { userId });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
@@ -552,9 +477,8 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
 
   const removeManagerMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/functions/${functionId}/managers/${userId}`, {
-        method: "DELETE",
-      });
+      const response = await apiRequest("DELETE", `/api/functions/${functionId}/managers/${userId}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
