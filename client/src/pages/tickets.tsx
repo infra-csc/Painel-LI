@@ -216,6 +216,7 @@ export default function Tickets() {
       
       // Filter by inclusion status - by default, hide cancelled inclusions
       if (filters.inclusionStatus === "active" && inclusion.status === "cancelado") return false;
+      if (filters.inclusionStatus === "cancelado" && inclusion.status !== "cancelado") return false;
       
       return true;
     }
@@ -634,6 +635,7 @@ export default function Tickets() {
                 >
                   <option value="active">Ativas</option>
                   <option value="all">Todas</option>
+                  <option value="cancelado">Canceladas</option>
                 </select>
               </div>
             </div>
