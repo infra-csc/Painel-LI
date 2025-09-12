@@ -201,7 +201,8 @@ export default function Tickets() {
         (inclusion.status === "passagem" || 
          inclusion.status === "fechamento" || 
          inclusion.status === "aprovacao" || 
-         inclusion.status === "aprovado");
+         inclusion.status === "aprovado" ||
+         inclusion.status === "cancelado");
       
       if (!needsTicketMatch) return false;
       
