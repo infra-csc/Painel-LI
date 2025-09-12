@@ -737,7 +737,7 @@ export default function Tickets() {
                         className="hover:bg-muted/50 transition-colors"
                       >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          {!ticket ? (
+                          {!ticket && inclusion.status !== 'cancelado' ? (
                             <input
                               type="checkbox"
                               checked={selectedTickets.includes(inclusion.id)}
@@ -749,17 +749,19 @@ export default function Tickets() {
                             <div className="w-4 h-4"></div>
                           )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-mono text-foreground">
                               <span>#{inclusion.inclusionNumber || 'N/A'}</span>
                             </div>
-                            <Eye 
-                              className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
+                            <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                              <Eye 
+                                className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
                               />
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getEventName(inclusion.eventId)}
                           </div>
@@ -767,17 +769,17 @@ export default function Tickets() {
                             {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualDepartureDate ? (
@@ -800,7 +802,7 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualReturnDate ? (
@@ -823,7 +825,7 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined);
                             return (
@@ -840,7 +842,7 @@ export default function Tickets() {
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="flex flex-col gap-1">
                             {ticket ? (
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">

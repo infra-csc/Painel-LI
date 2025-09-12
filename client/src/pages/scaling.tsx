@@ -493,11 +493,12 @@ export default function Scaling() {
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <Eye 
-                                    className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
-                                    onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
-                                    title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}
-                                  />
+                                  <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                                    <Eye 
+                                      className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                                      onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                    />
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-3 py-4">
@@ -593,11 +594,12 @@ export default function Scaling() {
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <Eye 
-                                    className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
-                                    onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
-                                    title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}
-                                  />
+                                  <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                                    <Eye 
+                                      className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                                      onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                    />
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-3 py-4">
