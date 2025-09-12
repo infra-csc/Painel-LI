@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -25,9 +25,48 @@ export default function TeamInclusionTable() {
     escalationStatus: "all",
     searchId: "",
   });
+  const [sortConfig, setSortConfig] = useState<{
+    field: string;
+    direction: 'asc' | 'desc';
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Handle column sorting
+  const handleSort = (field: string) => {
+    setSortConfig(current => {
+      if (current?.field === field) {
+        return current.direction === 'asc' 
+          ? { field, direction: 'desc' }
+          : null; // Remove sorting on third click
+      } else {
+        return { field, direction: 'asc' };
+      }
+    });
+  };
+
+  // Sortable header component
+  const SortableHeader = ({ field, children, className = "" }: { 
+    field: string; 
+    children: React.ReactNode; 
+    className?: string;
+  }) => (
+    <th 
+      className={`px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted/50 transition-colors ${className}`}
+      onClick={() => handleSort(field)}
+      data-testid={`header-${field}`}
+    >
+      <div className="flex items-center gap-1">
+        <span>{children}</span>
+        {sortConfig?.field === field && (
+          sortConfig.direction === 'asc' 
+            ? <ChevronUp className="w-3 h-3" />
+            : <ChevronDown className="w-3 h-3" />
+        )}
+      </div>
+    </th>
+  );
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -62,8 +101,8 @@ export default function TeamInclusionTable() {
   };
 
   const getCollaboratorName = (collaboratorId?: string) => {
-    if (!collaboratorId) return "";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "";
+    if (!collaboratorId) return "Não escalado";
+    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
   };
 
   const formatDate = (dateStr: string) => {
@@ -182,7 +221,6 @@ export default function TeamInclusionTable() {
   };
 
   // Filter and sort inclusions based on current filters
-  // Sort by Event → Function → Date
   const filteredAndSortedInclusions = teamInclusions?.filter(inclusion => {
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
     if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
@@ -196,19 +234,51 @@ export default function TeamInclusionTable() {
     )) return false;
     return true;
   }).sort((a, b) => {
-    // 1. Ordenar por Evento
+    // Apply custom sorting if configured
+    if (sortConfig) {
+      const { field, direction } = sortConfig;
+      const multiplier = direction === 'asc' ? 1 : -1;
+      
+      switch (field) {
+        case 'id':
+          const idA = a.inclusionNumber || 0;
+          const idB = b.inclusionNumber || 0;
+          return (idA - idB) * multiplier;
+        case 'event':
+          const eventA = getEventName(a.eventId);
+          const eventB = getEventName(b.eventId);
+          return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
+        case 'function':
+          const functionA = getFunctionName(a.functionId);
+          const functionB = getFunctionName(b.functionId);
+          return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
+        case 'collaborator':
+          const collabA = getCollaboratorName(a.collaboratorId);
+          const collabB = getCollaboratorName(b.collaboratorId);
+          return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
+        case 'status':
+          return a.status.localeCompare(b.status, 'pt-BR') * multiplier;
+        case 'date':
+          if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+          if (!a.scheduleStartDate) return 1 * multiplier;
+          if (!b.scheduleStartDate) return -1 * multiplier;
+          return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
+        default:
+          return 0;
+      }
+    }
+    
+    // Default sorting: Event → Function → Date
     const eventA = getEventName(a.eventId);
     const eventB = getEventName(b.eventId);
     const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
     if (eventComparison !== 0) return eventComparison;
     
-    // 2. Ordenar por Função
     const functionA = getFunctionName(a.functionId);
     const functionB = getFunctionName(b.functionId);
     const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
     if (functionComparison !== 0) return functionComparison;
     
-    // 3. Ordenar por Data (scheduleStartDate)
     if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
     if (!a.scheduleStartDate) return 1;
     if (!b.scheduleStartDate) return -1;
@@ -290,24 +360,12 @@ export default function TeamInclusionTable() {
           <table className="w-full table-fixed">
             <thead className="bg-muted">
               <tr>
-                <th className="w-20 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="w-36 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Evento
-                </th>
-                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Função
-                </th>
-                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Colaborador
-                </th>
-                <th className="w-32 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Data/Diárias
-                </th>
-                <th className="w-24 px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableHeader field="id" className="w-20">ID</SortableHeader>
+                <SortableHeader field="event" className="w-36">Evento</SortableHeader>
+                <SortableHeader field="function" className="w-32">Função</SortableHeader>
+                <SortableHeader field="collaborator" className="w-32">Colaborador</SortableHeader>
+                <SortableHeader field="date" className="w-32">Data/Diárias</SortableHeader>
+                <SortableHeader field="status" className="w-24">Status</SortableHeader>
                 <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Pass.
                 </th>
