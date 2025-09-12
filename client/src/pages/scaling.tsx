@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -6,6 +6,7 @@ import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
+import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ export default function Scaling() {
     searchId: "",
   });
   
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({
@@ -46,6 +49,19 @@ export default function Scaling() {
   
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Handle column sorting
+  const handleSort = (field: SortField) => {
+    setSortConfig(current => {
+      if (current?.field === field) {
+        return current.direction === 'asc' 
+          ? { field, direction: 'desc' }
+          : null; // Remove sorting on third click
+      } else {
+        return { field, direction: 'asc' };
+      }
+    });
+  };
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -151,30 +167,98 @@ export default function Scaling() {
     );
   };
 
-  // Filter inclusions - now shows all phases to keep records visible
-  const scalingInclusions = filteredTeamInclusions?.filter(
-    inclusion => {
-      const idMatch = !filters.searchId || 
-        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
-        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
-      
-      // Apply universal filters
-      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
-      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      
-      // Apply escalation status filter
-      if (filters.escalationStatus !== "all") {
-        const escalated = isEscalated(inclusion);
-        const isCanceled = inclusion.status === "cancelado";
-        if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
-        if (filters.escalationStatus === "escalated" && (!escalated || isCanceled)) return false;
-        if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
+  // Helper functions for getting names
+  const getEventName = (eventId: string) => {
+    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
+  };
+
+  const getFunctionName = (functionId: string) => {
+    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
+  };
+
+  const getCollaboratorName = (collaboratorId?: string) => {
+    if (!collaboratorId) return "Não escalado";
+    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  // Filter and sort inclusions using memoization
+  const scalingInclusions = useMemo(() => {
+    const filtered = filteredTeamInclusions?.filter(
+      inclusion => {
+        const idMatch = !filters.searchId || 
+          (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
+          inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
+        
+        // Apply universal filters
+        if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+        if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+        if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+        
+        // Apply escalation status filter
+        if (filters.escalationStatus !== "all") {
+          const escalated = isEscalated(inclusion);
+          const isCanceled = inclusion.status === "cancelado";
+          if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
+          if (filters.escalationStatus === "escalated" && (!escalated || isCanceled)) return false;
+          if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
+        }
+        
+        return idMatch;
       }
+    ) || [];
+
+    // Apply custom sorting if configured
+    if (sortConfig) {
+      const { field, direction } = sortConfig;
+      const multiplier = direction === 'asc' ? 1 : -1;
       
-      return idMatch;
+      return filtered.sort((a, b) => {
+        switch (field) {
+          case 'id':
+            const idA = a.inclusionNumber || 0;
+            const idB = b.inclusionNumber || 0;
+            return (idA - idB) * multiplier;
+          case 'event':
+            const eventA = getEventName(a.eventId);
+            const eventB = getEventName(b.eventId);
+            return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
+          case 'function':
+            const functionA = getFunctionName(a.functionId);
+            const functionB = getFunctionName(b.functionId);
+            return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
+          case 'collaborator':
+            const collabA = getCollaboratorName(a.collaboratorId);
+            const collabB = getCollaboratorName(b.collaboratorId);
+            return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
+          case 'period':
+            if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+            if (!a.scheduleStartDate) return 1 * multiplier;
+            if (!b.scheduleStartDate) return -1 * multiplier;
+            return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
+          default:
+            return 0;
+        }
+      });
     }
-  ) || [];
+    
+    // Default sorting: Event → Function → Date
+    return filtered.sort((a, b) => {
+      const eventA = getEventName(a.eventId);
+      const eventB = getEventName(b.eventId);
+      const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
+      if (eventComparison !== 0) return eventComparison;
+      
+      const functionA = getFunctionName(a.functionId);
+      const functionB = getFunctionName(b.functionId);
+      const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
+      if (functionComparison !== 0) return functionComparison;
+      
+      if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+      if (!a.scheduleStartDate) return 1;
+      if (!b.scheduleStartDate) return -1;
+      return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
+    });
+  }, [filteredTeamInclusions, filters, sortConfig, events, functions, collaborators]);
 
   const updateTeamInclusionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
@@ -282,18 +366,6 @@ export default function Scaling() {
     });
   };
 
-  const getEventName = (eventId: string) => {
-    return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
-  };
-
-  const getFunctionName = (functionId: string) => {
-    return functions?.find(f => f.id === functionId)?.name || "Função não encontrada";
-  };
-
-  const getCollaboratorName = (collaboratorId?: string | null) => {
-    if (!collaboratorId) return "Não definido";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
-  };
 
   const getCollaborator = (collaboratorId?: string | null) => {
     if (!collaboratorId) return null;
@@ -465,18 +537,10 @@ export default function Scaling() {
                       <table className="w-full">
                         <thead className="bg-muted">
                           <tr>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              ID
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Função / Evento
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Colaborador
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Período / Diárias
-                            </th>
+                            <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                            <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
+                            <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                            <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
@@ -566,18 +630,10 @@ export default function Scaling() {
                       <table className="w-full">
                         <thead className="bg-muted">
                           <tr>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              ID
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Função / Evento
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Colaborador
-                            </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Período / Diárias
-                            </th>
+                            <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                            <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
+                            <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                            <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>

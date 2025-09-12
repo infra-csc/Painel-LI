@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban, ChevronUp, ChevronDown } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -9,6 +9,7 @@ import { hasPermission } from "@/lib/role-utils";
 import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import UniversalFilters from "@/components/common/universal-filters";
+import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
@@ -25,16 +26,13 @@ export default function TeamInclusionTable() {
     escalationStatus: "all",
     searchId: "",
   });
-  const [sortConfig, setSortConfig] = useState<{
-    field: string;
-    direction: 'asc' | 'desc';
-  } | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
   // Handle column sorting
-  const handleSort = (field: string) => {
+  const handleSort = (field: SortField) => {
     setSortConfig(current => {
       if (current?.field === field) {
         return current.direction === 'asc' 
@@ -45,28 +43,6 @@ export default function TeamInclusionTable() {
       }
     });
   };
-
-  // Sortable header component
-  const SortableHeader = ({ field, children, className = "" }: { 
-    field: string; 
-    children: React.ReactNode; 
-    className?: string;
-  }) => (
-    <th 
-      className={`px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted/50 transition-colors ${className}`}
-      onClick={() => handleSort(field)}
-      data-testid={`header-${field}`}
-    >
-      <div className="flex items-center gap-1">
-        <span>{children}</span>
-        {sortConfig?.field === field && (
-          sortConfig.direction === 'asc' 
-            ? <ChevronUp className="w-3 h-3" />
-            : <ChevronDown className="w-3 h-3" />
-        )}
-      </div>
-    </th>
-  );
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -221,69 +197,75 @@ export default function TeamInclusionTable() {
   };
 
   // Filter and sort inclusions based on current filters
-  const filteredAndSortedInclusions = teamInclusions?.filter(inclusion => {
-    if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-    if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
-    if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-    if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-    if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
-    if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
-    if (filters.searchId && !(
-      (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
-      inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
-    )) return false;
-    return true;
-  }).sort((a, b) => {
+  const filteredAndSortedInclusions = useMemo(() => {
+    const filtered = teamInclusions?.filter(inclusion => {
+      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.status !== "all" && inclusion.status !== filters.status) return false;
+      if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
+      if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
+      if (filters.searchId && !(
+        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
+        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
+      )) return false;
+      return true;
+    }) || [];
+
     // Apply custom sorting if configured
     if (sortConfig) {
       const { field, direction } = sortConfig;
       const multiplier = direction === 'asc' ? 1 : -1;
       
-      switch (field) {
-        case 'id':
-          const idA = a.inclusionNumber || 0;
-          const idB = b.inclusionNumber || 0;
-          return (idA - idB) * multiplier;
-        case 'event':
-          const eventA = getEventName(a.eventId);
-          const eventB = getEventName(b.eventId);
-          return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
-        case 'function':
-          const functionA = getFunctionName(a.functionId);
-          const functionB = getFunctionName(b.functionId);
-          return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
-        case 'collaborator':
-          const collabA = getCollaboratorName(a.collaboratorId);
-          const collabB = getCollaboratorName(b.collaboratorId);
-          return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
-        case 'status':
-          return a.status.localeCompare(b.status, 'pt-BR') * multiplier;
-        case 'date':
-          if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
-          if (!a.scheduleStartDate) return 1 * multiplier;
-          if (!b.scheduleStartDate) return -1 * multiplier;
-          return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
-        default:
-          return 0;
-      }
+      return filtered.sort((a, b) => {
+        switch (field) {
+          case 'id':
+            const idA = a.inclusionNumber || 0;
+            const idB = b.inclusionNumber || 0;
+            return (idA - idB) * multiplier;
+          case 'event':
+            const eventA = getEventName(a.eventId);
+            const eventB = getEventName(b.eventId);
+            return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
+          case 'function':
+            const functionA = getFunctionName(a.functionId);
+            const functionB = getFunctionName(b.functionId);
+            return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
+          case 'collaborator':
+            const collabA = getCollaboratorName(a.collaboratorId || undefined);
+            const collabB = getCollaboratorName(b.collaboratorId || undefined);
+            return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
+          case 'status':
+            return a.status.localeCompare(b.status, 'pt-BR') * multiplier;
+          case 'date':
+            if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+            if (!a.scheduleStartDate) return 1 * multiplier;
+            if (!b.scheduleStartDate) return -1 * multiplier;
+            return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
+          default:
+            return 0;
+        }
+      });
     }
     
     // Default sorting: Event → Function → Date
-    const eventA = getEventName(a.eventId);
-    const eventB = getEventName(b.eventId);
-    const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
-    if (eventComparison !== 0) return eventComparison;
-    
-    const functionA = getFunctionName(a.functionId);
-    const functionB = getFunctionName(b.functionId);
-    const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
-    if (functionComparison !== 0) return functionComparison;
-    
-    if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
-    if (!a.scheduleStartDate) return 1;
-    if (!b.scheduleStartDate) return -1;
-    return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
-  }) || [];
+    return filtered.sort((a, b) => {
+      const eventA = getEventName(a.eventId);
+      const eventB = getEventName(b.eventId);
+      const eventComparison = eventA.localeCompare(eventB, 'pt-BR');
+      if (eventComparison !== 0) return eventComparison;
+      
+      const functionA = getFunctionName(a.functionId);
+      const functionB = getFunctionName(b.functionId);
+      const functionComparison = functionA.localeCompare(functionB, 'pt-BR');
+      if (functionComparison !== 0) return functionComparison;
+      
+      if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+      if (!a.scheduleStartDate) return 1;
+      if (!b.scheduleStartDate) return -1;
+      return new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime();
+    });
+  }, [teamInclusions, filters, sortConfig, events, functions, collaborators]);
 
   // Calculate real totals
   const totals = {
@@ -360,12 +342,12 @@ export default function TeamInclusionTable() {
           <table className="w-full table-fixed">
             <thead className="bg-muted">
               <tr>
-                <SortableHeader field="id" className="w-20">ID</SortableHeader>
-                <SortableHeader field="event" className="w-36">Evento</SortableHeader>
-                <SortableHeader field="function" className="w-32">Função</SortableHeader>
-                <SortableHeader field="collaborator" className="w-32">Colaborador</SortableHeader>
-                <SortableHeader field="date" className="w-32">Data/Diárias</SortableHeader>
-                <SortableHeader field="status" className="w-24">Status</SortableHeader>
+                <SortableHeader field="id" className="w-20" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                <SortableHeader field="event" className="w-36" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
+                <SortableHeader field="function" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
+                <SortableHeader field="collaborator" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                <SortableHeader field="date" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
+                <SortableHeader field="status" className="w-24" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
                 <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Pass.
                 </th>

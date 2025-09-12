@@ -5,6 +5,7 @@ import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
+import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import CommentsModal from "@/components/modals/comments-modal";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,8 @@ export default function Tickets() {
     ticketStatus: "all", // all, pending, processed
     inclusionStatus: "active", // all, active (excludes cancelado)
   });
+  
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]); // IDs dos tickets selecionados
@@ -40,6 +43,19 @@ export default function Tickets() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle column sorting
+  const handleSort = (field: SortField) => {
+    setSortConfig(current => {
+      if (current?.field === field) {
+        return current.direction === 'asc' 
+          ? { field, direction: 'desc' }
+          : null; // Remove sorting on third click
+      } else {
+        return { field, direction: 'asc' };
+      }
+    });
+  };
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
@@ -292,9 +308,9 @@ export default function Tickets() {
     return Array.from(deduplicationMap.values());
   }, [ticketInclusions, collaborators]);
 
-  // Apply ticket status filter to deduplicated inclusions
+  // Apply ticket status filter to deduplicated inclusions and apply sorting
   const filteredTicketInclusions = useMemo(() => {
-    return deduplicatedInclusions.filter(inclusion => {
+    const filtered = deduplicatedInclusions.filter(inclusion => {
       if (filters.ticketStatus !== "all") {
         const hasTicket = getTicket(inclusion.id);
         if (filters.ticketStatus === "pending" && hasTicket) return false;
@@ -302,7 +318,43 @@ export default function Tickets() {
       }
       return true;
     });
-  }, [deduplicatedInclusions, filters.ticketStatus, tickets]);
+
+    // Apply custom sorting if configured
+    if (sortConfig) {
+      const { field, direction } = sortConfig;
+      const multiplier = direction === 'asc' ? 1 : -1;
+      
+      return filtered.sort((a, b) => {
+        switch (field) {
+          case 'id':
+            const idA = a.inclusionNumber || 0;
+            const idB = b.inclusionNumber || 0;
+            return (idA - idB) * multiplier;
+          case 'event':
+            const eventA = getEventName(a.eventId);
+            const eventB = getEventName(b.eventId);
+            return eventA.localeCompare(eventB, 'pt-BR') * multiplier;
+          case 'function':
+            const functionA = getFunctionName(a.functionId);
+            const functionB = getFunctionName(b.functionId);
+            return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
+          case 'collaborator':
+            const collabA = getCollaboratorName(a.collaboratorId);
+            const collabB = getCollaboratorName(b.collaboratorId);
+            return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
+          case 'diarias':
+            if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
+            if (!a.scheduleStartDate) return 1 * multiplier;
+            if (!b.scheduleStartDate) return -1 * multiplier;
+            return (new Date(a.scheduleStartDate).getTime() - new Date(b.scheduleStartDate).getTime()) * multiplier;
+          default:
+            return 0;
+        }
+      });
+    }
+    
+    return filtered;
+  }, [deduplicatedInclusions, filters.ticketStatus, tickets, sortConfig, events, functions, collaborators]);
 
   const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
     setTicketData(prev => ({
@@ -742,21 +794,13 @@ export default function Tickets() {
                       />
                       Seleção
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Evento / Função
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Colaborador
-                    </th>
+                    <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                    <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
+                    <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Destino
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Data Ida
-                    </th>
+                    <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Data Ida</SortableHeader>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Data Volta
                     </th>
