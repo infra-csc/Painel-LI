@@ -464,6 +464,7 @@ function FunctionUsersCell({ functionId }: { functionId: string }) {
                 variant="ghost"
                 className="h-4 w-4 p-0 hover:bg-blue-200"
                 onClick={() => removeUserMutation.mutate(fu.userId)}
+                data-testid={`button-remove-function-user-${fu.userId}`}
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -474,7 +475,7 @@ function FunctionUsersCell({ functionId }: { functionId: string }) {
       
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button size="sm" variant="outline" className="text-xs">
+          <Button size="sm" variant="outline" className="text-xs" data-testid={`button-add-function-user-${functionId}`}>
             <Plus className="w-3 h-3 mr-1" />
             Adicionar
           </Button>
@@ -504,6 +505,7 @@ function FunctionUsersCell({ functionId }: { functionId: string }) {
                 onClick={handleAddUser} 
                 disabled={!selectedUserId || addUserMutation.isPending}
                 className="flex-1"
+                data-testid={`button-submit-add-user-${functionId}`}
               >
                 Adicionar
               </Button>
@@ -587,6 +589,7 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
                 variant="ghost"
                 className="h-4 w-4 p-0 hover:bg-green-200"
                 onClick={() => removeManagerMutation.mutate(fm.userId)}
+                data-testid={`button-remove-function-manager-${fm.userId}`}
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -597,7 +600,7 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
       
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button size="sm" variant="outline" className="text-xs">
+          <Button size="sm" variant="outline" className="text-xs" data-testid={`button-add-function-manager-${functionId}`}>
             <Plus className="w-3 h-3 mr-1" />
             Adicionar
           </Button>
@@ -608,7 +611,7 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
           </DialogHeader>
           <div className="space-y-4">
             <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger>
+              <SelectTrigger data-testid={`select-function-manager-${functionId}`}>
                 <SelectValue placeholder="Selecione um usuário" />
               </SelectTrigger>
               <SelectContent>
@@ -627,6 +630,7 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
                 onClick={handleAddManager} 
                 disabled={!selectedUserId || addManagerMutation.isPending}
                 className="flex-1"
+                data-testid={`button-submit-add-manager-${functionId}`}
               >
                 Adicionar
               </Button>

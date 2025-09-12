@@ -338,11 +338,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/users", async (req, res) => {
     try {
       const { id } = req.params;
-      const { userId } = req.body;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Authorization check: Admin or function manager can add users
+      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isFunctionManager = await storage.isUserFunctionManager(id, userId);
+      
+      if (!isAdmin && !isFunctionManager) {
+        return res.status(403).json({ message: "Sem permissão para adicionar usuários a esta função" });
+      }
+
+      const { userId: targetUserId } = req.body;
       
       const functionUser = await storage.addUserToFunction({
         functionId: id,
-        userId: userId
+        userId: targetUserId
       });
       res.json(functionUser);
     } catch (error) {
@@ -352,8 +371,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/functions/:functionId/users/:userId", async (req, res) => {
     try {
-      const { functionId, userId } = req.params;
-      await storage.removeUserFromFunction(functionId, userId);
+      const { functionId, userId: targetUserId } = req.params;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Authorization check: Admin or function manager can remove users
+      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isFunctionManager = await storage.isUserFunctionManager(functionId, userId);
+      
+      if (!isAdmin && !isFunctionManager) {
+        return res.status(403).json({ message: "Sem permissão para remover usuários desta função" });
+      }
+
+      await storage.removeUserFromFunction(functionId, targetUserId);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: "Erro ao remover usuário da função" });
@@ -374,11 +412,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/managers", async (req, res) => {
     try {
       const { id } = req.params;
-      const { userId } = req.body;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Authorization check: Only admins can add managers
+      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Apenas administradores podem adicionar responsáveis às funções" });
+      }
+
+      const { userId: targetUserId } = req.body;
       
       const functionManager = await storage.addManagerToFunction({
         functionId: id,
-        userId: userId
+        userId: targetUserId
       });
       res.json(functionManager);
     } catch (error) {
@@ -388,8 +444,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/functions/:functionId/managers/:userId", async (req, res) => {
     try {
-      const { functionId, userId } = req.params;
-      await storage.removeManagerFromFunction(functionId, userId);
+      const { functionId, userId: targetUserId } = req.params;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Authorization check: Only admins can remove managers
+      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Apenas administradores podem remover responsáveis das funções" });
+      }
+
+      await storage.removeManagerFromFunction(functionId, targetUserId);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ message: "Erro ao remover responsável da função" });
