@@ -228,21 +228,29 @@ export default function Tickets() {
   const deduplicatedInclusions = useMemo(() => {
     const deduplicationMap = new Map<string, TeamInclusion>();
     
+    // Helper function to normalize official documents for consistent deduplication
+    const normalizeDocument = (doc?: string): string => {
+      if (!doc) return '';
+      // Strip non-alphanumeric characters and convert to uppercase for consistent comparison
+      return doc.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    };
+    
     const makeKey = (inc: TeamInclusion) => {
       const collaborator = getCollaborator(inc.collaboratorId);
-      // Use official document (CPF/RG) as the business identity to deduplicate 
+      // Use normalized official document (CPF/RG) as the business identity to deduplicate 
       // collaborators with same document but different IDs
-      const collaboratorBusinessId = collaborator?.officialDocument ?? inc.collaboratorId ?? '';
+      const normalizedDoc = normalizeDocument(collaborator?.officialDocument);
+      const collaboratorBusinessId = normalizedDoc || inc.collaboratorId || '';
       return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId}`;
     };
     
     const statusPriority: Record<string, number> = {
-      'cancelado': 6,
-      'aprovado': 5, 
-      'aprovacao': 4,
-      'fechamento': 3,
-      'passagem': 2,
-      'aguardando_passagem': 1
+      'aprovado': 6,
+      'aprovacao': 5,
+      'fechamento': 4,
+      'passagem': 3,
+      'aguardando_passagem': 2,
+      'cancelado': 1  // Lowest priority so active records are kept over canceled ones
     };
     
     for (const inclusion of ticketInclusions) {
@@ -281,7 +289,7 @@ export default function Tickets() {
     
     
     return Array.from(deduplicationMap.values());
-  }, [ticketInclusions]);
+  }, [ticketInclusions, collaborators]);
 
   // Apply ticket status filter to deduplicated inclusions
   const filteredTicketInclusions = useMemo(() => {
