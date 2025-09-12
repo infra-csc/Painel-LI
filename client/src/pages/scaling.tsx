@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
+import { isReadOnly } from "@/lib/interactions";
 
 export default function Scaling() {
   const [filters, setFilters] = useState({
@@ -485,18 +486,18 @@ export default function Scaling() {
                           {withoutTicket.map((inclusion) => (
                             <tr 
                               key={inclusion.id} 
-                              className={`hover:bg-accent/30 transition-colors ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`}
-                              onClick={inclusion.status === 'cancelado' ? undefined : () => handleRowClick(inclusion)}
+                              className={`hover:bg-accent/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                              onClick={() => handleRowClick(inclusion)}
                             >
                               <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                                  <div>
                                     <Eye 
-                                      className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
-                                      onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                      className="w-4 h-4 transition-colors text-blue-600 hover:text-blue-800 cursor-pointer"
+                                      onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </div>
@@ -586,18 +587,18 @@ export default function Scaling() {
                           {withTicket.map((inclusion) => (
                             <tr 
                               key={inclusion.id} 
-                              className={`hover:bg-accent/30 transition-colors ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`}
-                              onClick={inclusion.status === 'cancelado' ? undefined : () => handleRowClick(inclusion)}
+                              className={`hover:bg-accent/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                              onClick={() => handleRowClick(inclusion)}
                             >
                               <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                   <div className="text-sm font-mono text-foreground">
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
-                                  <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                                  <div>
                                     <Eye 
-                                      className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
-                                      onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                      className="w-4 h-4 transition-colors text-blue-600 hover:text-blue-800 cursor-pointer"
+                                      onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </div>
@@ -721,6 +722,7 @@ export default function Scaling() {
                   <Select 
                     value={modalData.collaboratorId} 
                     onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
+                    disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
                   >
                     <SelectTrigger className="mt-2">
                       <SelectValue placeholder="Selecione um colaborador" />
@@ -1044,6 +1046,7 @@ export default function Scaling() {
                       value={modalData.dailyValue || ""}
                       onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
                       className="mt-1 text-xs h-8"
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
                     />
                   </div>
                   <div>
@@ -1102,10 +1105,11 @@ export default function Scaling() {
                       onChange={(e) => setNewComment(e.target.value)}
                       className="flex-1"
                       data-testid="textarea-comment-inline"
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
-                      disabled={addCommentMutation.isPending || !newComment.trim()}
+                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
                       className="flex items-center gap-2"
                       data-testid="button-add-comment-inline"
                     >
@@ -1120,7 +1124,7 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {!isEscalated(selectedInclusion) && selectedInclusion.status !== 'cancelado' && (
+                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && (
                   <>
                     <Button 
                       variant="secondary"
