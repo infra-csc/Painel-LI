@@ -198,7 +198,8 @@ export default function Tickets() {
       // Show all inclusions that need tickets and have collaborators assigned
       // This includes both "passagem" (pending) and "fechamento"+ (processed)
       const needsTicketMatch = inclusion.needsTicket && inclusion.collaboratorId && 
-        (inclusion.status === "passagem" || 
+        (inclusion.status === "aguardando_passagem" ||
+         inclusion.status === "passagem" || 
          inclusion.status === "fechamento" || 
          inclusion.status === "aprovacao" || 
          inclusion.status === "aprovado" ||
@@ -228,8 +229,7 @@ export default function Tickets() {
     const deduplicationMap = new Map<string, TeamInclusion>();
     
     const makeKey = (inc: TeamInclusion) => {
-      const functionName = functions?.find(f => f.id === inc.functionId)?.name ?? inc.functionId;
-      return [inc.eventId, functionName.trim().toLowerCase(), inc.collaboratorId ?? ''].join('|');
+      return `${inc.eventId}|${inc.functionId}|${inc.collaboratorId ?? ''}`;
     };
     
     const statusPriority: Record<string, number> = {
@@ -262,8 +262,10 @@ export default function Tickets() {
           if (currentNumber !== existingNumber) {
             isNewer = currentNumber > existingNumber;
           } else {
-            // If inclusionNumber is same, use createdAt or fallback to ID
-            isNewer = (inclusion.createdAt ?? inclusion.id) > (existing.createdAt ?? existing.id);
+            // If inclusionNumber is same, prefer the one with latest updatedAt
+            const currentUpdated = inclusion.updatedAt || inclusion.createdAt || inclusion.id;
+            const existingUpdated = existing.updatedAt || existing.createdAt || existing.id;
+            isNewer = currentUpdated > existingUpdated;
           }
         }
         
@@ -275,7 +277,7 @@ export default function Tickets() {
     
     
     return Array.from(deduplicationMap.values());
-  }, [ticketInclusions, functions]);
+  }, [ticketInclusions]);
 
   // Apply ticket status filter to deduplicated inclusions
   const filteredTicketInclusions = useMemo(() => {
