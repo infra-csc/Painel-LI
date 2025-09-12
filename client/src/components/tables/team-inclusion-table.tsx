@@ -295,7 +295,7 @@ export default function TeamInclusionTable() {
                 <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Pass.
                 </th>
-                <th className="w-20 px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-40 px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -383,7 +383,7 @@ export default function TeamInclusionTable() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleViewComments(inclusion.id)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-blue-600 hover:text-blue-900 h-8 w-8 p-0 shrink-0"
                           data-testid={`button-comments-${inclusion.id}`}
                         >
                           <MessageCircle className="w-4 h-4" />
@@ -396,7 +396,7 @@ export default function TeamInclusionTable() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleEdit(inclusion.id)}
-                                  className="text-green-600 hover:text-green-900"
+                                  className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
                                   data-testid={`button-edit-${inclusion.id}`}
                                 >
                                   <Edit className="w-4 h-4" />
@@ -405,7 +405,7 @@ export default function TeamInclusionTable() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleDelete(inclusion.id)}
-                                  className="text-red-600 hover:text-red-900"
+                                  className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
                                   data-testid={`button-delete-${inclusion.id}`}
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -417,7 +417,7 @@ export default function TeamInclusionTable() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => handleCancelEscalation(inclusion.id)}
-                                className="text-orange-600 hover:text-orange-900"
+                                className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
                                 data-testid={`button-cancel-${inclusion.id}`}
                                 title="Cancelar Escalação"
                               >
