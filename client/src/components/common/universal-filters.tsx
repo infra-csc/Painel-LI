@@ -41,7 +41,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
 
 
   const clearFilters = () => {
-    const baseFilters = {
+    const baseFilters: any = {
       eventId: "all",
       functionId: "all", 
       collaboratorId: "all",

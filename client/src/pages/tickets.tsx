@@ -809,13 +809,20 @@ export default function Tickets() {
                           })()}
                         </td>
                         <td className="px-4 py-4 cursor-pointer" onClick={() => handleViewTicketDetails(inclusion)}>
-                          {ticket ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Comprada
-                            </span>
-                          ) : (
-                            <StatusBadge status={inclusion.status} />
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {ticket ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Comprada
+                              </span>
+                            ) : (
+                              <StatusBadge status={inclusion.status} />
+                            )}
+                            {inclusion.status === "cancelado" && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Cancelado
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
