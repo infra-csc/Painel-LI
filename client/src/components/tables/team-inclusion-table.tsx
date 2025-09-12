@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Edit, MessageCircle, History, Check, X, Trash2, Copy } from "lucide-react";
+import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -110,9 +110,15 @@ export default function TeamInclusionTable() {
 
   const canEditInclusion = (status: string) => {
     // Pode editar até a confirmação de escalação (antes da passagem)
-    // Status que NÃO permitem edição: passagem, fechamento, aprovacao, aprovado
-    const nonEditableStatuses = ['passagem', 'fechamento', 'aprovacao', 'aprovado'];
+    // Status que NÃO permitem edição: passagem, fechamento, aprovacao, aprovado, cancelado
+    const nonEditableStatuses = ['passagem', 'fechamento', 'aprovacao', 'aprovado', 'cancelado'];
     return !nonEditableStatuses.includes(status);
+  };
+
+  const canCancelEscalation = (inclusion: TeamInclusion) => {
+    // Pode cancelar se tiver colaborador escalado e não estiver cancelado
+    return inclusion.collaboratorId && 
+           ['escalado', 'passagem', 'fechamento', 'aprovacao'].includes(inclusion.status);
   };
 
   const deleteTeamInclusionMutation = useMutation({
@@ -142,6 +148,36 @@ export default function TeamInclusionTable() {
   const handleDelete = (inclusionId: string) => {
     if (window.confirm('Tem certeza que deseja remover esta inclusão?')) {
       deleteTeamInclusionMutation.mutate(inclusionId);
+    }
+  };
+
+  const cancelEscalationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, {
+        status: "cancelado",
+        phase: "cancelado"
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Escalação cancelada com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao cancelar escalação",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCancelEscalation = (inclusionId: string) => {
+    if (window.confirm('Tem certeza que deseja cancelar a escalação? Esta ação não pode ser desfeita.')) {
+      cancelEscalationMutation.mutate(inclusionId);
     }
   };
 
@@ -353,26 +389,42 @@ export default function TeamInclusionTable() {
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
-                        {hasPermission(user, 'canEditScreen1') && canEditInclusion(inclusion.status) && (
+                        {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEdit(inclusion.id)}
-                              className="text-green-600 hover:text-green-900"
-                              data-testid={`button-edit-${inclusion.id}`}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(inclusion.id)}
-                              className="text-red-600 hover:text-red-900"
-                              data-testid={`button-delete-${inclusion.id}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {canEditInclusion(inclusion.status) && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEdit(inclusion.id)}
+                                  className="text-green-600 hover:text-green-900"
+                                  data-testid={`button-edit-${inclusion.id}`}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDelete(inclusion.id)}
+                                  className="text-red-600 hover:text-red-900"
+                                  data-testid={`button-delete-${inclusion.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            {canCancelEscalation(inclusion) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleCancelEscalation(inclusion.id)}
+                                className="text-orange-600 hover:text-orange-900"
+                                data-testid={`button-cancel-${inclusion.id}`}
+                                title="Cancelar Escalação"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
