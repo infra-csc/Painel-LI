@@ -793,7 +793,7 @@ export default function Scaling() {
                   <Select 
                     value={modalData.collaboratorId} 
                     onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
-                    disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
+                    disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                   >
                     <SelectTrigger className="mt-2">
                       <SelectValue placeholder="Selecione um colaborador" />
@@ -1117,7 +1117,7 @@ export default function Scaling() {
                       value={modalData.dailyValue || ""}
                       onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
                       className="mt-1 text-xs h-8"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                   </div>
                   <div>
@@ -1176,7 +1176,7 @@ export default function Scaling() {
                       onChange={(e) => setNewComment(e.target.value)}
                       className="flex-1"
                       data-testid="textarea-comment-inline"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion)}
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
@@ -1200,7 +1200,7 @@ export default function Scaling() {
                     <Button 
                       variant="secondary"
                       onClick={handleSave}
-                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado'}
+                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado' || !canConfirmEscalation(selectedInclusion)}
                       className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
                     >
                       <Save className="w-4 h-4" />
@@ -1208,13 +1208,20 @@ export default function Scaling() {
                     </Button>
                     <Button 
                       onClick={handleConfirmEscalation}
-                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado'}
+                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado' || !canConfirmEscalation(selectedInclusion)}
                       className="flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" />
                       {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
                     </Button>
                   </>
+                )}
+                
+                {/* Mensagem informativa quando usuário não tem permissão */}
+                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
+                  <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3 text-center">
+                    ⚠️ Apenas o responsável pela função pode confirmar escalações
+                  </div>
                 )}
               </div>
             </div>
