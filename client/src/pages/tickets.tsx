@@ -1016,28 +1016,41 @@ export default function Tickets() {
                           </>
                         );
                       })()}
+                    </div>
+                  </div>
+
+                  {/* Seção de Sugestões de Voo */}
+                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
+                    <h3 className="font-medium mb-3 text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                      <Plane className="w-4 h-4" />
+                      💡 Sugestões de Voo (Planejamento)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Voo de Ida</Label>
-                        <div className="font-medium text-blue-700 dark:text-blue-300">
+                        <Label className="text-xs text-blue-600 dark:text-blue-300 font-medium">🛫 Voo de Ida Sugerido</Label>
+                        <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
-                            
-                            // Horário sugerido
                             const departureTime = selectedInclusion.flightDepartureSuggestedTime || 
                                                  (travelInfo.ida !== 'Não definido' ? travelInfo.ida : null);
+                            const arrivalInfo = travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : null;
+                            
+                            if (!departureTime && !arrivalInfo) {
+                              return <span className="text-muted-foreground italic">Nenhuma sugestão definida</span>;
+                            }
                             
                             return (
                               <div className="space-y-1">
-                                {travelInfo.chegada !== 'Não definido' && (
-                                  <div>
-                                    <span className="text-sm font-medium">Horário sugerido: </span>
-                                    <span>{travelInfo.chegada}</span>
-                                  </div>
-                                )}
                                 {departureTime && (
                                   <div>
-                                    <span className="text-sm font-medium">Ida: </span>
+                                    <span className="font-medium">Horário: </span>
                                     <span>{departureTime}</span>
+                                  </div>
+                                )}
+                                {arrivalInfo && (
+                                  <div>
+                                    <span className="font-medium">Chegada: </span>
+                                    <span>{arrivalInfo}</span>
                                   </div>
                                 )}
                               </div>
@@ -1046,27 +1059,30 @@ export default function Tickets() {
                         </div>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Voo de Volta</Label>
-                        <div className="font-medium text-blue-700 dark:text-blue-300">
+                        <Label className="text-xs text-blue-600 dark:text-blue-300 font-medium">🛬 Voo de Volta Sugerido</Label>
+                        <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
-                            
-                            // Horário sugerido
                             const returnTime = selectedInclusion.flightReturnSuggestedTime || 
                                               (travelInfo.horario !== 'Não definido' ? travelInfo.horario : null);
+                            const returnInfo = travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : null;
+                            
+                            if (!returnTime && !returnInfo) {
+                              return <span className="text-muted-foreground italic">Nenhuma sugestão definida</span>;
+                            }
                             
                             return (
                               <div className="space-y-1">
                                 {returnTime && (
                                   <div>
-                                    <span className="text-sm font-medium">Horário sugerido: </span>
+                                    <span className="font-medium">Horário: </span>
                                     <span>{returnTime}</span>
                                   </div>
                                 )}
-                                {travelInfo.retorno !== 'Não definido' && (
+                                {returnInfo && (
                                   <div>
-                                    <span className="text-sm font-medium">Volta: </span>
-                                    <span>{travelInfo.retorno}</span>
+                                    <span className="font-medium">Volta: </span>
+                                    <span>{returnInfo}</span>
                                   </div>
                                 )}
                               </div>
@@ -1083,153 +1099,198 @@ export default function Tickets() {
                     
                     return ticket && editingTicketId !== selectedInclusion.id ? (
                       /* Passagem já processada */
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Valor da Passagem</Label>
-                          <p className="font-medium">{formatCurrency((ticket.value || 0) / 100)}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Data da Compra</Label>
-                          <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
-                          <p className="font-medium">{ticket.departureAirport || "-"}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
-                          <p className="font-medium">{ticket.destinationAirport || "-"}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Ida</Label>
-                          <p className="font-medium">
-                            {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"} 
-                            {ticket.actualDepartureTime && ` às ${ticket.actualDepartureTime}`}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Volta</Label>
-                          <p className="font-medium">
-                            {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"} 
-                            {ticket.actualReturnTime && ` às ${ticket.actualReturnTime}`}
-                          </p>
-                        </div>
-                        {ticket.purchaseOrderNumber && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Ordem de Compra</Label>
-                            <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                      <div className="space-y-6">
+                        {/* Cabeçalho da Passagem Comprada */}
+                        <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
+                          <h3 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            ✅ Passagem Comprada
+                          </h3>
+                          
+                          {/* Informações Gerais da Compra */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div>
+                              <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💰 Valor</Label>
+                              <p className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency((ticket.value || 0) / 100)}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📅 Data da Compra</Label>
+                              <p className="font-medium">{ticket.purchaseDate ? formatDate(ticket.purchaseDate) : "-"}</p>
+                            </div>
+                            {ticket.purchaseOrderNumber && (
+                              <div>
+                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 Ordem de Compra</Label>
+                                <p className="font-medium">{ticket.purchaseOrderNumber}</p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {ticket.cardLastFourDigits && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Últimos 4 Dígitos do Cartão</Label>
-                            <p className="font-medium font-mono">****{ticket.cardLastFourDigits}</p>
+
+                          {/* Detalhes dos Voos */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Voo de Ida */}
+                            <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                              <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                                🛫 Voo de Ida
+                              </h4>
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                  <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Data e Horário</Label>
+                                  <p className="font-medium text-blue-600 dark:text-blue-400">
+                                    {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
+                                    {ticket.actualDepartureTime && (
+                                      <span className="ml-2 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                                        {ticket.actualDepartureTime}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Voo de Volta */}
+                            <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                              <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                                🛬 Voo de Volta
+                              </h4>
+                              <div className="space-y-2">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                  <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Data e Horário</Label>
+                                  <p className="font-medium text-blue-600 dark:text-blue-400">
+                                    {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
+                                    {ticket.actualReturnTime && (
+                                      <span className="ml-2 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                                        {ticket.actualReturnTime}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
-                          <div className="md:col-span-2 lg:col-span-3">
-                            <Label className="text-xs text-muted-foreground">Anexos da Passagem</Label>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {ticket.attachmentIds.map((attachmentId, index) => (
-                                <div 
-                                  key={attachmentId} 
-                                  className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
-                                  onClick={async () => {
-                                    // Função para visualizar anexo com chamada real para API
-                                    const handleViewAttachment = async (attachmentId: string, attachmentIndex: number) => {
-                                      try {
-                                        // Buscar informações do anexo via API
-                                        const response = await fetch(`/api/attachments/${attachmentId}`);
-                                        const attachmentData = await response.json();
-                                        
-                                        if (response.ok) {
-                                          // Mostrar informações reais do anexo
-                                          toast({
-                                            title: `📎 Anexo ${attachmentIndex + 1}`,
-                                            description: `Nome: ${attachmentData.name}\\nTipo: ${attachmentData.type}\\nTamanho: ${attachmentData.size}\\nID: ${attachmentId}\\n\\n${attachmentData.message}`,
-                                          });
-                                          
-                                          // Abrir anexo se disponível
-                                          if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                            // Determinar se abrir inline ou fazer download
-                                            const isViewable = attachmentData.type?.includes('pdf') || 
-                                                             attachmentData.type?.includes('image');
+
+                          {/* Informações Adicionais */}
+                          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {ticket.cardLastFourDigits && (
+                              <div>
+                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💳 Cartão Utilizado</Label>
+                                <p className="font-medium font-mono">****{ticket.cardLastFourDigits}</p>
+                              </div>
+                            )}
+                            
+                            {ticket.attachmentIds && ticket.attachmentIds.length > 0 && (
+                              <div className="md:col-span-2">
+                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium mb-2 block">📎 Anexos da Passagem</Label>
+                                <div className="flex flex-wrap gap-2">
+                                  {ticket.attachmentIds.map((attachmentId, index) => (
+                                    <div 
+                                      key={attachmentId} 
+                                      className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+                                      onClick={async () => {
+                                        // Função para visualizar anexo com chamada real para API
+                                        const handleViewAttachment = async (attachmentId: string, attachmentIndex: number) => {
+                                          try {
+                                            // Buscar informações do anexo via API
+                                            const response = await fetch(`/api/attachments/${attachmentId}`);
+                                            const attachmentData = await response.json();
                                             
-                                            if (isViewable) {
-                                              // Abrir para visualização inline
-                                              window.open(attachmentData.viewUrl, '_blank');
+                                            if (response.ok) {
+                                              // Mostrar informações reais do anexo
+                                              toast({
+                                                title: `📎 Anexo ${attachmentIndex + 1}`,
+                                                description: `Nome: ${attachmentData.name}\\nTipo: ${attachmentData.type}\\nTamanho: ${attachmentData.size}\\nID: ${attachmentId}\\n\\n${attachmentData.message}`,
+                                              });
+                                              
+                                              // Abrir anexo se disponível
+                                              if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
+                                                // Determinar se abrir inline ou fazer download
+                                                const isViewable = attachmentData.type?.includes('pdf') || 
+                                                                 attachmentData.type?.includes('image');
+                                                
+                                                if (isViewable) {
+                                                  // Abrir para visualização inline
+                                                  window.open(attachmentData.viewUrl, '_blank');
+                                                } else {
+                                                  // Fazer download direto
+                                                  window.open(attachmentData.downloadUrl, '_blank');
+                                                }
+                                              } else {
+                                                // Se não há URL válida, explicar ao usuário
+                                                toast({
+                                                  title: "Anexo não disponível",
+                                                  description: "Este anexo foi criado antes da implementação do sistema de storage. Não é possível visualizar ou baixar.",
+                                                  variant: "destructive",
+                                                });
+                                              }
                                             } else {
-                                              // Fazer download direto
-                                              window.open(attachmentData.downloadUrl, '_blank');
+                                              throw new Error(attachmentData.message || 'Erro ao buscar anexo');
                                             }
-                                          } else {
-                                            // Se não há URL válida, explicar ao usuário
+                                          } catch (error) {
                                             toast({
-                                              title: "Anexo não disponível",
-                                              description: "Este anexo foi criado antes da implementação do sistema de storage. Não é possível visualizar ou baixar.",
+                                              title: "Erro ao abrir anexo",
+                                              description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
                                               variant: "destructive",
                                             });
                                           }
-                                        } else {
-                                          throw new Error(attachmentData.message || 'Erro ao buscar anexo');
-                                        }
-                                      } catch (error) {
-                                        toast({
-                                          title: "Erro ao abrir anexo",
-                                          description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    };
-                                    
-                                    await handleViewAttachment(attachmentId, index);
-                                  }}
-                                >
-                                  <FileText className="w-4 h-4 text-blue-600" />
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">
-                                    Anexo {index + 1}
-                                  </span>
-                                  <span className="text-xs text-blue-500 dark:text-blue-400 font-mono">
-                                    {attachmentId.slice(-8)}
-                                  </span>
+                                        };
+                                        
+                                        await handleViewAttachment(attachmentId, index);
+                                      }}
+                                    >
+                                      <FileText className="w-4 h-4 text-blue-600" />
+                                      <span className="font-medium text-blue-700 dark:text-blue-300">
+                                        Anexo {index + 1}
+                                      </span>
+                                      <span className="text-xs text-blue-500 dark:text-blue-400 font-mono">
+                                        {attachmentId.slice(-8)}
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="md:col-span-2 lg:col-span-3 flex justify-between items-center">
-                          <span className="text-sm text-green-600 font-medium flex items-center">
-                            <FileText className="w-4 h-4 mr-1" />
-                            Passagem registrada com sucesso
-                          </span>
-                          {!isReadOnly(selectedInclusion) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                // Mudar para modo de edição
-                                setTicketData(prev => ({
-                                  ...prev,
-                                  [selectedInclusion.id]: {
-                                    value: ((ticket.value || 0) / 100).toString(),
-                                    departureAirport: ticket.departureAirport || "",
-                                    destinationAirport: ticket.destinationAirport || "",
-                                    purchaseOrderNumber: ticket.purchaseOrderNumber || "",
-                                    actualDepartureDate: ticket.actualDepartureDate || "",
-                                    actualReturnDate: ticket.actualReturnDate || "",
-                                    actualDepartureTime: ticket.actualDepartureTime || "",
-                                    actualReturnTime: ticket.actualReturnTime || "",
-                                    cardLastFourDigits: ticket.cardLastFourDigits || "",
-                                    attachmentIds: ticket.attachmentIds || []
-                                  }
-                                }));
-                                // Forçar re-render para modo de edição
-                                setEditingTicketId(selectedInclusion.id);
-                              }}
-                            >
-                              Editar Dados
-                            </Button>
-                          )}
+
+                          {/* Botão de Edição */}
+                          <div className="mt-6 flex justify-end">
+                            {!isReadOnly(selectedInclusion) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // Mudar para modo de edição
+                                  setTicketData(prev => ({
+                                    ...prev,
+                                    [selectedInclusion.id]: {
+                                      value: ((ticket.value || 0) / 100).toString(),
+                                      departureAirport: ticket.departureAirport || "",
+                                      destinationAirport: ticket.destinationAirport || "",
+                                      purchaseOrderNumber: ticket.purchaseOrderNumber || "",
+                                      actualDepartureDate: ticket.actualDepartureDate || "",
+                                      actualReturnDate: ticket.actualReturnDate || "",
+                                      actualDepartureTime: ticket.actualDepartureTime || "",
+                                      actualReturnTime: ticket.actualReturnTime || "",
+                                      cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                      attachmentIds: ticket.attachmentIds || []
+                                    }
+                                  }));
+                                  // Forçar re-render para modo de edição
+                                  setEditingTicketId(selectedInclusion.id);
+                                }}
+                                className="flex items-center gap-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                                Editar Passagem
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : (
