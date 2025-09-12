@@ -242,7 +242,7 @@ export default function Tickets() {
       // collaborators with same document but different IDs
       const normalizedDoc = normalizeDocument(collaborator?.officialDocument);
       const collaboratorBusinessId = normalizedDoc || inc.collaboratorId || '';
-      return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId}`;
+      return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId || ''}`;
     };
     
     const statusPriority: Record<string, number> = {
