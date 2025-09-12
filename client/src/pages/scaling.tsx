@@ -236,6 +236,12 @@ export default function Scaling() {
       observations: modalData.observations,
     };
     
+    // Se está escalando um colaborador (tem collaboratorId), atualizar status para escalacao
+    if (modalData.collaboratorId && selectedInclusion.status === 'planejado') {
+      updateData.status = 'escalacao';
+      updateData.phase = 'escalacao';
+    }
+    
     // Só incluir dailyValue se foi especificamente editado
     if (modalData.dailyValue && modalData.dailyValue > 0) {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
