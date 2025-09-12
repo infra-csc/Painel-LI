@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
+import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
@@ -339,8 +339,8 @@ export default function Tickets() {
             const functionB = getFunctionName(b.functionId);
             return functionA.localeCompare(functionB, 'pt-BR') * multiplier;
           case 'collaborator':
-            const collabA = getCollaboratorName(a.collaboratorId);
-            const collabB = getCollaboratorName(b.collaboratorId);
+            const collabA = getCollaboratorName(a.collaboratorId || undefined);
+            const collabB = getCollaboratorName(b.collaboratorId || undefined);
             return collabA.localeCompare(collabB, 'pt-BR') * multiplier;
           case 'diarias':
             if (!a.scheduleStartDate && !b.scheduleStartDate) return 0;
