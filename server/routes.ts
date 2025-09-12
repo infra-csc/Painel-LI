@@ -401,11 +401,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = req.headers['user-id'] as string;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      // Get the current user to check permissions
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Get the team inclusion to check function
+      const currentInclusion = await storage.getTeamInclusion(id);
+      if (!currentInclusion) {
+        return res.status(404).json({ message: "Inclusão de equipe não encontrada" });
+      }
+
+      // Check if user can manage this function
+      const func = await storage.getFunction(currentInclusion.functionId);
+      if (!func) {
+        return res.status(404).json({ message: "Função não encontrada" });
+      }
+
+      // Authorization check: Admin or function responsible can modify
+      const isAdmin = user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator';
+      const isFunctionResponsible = func.userId === userId;
+      
+      if (!isAdmin && !isFunctionResponsible) {
+        return res.status(403).json({ message: "Sem permissão para modificar esta escalação. Apenas o responsável pela função pode confirmar escalações." });
+      }
+
       console.log("🔧 PATCH team-inclusion:", id, req.body);
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+        updatedBy: userId // Use authenticated user ID
       };
       console.log("🔧 Updates to apply:", updates);
       const inclusion = await storage.updateTeamInclusion(id, updates);
