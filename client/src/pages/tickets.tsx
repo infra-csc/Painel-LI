@@ -885,24 +885,18 @@ export default function Tickets() {
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (inclusion.status === "cancelado") {
-                                // For cancelled inclusions, use stored previousStatus if available
-                                let previousStatus = "aguardando_passagem"; // default fallback
-                                
-                                // @ts-ignore - previousStatus may not be in type yet but may exist in data
-                                if (inclusion.previousStatus) {
-                                  previousStatus = inclusion.previousStatus;
+                                // For cancelled inclusions, show the ticket-specific status
+                                if (ticket) {
+                                  // Had a ticket, so show "Comprada"
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      Comprada
+                                    </span>
+                                  );
                                 } else {
-                                  // Fallback: use phase directly as the previous status
-                                  // Phase represents where the record was when cancelled
-                                  if (inclusion.phase && inclusion.phase !== "cancelado") {
-                                    previousStatus = inclusion.phase;
-                                  } else {
-                                    // Final fallback if phase is also "cancelado" or missing
-                                    previousStatus = "aguardando_passagem";
-                                  }
+                                  // No ticket, so show "Aguardando Passagem"
+                                  return <StatusBadge status="aguardando_passagem" />;
                                 }
-                                
-                                return <StatusBadge status={previousStatus} />;
                               } else if (ticket) {
                                 return (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
