@@ -10,6 +10,7 @@ import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import UniversalFilters from "@/components/common/universal-filters";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import { isReadOnly } from "@/lib/interactions";
 
 export default function TeamInclusionTable() {
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
@@ -388,14 +389,12 @@ export default function TeamInclusionTable() {
                           onClick={() => handleViewComments(inclusion.id)}
                           className="text-blue-600 hover:text-blue-900 h-8 w-8 p-0 shrink-0"
                           data-testid={`button-comments-${inclusion.id}`}
-                          disabled={inclusion.status === 'cancelado'}
-                          title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}
                         >
                           <MessageCircle className="w-4 h-4" />
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            {inclusion.status === 'cancelado' ? (
+                            {isReadOnly(inclusion) ? (
                               // Para cancelados, permitir apenas exclusão
                               <Button
                                 size="sm"
