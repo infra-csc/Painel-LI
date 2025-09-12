@@ -485,8 +485,8 @@ export default function Scaling() {
                           {withoutTicket.map((inclusion) => (
                             <tr 
                               key={inclusion.id} 
-                              className="hover:bg-accent/30 transition-colors cursor-pointer"
-                              onClick={() => handleRowClick(inclusion)}
+                              className={`hover:bg-accent/30 transition-colors ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`}
+                              onClick={inclusion.status === 'cancelado' ? undefined : () => handleRowClick(inclusion)}
                             >
                               <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
@@ -494,9 +494,9 @@ export default function Scaling() {
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
                                   <Eye 
-                                    className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
-                                    onClick={(e) => handleViewComments(e, inclusion)}
-
+                                    className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                                    onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                    title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}
                                   />
                                 </div>
                               </td>
@@ -585,8 +585,8 @@ export default function Scaling() {
                           {withTicket.map((inclusion) => (
                             <tr 
                               key={inclusion.id} 
-                              className="hover:bg-accent/30 transition-colors cursor-pointer"
-                              onClick={() => handleRowClick(inclusion)}
+                              className={`hover:bg-accent/30 transition-colors ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`}
+                              onClick={inclusion.status === 'cancelado' ? undefined : () => handleRowClick(inclusion)}
                             >
                               <td className="px-3 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
@@ -594,9 +594,9 @@ export default function Scaling() {
                                     #{inclusion.inclusionNumber || 'N/A'}
                                   </div>
                                   <Eye 
-                                    className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer transition-colors" 
-                                    onClick={(e) => handleViewComments(e, inclusion)}
-
+                                    className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                                    onClick={inclusion.status === 'cancelado' ? undefined : (e) => handleViewComments(e, inclusion)}
+                                    title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}
                                   />
                                 </div>
                               </td>
@@ -1118,12 +1118,12 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {!isEscalated(selectedInclusion) && (
+                {!isEscalated(selectedInclusion) && selectedInclusion.status !== 'cancelado' && (
                   <>
                     <Button 
                       variant="secondary"
                       onClick={handleSave}
-                      disabled={updateTeamInclusionMutation.isPending}
+                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado'}
                       className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
                     >
                       <Save className="w-4 h-4" />
@@ -1131,7 +1131,7 @@ export default function Scaling() {
                     </Button>
                     <Button 
                       onClick={handleConfirmEscalation}
-                      disabled={updateTeamInclusionMutation.isPending}
+                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado'}
                       className="flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" />
