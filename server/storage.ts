@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, financial, comments, systemLogs,
+  functionUsers, functionManagers,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -10,7 +11,9 @@ import {
   type Ticket, type InsertTicket,
   type Financial, type InsertFinancial,
   type Comment, type InsertComment,
-  type SystemLog, type InsertSystemLog
+  type SystemLog, type InsertSystemLog,
+  type FunctionUser, type InsertFunctionUser,
+  type FunctionManager, type InsertFunctionManager
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -39,6 +42,19 @@ export interface IStorage {
   updateFunction(id: string, func: Partial<InsertFunction>): Promise<Function>;
   deleteFunction(id: string): Promise<void>;
   getFunctionsByUser(userId: string): Promise<Function[]>;
+  
+  // Function Users (assigned users)
+  getFunctionUsers(functionId: string): Promise<FunctionUser[]>;
+  addUserToFunction(functionUser: InsertFunctionUser): Promise<FunctionUser>;
+  removeUserFromFunction(functionId: string, userId: string): Promise<void>;
+  getUserFunctions(userId: string): Promise<Function[]>;
+  
+  // Function Managers (responsible users)
+  getFunctionManagers(functionId: string): Promise<FunctionManager[]>;
+  addManagerToFunction(functionManager: InsertFunctionManager): Promise<FunctionManager>;
+  removeManagerFromFunction(functionId: string, userId: string): Promise<void>;
+  getUserManagedFunctions(userId: string): Promise<Function[]>;
+  isUserFunctionManager(functionId: string, userId: string): Promise<boolean>;
   
   // Collaborators
   getCollaborators(): Promise<Collaborator[]>;
@@ -85,6 +101,8 @@ export class MemStorage implements IStorage {
   private financials: Map<string, Financial> = new Map();
   private comments: Map<string, Comment> = new Map();
   private systemLogs: Map<string, SystemLog> = new Map();
+  private functionUsers: Map<string, FunctionUser> = new Map();
+  private functionManagers: Map<string, FunctionManager> = new Map();
   private logCounter: number = 1;
 
   constructor() {
@@ -256,6 +274,79 @@ export class MemStorage implements IStorage {
       throw new Error("Function not found");
     }
     this.functions.delete(id);
+  }
+
+  // Function Users (assigned users)
+  async getFunctionUsers(functionId: string): Promise<FunctionUser[]> {
+    return Array.from(this.functionUsers.values()).filter(fu => fu.functionId === functionId);
+  }
+
+  async addUserToFunction(functionUser: InsertFunctionUser): Promise<FunctionUser> {
+    const id = randomUUID();
+    const fu: FunctionUser = {
+      ...functionUser,
+      id,
+      createdAt: new Date()
+    };
+    this.functionUsers.set(id, fu);
+    return fu;
+  }
+
+  async removeUserFromFunction(functionId: string, userId: string): Promise<void> {
+    for (const [id, fu] of this.functionUsers.entries()) {
+      if (fu.functionId === functionId && fu.userId === userId) {
+        this.functionUsers.delete(id);
+        break;
+      }
+    }
+  }
+
+  async getUserFunctions(userId: string): Promise<Function[]> {
+    const userFunctionIds = Array.from(this.functionUsers.values())
+      .filter(fu => fu.userId === userId)
+      .map(fu => fu.functionId);
+    
+    return Array.from(this.functions.values())
+      .filter(func => userFunctionIds.includes(func.id));
+  }
+
+  // Function Managers (responsible users)
+  async getFunctionManagers(functionId: string): Promise<FunctionManager[]> {
+    return Array.from(this.functionManagers.values()).filter(fm => fm.functionId === functionId);
+  }
+
+  async addManagerToFunction(functionManager: InsertFunctionManager): Promise<FunctionManager> {
+    const id = randomUUID();
+    const fm: FunctionManager = {
+      ...functionManager,
+      id,
+      createdAt: new Date()
+    };
+    this.functionManagers.set(id, fm);
+    return fm;
+  }
+
+  async removeManagerFromFunction(functionId: string, userId: string): Promise<void> {
+    for (const [id, fm] of this.functionManagers.entries()) {
+      if (fm.functionId === functionId && fm.userId === userId) {
+        this.functionManagers.delete(id);
+        break;
+      }
+    }
+  }
+
+  async getUserManagedFunctions(userId: string): Promise<Function[]> {
+    const managedFunctionIds = Array.from(this.functionManagers.values())
+      .filter(fm => fm.userId === userId)
+      .map(fm => fm.functionId);
+    
+    return Array.from(this.functions.values())
+      .filter(func => managedFunctionIds.includes(func.id));
+  }
+
+  async isUserFunctionManager(functionId: string, userId: string): Promise<boolean> {
+    return Array.from(this.functionManagers.values())
+      .some(fm => fm.functionId === functionId && fm.userId === userId);
   }
 
   // Collaborators
@@ -610,6 +701,83 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFunction(id: string): Promise<void> {
     await db.delete(functions).where(eq(functions.id, id));
+  }
+
+  // Function Users (assigned users)
+  async getFunctionUsers(functionId: string): Promise<FunctionUser[]> {
+    return await db.select().from(functionUsers).where(eq(functionUsers.functionId, functionId));
+  }
+
+  async addUserToFunction(functionUser: InsertFunctionUser): Promise<FunctionUser> {
+    const [fu] = await db.insert(functionUsers).values(functionUser).returning();
+    return fu;
+  }
+
+  async removeUserFromFunction(functionId: string, userId: string): Promise<void> {
+    await db.delete(functionUsers)
+      .where(eq(functionUsers.functionId, functionId) && eq(functionUsers.userId, userId));
+  }
+
+  async getUserFunctions(userId: string): Promise<Function[]> {
+    const result = await db
+      .select({
+        id: functions.id,
+        functionNumber: functions.functionNumber,
+        name: functions.name,
+        description: functions.description,
+        responsibleArea: functions.responsibleArea,
+        quantity: functions.quantity,
+        userId: functions.userId,
+        createdAt: functions.createdAt
+      })
+      .from(functions)
+      .innerJoin(functionUsers, eq(functions.id, functionUsers.functionId))
+      .where(eq(functionUsers.userId, userId));
+    
+    return result;
+  }
+
+  // Function Managers (responsible users)
+  async getFunctionManagers(functionId: string): Promise<FunctionManager[]> {
+    return await db.select().from(functionManagers).where(eq(functionManagers.functionId, functionId));
+  }
+
+  async addManagerToFunction(functionManager: InsertFunctionManager): Promise<FunctionManager> {
+    const [fm] = await db.insert(functionManagers).values(functionManager).returning();
+    return fm;
+  }
+
+  async removeManagerFromFunction(functionId: string, userId: string): Promise<void> {
+    await db.delete(functionManagers)
+      .where(eq(functionManagers.functionId, functionId) && eq(functionManagers.userId, userId));
+  }
+
+  async getUserManagedFunctions(userId: string): Promise<Function[]> {
+    const result = await db
+      .select({
+        id: functions.id,
+        functionNumber: functions.functionNumber,
+        name: functions.name,
+        description: functions.description,
+        responsibleArea: functions.responsibleArea,
+        quantity: functions.quantity,
+        userId: functions.userId,
+        createdAt: functions.createdAt
+      })
+      .from(functions)
+      .innerJoin(functionManagers, eq(functions.id, functionManagers.functionId))
+      .where(eq(functionManagers.userId, userId));
+    
+    return result;
+  }
+
+  async isUserFunctionManager(functionId: string, userId: string): Promise<boolean> {
+    const result = await db
+      .select({ count: sql`count(*)`.as('count') })
+      .from(functionManagers)
+      .where(eq(functionManagers.functionId, functionId) && eq(functionManagers.userId, userId));
+    
+    return Number(result[0]?.count) > 0;
   }
 
   // Collaborators
