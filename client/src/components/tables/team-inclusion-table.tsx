@@ -116,9 +116,8 @@ export default function TeamInclusionTable() {
   };
 
   const canCancelEscalation = (inclusion: TeamInclusion) => {
-    // Pode cancelar se tiver colaborador escalado e não estiver cancelado
-    return inclusion.collaboratorId && 
-           ['escalado', 'passagem', 'fechamento', 'aprovacao'].includes(inclusion.status);
+    // Pode cancelar em qualquer status, exceto "planejado" (aguardando escalação) e "cancelado" 
+    return inclusion.status !== 'planejado' && inclusion.status !== 'cancelado';
   };
 
   const deleteTeamInclusionMutation = useMutation({
