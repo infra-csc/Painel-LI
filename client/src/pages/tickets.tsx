@@ -223,9 +223,38 @@ export default function Tickets() {
     }
   ) || [];
 
+  // Deduplicate inclusions by collaborator+event+function to avoid duplicates
+  const deduplicatedInclusions = useMemo(() => {
+    const deduplicationMap = new Map<string, TeamInclusion>();
+    
+    for (const inclusion of ticketInclusions) {
+      const key = `${inclusion.eventId}|${inclusion.functionId}|${inclusion.collaboratorId}`;
+      const existing = deduplicationMap.get(key);
+      
+      if (!existing) {
+        deduplicationMap.set(key, inclusion);
+      } else {
+        // Apply precedence based on filter
+        if (filters.inclusionStatus === "cancelado") {
+          // For cancelled filter, prefer cancelled records
+          if (inclusion.status === "cancelado" && existing.status !== "cancelado") {
+            deduplicationMap.set(key, inclusion);
+          }
+        } else {
+          // For active/all filters, prefer non-cancelled records
+          if (existing.status === "cancelado" && inclusion.status !== "cancelado") {
+            deduplicationMap.set(key, inclusion);
+          }
+        }
+      }
+    }
+    
+    return Array.from(deduplicationMap.values());
+  }, [ticketInclusions, filters.inclusionStatus]);
+
   // Apply ticket status filter directly to individual inclusions
   const filteredTicketInclusions = useMemo(() => {
-    return ticketInclusions.filter(inclusion => {
+    return deduplicatedInclusions.filter(inclusion => {
       if (filters.ticketStatus !== "all") {
         const hasTicket = getTicket(inclusion.id);
         if (filters.ticketStatus === "pending" && hasTicket) return false;
@@ -233,7 +262,7 @@ export default function Tickets() {
       }
       return true;
     });
-  }, [ticketInclusions, filters.ticketStatus, tickets]);
+  }, [deduplicatedInclusions, filters.ticketStatus, tickets]);
 
   const handleTicketDataChange = (inclusionId: string, field: string, value: any) => {
     setTicketData(prev => ({
