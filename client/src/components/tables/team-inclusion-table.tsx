@@ -218,9 +218,12 @@ export default function TeamInclusionTable() {
   // Calculate real totals
   const totals = {
     incluidos: filteredAndSortedInclusions.length,
+    planejados: filteredAndSortedInclusions.filter(i => i.status === 'planejado').length,
     em_escalacao: filteredAndSortedInclusions.filter(i => i.status === 'escalacao').length,
     aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
+    fechamento: filteredAndSortedInclusions.filter(i => i.status === 'fechamento').length,
     aprovados: filteredAndSortedInclusions.filter(i => i.status === 'aprovado').length,
+    cancelados: filteredAndSortedInclusions.filter(i => i.status === 'cancelado').length,
   };
 
   if (isLoading) {
@@ -245,10 +248,14 @@ export default function TeamInclusionTable() {
       {/* Totals Summary */}
       <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Resumo dos Totais</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary" data-testid="total-incluidos">{totals.incluidos}</div>
-            <div className="text-sm text-muted-foreground">Incluídos</div>
+            <div className="text-sm text-muted-foreground">Total</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-500" data-testid="total-planejados">{totals.planejados}</div>
+            <div className="text-sm text-muted-foreground">Aguardando</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600" data-testid="total-escalacao">{totals.em_escalacao}</div>
@@ -256,11 +263,19 @@ export default function TeamInclusionTable() {
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600" data-testid="total-aguardando">{totals.aguardando_passagem}</div>
-            <div className="text-sm text-muted-foreground">Aguardando Passagem</div>
+            <div className="text-sm text-muted-foreground">Passagem</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-600" data-testid="total-fechamento">{totals.fechamento}</div>
+            <div className="text-sm text-muted-foreground">Fechamento</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600" data-testid="total-aprovados">{totals.aprovados}</div>
             <div className="text-sm text-muted-foreground">Aprovados</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-500" data-testid="total-cancelados">{totals.cancelados}</div>
+            <div className="text-sm text-muted-foreground">Cancelados</div>
           </div>
         </div>
       </div>

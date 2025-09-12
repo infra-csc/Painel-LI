@@ -237,7 +237,7 @@ export default function Tickets() {
     };
     
     const makeKey = (inc: TeamInclusion) => {
-      const collaborator = getCollaborator(inc.collaboratorId);
+      const collaborator = getCollaborator(inc.collaboratorId || undefined);
       // Use normalized official document (CPF/RG) as the business identity to deduplicate 
       // collaborators with same document but different IDs
       const normalizedDoc = normalizeDocument(collaborator?.officialDocument);
