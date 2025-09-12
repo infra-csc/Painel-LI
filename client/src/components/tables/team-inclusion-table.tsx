@@ -218,8 +218,8 @@ export default function TeamInclusionTable() {
   // Calculate real totals
   const totals = {
     incluidos: filteredAndSortedInclusions.length,
-    planejados: filteredAndSortedInclusions.filter(i => i.status === 'planejado').length,
-    em_escalacao: filteredAndSortedInclusions.filter(i => i.status === 'escalacao').length,
+    aguardando: filteredAndSortedInclusions.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
+    em_escalacao: filteredAndSortedInclusions.filter(i => i.collaboratorId && i.status === 'escalacao').length,
     aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
     fechamento: filteredAndSortedInclusions.filter(i => i.status === 'fechamento').length,
     aprovados: filteredAndSortedInclusions.filter(i => i.status === 'aprovado').length,
@@ -254,7 +254,7 @@ export default function TeamInclusionTable() {
             <div className="text-sm text-muted-foreground">Total</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-red-500" data-testid="total-planejados">{totals.planejados}</div>
+            <div className="text-2xl font-bold text-red-500" data-testid="total-aguardando">{totals.aguardando}</div>
             <div className="text-sm text-muted-foreground">Aguardando</div>
           </div>
           <div className="text-center">
@@ -262,7 +262,7 @@ export default function TeamInclusionTable() {
             <div className="text-sm text-muted-foreground">Em Escalação</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600" data-testid="total-aguardando">{totals.aguardando_passagem}</div>
+            <div className="text-2xl font-bold text-orange-600" data-testid="total-passagem">{totals.aguardando_passagem}</div>
             <div className="text-sm text-muted-foreground">Passagem</div>
           </div>
           <div className="text-center">
