@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment } from "@shared/schema";
@@ -800,7 +801,7 @@ export default function Tickets() {
                             </div>
                           </div>
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getEventName(inclusion.eventId)}
                           </div>
@@ -808,17 +809,17 @@ export default function Tickets() {
                             {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-foreground">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualDepartureDate ? (
@@ -841,7 +842,7 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualReturnDate ? (
@@ -864,7 +865,7 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined);
                             return (
@@ -881,7 +882,7 @@ export default function Tickets() {
                             );
                           })()}
                         </td>
-                        <td className={`px-4 py-4 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (inclusion.status === "cancelado") {
@@ -931,6 +932,7 @@ export default function Tickets() {
                 <DialogHeader>
                   <DialogTitle>
                     Detalhes da Passagem - {getEventName(selectedInclusion.eventId)}
+                    {isReadOnly(selectedInclusion) && <span className="ml-2 text-sm text-red-600">(Somente Leitura)</span>}
                   </DialogTitle>
                 </DialogHeader>
 
@@ -1320,7 +1322,7 @@ export default function Tickets() {
                               className="flex items-center gap-2"
                             >
                               <MessageCircle className="w-4 h-4" />
-                              Ver/Adicionar Comentários
+                              {isReadOnly(selectedInclusion) ? "Ver Comentários" : "Ver/Adicionar Comentários"}
                             </Button>
                           </div>
                           
@@ -1372,7 +1374,7 @@ export default function Tickets() {
                             Cancelar
                           </Button>
                           
-                          {selectedInclusion?.status !== 'fechamento' && (
+                          {selectedInclusion?.status !== 'fechamento' && !isReadOnly(selectedInclusion) && (
                             <>
                               {/* Botão Salvar - para dados parciais */}
                               <Button
