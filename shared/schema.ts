@@ -39,9 +39,31 @@ export const functions = pgTable("functions", {
   description: text("description"),
   responsibleArea: text("responsible_area"),
   quantity: integer("quantity").notNull().default(1),
-  userId: varchar("user_id").references(() => users.id), // função vinculada a usuário específico
+  userId: varchar("user_id").references(() => users.id), // mantido para compatibilidade, será depreciado
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Tabela para usuários atribuídos à função
+export const functionUsers = pgTable("function_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Evitar duplicatas
+  unq: unique().on(table.functionId, table.userId),
+}));
+
+// Tabela para usuários responsáveis pela função (podem confirmar escalações)
+export const functionManagers = pgTable("function_managers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Evitar duplicatas
+  unq: unique().on(table.functionId, table.userId),
+}));
 
 // Collaborators table
 export const collaborators = pgTable("collaborators", {
@@ -231,6 +253,16 @@ export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
   createdAt: true,
 });
 
+export const insertFunctionUserSchema = createInsertSchema(functionUsers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertFunctionManagerSchema = createInsertSchema(functionManagers).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -258,3 +290,9 @@ export type InsertComment = z.infer<typeof insertCommentSchema>;
 
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
+
+export type FunctionUser = typeof functionUsers.$inferSelect;
+export type InsertFunctionUser = z.infer<typeof insertFunctionUserSchema>;
+
+export type FunctionManager = typeof functionManagers.$inferSelect;
+export type InsertFunctionManager = z.infer<typeof insertFunctionManagerSchema>;
