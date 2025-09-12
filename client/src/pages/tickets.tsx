@@ -227,42 +227,68 @@ export default function Tickets() {
   const deduplicatedInclusions = useMemo(() => {
     const deduplicationMap = new Map<string, TeamInclusion>();
     
+    const makeKey = (inc: TeamInclusion) => {
+      const functionName = functions?.find(f => f.id === inc.functionId)?.name ?? inc.functionId;
+      return [inc.eventId, functionName.trim().toLowerCase(), inc.collaboratorId ?? ''].join('|');
+    };
+    
+    const statusPriority: Record<string, number> = {
+      'cancelado': 6,
+      'aprovado': 5, 
+      'aprovacao': 4,
+      'fechamento': 3,
+      'passagem': 2,
+      'aguardando_passagem': 1
+    };
+    
     for (const inclusion of ticketInclusions) {
-      const key = `${inclusion.eventId}|${inclusion.functionId}|${inclusion.collaboratorId}`;
+      const key = makeKey(inclusion);
       const existing = deduplicationMap.get(key);
       
       if (!existing) {
         deduplicationMap.set(key, inclusion);
       } else {
-        // Always keep the most current record - prefer the one with the most advanced status
-        // Status order: cancelado > aprovado > aprovacao > fechamento > passagem > aguardando_passagem
-        const statusPriority = (status: string) => {
-          switch (status) {
-            case 'cancelado': return 6;
-            case 'aprovado': return 5;
-            case 'aprovacao': return 4;
-            case 'fechamento': return 3;
-            case 'passagem': return 2;
-            case 'aguardando_passagem': return 1;
-            default: return 0;
+        const currentPriority = statusPriority[inclusion.status] ?? 0;
+        const existingPriority = statusPriority[existing.status] ?? 0;
+        
+        // Determine which is newer: higher status priority first
+        let isNewer = currentPriority > existingPriority;
+        
+        // If same priority, use inclusionNumber (higher number = more recent)
+        if (currentPriority === existingPriority) {
+          const currentNumber = inclusion.inclusionNumber ?? 0;
+          const existingNumber = existing.inclusionNumber ?? 0;
+          
+          if (currentNumber !== existingNumber) {
+            isNewer = currentNumber > existingNumber;
+          } else {
+            // If inclusionNumber is same, use createdAt or fallback to ID
+            isNewer = (inclusion.createdAt ?? inclusion.id) > (existing.createdAt ?? existing.id);
           }
-        };
+        }
         
-        const currentPriority = statusPriority(inclusion.status);
-        const existingPriority = statusPriority(existing.status);
-        
-        // Replace if current has higher priority, or same priority but newer ID
-        if (currentPriority > existingPriority || 
-           (currentPriority === existingPriority && inclusion.id > existing.id)) {
+        if (isNewer) {
           deduplicationMap.set(key, inclusion);
         }
       }
     }
     
+    // Debug: log groups with duplicates
+    const groups = new Map<string, TeamInclusion[]>();
+    for (const inclusion of ticketInclusions) {
+      const key = makeKey(inclusion);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(inclusion);
+    }
+    const duplicateGroups = Array.from(groups.entries()).filter(([_, list]) => list.length > 1);
+    if (duplicateGroups.length > 0) {
+      console.log('Duplicate groups found:', duplicateGroups.length, duplicateGroups);
+    }
+    
     return Array.from(deduplicationMap.values());
-  }, [ticketInclusions]);
+  }, [ticketInclusions, functions]);
 
-  // Apply ticket status filter directly to individual inclusions
+  // Apply ticket status filter to deduplicated inclusions
   const filteredTicketInclusions = useMemo(() => {
     return deduplicatedInclusions.filter(inclusion => {
       if (filters.ticketStatus !== "all") {
