@@ -218,8 +218,8 @@ export default function TeamInclusionTable() {
   // Calculate real totals
   const totals = {
     incluidos: filteredAndSortedInclusions.length,
-    aguardando: filteredAndSortedInclusions.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
-    em_escalacao: filteredAndSortedInclusions.filter(i => i.collaboratorId && i.status === 'escalacao').length,
+    pendentes: filteredAndSortedInclusions.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
+    escalados: filteredAndSortedInclusions.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
     aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
     fechamento: filteredAndSortedInclusions.filter(i => i.status === 'fechamento').length,
     aprovados: filteredAndSortedInclusions.filter(i => i.status === 'aprovado').length,
@@ -254,12 +254,12 @@ export default function TeamInclusionTable() {
             <div className="text-sm text-muted-foreground">Total</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-red-500" data-testid="total-aguardando">{totals.aguardando}</div>
-            <div className="text-sm text-muted-foreground">Aguardando</div>
+            <div className="text-2xl font-bold text-red-500" data-testid="total-pendentes">{totals.pendentes}</div>
+            <div className="text-sm text-muted-foreground">Pendentes</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600" data-testid="total-escalacao">{totals.em_escalacao}</div>
-            <div className="text-sm text-muted-foreground">Em Escalação</div>
+            <div className="text-2xl font-bold text-blue-600" data-testid="total-escalados">{totals.escalados}</div>
+            <div className="text-sm text-muted-foreground">Escalados</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600" data-testid="total-passagem">{totals.aguardando_passagem}</div>
