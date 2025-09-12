@@ -273,17 +273,6 @@ export default function Tickets() {
       }
     }
     
-    // Debug: log groups with duplicates
-    const groups = new Map<string, TeamInclusion[]>();
-    for (const inclusion of ticketInclusions) {
-      const key = makeKey(inclusion);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(inclusion);
-    }
-    const duplicateGroups = Array.from(groups.entries()).filter(([_, list]) => list.length > 1);
-    if (duplicateGroups.length > 0) {
-      console.log('Duplicate groups found:', duplicateGroups.length, duplicateGroups);
-    }
     
     return Array.from(deduplicationMap.values());
   }, [ticketInclusions, functions]);
