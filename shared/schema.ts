@@ -87,6 +87,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   actualObservations: text("actual_observations"), // observações do que realmente aconteceu
   emergencyRecord: boolean("emergency_record").default(false), // registro emergencial
   status: text("status").notNull().default("planejado"), // planejado, escalacao, passagem, fechamento, aprovado
+  previousStatus: text("previous_status"), // armazena o status anterior quando cancelado
   phase: text("phase").notNull().default("inclusao"), // inclusao, escalacao, passagem, fechamento, aprovacao
   userId: varchar("user_id").notNull().references(() => users.id), // usuário responsável pela função
   createdAt: timestamp("created_at").defaultNow(),
