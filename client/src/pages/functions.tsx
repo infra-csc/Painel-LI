@@ -66,8 +66,8 @@ export default function Functions() {
     queryKey: ["/api/functions"],
   });
 
-  const { data: collaborators } = useQuery<UserType[]>({
-    queryKey: ["/api/collaborators"],
+  const { data: users } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
   });
 
   const createFunctionMutation = useMutation({
@@ -186,7 +186,7 @@ export default function Functions() {
 
   const getAssignedUserName = (userId: string | null) => {
     if (!userId) return "Não atribuída";
-    const assignedUser = collaborators?.find(c => c.id === userId);
+    const assignedUser = users?.find(u => u.id === userId);
     return assignedUser ? (assignedUser.name || assignedUser.email) : "Usuário não encontrado";
   };
 
@@ -286,9 +286,9 @@ export default function Functions() {
                                 </FormControl>
                                 <SelectContent>
                                   <SelectItem value="none">Não atribuir</SelectItem>
-                                  {collaborators?.map((collaborator) => (
-                                    <SelectItem key={collaborator.id} value={collaborator.id}>
-                                      {collaborator.name || collaborator.email}
+                                  {users?.map((user) => (
+                                    <SelectItem key={user.id} value={user.id}>
+                                      {user.name || user.email}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>

@@ -278,6 +278,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get functions for current user
+  app.get("/api/functions/my-functions", async (req, res) => {
+    try {
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      const functions = await storage.getFunctionsByUser(userId);
+      res.json(functions);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar funções do usuário" });
+    }
+  });
+
   app.post("/api/functions", async (req, res) => {
     try {
       const functionData = insertFunctionSchema.parse(req.body);
