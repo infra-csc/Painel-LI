@@ -229,7 +229,11 @@ export default function Tickets() {
     const deduplicationMap = new Map<string, TeamInclusion>();
     
     const makeKey = (inc: TeamInclusion) => {
-      return `${inc.eventId}|${inc.functionId}|${inc.collaboratorId ?? ''}`;
+      const collaborator = getCollaborator(inc.collaboratorId);
+      // Use official document (CPF/RG) as the business identity to deduplicate 
+      // collaborators with same document but different IDs
+      const collaboratorBusinessId = collaborator?.officialDocument ?? inc.collaboratorId ?? '';
+      return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId}`;
     };
     
     const statusPriority: Record<string, number> = {
