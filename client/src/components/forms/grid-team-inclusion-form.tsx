@@ -64,7 +64,6 @@ export default function GridTeamInclusionForm() {
   const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
-  const [showEventSelect, setShowEventSelect] = useState(false);
   const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean} | null>(null);
   const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
   const { toast } = useToast();
@@ -194,19 +193,6 @@ export default function GridTeamInclusionForm() {
     queryKey: ["/api/events"],
   });
 
-  // Query para eventos que têm escalações salvas (para template)
-  const { data: eventsWithInclusions, refetch: refetchEventsWithInclusions } = useQuery<Event[]>({
-    queryKey: ["/api/events-with-inclusions"],
-    queryFn: async () => {
-      const response = await fetch('/api/events-with-inclusions');
-      if (!response.ok) throw new Error('Failed to fetch events with inclusions');
-      const data = await response.json();
-      console.log('🔄 Events with inclusions fetched:', data);
-      return data;
-    },
-    staleTime: 0, // Sempre buscar dados atualizados
-    refetchOnWindowFocus: true // Atualizar quando a janela receber foco
-  });
 
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
@@ -519,168 +505,6 @@ export default function GridTeamInclusionForm() {
     });
   };
 
-  const loadFromEvent = async (eventId: string) => {
-    try {
-      const response = await fetch(`/api/team-inclusions?eventId=${eventId}`);
-      if (!response.ok) throw new Error('Erro ao carregar inclusões');
-      
-      const inclusions = await response.json();
-      
-      if (inclusions.length === 0) {
-        toast({
-          title: "Evento vazio",
-          description: "Este evento não possui inclusões salvas.",
-        });
-        return;
-      }
-
-      // ORDENAR inclusions por row_order para manter posição original da planilha
-      const sortedInclusions = inclusions.sort((a: any, b: any) => {
-        if (a.rowOrder !== null && b.rowOrder !== null) {
-          return a.rowOrder - b.rowOrder;
-        }
-        if (a.rowOrder !== null) return -1;
-        if (b.rowOrder !== null) return 1;
-        return 0;
-      });
-
-      // Encontrar as datas ORIGINAIS do evento (min e max das inclusões)
-      let minDate = sortedInclusions[0]?.scheduleStartDate;
-      let maxDate = sortedInclusions[0]?.scheduleEndDate;
-      
-      sortedInclusions.forEach((inclusion: any) => {
-        if (inclusion.scheduleStartDate < minDate) minDate = inclusion.scheduleStartDate;
-        if (inclusion.scheduleEndDate > maxDate) maxDate = inclusion.scheduleEndDate;
-      });
-
-      // Gerar TODAS as datas do período original
-      const originalDatesList: string[] = [];
-      const start = new Date(minDate);
-      const end = new Date(maxDate);
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        originalDatesList.push(dateStr);
-      }
-
-      // Agrupar inclusões por função E rowOrder para reconstruir EXATAMENTE a planilha original
-      const functionRowMap = new Map<string, any[]>();
-      
-      sortedInclusions.forEach((inclusion: any) => {
-        // Criar chave única: functionId + rowOrder
-        const key = `${inclusion.functionId}_${inclusion.rowOrder !== null ? inclusion.rowOrder : 'null'}`;
-        if (!functionRowMap.has(key)) {
-          functionRowMap.set(key, []);
-        }
-        functionRowMap.get(key)!.push(inclusion);
-      });
-
-      const loadedFunctions: any[] = [];
-
-      // Agrupar por rowOrder primeiro, depois por função
-      const rowOrderGroups = new Map<number, any[]>();
-      
-      functionRowMap.forEach((inclusions, key) => {
-        const firstInclusion = inclusions[0];
-        const rowOrder = firstInclusion.rowOrder !== null ? firstInclusion.rowOrder : -1;
-        
-        if (!rowOrderGroups.has(rowOrder)) {
-          rowOrderGroups.set(rowOrder, []);
-        }
-        rowOrderGroups.get(rowOrder)!.push({
-          functionId: firstInclusion.functionId,
-          inclusions: inclusions
-        });
-      });
-
-      // Ordenar por rowOrder para manter a ordem original
-      const sortedRowOrders = Array.from(rowOrderGroups.keys()).sort((a, b) => a - b);
-
-      // Para cada rowOrder, processar todas as funções
-      sortedRowOrders.forEach((rowOrder) => {
-        const rowFunctions = rowOrderGroups.get(rowOrder)!;
-        
-        rowFunctions.forEach((functionData, index) => {
-          const rowInclusions = functionData.inclusions;
-          const firstInclusion = rowInclusions[0];
-          
-          // Buscar nome da função no sistema
-          const systemFunction = functions?.find(f => f.id === firstInclusion.functionId);
-          const functionName = systemFunction?.name || 'Função';
-          
-          // Extrair dados de viagem das observações
-          const observations = firstInclusion.observations || '';
-          let ida = '', chegada = '', retorno = '', horarioRetorno = '';
-          
-          const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-          const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-          const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-          const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-          
-          if (idaMatch) ida = idaMatch[1].trim();
-          if (chegadaMatch) chegada = chegadaMatch[1].trim();
-          if (retornoMatch) retorno = retornoMatch[1].trim();
-          if (horarioMatch) horarioRetorno = horarioMatch[1].trim();
-
-          // Reconstruir EXATAMENTE a distribuição de diárias desta linha
-          const dailyRates: { [date: string]: number } = {};
-          
-          // Inicializar todas as datas com 0
-          originalDatesList.forEach(date => {
-            dailyRates[date] = 0;
-          });
-          
-          // Para cada inclusão desta linha, aplicar exatamente 1 pessoa nos dias trabalhados
-          rowInclusions.forEach((inclusion: any) => {
-            const startDate = inclusion.scheduleStartDate;
-            const endDate = inclusion.scheduleEndDate;
-            
-            // Aplicar 1 pessoa em cada dia do período desta inclusão
-            for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split('T')[0];
-              if (originalDatesList.includes(dateStr)) {
-                dailyRates[dateStr] += 1; // Sempre +1 pessoa por inclusão
-              }
-            }
-          });
-
-          loadedFunctions.push({
-            functionId: `${firstInclusion.functionId}-${loadedFunctions.length}`,
-            originalFunctionId: firstInclusion.functionId,
-            functionName: functionName,
-            needsTicket: firstInclusion.needsTicket || false,
-            ida,
-            chegada, 
-            retorno, 
-            horarioRetorno,
-            dailyRates,
-            isCustom: false,
-          });
-        });
-      });
-
-      // Aplicar as datas ORIGINAIS nos campos do formulário
-      form.setValue('startDate', minDate);
-      form.setValue('endDate', maxDate);
-      
-      // Aplicar DIRETO na planilha com dados ORIGINAIS
-      setDates(originalDatesList);
-      setFunctionRows(loadedFunctions);
-      setShowGrid(true);
-      
-      toast({
-        title: "Evento carregado",
-        description: `Réplica fiel: ${loadedFunctions.length} funções carregadas com dados originais`,
-      });
-
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar configurações do evento.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const removeFunction = (functionId: string) => {
     setFunctionRows(prev => prev.filter(row => row.functionId !== functionId));
@@ -994,16 +818,6 @@ export default function GridTeamInclusionForm() {
                     >
                       <HelpCircle className="w-4 h-4" />
                       Ajuda
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => setShowEventSelect(true)}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <Upload className="w-4 h-4" />
-                      Carregar de Evento Anterior
                     </Button>
                     <Button
                       type="button"
@@ -1335,48 +1149,6 @@ export default function GridTeamInclusionForm() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal para selecionar evento anterior */}
-      <Dialog open={showEventSelect} onOpenChange={setShowEventSelect}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Carregar de Evento Anterior</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Selecione um evento que já possui inclusões salvas:
-            </p>
-            <Select onValueChange={(eventId) => {
-              loadFromEvent(eventId);
-              setShowEventSelect(false);
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um evento" />
-              </SelectTrigger>
-              <SelectContent>
-                {eventsWithInclusions?.map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-                {(!eventsWithInclusions || eventsWithInclusions.length === 0) && (
-                  <div className="p-2 text-sm text-muted-foreground text-center">
-                    <div>Nenhum evento com escalações salvas</div>
-                    <button 
-                      className="text-xs underline mt-1"
-                      onClick={() => {
-                        console.log('🔄 Forcing refresh of events with inclusions');
-                        refetchEventsWithInclusions();
-                      }}
-                    >
-                      Atualizar lista
-                    </button>
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal para selecionar função ao copiar horários */}
       <Dialog open={showFunctionSelectForSchedule} onOpenChange={setShowFunctionSelectForSchedule}>
