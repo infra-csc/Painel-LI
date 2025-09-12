@@ -308,8 +308,10 @@ export default function TeamInclusionTable() {
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedInclusions?.map((inclusion) => (
-                  <tr key={inclusion.id} className="hover:bg-accent/50 transition-colors" data-testid={`row-inclusion-${inclusion.id}`}>
+                filteredAndSortedInclusions?.map((inclusion) => {
+                  const isCanceled = inclusion.status === 'cancelado';
+                  return (
+                  <tr key={inclusion.id} className={`transition-colors ${isCanceled ? 'opacity-60' : 'hover:bg-accent/50'}`} data-testid={`row-inclusion-${inclusion.id}`}>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-1 truncate">
                         <div className="text-sm font-mono text-foreground font-medium truncate">
@@ -449,7 +451,8 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
