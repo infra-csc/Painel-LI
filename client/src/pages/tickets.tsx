@@ -1312,104 +1312,178 @@ export default function Tickets() {
                         </div>
 
 
-                        {/* Formulário de Compra */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor={`value-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Valor da Passagem (R$) *
-                            </Label>
-                            <Input
-                              id={`value-${selectedInclusion.id}`}
-                              type="number"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={data.value || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
-                              className="mt-1"
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
+                        {/* Seção de Dados da Compra */}
+                        <div className="space-y-6">
+                          {/* Informações Gerais */}
+                          <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
+                            <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
+                              💰 Informações da Compra
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor={`value-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
+                                  Valor da Passagem (R$) *
+                                </Label>
+                                <Input
+                                  id={`value-${selectedInclusion.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={data.value || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
+                                  className="mt-1"
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
+                                  Ordem de Compra *
+                                </Label>
+                                <Input
+                                  id={`purchaseOrderNumber-${selectedInclusion.id}`}
+                                  placeholder="Número da OC"
+                                  value={data.purchaseOrderNumber || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Aeroporto Origem *
-                            </Label>
-                            <Input
-                              id={`departureAirport-${selectedInclusion.id}`}
-                              placeholder="Ex: GRU"
-                              value={data.departureAirport || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
+
+                          {/* Informações dos Aeroportos */}
+                          <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
+                            <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                              ✈️ Aeroportos
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                  Aeroporto Origem *
+                                </Label>
+                                <Input
+                                  id={`departureAirport-${selectedInclusion.id}`}
+                                  placeholder="Ex: GRU, CGH, BSB"
+                                  value={data.departureAirport || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                  Aeroporto Destino *
+                                </Label>
+                                <Input
+                                  id={`destinationAirport-${selectedInclusion.id}`}
+                                  placeholder="Ex: SDU, GIG, RJ"
+                                  value={data.destinationAirport || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Aeroporto Destino *
-                            </Label>
-                            <Input
-                              id={`destinationAirport-${selectedInclusion.id}`}
-                              placeholder="Ex: RJ"
-                              value={data.destinationAirport || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
+
+                          {/* Dados dos Voos */}
+                          <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg border-l-4 border-orange-500">
+                            <h4 className="font-medium mb-4 text-orange-800 dark:text-orange-200 flex items-center gap-2">
+                              🗓️ Datas e Horários dos Voos
+                            </h4>
+                            
+                            {/* Voo de Ida */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                              <div className="bg-white dark:bg-orange-900/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                                <h5 className="font-medium text-orange-700 dark:text-orange-300 mb-3 flex items-center gap-2">
+                                  🛫 Voo de Ida
+                                </h5>
+                                <div className="space-y-3">
+                                  <div>
+                                    <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Data de Ida *
+                                    </Label>
+                                    <Input
+                                      id={`actualDepartureDate-${selectedInclusion.id}`}
+                                      type="date"
+                                      value={data.actualDepartureDate || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Horário de Ida *
+                                    </Label>
+                                    <Input
+                                      id={`actualDepartureTime-${selectedInclusion.id}`}
+                                      type="time"
+                                      placeholder="Ex: 08:30"
+                                      value={data.actualDepartureTime || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Voo de Volta */}
+                              <div className="bg-white dark:bg-orange-900/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+                                <h5 className="font-medium text-orange-700 dark:text-orange-300 mb-3 flex items-center gap-2">
+                                  🛬 Voo de Volta
+                                </h5>
+                                <div className="space-y-3">
+                                  <div>
+                                    <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Data de Volta *
+                                    </Label>
+                                    <Input
+                                      id={`actualReturnDate-${selectedInclusion.id}`}
+                                      type="date"
+                                      value={data.actualReturnDate || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Horário de Volta *
+                                    </Label>
+                                    <Input
+                                      id={`actualReturnTime-${selectedInclusion.id}`}
+                                      type="time"
+                                      placeholder="Ex: 18:45"
+                                      value={data.actualReturnTime || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Ordem de Compra *
-                            </Label>
-                            <Input
-                              id={`purchaseOrderNumber-${selectedInclusion.id}`}
-                              placeholder="Número da OC"
-                              value={data.purchaseOrderNumber || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
-                          </div>
-                          
-                          {/* Horários de Ida e Volta */}
-                          <div>
-                            <Label htmlFor={`actualDepartureTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Horário de Ida *
-                            </Label>
-                            <Input
-                              id={`actualDepartureTime-${selectedInclusion.id}`}
-                              type="time"
-                              placeholder="Ex: 08:30"
-                              value={data.actualDepartureTime || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
-                              className="mt-1"
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Horário de Volta *
-                            </Label>
-                            <Input
-                              id={`actualReturnTime-${selectedInclusion.id}`}
-                              type="time"
-                              placeholder="Ex: 18:45"
-                              value={data.actualReturnTime || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
-                              className="mt-1"
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium">
-                              Últimos 4 Dígitos do Cartão
-                            </Label>
-                            <Input
-                              id={`cardLastFourDigits-${selectedInclusion.id}`}
-                              placeholder="1234"
-                              maxLength={4}
-                              value={data.cardLastFourDigits || ""}
-                              onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                              className="mt-1"
-                              data-testid={`input-card-digits-${selectedInclusion.id}`}
-                              disabled={isReadOnly(selectedInclusion)}
-                            />
+
+                          {/* Informações Adicionais */}
+                          <div className="bg-gray-50 dark:bg-gray-950 p-4 rounded-lg border-l-4 border-gray-500">
+                            <h4 className="font-medium mb-4 text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                              💳 Informações Adicionais
+                            </h4>
+                            <div>
+                              <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Últimos 4 Dígitos do Cartão (Opcional)
+                              </Label>
+                              <Input
+                                id={`cardLastFourDigits-${selectedInclusion.id}`}
+                                placeholder="1234"
+                                maxLength={4}
+                                value={data.cardLastFourDigits || ""}
+                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                className="mt-1"
+                                data-testid={`input-card-digits-${selectedInclusion.id}`}
+                                disabled={isReadOnly(selectedInclusion)}
+                              />
+                            </div>
                           </div>
                         </div>
 
