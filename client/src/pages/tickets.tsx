@@ -895,7 +895,7 @@ export default function Tickets() {
                                   );
                                 } else {
                                   // No ticket, so show "Aguardando Passagem"
-                                  return <StatusBadge status="aguardando_passagem" />;
+                                  return <StatusBadge status="passagem" />;
                                 }
                               } else if (ticket) {
                                 return (
