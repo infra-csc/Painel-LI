@@ -13,13 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Plus, Edit, Trash2, User } from "lucide-react";
+import { Settings, Plus, Edit, Trash2, User, Users, UserCheck, X } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import type { Function, User as UserType } from "@shared/schema";
+import type { Function, User as UserType, FunctionUser, FunctionManager } from "@shared/schema";
 
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -326,6 +326,8 @@ export default function Functions() {
                       <TableHead>Descrição</TableHead>
                       <TableHead>Área</TableHead>
                       <TableHead>Usuário Atribuído</TableHead>
+                      <TableHead>Usuários</TableHead>
+                      <TableHead>Responsáveis</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -342,6 +344,12 @@ export default function Functions() {
                             <User className="w-4 h-4" />
                             {getAssignedUserName(func.userId)}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <FunctionUsersCell functionId={func.id} />
+                        </TableCell>
+                        <TableCell>
+                          <FunctionManagersCell functionId={func.id} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
@@ -368,7 +376,7 @@ export default function Functions() {
                     ))}
                     {(!functions || functions.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           Nenhuma função cadastrada. Clique em "Nova Função" para criar a primeira.
                         </TableCell>
                       </TableRow>
@@ -380,6 +388,252 @@ export default function Functions() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Component to manage function users
+function FunctionUsersCell({ functionId }: { functionId: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: functionUsers } = useQuery<(FunctionUser & { user?: UserType })[]>({
+    queryKey: [`/api/functions/${functionId}/users`],
+    enabled: !!functionId,
+  });
+
+  const { data: users } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const addUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/functions/${functionId}/users`, {
+        method: "POST",
+        body: { userId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/users`] });
+      setSelectedUserId("");
+      toast({ title: "Usuário adicionado com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao adicionar usuário", variant: "destructive" });
+    },
+  });
+
+  const removeUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/functions/${functionId}/users/${userId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/users`] });
+      toast({ title: "Usuário removido com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao remover usuário", variant: "destructive" });
+    },
+  });
+
+  const availableUsers = users?.filter(user => 
+    !functionUsers?.some(fu => fu.userId === user.id)
+  ) || [];
+
+  const handleAddUser = () => {
+    if (selectedUserId) {
+      addUserMutation.mutate(selectedUserId);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {functionUsers?.map((fu) => {
+          const user = users?.find(u => u.id === fu.userId);
+          return (
+            <div key={fu.id} className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs">
+              <Users className="w-3 h-3" />
+              <span>{user?.name || user?.email || "Usuário"}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-4 w-4 p-0 hover:bg-blue-200"
+                onClick={() => removeUserMutation.mutate(fu.userId)}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline" className="text-xs">
+            <Plus className="w-3 h-3 mr-1" />
+            Adicionar
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Usuário à Função</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleAddUser} 
+                disabled={!selectedUserId || addUserMutation.isPending}
+                className="flex-1"
+              >
+                Adicionar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Component to manage function managers
+function FunctionManagersCell({ functionId }: { functionId: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: functionManagers } = useQuery<(FunctionManager & { user?: UserType })[]>({
+    queryKey: [`/api/functions/${functionId}/managers`],
+    enabled: !!functionId,
+  });
+
+  const { data: users } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
+  });
+
+  const addManagerMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/functions/${functionId}/managers`, {
+        method: "POST",
+        body: { userId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
+      setSelectedUserId("");
+      toast({ title: "Responsável adicionado com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao adicionar responsável", variant: "destructive" });
+    },
+  });
+
+  const removeManagerMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/functions/${functionId}/managers/${userId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/functions/${functionId}/managers`] });
+      toast({ title: "Responsável removido com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao remover responsável", variant: "destructive" });
+    },
+  });
+
+  const availableUsers = users?.filter(user => 
+    !functionManagers?.some(fm => fm.userId === user.id)
+  ) || [];
+
+  const handleAddManager = () => {
+    if (selectedUserId) {
+      addManagerMutation.mutate(selectedUserId);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {functionManagers?.map((fm) => {
+          const user = users?.find(u => u.id === fm.userId);
+          return (
+            <div key={fm.id} className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs">
+              <UserCheck className="w-3 h-3" />
+              <span>{user?.name || user?.email || "Usuário"}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-4 w-4 p-0 hover:bg-green-200"
+                onClick={() => removeManagerMutation.mutate(fm.userId)}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline" className="text-xs">
+            <Plus className="w-3 h-3 mr-1" />
+            Adicionar
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Responsável à Função</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name || user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsOpen(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleAddManager} 
+                disabled={!selectedUserId || addManagerMutation.isPending}
+                className="flex-1"
+              >
+                Adicionar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
