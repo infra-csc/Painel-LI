@@ -1158,32 +1158,34 @@ export default function Tickets() {
                             <FileText className="w-4 h-4 mr-1" />
                             Passagem registrada com sucesso
                           </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Mudar para modo de edição
-                              setTicketData(prev => ({
-                                ...prev,
-                                [selectedInclusion.id]: {
-                                  value: ((ticket.value || 0) / 100).toString(),
-                                  departureAirport: ticket.departureAirport || "",
-                                  destinationAirport: ticket.destinationAirport || "",
-                                  purchaseOrderNumber: ticket.purchaseOrderNumber || "",
-                                  actualDepartureDate: ticket.actualDepartureDate || "",
-                                  actualReturnDate: ticket.actualReturnDate || "",
-                                  actualDepartureTime: ticket.actualDepartureTime || "",
-                                  actualReturnTime: ticket.actualReturnTime || "",
-                                  cardLastFourDigits: ticket.cardLastFourDigits || "",
-                                  attachmentIds: ticket.attachmentIds || []
-                                }
-                              }));
-                              // Forçar re-render para modo de edição
-                              setEditingTicketId(selectedInclusion.id);
-                            }}
-                          >
-                            Editar Dados
-                          </Button>
+                          {!isReadOnly(selectedInclusion) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Mudar para modo de edição
+                                setTicketData(prev => ({
+                                  ...prev,
+                                  [selectedInclusion.id]: {
+                                    value: ((ticket.value || 0) / 100).toString(),
+                                    departureAirport: ticket.departureAirport || "",
+                                    destinationAirport: ticket.destinationAirport || "",
+                                    purchaseOrderNumber: ticket.purchaseOrderNumber || "",
+                                    actualDepartureDate: ticket.actualDepartureDate || "",
+                                    actualReturnDate: ticket.actualReturnDate || "",
+                                    actualDepartureTime: ticket.actualDepartureTime || "",
+                                    actualReturnTime: ticket.actualReturnTime || "",
+                                    cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                    attachmentIds: ticket.attachmentIds || []
+                                  }
+                                }));
+                                // Forçar re-render para modo de edição
+                                setEditingTicketId(selectedInclusion.id);
+                              }}
+                            >
+                              Editar Dados
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1219,6 +1221,7 @@ export default function Tickets() {
                               value={data.value || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                               className="mt-1"
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           <div>
@@ -1230,6 +1233,7 @@ export default function Tickets() {
                               placeholder="Ex: GRU"
                               value={data.departureAirport || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           <div>
@@ -1241,6 +1245,7 @@ export default function Tickets() {
                               placeholder="Ex: RJ"
                               value={data.destinationAirport || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           <div>
@@ -1252,6 +1257,7 @@ export default function Tickets() {
                               placeholder="Número da OC"
                               value={data.purchaseOrderNumber || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           
@@ -1267,6 +1273,7 @@ export default function Tickets() {
                               value={data.actualDepartureTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
                               className="mt-1"
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           <div>
@@ -1280,6 +1287,7 @@ export default function Tickets() {
                               value={data.actualReturnTime || ""}
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
                               className="mt-1"
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                           
@@ -1295,6 +1303,7 @@ export default function Tickets() {
                               onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
                               className="mt-1"
                               data-testid={`input-card-digits-${selectedInclusion.id}`}
+                              disabled={isReadOnly(selectedInclusion)}
                             />
                           </div>
                         </div>
@@ -1306,7 +1315,7 @@ export default function Tickets() {
                             onAttachmentsChange={(attachmentIds) => 
                               handleTicketDataChange(selectedInclusion.id, "attachmentIds", attachmentIds)
                             }
-                            disabled={createTicketMutation.isPending}
+                            disabled={createTicketMutation.isPending || isReadOnly(selectedInclusion)}
                           />
                         </div>
 
