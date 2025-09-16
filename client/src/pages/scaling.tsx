@@ -1183,7 +1183,7 @@ export default function Scaling() {
                       value={modalData.dailyValue || ""}
                       onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
                       className="mt-1 text-xs h-8"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion) || isEscalated(selectedInclusion)}
                     />
                   </div>
                   <div>
