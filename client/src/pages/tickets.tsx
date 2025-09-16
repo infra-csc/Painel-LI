@@ -1131,7 +1131,7 @@ export default function Tickets() {
                             {/* Trecho de IDA */}
                             <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
                               <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛫 Trecho de IDA
+                                🛫 IDA
                               </h4>
                               <div className="space-y-2">
                                 <div>
@@ -1159,7 +1159,7 @@ export default function Tickets() {
                             {/* Trecho de VOLTA */}
                             <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
                               <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛬 Trecho de VOLTA
+                                🛬 VOLTA
                               </h4>
                               <div className="space-y-2">
                                 <div>
@@ -1372,7 +1372,7 @@ export default function Tickets() {
                               {/* Trecho de IDA */}
                               <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                                 <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  🛫 Trecho de IDA
+                                  🛫 IDA
                                 </h5>
                                 <div className="space-y-3">
                                   <div>
@@ -1434,7 +1434,7 @@ export default function Tickets() {
                               {/* Trecho de VOLTA */}
                               <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                                 <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  🛬 Trecho de VOLTA
+                                  🛬 VOLTA
                                 </h5>
                                 <div className="space-y-3">
                                   <div className="bg-yellow-50 dark:bg-yellow-950 p-3 rounded border border-yellow-200 dark:border-yellow-700">
