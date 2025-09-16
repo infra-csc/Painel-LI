@@ -127,7 +127,7 @@ export const tickets = pgTable("tickets", {
   actualReturnDate: date("actual_return_date").notNull(), // agora obrigatório
   actualReturnTime: text("actual_return_time"),
   departureAirport: text("departure_airport"), // aeroporto origem da ida 
-  destinationAirport: text("destination_airport"), // aeroporto destino da ida e origem da volta
+  destinationAirport: text("destination_airport"), // aeroporto destino da ida
   value: integer("value"), // valor em centavos
   purchaseOrderNumber: text("purchase_order_number"),
   fileUrl: text("file_url"),

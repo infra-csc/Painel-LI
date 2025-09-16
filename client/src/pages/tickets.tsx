@@ -1165,10 +1165,12 @@ export default function Tickets() {
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Origem</Label>
                                   <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                                  <p className="text-xs text-gray-500">Normalmente o destino da ida</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Destino</Label>
                                   <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                                  <p className="text-xs text-gray-500">Normalmente a origem da ida</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data e Horário</Label>
@@ -1435,23 +1437,18 @@ export default function Tickets() {
                                   🛬 Trecho de VOLTA
                                 </h5>
                                 <div className="space-y-3">
-                                  <div>
-                                    <Label className="text-sm font-medium text-gray-600">
-                                      Aeroporto Origem
-                                    </Label>
-                                    <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded border text-sm text-gray-600 dark:text-gray-400">
-                                      {data.destinationAirport || "Mesmo destino da ida"}
+                                  <div className="bg-yellow-50 dark:bg-yellow-950 p-3 rounded border border-yellow-200 dark:border-yellow-700">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                      <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Aeroportos da Volta</span>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-1">Automaticamente igual ao destino da ida</p>
-                                  </div>
-                                  <div>
-                                    <Label className="text-sm font-medium text-gray-600">
-                                      Aeroporto Destino
-                                    </Label>
-                                    <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded border text-sm text-gray-600 dark:text-gray-400">
-                                      {data.departureAirport || "Mesmo origem da ida"}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">Automaticamente igual à origem da ida</p>
+                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                                      <strong>Origem:</strong> Normalmente {data.destinationAirport || "o destino da ida"}<br/>
+                                      <strong>Destino:</strong> Normalmente {data.departureAirport || "a origem da ida"}
+                                    </p>
+                                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                                      📝 Se os aeroportos da volta forem diferentes, adicione essa informação nos comentários.
+                                    </p>
                                   </div>
                                   <div>
                                     <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
