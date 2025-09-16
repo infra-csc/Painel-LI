@@ -92,6 +92,11 @@ export default function Scaling() {
     queryKey: ["/api/tickets"],
   });
 
+  // Definir selectedTicket no nível do componente
+  const selectedTicket = useMemo(() => (
+    selectedInclusion && tickets ? tickets.find(t => t.teamInclusionId === selectedInclusion.id) : undefined
+  ), [selectedInclusion?.id, tickets]);
+
   // Query para buscar comentários da inclusão selecionada
   const { data: comments } = useQuery<Comment[]>({
     queryKey: ["/api/comments", selectedInclusion?.id],
@@ -871,196 +876,182 @@ export default function Scaling() {
 
 
               {/* Informações de Passagem - só para inclusões que necessitam de passagem */}
-              {selectedInclusion.needsTicket && (() => {
-                const ticket = getTicket(selectedInclusion.id);
-                return (
-                  <div className="space-y-4">
-                    {/* Status e Dados da Passagem Comprada - PRIORIDADE QUANDO COMPRADA */}
-                    <div className={`border rounded-lg p-4 ${ticket ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
-                      <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${ticket ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Status da Passagem
-                      </h4>
-                      
-                      {ticket ? (
-                        <>
-                          {/* Status: Passagem Comprada */}
-                          <div className="flex items-center gap-2 mb-4">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                              Passagem Comprada
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              Valor: {formatCurrency((ticket.value || 0) / 100)}
-                            </span>
-                          </div>
-
-                          {/* Dados Reais da Passagem - DESTAQUE PRINCIPAL */}
-                          <div className="bg-white dark:bg-gray-900 border-2 border-green-300 dark:border-green-700 rounded-lg p-4 shadow-sm">
-                            <Label className="text-base font-semibold text-green-700 dark:text-green-300 mb-4 block">
-                              ✈️ Passagem Comprada
-                            </Label>
-                            <div className="grid grid-cols-2 gap-6">
-                              {/* Trecho de IDA */}
-                              <div className="space-y-3">
-                                <h5 className="font-medium text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
-                                  🛫 IDA
-                                </h5>
-                                <div className="space-y-2">
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Origem:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.departureAirport || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Destino:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.destinationAirport || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Data:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                    <span className="text-xs text-green-600 dark:text-green-300 font-medium">Horário</span>
-                                    <div className="text-lg font-bold text-green-800 dark:text-green-100">
-                                      {ticket.actualDepartureTime || '--:--'}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Trecho de VOLTA */}
-                              <div className="space-y-3">
-                                <h5 className="font-medium text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
-                                  🛬 VOLTA
-                                </h5>
-                                <div className="space-y-2">
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Origem:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.destinationAirport || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Destino:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.departureAirport || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Data:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                    <span className="text-xs text-green-600 dark:text-green-300 font-medium">Horário</span>
-                                    <div className="text-lg font-bold text-green-800 dark:text-green-100">
-                                      {ticket.actualReturnTime || '--:--'}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        /* Status: Passagem Não Comprada */
-                        <div className="flex items-center gap-2">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                            Passagem Pendente
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            Passagem ainda não foi comprada
-                          </span>
+              {selectedInclusion?.needsTicket && (
+                <section className="space-y-4">
+                  {selectedTicket ? (
+                    <>
+                      {/* Informações Gerais da Compra */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                          <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💰 Valor</Label>
+                          <p className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency((selectedTicket.value || 0) / 100)}</p>
                         </div>
-                      )}
-                    </div>
+                        <div>
+                          <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📅 Data da Compra</Label>
+                          <p className="font-medium">{selectedTicket.purchaseDate ? formatDate(selectedTicket.purchaseDate) : "-"}</p>
+                        </div>
+                        {selectedTicket.purchaseOrderNumber && (
+                          <div>
+                            <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 Ordem de Compra</Label>
+                            <p className="font-medium">{selectedTicket.purchaseOrderNumber}</p>
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Sugestões de Viagem - MENOR DESTAQUE QUANDO PASSAGEM JÁ COMPRADA */}
-                    <details className={`border rounded-lg ${ticket ? 'bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-700' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700'}`} 
-                             open={!ticket}>
-                      <summary className={`p-3 cursor-pointer font-medium text-sm ${ticket ? 'text-gray-600 dark:text-gray-400' : 'text-blue-700 dark:text-blue-300'} hover:bg-opacity-80 transition-colors`}>
-                        <span className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      {/* Detalhes dos Voos - Agrupados por Trecho */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Trecho de IDA */}
+                        <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                          <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                            🛫 IDA
+                          </h4>
+                          <div className="space-y-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Origem</Label>
+                              <p className="font-medium">{selectedTicket.departureAirport || "-"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Destino</Label>
+                              <p className="font-medium">{selectedTicket.destinationAirport || "-"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Data</Label>
+                              <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                                {selectedTicket.actualDepartureDate ? formatDate(selectedTicket.actualDepartureDate) : "-"}
+                              </p>
+                              <Label className="text-xs text-muted-foreground">Horário</Label>
+                              <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                <span className="text-lg font-bold text-green-800 dark:text-green-100">
+                                  {selectedTicket.actualDepartureTime || "--:--"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Trecho de VOLTA */}
+                        <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                          <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                            🛬 VOLTA
+                          </h4>
+                          <div className="space-y-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Origem</Label>
+                              <p className="font-medium">{selectedTicket.destinationAirport || "-"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Destino</Label>
+                              <p className="font-medium">{selectedTicket.departureAirport || "-"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Data</Label>
+                              <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                                {selectedTicket.actualReturnDate ? formatDate(selectedTicket.actualReturnDate) : "-"}
+                              </p>
+                              <Label className="text-xs text-muted-foreground">Horário</Label>
+                              <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                <span className="text-lg font-bold text-green-800 dark:text-green-100">
+                                  {selectedTicket.actualReturnTime || "--:--"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Status: Passagem Não Comprada */}
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                           </svg>
-                          {ticket ? 'Ver Sugestões Originais (referência)' : 'Sugestões de Viagem'}
-                          <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
+                          Passagem Pendente
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          Passagem ainda não foi comprada
                         </span>
-                      </summary>
-                      <div className="p-4 pt-2">
-                        {(() => {
-                          const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
-                          return (
-                            <div className="space-y-3">
-                              {/* Viagem de IDA - Versão Compacta */}
-                              <div className={`border rounded-md p-3 ${ticket ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-300' : 'bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'}`}>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Sugestões de Viagem - MENOR DESTAQUE QUANDO PASSAGEM JÁ COMPRADA */}
+                  <details className={`border rounded-lg ${selectedTicket ? 'bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-700' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700'}`} 
+                           open={!selectedTicket}>
+                    <summary className={`p-3 cursor-pointer font-medium text-sm ${selectedTicket ? 'text-gray-600 dark:text-gray-400' : 'text-blue-700 dark:text-blue-300'} hover:bg-opacity-80 transition-colors`}>
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        {selectedTicket ? 'Ver Sugestões Originais (referência)' : 'Sugestões de Viagem'}
+                        <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
+                      </span>
+                    </summary>
+                    <div className="p-4 pt-2">
+                      {(() => {
+                        const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                        return (
+                          <div className="space-y-3">
+                            {/* Viagem de IDA - Versão Compacta */}
+                            <div className={`border rounded-md p-3 ${selectedTicket ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-300' : 'bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'}`}>
                                 <div className="flex items-center gap-2 mb-2">
                                   <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                   </svg>
                                   <span className="text-xs font-medium">🛫 IDA</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 text-xs">
-                                  <div>
-                                    <span className="text-muted-foreground">Data:</span>
-                                    <div className="font-medium">{travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : 'Não informado'}</div>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Horário:</span>
-                                    <div className="font-medium">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : 'Não informado'}</div>
-                                  </div>
-                                </div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                </svg>
+                                <span className="text-xs font-medium">🛫 IDA</span>
                               </div>
-
-                              {/* Viagem de VOLTA - Versão Compacta */}
-                              <div className={`border rounded-md p-3 ${ticket ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-300' : 'bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'}`}>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                                  </svg>
-                                  <span className="text-xs font-medium">🛬 VOLTA</span>
+                              <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Data:</span>
+                                  <div className="font-medium">{travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : 'Não informado'}</div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 text-xs">
-                                  <div>
-                                    <span className="text-muted-foreground">Data:</span>
-                                    <div className="font-medium">{travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : 'Não informado'}</div>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Horário:</span>
-                                    <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}</div>
-                                  </div>
+                                <div>
+                                  <span className="text-muted-foreground">Horário:</span>
+                                  <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}</div>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })()}
-                      </div>
-                    </details>
-                  </div>
-                );
-              })()}
+
+                            {/* Viagem de VOLTA - Versão Compacta */}
+                            <div className={`border rounded-md p-3 ${selectedTicket ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-300' : 'bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800'}`}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                                </svg>
+                                <span className="text-xs font-medium">🛬 VOLTA</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Data:</span>
+                                  <div className="font-medium">{travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : 'Não informado'}</div>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Horário:</span>
+                                  <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </details>
+                </section>
+              )}
 
               {/* Seção de Anexos da Passagem */}
-              {(() => {
-                const ticket = getTicket(selectedInclusion.id);
-                return ticket?.attachmentIds && ticket.attachmentIds.length > 0 && (
+              {selectedTicket?.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
                   <div className="border-t pt-4">
                     <h3 className="text-lg font-medium mb-3">Anexos da Passagem</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {ticket.attachmentIds.map((attachmentId, index) => (
+                      {selectedTicket.attachmentIds.map((attachmentId, index) => (
                         <div 
                           key={attachmentId} 
                           className="flex items-center gap-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-3 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
@@ -1128,8 +1119,7 @@ export default function Scaling() {
                       ))}
                     </div>
                   </div>
-                );
-              })()}
+              )}
 
               {/* Seção de Comentários */}
               {/* Valores e Diárias - Movido para antes dos comentários */}
