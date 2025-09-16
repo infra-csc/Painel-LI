@@ -622,22 +622,30 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {inclusion.status === "cancelado" ? (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                    Cancelado
-                                  </div>
-                                ) : isEscalated(inclusion) ? (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    Escalado
-                                  </div>
-                                ) : (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                    Pendente
-                                  </div>
-                                )}
+                                <div className="flex flex-col gap-1">
+                                  {inclusion.status === "cancelado" ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                      Cancelado
+                                    </div>
+                                  ) : isEscalated(inclusion) ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Escalado
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                      Pendente
+                                    </div>
+                                  )}
+                                  {getTicket(inclusion.id) && (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      ✈️ Passagem Comprada
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -715,22 +723,30 @@ export default function Scaling() {
                                 </div>
                               </td>
                               <td className="px-3 py-4">
-                                {inclusion.status === "cancelado" ? (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                    Cancelado
-                                  </div>
-                                ) : isEscalated(inclusion) ? (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    Escalado
-                                  </div>
-                                ) : (
-                                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                    Pendente
-                                  </div>
-                                )}
+                                <div className="flex flex-col gap-1">
+                                  {inclusion.status === "cancelado" ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                      Cancelado
+                                    </div>
+                                  ) : isEscalated(inclusion) ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Escalado
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                      Pendente
+                                    </div>
+                                  )}
+                                  {getTicket(inclusion.id) && (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      ✈️ Passagem Comprada
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
