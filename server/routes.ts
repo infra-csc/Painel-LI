@@ -412,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/managers", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session?.userId;
+      const userId = req.headers['user-id'] as string;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -445,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/functions/:functionId/managers/:userId", async (req, res) => {
     try {
       const { functionId, userId: targetUserId } = req.params;
-      const userId = req.session?.userId;
+      const userId = req.headers['user-id'] as string;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
