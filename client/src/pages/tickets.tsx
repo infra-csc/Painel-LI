@@ -1143,15 +1143,16 @@ export default function Tickets() {
                                   <p className="font-medium">{ticket.destinationAirport || "-"}</p>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Data e Horário</Label>
-                                  <p className="font-medium text-blue-600 dark:text-blue-400">
+                                  <Label className="text-xs text-muted-foreground">Data</Label>
+                                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
                                     {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : "-"}
-                                    {ticket.actualDepartureTime && (
-                                      <span className="ml-2 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
-                                        {ticket.actualDepartureTime}
-                                      </span>
-                                    )}
                                   </p>
+                                  <Label className="text-xs text-muted-foreground">Horário</Label>
+                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                    <span className="text-lg font-bold text-green-800 dark:text-green-100">
+                                      {ticket.actualDepartureTime || "--:--"}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1171,15 +1172,16 @@ export default function Tickets() {
                                   <p className="font-medium">{ticket.departureAirport || "-"}</p>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Data e Horário</Label>
-                                  <p className="font-medium text-blue-600 dark:text-blue-400">
+                                  <Label className="text-xs text-muted-foreground">Data</Label>
+                                  <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
                                     {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : "-"}
-                                    {ticket.actualReturnTime && (
-                                      <span className="ml-2 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
-                                        {ticket.actualReturnTime}
-                                      </span>
-                                    )}
                                   </p>
+                                  <Label className="text-xs text-muted-foreground">Horário</Label>
+                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                    <span className="text-lg font-bold text-green-800 dark:text-green-100">
+                                      {ticket.actualReturnTime || "--:--"}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
