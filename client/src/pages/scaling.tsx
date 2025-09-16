@@ -1056,7 +1056,7 @@ export default function Scaling() {
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
-                                  <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}</div>
+                                  <div className="font-medium">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : 'Não informado'}</div>
                                 </div>
                               </div>
                             </div>
