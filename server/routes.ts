@@ -338,18 +338,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/users", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session?.userId;
-      
-      console.log("[DEBUG] Session userId:", userId);
-      console.log("[DEBUG] Full session:", req.session);
+      const userId = req.headers['user-id'] as string;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
 
       const user = await storage.getUser(userId);
-      console.log("[DEBUG] User from storage:", user);
-      
       if (!user) {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
@@ -377,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/functions/:functionId/users/:userId", async (req, res) => {
     try {
       const { functionId, userId: targetUserId } = req.params;
-      const userId = req.session?.userId;
+      const userId = req.headers['user-id'] as string;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
