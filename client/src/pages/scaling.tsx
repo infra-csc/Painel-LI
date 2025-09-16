@@ -982,7 +982,7 @@ export default function Scaling() {
                       </summary>
                       <div className="p-4 pt-2">
                         {(() => {
-                          const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined);
+                          const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
                           return (
                             <div className="space-y-3">
                               {/* Viagem de IDA - Versão Compacta */}
