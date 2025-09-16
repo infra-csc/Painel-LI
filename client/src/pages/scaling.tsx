@@ -309,7 +309,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: "", // 🔧 Campo vazio - usuário deve inserir observações manualmente
+      observations: inclusion.observations || "", // Preservar observações existentes
       dailyValue: 0, // Always start empty, user must input value
     });
     setShowModal(true);
@@ -321,7 +321,7 @@ export default function Scaling() {
     setSelectedInclusion(inclusion);
     setModalData({
       collaboratorId: inclusion.collaboratorId || "",
-      observations: "", // 🔧 Campo vazio - usuário deve inserir observações manualmente
+      observations: inclusion.observations || "", // Preservar observações existentes
       dailyValue: 0,
     });
     setShowModal(true);
