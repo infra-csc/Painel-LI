@@ -1086,7 +1086,7 @@ export default function Tickets() {
                   </div>
 
                   {/* Sugestões de Viagem - Mesmo formato da Escalação */}
-                  <details className="border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700" open>
+                  <details className="border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700">
                     <summary className="p-3 cursor-pointer font-medium text-sm text-blue-700 dark:text-blue-300 hover:bg-opacity-80 transition-colors">
                       <span className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
