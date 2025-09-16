@@ -340,11 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.headers['user-id'] as string;
       
-      console.log("[DEBUG] Headers:", req.headers);
-      console.log("[DEBUG] userId from header:", userId);
-      
       if (!userId) {
-        console.log("[DEBUG] No userId found in headers");
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
 
