@@ -1060,11 +1060,11 @@ export default function Tickets() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado'}</div>
+                                  <div className="font-medium">{travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado'}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
-                                  <div className="font-medium">{travelInfo.chegada !== 'Não informado' ? travelInfo.chegada : 'Não informado'}</div>
+                                  <div className="font-medium">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' ? travelInfo.chegada : 'Não informado'}</div>
                                 </div>
                               </div>
                             </div>
@@ -1080,11 +1080,11 @@ export default function Tickets() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado'}</div>
+                                  <div className="font-medium">{travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado'}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
-                                  <div className="font-medium">{travelInfo.horario !== 'Não informado' ? travelInfo.horario : 'Não informado'}</div>
+                                  <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' ? travelInfo.horario : 'Não informado'}</div>
                                 </div>
                               </div>
                             </div>
