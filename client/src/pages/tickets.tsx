@@ -997,7 +997,7 @@ export default function Tickets() {
                 <div className="space-y-6 mt-6">
                   {/* Informações Básicas */}
                   <div className="bg-muted p-4 rounded-lg">
-                    <h3 className="font-medium mb-3">Informações Gerais - ID: {selectedInclusion.id}</h3>
+                    <h3 className="font-medium mb-3">Informações Gerais - ID: #{selectedInclusion.inclusionNumber}</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs text-muted-foreground">Colaborador</Label>
@@ -1040,7 +1040,7 @@ export default function Tickets() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
-                        Sugestões de Viagem - ID: {selectedInclusion.id}
+                        Sugestões de Viagem - ID: #{selectedInclusion.inclusionNumber}
                         <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
                       </span>
                     </summary>
@@ -1105,7 +1105,7 @@ export default function Tickets() {
                         <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
                           <h3 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
                             <FileText className="w-4 h-4" />
-                            ✅ Passagem Comprada - ID: {selectedInclusion.id}
+                            ✅ Passagem Comprada - ID: #{selectedInclusion.inclusionNumber}
                           </h3>
                           
                           {/* Informações Gerais da Compra */}
@@ -1299,7 +1299,7 @@ export default function Tickets() {
                       <div className="space-y-6">
                         {/* Período de Trabalho */}
                         <div className="p-4 bg-accent/50 rounded-lg">
-                          <h4 className="font-medium text-foreground mb-3">Período de Trabalho - ID: {selectedInclusion.id}</h4>
+                          <h4 className="font-medium text-foreground mb-3">Período de Trabalho - ID: #{selectedInclusion.inclusionNumber}</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <Label className="text-xs text-muted-foreground">Data Início</Label>
@@ -1318,7 +1318,7 @@ export default function Tickets() {
                           {/* Informações Gerais */}
                           <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
                             <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
-                              💰 Informações da Compra - ID: {selectedInclusion.id}
+                              💰 Informações da Compra - ID: #{selectedInclusion.inclusionNumber}
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
@@ -1354,7 +1354,7 @@ export default function Tickets() {
                           {/* Informações dos Aeroportos */}
                           <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
                             <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              ✈️ Aeroportos - ID: {selectedInclusion.id}
+                              ✈️ Aeroportos - ID: #{selectedInclusion.inclusionNumber}
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
@@ -1387,7 +1387,7 @@ export default function Tickets() {
                           {/* Dados dos Voos */}
                           <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg border-l-4 border-orange-500">
                             <h4 className="font-medium mb-4 text-orange-800 dark:text-orange-200 flex items-center gap-2">
-                              🗓️ Datas e Horários dos Voos - ID: {selectedInclusion.id}
+                              🗓️ Datas e Horários dos Voos - ID: #{selectedInclusion.inclusionNumber}
                             </h4>
                             
                             {/* Voo de Ida */}
@@ -1468,7 +1468,7 @@ export default function Tickets() {
                           {/* Informações Adicionais */}
                           <div className="bg-gray-50 dark:bg-gray-950 p-4 rounded-lg border-l-4 border-gray-500">
                             <h4 className="font-medium mb-4 text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                              💳 Informações Adicionais - ID: {selectedInclusion.id}
+                              💳 Informações Adicionais - ID: #{selectedInclusion.inclusionNumber}
                             </h4>
                             <div>
                               <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1503,7 +1503,7 @@ export default function Tickets() {
                         {/* Seção de Comentários */}
                         <div className="space-y-4 border-t pt-4">
                           <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-foreground">Comentários - ID: {selectedInclusion.id}</h4>
+                            <h4 className="font-medium text-foreground">Comentários - ID: #{selectedInclusion.inclusionNumber}</h4>
                             <Button
                               variant="outline"
                               size="sm"
