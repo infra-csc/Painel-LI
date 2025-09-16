@@ -24,7 +24,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   confirmPassword: z.string(),
   name: z.string().min(1, "Nome é obrigatório"),
-  role: z.enum(["production", "function_area", "purchasing", "financial"]),
+  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"]),
   area: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Senhas não coincidem",
@@ -188,6 +188,7 @@ export default function AuthPage() {
 
   const getRoleLabel = (role: string) => {
     const labels = {
+      admin: "Administrador",
       production: "Área de Produção",
       function_area: "Áreas responsáveis por funções",
       purchasing: "Área de Compras/Viagem",
@@ -330,6 +331,7 @@ export default function AuthPage() {
                         <SelectValue placeholder="Selecione sua área" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="production">Área de Produção</SelectItem>
                         <SelectItem value="function_area">Áreas responsáveis por funções</SelectItem>
                         <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>

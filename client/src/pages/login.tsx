@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
 
 export default function Login() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -19,7 +19,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const success = await login(username, password);
+      const success = await login(email, password);
       if (success) {
         toast({
           title: "Sucesso",
@@ -28,7 +28,7 @@ export default function Login() {
       } else {
         toast({
           title: "Erro",
-          description: "Credenciais inválidas. Verifique nome de usuário e senha.",
+          description: "Credenciais inválidas. Verifique e-mail e senha.",
           variant: "destructive",
         });
       }
@@ -58,15 +58,15 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Nome de usuário ou E-mail</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Digite seu usuário ou e-mail"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Digite seu e-mail"
                 required
-                data-testid="input-username"
+                data-testid="input-email"
               />
             </div>
             <div className="space-y-2">
