@@ -902,50 +902,70 @@ export default function Scaling() {
                           {/* Dados Reais da Passagem - DESTAQUE PRINCIPAL */}
                           <div className="bg-white dark:bg-gray-900 border-2 border-green-300 dark:border-green-700 rounded-lg p-4 shadow-sm">
                             <Label className="text-base font-semibold text-green-700 dark:text-green-300 mb-4 block">
-                              ✈️ Dados Reais da Passagem Comprada
+                              ✈️ Passagem Comprada
                             </Label>
                             <div className="grid grid-cols-2 gap-6">
-                              <div>
-                                <div className="space-y-3">
+                              {/* Trecho de IDA */}
+                              <div className="space-y-3">
+                                <h5 className="font-medium text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
+                                  🛫 IDA
+                                </h5>
+                                <div className="space-y-2">
                                   <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Data Ida:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Horário Ida:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.actualDepartureTime || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Aeroporto Ida:</span>{' '}
+                                    <span className="font-semibold text-foreground">Origem:</span>{' '}
                                     <span className="text-muted-foreground">
                                       {ticket.departureAirport || 'Não informado'}
                                     </span>
                                   </div>
+                                  <div className="text-sm">
+                                    <span className="font-semibold text-foreground">Destino:</span>{' '}
+                                    <span className="text-muted-foreground">
+                                      {ticket.destinationAirport || 'Não informado'}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm">
+                                    <span className="font-semibold text-foreground">Data:</span>{' '}
+                                    <span className="text-muted-foreground">
+                                      {ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : 'Não informado'}
+                                    </span>
+                                  </div>
+                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                    <span className="text-xs text-green-600 dark:text-green-300 font-medium">Horário</span>
+                                    <div className="text-lg font-bold text-green-800 dark:text-green-100">
+                                      {ticket.actualDepartureTime || '--:--'}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                              <div>
-                                <div className="space-y-3">
+                              {/* Trecho de VOLTA */}
+                              <div className="space-y-3">
+                                <h5 className="font-medium text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
+                                  🛬 VOLTA
+                                </h5>
+                                <div className="space-y-2">
                                   <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Data Retorno:</span>{' '}
+                                    <span className="font-semibold text-foreground">Origem:</span>{' '}
+                                    <span className="text-muted-foreground">
+                                      {ticket.destinationAirport || 'Não informado'}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm">
+                                    <span className="font-semibold text-foreground">Destino:</span>{' '}
+                                    <span className="text-muted-foreground">
+                                      {ticket.departureAirport || 'Não informado'}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm">
+                                    <span className="font-semibold text-foreground">Data:</span>{' '}
                                     <span className="text-muted-foreground">
                                       {ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : 'Não informado'}
                                     </span>
                                   </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Horário Retorno:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.actualReturnTime || 'Não informado'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Aeroporto Volta:</span>{' '}
-                                    <span className="text-muted-foreground">
-                                      {ticket.destinationAirport || 'Não informado'}
-                                    </span>
+                                  <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
+                                    <span className="text-xs text-green-600 dark:text-green-300 font-medium">Horário</span>
+                                    <div className="text-lg font-bold text-green-800 dark:text-green-100">
+                                      {ticket.actualReturnTime || '--:--'}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
