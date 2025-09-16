@@ -549,9 +549,9 @@ export default function Scaling() {
             const withoutTicket = scalingInclusions.filter(inclusion => !inclusion.needsTicket);
             const withTicket = scalingInclusions.filter(inclusion => inclusion.needsTicket);
             
-            // Count pending escalations
-            const withoutTicketPending = withoutTicket.filter(inclusion => !isEscalated(inclusion)).length;
-            const withTicketPending = withTicket.filter(inclusion => !isEscalated(inclusion)).length;
+            // Count pending escalations (excluding canceled ones)
+            const withoutTicketPending = withoutTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
+            const withTicketPending = withTicket.filter(inclusion => !isEscalated(inclusion) && inclusion.status !== "cancelado").length;
             
             return (
               <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
