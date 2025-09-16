@@ -19,7 +19,6 @@ import { UserPlus } from "lucide-react";
 const userRegistrationSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Digite um e-mail válido"),
-  username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   role: z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
     required_error: "Selecione uma área",
@@ -56,7 +55,6 @@ export default function UserRegistration() {
     defaultValues: {
       name: "",
       email: "",
-      username: "",
       password: "",
       area: "",
     },
@@ -155,23 +153,6 @@ export default function UserRegistration() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome de Usuário *</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Digite o nome de usuário"
-                            data-testid="input-username"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={form.control}
@@ -205,6 +186,7 @@ export default function UserRegistration() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
+                            <SelectItem value="admin">Administrador</SelectItem>
                             <SelectItem value="production">Logística Interna</SelectItem>
                             <SelectItem value="function_area">Área responsável por funções</SelectItem>
                             <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>
