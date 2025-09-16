@@ -340,11 +340,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.session?.userId;
       
+      console.log("[DEBUG] Session userId:", userId);
+      console.log("[DEBUG] Full session:", req.session);
+      
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
 
       const user = await storage.getUser(userId);
+      console.log("[DEBUG] User from storage:", user);
+      
       if (!user) {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
