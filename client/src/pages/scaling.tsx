@@ -413,21 +413,35 @@ export default function Scaling() {
     return commentUser?.name || "Usuário";
   };
 
-  // Função para extrair dados de passagem das observações
-  const extractTravelInfoFromObservations = (observations: string | undefined) => {
-    if (!observations) return { ida: 'N/A', retorno: 'N/A', chegada: 'N/A', horario: 'N/A' };
+  // Função para extrair dados de passagem das observações ou dos campos específicos
+  const extractTravelInfoFromObservations = (observations: string | undefined, inclusion?: TeamInclusion) => {
+    // Primeiro tenta extrair das observações
+    if (observations && observations.trim()) {
+      const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+      
+      return {
+        ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
+        retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
+        chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
+        horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
+      };
+    }
     
-    const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-    const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+    // Se as observações estão vazias, usa os campos específicos da inclusão
+    if (inclusion) {
+      return {
+        ida: inclusion.flightDepartureSuggestedTime || 'Não informado',
+        retorno: 'Não informado', // Campo retorno não existe nos campos específicos
+        chegada: 'Não informado', // Campo chegada não existe nos campos específicos  
+        horario: inclusion.flightReturnSuggestedTime || 'Não informado'
+      };
+    }
     
-    return {
-      ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
-      retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
-      chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
-      horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
-    };
+    // Fallback se não tem nem observações nem inclusão
+    return { ida: 'Não informado', retorno: 'Não informado', chegada: 'Não informado', horario: 'Não informado' };
   };
 
   const getPhaseLabel = (phase: string) => {
