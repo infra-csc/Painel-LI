@@ -413,7 +413,7 @@ export default function Tickets() {
     const requiredFields = [
       { field: 'value', label: 'Valor da Passagem' },
       { field: 'departureAirport', label: 'Aeroporto Ida' },
-      { field: 'destinationAirport', label: 'Aeroporto Destino' },
+      { field: 'destinationAirport', label: 'Aeroporto Volta' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
       { field: 'actualDepartureTime', label: 'Horário de Ida' },
@@ -1158,7 +1158,7 @@ export default function Tickets() {
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Volta</Label>
                                   <p className="font-medium">{ticket.destinationAirport || "-"}</p>
                                 </div>
                                 <div>
@@ -1370,7 +1370,7 @@ export default function Tickets() {
                               </div>
                               <div>
                                 <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                  Aeroporto Destino *
+                                  Aeroporto Volta *
                                 </Label>
                                 <Input
                                   id={`destinationAirport-${selectedInclusion.id}`}

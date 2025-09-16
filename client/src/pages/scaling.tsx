@@ -928,7 +928,7 @@ export default function Scaling() {
                                     </span>
                                   </div>
                                   <div className="text-sm">
-                                    <span className="font-semibold text-foreground">Aeroporto Destino:</span>{' '}
+                                    <span className="font-semibold text-foreground">Aeroporto Volta:</span>{' '}
                                     <span className="text-muted-foreground">
                                       {ticket.destinationAirport || 'Não informado'}
                                     </span>
