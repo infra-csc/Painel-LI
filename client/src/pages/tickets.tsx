@@ -1126,17 +1126,21 @@ export default function Tickets() {
                             )}
                           </div>
 
-                          {/* Detalhes dos Voos */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Voo de Ida */}
+                          {/* Detalhes dos Voos - Agrupados por Trecho */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Trecho de IDA */}
                             <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
                               <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛫 Voo de Ida
+                                🛫 Trecho de IDA
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Ida</Label>
+                                  <Label className="text-xs text-muted-foreground">Origem</Label>
                                   <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Destino</Label>
+                                  <p className="font-medium">{ticket.destinationAirport || "-"}</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data e Horário</Label>
@@ -1152,15 +1156,19 @@ export default function Tickets() {
                               </div>
                             </div>
 
-                            {/* Voo de Volta */}
+                            {/* Trecho de VOLTA */}
                             <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
                               <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                                🛬 Voo de Volta
+                                🛬 Trecho de VOLTA
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Volta</Label>
+                                  <Label className="text-xs text-muted-foreground">Origem</Label>
                                   <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Destino</Label>
+                                  <p className="font-medium">{ticket.departureAirport || "-"}</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data e Horário</Label>
@@ -1351,52 +1359,46 @@ export default function Tickets() {
                             </div>
                           </div>
 
-                          {/* Informações dos Aeroportos */}
+                          {/* Informações dos Voos - Agrupadas por Trecho */}
                           <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
                             <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              ✈️ Aeroportos
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                  Aeroporto Ida *
-                                </Label>
-                                <Input
-                                  id={`departureAirport-${selectedInclusion.id}`}
-                                  placeholder="Ex: GRU, CGH, BSB"
-                                  value={data.departureAirport || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
-                                  disabled={isReadOnly(selectedInclusion)}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                  Aeroporto Volta *
-                                </Label>
-                                <Input
-                                  id={`destinationAirport-${selectedInclusion.id}`}
-                                  placeholder="Ex: SDU, GIG, RJ"
-                                  value={data.destinationAirport || ""}
-                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
-                                  disabled={isReadOnly(selectedInclusion)}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Dados dos Voos */}
-                          <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg border-l-4 border-orange-500">
-                            <h4 className="font-medium mb-4 text-orange-800 dark:text-orange-200 flex items-center gap-2">
-                              🗓️ Datas e Horários dos Voos
+                              ✈️ Informações dos Voos
                             </h4>
                             
-                            {/* Voo de Ida */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                              <div className="bg-white dark:bg-orange-900/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-                                <h5 className="font-medium text-orange-700 dark:text-orange-300 mb-3 flex items-center gap-2">
-                                  🛫 Voo de Ida
+                            {/* Agrupamento por Trecho - Ida e Volta */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Trecho de IDA */}
+                              <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+                                  🛫 Trecho de IDA
                                 </h5>
                                 <div className="space-y-3">
+                                  <div>
+                                    <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Aeroporto Origem *
+                                    </Label>
+                                    <Input
+                                      id={`departureAirport-${selectedInclusion.id}`}
+                                      placeholder="Ex: GRU, CGH, BSB"
+                                      value={data.departureAirport || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Aeroporto Destino *
+                                    </Label>
+                                    <Input
+                                      id={`destinationAirport-${selectedInclusion.id}`}
+                                      placeholder="Ex: SDU, GIG, RJ"
+                                      value={data.destinationAirport || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
                                   <div>
                                     <Label htmlFor={`actualDepartureDate-${selectedInclusion.id}`} className="text-sm font-medium">
                                       Data de Ida *
@@ -1427,12 +1429,30 @@ export default function Tickets() {
                                 </div>
                               </div>
 
-                              {/* Voo de Volta */}
-                              <div className="bg-white dark:bg-orange-900/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-                                <h5 className="font-medium text-orange-700 dark:text-orange-300 mb-3 flex items-center gap-2">
-                                  🛬 Voo de Volta
+                              {/* Trecho de VOLTA */}
+                              <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+                                  🛬 Trecho de VOLTA
                                 </h5>
                                 <div className="space-y-3">
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-600">
+                                      Aeroporto Origem
+                                    </Label>
+                                    <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded border text-sm text-gray-600 dark:text-gray-400">
+                                      {data.destinationAirport || "Mesmo destino da ida"}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Automaticamente igual ao destino da ida</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-600">
+                                      Aeroporto Destino
+                                    </Label>
+                                    <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded border text-sm text-gray-600 dark:text-gray-400">
+                                      {data.departureAirport || "Mesmo origem da ida"}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Automaticamente igual à origem da ida</p>
+                                  </div>
                                   <div>
                                     <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
                                       Data de Volta *
