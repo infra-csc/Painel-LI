@@ -412,7 +412,7 @@ export default function Tickets() {
     // Validar campos obrigatórios
     const requiredFields = [
       { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: 'Aeroporto Origem' },
+      { field: 'departureAirport', label: 'Aeroporto Ida' },
       { field: 'destinationAirport', label: 'Aeroporto Destino' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
@@ -1134,7 +1134,7 @@ export default function Tickets() {
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Ida</Label>
                                   <p className="font-medium">{ticket.departureAirport || "-"}</p>
                                 </div>
                                 <div>
@@ -1358,7 +1358,7 @@ export default function Tickets() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
                                 <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                  Aeroporto Origem *
+                                  Aeroporto Ida *
                                 </Label>
                                 <Input
                                   id={`departureAirport-${selectedInclusion.id}`}
