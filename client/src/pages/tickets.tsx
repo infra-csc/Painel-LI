@@ -1165,12 +1165,10 @@ export default function Tickets() {
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Origem</Label>
                                   <p className="font-medium">{ticket.destinationAirport || "-"}</p>
-                                  <p className="text-xs text-gray-500">Normalmente o destino da ida</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Destino</Label>
                                   <p className="font-medium">{ticket.departureAirport || "-"}</p>
-                                  <p className="text-xs text-gray-500">Normalmente a origem da ida</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data e Horário</Label>
@@ -1437,18 +1435,31 @@ export default function Tickets() {
                                   🛬 VOLTA
                                 </h5>
                                 <div className="space-y-3">
-                                  <div className="bg-yellow-50 dark:bg-yellow-950 p-3 rounded border border-yellow-200 dark:border-yellow-700">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                      <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Aeroportos da Volta</span>
-                                    </div>
-                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                                      <strong>Origem:</strong> Normalmente {data.destinationAirport || "o destino da ida"}<br/>
-                                      <strong>Destino:</strong> Normalmente {data.departureAirport || "a origem da ida"}
-                                    </p>
-                                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-                                      📝 Se os aeroportos da volta forem diferentes, adicione essa informação nos comentários.
-                                    </p>
+                                  <div>
+                                    <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Aeroporto Origem *
+                                    </Label>
+                                    <Input
+                                      id={`returnOriginAirport-${selectedInclusion.id}`}
+                                      placeholder="Ex: SDU, GIG, GRU"
+                                      value={data.returnOriginAirport || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Aeroporto Destino *
+                                    </Label>
+                                    <Input
+                                      id={`returnDestinationAirport-${selectedInclusion.id}`}
+                                      placeholder="Ex: GRU, CGH, BSB"
+                                      value={data.returnDestinationAirport || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
+                                      className="mt-1"
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
                                   </div>
                                   <div>
                                     <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
