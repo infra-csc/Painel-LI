@@ -658,7 +658,7 @@ export default function Tickets() {
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-medium">Horário *</Label>
+                          <Label className="text-[10px] font-medium">Horário de Ida *</Label>
                           <Input
                             type="time"
                             value={ticketData["quick"]?.actualDepartureTime || ""}
@@ -709,7 +709,7 @@ export default function Tickets() {
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-medium">Horário *</Label>
+                          <Label className="text-[10px] font-medium">Horário de Volta *</Label>
                           <Input
                             type="time"
                             value={ticketData["quick"]?.actualReturnTime || ""}
