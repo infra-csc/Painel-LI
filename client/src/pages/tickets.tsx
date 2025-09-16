@@ -1105,7 +1105,7 @@ export default function Tickets() {
                         <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
                           <h3 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
                             <FileText className="w-4 h-4" />
-                            ✅ Passagem Comprada
+                            ✅ Passagem Comprada - ID: {selectedInclusion.id}
                           </h3>
                           
                           {/* Informações Gerais da Compra */}
