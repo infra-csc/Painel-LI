@@ -27,6 +27,7 @@ export default function Scaling() {
     functionId: "all",
     collaboratorId: "all",
     escalationStatus: "all",
+    ticketStatus: "all", // all, purchased, not-purchased
     searchId: "",
   });
   
@@ -221,6 +222,13 @@ export default function Scaling() {
           if (filters.escalationStatus === "pending" && (escalated || isCanceled)) return false;
           if (filters.escalationStatus === "escalated" && (!escalated || isCanceled)) return false;
           if (filters.escalationStatus === "cancelado" && !isCanceled) return false;
+        }
+
+        // Apply ticket status filter
+        if (filters.ticketStatus !== "all") {
+          const hasTicket = getTicket(inclusion.id) !== undefined;
+          if (filters.ticketStatus === "purchased" && !hasTicket) return false;
+          if (filters.ticketStatus === "not-purchased" && hasTicket) return false;
         }
         
         return idMatch;
@@ -502,6 +510,30 @@ export default function Scaling() {
           </div>
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
+          
+          {/* Filtro específico para status de passagem */}
+          <div className="px-6 pb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-64">
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Status da Passagem
+                </label>
+                <Select 
+                  value={filters.ticketStatus} 
+                  onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
+                >
+                  <SelectTrigger data-testid="select-ticket-status">
+                    <SelectValue placeholder="Selecionar status da passagem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="purchased">✈️ Passagens Compradas</SelectItem>
+                    <SelectItem value="not-purchased">❌ Passagens Não Compradas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
 
           {scalingInclusions.length === 0 ? (
             <div className="p-12 text-center">
