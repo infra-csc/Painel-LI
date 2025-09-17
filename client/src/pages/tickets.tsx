@@ -184,6 +184,34 @@ export default function Tickets() {
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   };
 
+  // Função específica para formatar datas nas sugestões de viagem (similiar à do scaling)
+  const formatSuggestionDate = (dateStr: string | null | undefined) => {
+    if (!dateStr || dateStr === 'N/A' || dateStr === 'Não definido' || dateStr === 'Não informado') {
+      return 'Não informado';
+    }
+    
+    // Se já está no formato DD/MM/YYYY, retorna como está
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Se está no formato YYYY-MM-DD, converte para DD/MM/YYYY
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-');
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    
+    // Para outros formatos, tenta extrair números que possam ser datas
+    const dateMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch;
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    
+    // Se não conseguir formatar, retorna o valor original
+    return dateStr;
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -980,11 +1008,11 @@ export default function Tickets() {
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">
-                                  <span className="font-medium">Ida:</span> {travelInfo.ida !== 'Não definido' ? travelInfo.ida : "N/A"}
+                                  <span className="font-medium">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' ? travelInfo.ida : "N/A")}
                                   {travelInfo.chegada !== 'Não definido' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Volta:</span> {travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : "N/A"}
+                                  <span className="font-medium">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : "N/A")}
                                   {travelInfo.horario !== 'Não definido' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
                                 </div>
                               </div>
@@ -1111,7 +1139,7 @@ export default function Tickets() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado'}</div>
+                                  <div className="font-medium">{formatSuggestionDate(travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado')}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
@@ -1131,7 +1159,7 @@ export default function Tickets() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado'}</div>
+                                  <div className="font-medium">{formatSuggestionDate(travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado')}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
