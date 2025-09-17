@@ -442,6 +442,34 @@ export default function Scaling() {
     return `${day}/${month}/${year}`;
   };
 
+  // Função específica para formatar datas nas sugestões de viagem
+  const formatSuggestionDate = (dateStr: string | null | undefined) => {
+    if (!dateStr || dateStr === 'N/A' || dateStr === 'Não definido' || dateStr === 'Não informado') {
+      return 'Não informado';
+    }
+    
+    // Se já está no formato DD/MM/YYYY, retorna como está
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Se está no formato YYYY-MM-DD, converte para DD/MM/YYYY
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-');
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    
+    // Para outros formatos, tenta extrair números que possam ser datas
+    const dateMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch;
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    
+    // Se não conseguir formatar, retorna o valor original
+    return dateStr;
+  };
+
   const formatDateTime = (date: Date | null) => {
     if (!date) return "N/A";
     return new Intl.DateTimeFormat("pt-BR", {
@@ -1092,7 +1120,7 @@ export default function Scaling() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' ? travelInfo.ida : 'Não informado'}</div>
+                                  <div className="font-medium">{formatSuggestionDate(travelInfo.ida)}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
@@ -1112,7 +1140,7 @@ export default function Scaling() {
                               <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div>
                                   <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : 'Não informado'}</div>
+                                  <div className="font-medium">{formatSuggestionDate(travelInfo.retorno)}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Horário:</span>
