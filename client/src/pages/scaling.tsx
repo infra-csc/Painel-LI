@@ -105,6 +105,8 @@ export default function Scaling() {
     if (user?.role === 'production') return true;
     // Usuários "Área De Função" (function_area) veem todas as inclusões
     if (user?.role === 'function_area') return true;
+    // Usuários "Compras" (purchasing) veem todas as inclusões
+    if (user?.role === 'purchasing') return true;
     // Outros usuários veem apenas suas funções atribuídas como managers
     return userFunctionIds.includes(ti.functionId);
   }) || [];
@@ -230,7 +232,7 @@ export default function Scaling() {
   };
 
   // Check if user can access this screen
-  if (!canView(user as any, 'scaling')) {
+  if (!canView(user, 'scaling')) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
