@@ -23,7 +23,6 @@ import type { Function, User as UserType, FunctionUser, FunctionManager } from "
 
 const functionFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
-  description: z.string().optional(),
 });
 
 type FunctionFormData = z.infer<typeof functionFormSchema>;
@@ -54,7 +53,6 @@ export default function Functions() {
     resolver: zodResolver(functionFormSchema),
     defaultValues: {
       name: "",
-      description: "",
     },
   });
 
@@ -136,13 +134,11 @@ export default function Functions() {
       setEditingFunction(functionToEdit);
       form.reset({
         name: functionToEdit.name,
-        description: functionToEdit.description || "",
       });
     } else {
       setEditingFunction(null);
       form.reset({
         name: "",
-        description: "",
       });
     }
     setIsDialogOpen(true);
@@ -218,23 +214,6 @@ export default function Functions() {
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="description"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Descrição</FormLabel>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="Descreva as responsabilidades desta função"
-                                  {...field}
-                                  data-testid="input-function-description"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
 
 
                         <div className="flex gap-2 pt-4">
@@ -262,8 +241,6 @@ export default function Functions() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Usuários</TableHead>
                       <TableHead>Responsáveis</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -272,12 +249,6 @@ export default function Functions() {
                     {functions?.map((func) => (
                       <TableRow key={func.id}>
                         <TableCell className="font-medium">{func.name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {func.description || "Sem descrição"}
-                        </TableCell>
-                        <TableCell>
-                          <FunctionUsersCell functionId={func.id} />
-                        </TableCell>
                         <TableCell>
                           <FunctionManagersCell functionId={func.id} />
                         </TableCell>
@@ -306,7 +277,7 @@ export default function Functions() {
                     ))}
                     {(!functions || functions.length === 0) && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                           Nenhuma função cadastrada. Clique em "Nova Função" para criar a primeira.
                         </TableCell>
                       </TableRow>
