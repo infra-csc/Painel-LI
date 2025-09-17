@@ -34,20 +34,6 @@ export default function Functions() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Check if user can access this screen
-  if (!hasPermission(user, 'canAccessScreen1')) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const form = useForm<FunctionFormData>({
     resolver: zodResolver(functionFormSchema),
