@@ -5,12 +5,13 @@ interface WorkflowIndicatorProps {
 }
 
 export default function WorkflowIndicator({ currentPhase }: WorkflowIndicatorProps) {
+  // Temporarily disable closure and approval steps
   const steps = [
     { id: "inclusao", name: "Inclusão", icon: Users },
     { id: "escalacao", name: "Escalação", icon: UserCheck },
     { id: "passagem", name: "Passagem", icon: Plane },
-    { id: "fechamento", name: "Fechamento", icon: Calculator },
-    { id: "aprovacao", name: "Aprovação", icon: CheckCircle },
+    // { id: "fechamento", name: "Fechamento", icon: Calculator },
+    // { id: "aprovacao", name: "Aprovação", icon: CheckCircle },
   ];
 
   const getCurrentStepIndex = () => {

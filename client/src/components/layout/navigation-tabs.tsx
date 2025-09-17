@@ -84,8 +84,12 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
     },
   ];
 
-  // Filter tabs based on user permissions
-  const tabs = allTabs.filter(tab => hasPermission(user, tab.permission));
+  // Filter tabs based on user permissions and temporarily disable closure/approval
+  const tabs = allTabs.filter(tab => 
+    hasPermission(user, tab.permission) && 
+    tab.id !== "closure" && 
+    tab.id !== "approval"
+  );
 
   return (
     <div className="bg-card rounded-lg shadow-sm border border-border mb-8">
