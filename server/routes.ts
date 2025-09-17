@@ -15,6 +15,107 @@ import {
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 
+// Audit helpers
+function sanitizeFields(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  
+  const sensitiveFields = ['password', 'resetToken', 'resetTokenExpiry'];
+  const sanitized = { ...data };
+  
+  for (const field of sensitiveFields) {
+    if (sanitized[field] !== undefined) {
+      sanitized[field] = '[REDACTED]';
+    }
+  }
+  
+  return sanitized;
+}
+
+function safeDiff(oldData: any, newData: any): { changed: string[], previous: any, current: any } {
+  if (!oldData && !newData) return { changed: [], previous: {}, current: {} };
+  if (!oldData) return { changed: Object.keys(newData || {}), previous: {}, current: sanitizeFields(newData) };
+  if (!newData) return { changed: [], previous: sanitizeFields(oldData), current: {} };
+  
+  const changed: string[] = [];
+  const previous: any = {};
+  const current: any = {};
+  
+  // Compare all fields from both objects
+  const allFields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
+  
+  for (const field of allFields) {
+    if (oldData[field] !== newData[field]) {
+      changed.push(field);
+      previous[field] = oldData[field];
+      current[field] = newData[field];
+    }
+  }
+  
+  return {
+    changed,
+    previous: sanitizeFields(previous),
+    current: sanitizeFields(current)
+  };
+}
+
+function getEntityName(entityType: string, entityData: any): string {
+  if (!entityData) return 'N/A';
+  
+  switch (entityType) {
+    case 'user':
+      return entityData.name || entityData.email || 'Usuário';
+    case 'event':
+      return entityData.name || `Evento #${entityData.eventNumber}` || 'Evento';
+    case 'function':
+      return entityData.name || `Função #${entityData.functionNumber}` || 'Função';
+    case 'collaborator':
+      return entityData.fullName || `Colaborador #${entityData.collaboratorNumber}` || 'Colaborador';
+    case 'team_inclusion':
+      return `Inclusão #${entityData.inclusionNumber}` || 'Inclusão de Equipe';
+    case 'ticket':
+      return entityData.purchaseOrderNumber || 'Passagem';
+    case 'financial':
+      return `Financeiro #${entityData.id?.slice(0, 8)}` || 'Registro Financeiro';
+    case 'comment':
+      return `Comentário em ${entityData.phase}` || 'Comentário';
+    default:
+      return entityType;
+  }
+}
+
+async function createAuditLog(
+  action: string,
+  entityType: string, 
+  entityId: string,
+  entityData: any,
+  userId?: string,
+  userName?: string,
+  oldData?: any,
+  req?: any
+) {
+  try {
+    const diff = safeDiff(oldData, entityData);
+    
+    await storage.createSystemLog({
+      action,
+      entityType,
+      entityId,
+      entityName: getEntityName(entityType, entityData),
+      details: diff.changed.length > 0 
+        ? `Campos alterados: ${diff.changed.join(', ')}`
+        : `${action} realizada`,
+      previousData: diff.changed.length > 0 ? JSON.stringify(diff.previous) : null,
+      newData: diff.changed.length > 0 ? JSON.stringify(diff.current) : JSON.stringify(sanitizeFields(entityData)),
+      userId: userId || null,
+      userName: userName || 'Sistema',
+      ipAddress: req?.ip || req?.connection?.remoteAddress || null,
+      userAgent: req?.get('User-Agent') || null
+    });
+  } catch (error) {
+    console.error('Failed to create audit log:', error);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
@@ -37,6 +138,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isValidPassword) {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
+      
+      // Log successful login
+      await createAuditLog(
+        'login',
+        'user',
+        user.id,
+        user,
+        user.id,
+        user.name,
+        undefined,
+        req
+      );
+      
       res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
     } catch (error) {
       res.status(500).json({ message: "Erro interno do servidor" });
@@ -66,6 +180,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const user = await storage.createUser(userWithHashedPassword);
+      
+      // Log user registration
+      await createAuditLog(
+        'create',
+        'user',
+        user.id,
+        user,
+        undefined,
+        'Sistema', // Public registration is system-initiated
+        undefined,
+        req
+      );
+      
       res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
     } catch (error) {
       res.status(400).json({ message: "Erro ao criar usuário" });
@@ -125,11 +252,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
       
-      await storage.updateUser(user.id, {
+      const updatedUser = await storage.updateUser(user.id, {
         password: hashedPassword,
         resetToken: null,
         resetTokenExpiry: null,
       });
+      
+      // Log password reset
+      await createAuditLog(
+        'reset_password',
+        'user',
+        user.id,
+        updatedUser,
+        user.id,
+        user.name,
+        user,
+        req
+      );
       
       res.json({ message: "Senha redefinida com sucesso" });
     } catch (error) {
@@ -177,6 +316,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const user = await storage.createUser(userWithHashedPassword);
+      
+      // Log user creation by admin
+      await createAuditLog(
+        'create',
+        'user',
+        user.id,
+        user,
+        currentUser.id,
+        currentUser.name,
+        undefined,
+        req
+      );
+      
       res.json({ ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
       res.status(400).json({ message: "Erro ao criar usuário" });
@@ -302,6 +454,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updatedUser = await storage.updateUser(id, filteredData);
+      
+      // Log user update
+      await createAuditLog(
+        'update',
+        'user',
+        id,
+        updatedUser,
+        currentUser.id,
+        currentUser.name,
+        targetUser,
+        req
+      );
+      
       res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
       res.status(500).json({ message: "Erro ao atualizar usuário" });
@@ -335,10 +500,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Status inválido" });
       }
       
+      const targetUser = await storage.getUser(id);
       const updatedUser = await storage.approveUser(id, status, role);
       if (!updatedUser) {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
+      
+      // Log user approval/rejection
+      await createAuditLog(
+        status === 'approved' ? 'approve' : 'reject',
+        'user',
+        id,
+        updatedUser,
+        currentUser.id,
+        currentUser.name,
+        targetUser,
+        req
+      );
       
       res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
@@ -368,8 +546,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/events", async (req, res) => {
     try {
+      // Check authentication
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
       const eventData = insertEventSchema.parse(req.body);
       const event = await storage.createEvent(eventData);
+      
+      // Log event creation
+      await createAuditLog(
+        'create',
+        'event',
+        event.id,
+        event,
+        currentUser.id,
+        currentUser.name,
+        undefined,
+        req
+      );
       res.json(event);
     } catch (error) {
       res.status(400).json({ message: "Dados inválidos" });
@@ -1047,6 +1248,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Erro ao visualizar arquivo:", error);
         res.status(500).json({ message: "Erro ao visualizar anexo" });
       }
+    }
+  });
+
+  // System Logs route (admin only)
+  app.get("/api/system-logs", async (req, res) => {
+    try {
+      // Check authentication and authorization
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can access system logs
+      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Sem permissão para acessar logs do sistema. Apenas administradores podem acessar esta funcionalidade." });
+      }
+
+      // Parse query parameters for filtering
+      const { entityType, action, days, page = '1', limit = '50' } = req.query;
+      
+      // Build filters object
+      const filters: any = {};
+      if (entityType && entityType !== 'all') {
+        filters.entityType = entityType as string;
+      }
+      if (action && action !== 'all') {
+        filters.action = action as string;
+      }
+      if (days) {
+        filters.days = parseInt(days as string, 10);
+      }
+
+      // Get logs with filters
+      const allLogs = await storage.getSystemLogs(filters);
+      
+      // Apply pagination
+      const pageNum = parseInt(page as string, 10);
+      const limitNum = parseInt(limit as string, 10);
+      const offset = (pageNum - 1) * limitNum;
+      
+      const paginatedLogs = allLogs.slice(offset, offset + limitNum);
+      
+      // Return paginated response
+      res.json({
+        logs: paginatedLogs,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: allLogs.length,
+          pages: Math.ceil(allLogs.length / limitNum)
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching system logs:", error);
+      res.status(500).json({ message: "Erro ao buscar logs do sistema" });
     }
   });
 
