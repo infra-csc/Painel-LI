@@ -13,10 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import UserEditModal from "@/components/modals/user-edit-modal";
 import type { User } from "@shared/schema";
 
 export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -225,6 +227,17 @@ export default function AdminUsers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        {/* Edit button for all users */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingUser(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                          data-testid={`button-edit-${user.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        
                         {user.status === 'pending' && (
                           <>
                             <Button
@@ -258,6 +271,13 @@ export default function AdminUsers() {
           </table>
         </div>
       </div>
+      
+      {/* User Edit Modal */}
+      <UserEditModal
+        isOpen={editingUser !== null}
+        onClose={() => setEditingUser(null)}
+        user={editingUser}
+      />
     </div>
   );
 }

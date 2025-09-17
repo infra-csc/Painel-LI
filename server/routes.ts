@@ -150,9 +150,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
       
+      // Internal user registration should create approved users directly
       const userWithHashedPassword = {
         ...userData,
         password: hashedPassword,
+        status: "approved", // Internal registration doesn't require admin approval
       };
       
       const user = await storage.createUser(userWithHashedPassword);
