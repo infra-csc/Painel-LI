@@ -185,8 +185,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/users", async (req, res) => {
     try {
+      // Check authentication and authorization
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can list all users
+      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Sem permissão para listar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      }
+
       const users = await storage.getUsers();
-      const safeUsers = users.map(user => ({ ...user, password: undefined }));
+      const safeUsers = users.map(user => ({ ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined }));
       res.json(safeUsers);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar usuários" });
@@ -196,42 +213,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user profile route
   app.patch("/api/users/:id", async (req, res) => {
     try {
+      // Check authentication
+      const currentUserId = req.headers['user-id'] as string;
+      if (!currentUserId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(currentUserId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
       const { id } = req.params;
       const updateData = req.body;
       
-      // If updating password, verify current password and hash new one
+      // Check if user exists
+      const targetUser = await storage.getUser(id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      // Authorization: only admins can edit other users, and only admins can change role/status
+      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      const isSelfUpdate = currentUserId === id;
+
+      // Non-admin users can only edit their own profile
+      if (!isAdmin && !isSelfUpdate) {
+        return res.status(403).json({ message: "Sem permissão para editar este usuário" });
+      }
+
+      // Sensitive fields that only admins can modify
+      const sensitiveFields = ['role', 'status'];
+      const hasSensitiveChanges = sensitiveFields.some(field => updateData[field] !== undefined);
+      
+      if (hasSensitiveChanges && !isAdmin) {
+        return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
+      }
+      
+      // Handle password change separately with proper validation
+      let hashedNewPassword: string | undefined = undefined;
       if (updateData.newPassword) {
         if (!updateData.currentPassword) {
           return res.status(400).json({ message: "Senha atual é obrigatória para alterar senha" });
         }
         
-        const user = await storage.getUser(id);
-        if (!user) {
-          return res.status(404).json({ message: "Usuário não encontrado" });
-        }
-        
-        const isValidPassword = await bcrypt.compare(updateData.currentPassword, user.password);
+        const isValidPassword = await bcrypt.compare(updateData.currentPassword, targetUser.password);
         if (!isValidPassword) {
           return res.status(400).json({ message: "Senha atual incorreta" });
         }
         
         // Hash new password
         const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(updateData.newPassword, saltRounds);
-        updateData.password = hashedPassword;
+        hashedNewPassword = await bcrypt.hash(updateData.newPassword, saltRounds);
       }
       
-      // Remove password-related fields that shouldn't be stored
-      const { currentPassword, newPassword, confirmPassword, ...profileData } = updateData;
+      // Remove password-related fields and sensitive fields that shouldn't be stored directly
+      const { currentPassword, newPassword, confirmPassword, password, resetToken, resetTokenExpiry, ...profileData } = updateData;
       
-      if (profileData.email) {
-        const existingByEmail = await storage.getUserByEmail(profileData.email);
+      // Define allowed fields based on user type
+      const allowedFieldsForSelf = ['name', 'email'];
+      const allowedFieldsForAdmin = ['name', 'email', 'role', 'status', 'area'];
+      
+      const allowedFields = isAdmin ? allowedFieldsForAdmin : allowedFieldsForSelf;
+      
+      // Filter profileData to only include allowed fields
+      const filteredData: any = {};
+      for (const field of allowedFields) {
+        if (profileData[field] !== undefined) {
+          filteredData[field] = profileData[field];
+        }
+      }
+      
+      // Add hashed password if there was a password change
+      if (hashedNewPassword) {
+        filteredData.password = hashedNewPassword;
+      }
+      
+      // Additional validation for admin-only fields
+      if (!isAdmin && (filteredData.role !== undefined || filteredData.status !== undefined)) {
+        return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
+      }
+      
+      if (filteredData.email) {
+        const existingByEmail = await storage.getUserByEmail(filteredData.email);
         if (existingByEmail && existingByEmail.id !== id) {
           return res.status(400).json({ message: "E-mail já está em uso" });
         }
       }
       
-      const updatedUser = await storage.updateUser(id, profileData);
+      const updatedUser = await storage.updateUser(id, filteredData);
       res.json({ ...updatedUser, password: undefined, resetToken: undefined, resetTokenExpiry: undefined });
     } catch (error) {
       res.status(500).json({ message: "Erro ao atualizar usuário" });
