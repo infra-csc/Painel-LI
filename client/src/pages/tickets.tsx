@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
@@ -452,13 +454,18 @@ export default function Tickets() {
     if (!quickData || selectedTickets.length === 0) return;
 
     // Validar campos obrigatórios
-    const requiredFields = [
+    const baseRequiredFields = [
       { field: 'value', label: 'Valor da Passagem' },
-      { field: 'departureAirport', label: 'Aeroporto Ida' },
-      { field: 'destinationAirport', label: 'Aeroporto Volta' },
+      { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
+      { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
       { field: 'purchaseOrderNumber', label: 'Ordem de Compra' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
-      { field: 'actualDepartureTime', label: 'Horário de Ida' },
+      { field: 'actualDepartureTime', label: 'Horário de Ida' }
+    ];
+    
+    // Adicionar campos de volta apenas se não for "apenas ida"
+    const requiredFields = quickData.isOneWay ? baseRequiredFields : [
+      ...baseRequiredFields,
       { field: 'actualReturnDate', label: 'Data de Volta' },
       { field: 'actualReturnTime', label: 'Horário de Volta' }
     ];
@@ -495,18 +502,24 @@ export default function Tickets() {
           // Criar ticket com os dados comuns completos
           await createTicketMutation.mutateAsync({
             teamInclusionId: inclusion.id,
+            transportType: quickData.transportType || "aereo",
             value: Math.round(parseFloat(quickData.value) * 100),
             purchaseDate: quickData.purchaseDate || new Date().toISOString().split('T')[0],
             actualDepartureDate: quickData.actualDepartureDate || null,
             actualDepartureTime: quickData.actualDepartureTime,
-            actualReturnDate: quickData.actualReturnDate,
-            actualReturnTime: quickData.actualReturnTime,
+            actualReturnDate: quickData.isOneWay ? null : quickData.actualReturnDate,
+            actualReturnTime: quickData.isOneWay ? null : quickData.actualReturnTime,
+            departureCityOrigin: quickData.departureCityOrigin || null,
+            departureCityDestination: quickData.departureCityDestination || null,
+            returnCityOrigin: quickData.isOneWay ? null : quickData.returnCityOrigin || null,
+            returnCityDestination: quickData.isOneWay ? null : quickData.returnCityDestination || null,
             departureAirport: quickData.departureAirport,
             destinationAirport: quickData.destinationAirport,
             purchaseOrderNumber: quickData.purchaseOrderNumber || null,
             fileUrl: quickData.fileUrl || null,
             attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null,
-            cardLastFourDigits: quickData.cardLastFourDigits || null
+            cardLastFourDigits: quickData.cardLastFourDigits || null,
+            ticketObservations: quickData.ticketObservations || null
           });
 
           // Atualizar team inclusion para fechamento
@@ -624,6 +637,34 @@ export default function Tickets() {
               <>
                 {/* Grade Organizada por Seções */}
                 <div className="space-y-4">
+                  {/* Seção de Tipo de Transporte e Configurações */}
+                  <div className="grid grid-cols-3 gap-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-md">
+                    <div>
+                      <Label className="text-[10px] font-medium">Tipo de Transporte *</Label>
+                      <Select
+                        value={ticketData["quick"]?.transportType || "aereo"}
+                        onValueChange={(value) => handleTicketDataChange("quick", "transportType", value)}
+                      >
+                        <SelectTrigger className="h-6 text-xs px-1" data-testid="select-quick-transport-type">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="aereo">✈️ Aérea</SelectItem>
+                          <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-4">
+                      <Checkbox
+                        id="quick-one-way"
+                        checked={ticketData["quick"]?.isOneWay || false}
+                        onCheckedChange={(checked) => handleTicketDataChange("quick", "isOneWay", checked)}
+                        data-testid="checkbox-quick-one-way"
+                      />
+                      <Label htmlFor="quick-one-way" className="text-[10px] font-medium">Apenas ida</Label>
+                    </div>
+                  </div>
+
                   {/* Seção de Informações Gerais */}
                   <div className="grid grid-cols-3 gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-md">
                     <div>
@@ -660,18 +701,44 @@ export default function Tickets() {
                     </div>
                   </div>
 
-                  {/* Seção de Voos */}
+                  {/* Seção de Viagem */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Trecho de IDA */}
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md">
                       <h5 className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
-                        🛫 IDA
+                        {ticketData["quick"]?.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
                       </h5>
+                      {/* Cidades */}
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <div>
-                          <Label className="text-[10px] font-medium">Origem *</Label>
+                          <Label className="text-[10px] font-medium">Cidade Origem *</Label>
                           <Input
-                            placeholder="GRU"
+                            placeholder="São Paulo"
+                            value={ticketData["quick"]?.departureCityOrigin || ""}
+                            onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
+                            className="h-6 text-xs px-1"
+                            data-testid="input-quick-departure-city-origin"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-medium">Cidade Destino *</Label>
+                          <Input
+                            placeholder="Rio de Janeiro"
+                            value={ticketData["quick"]?.departureCityDestination || ""}
+                            onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                            className="h-6 text-xs px-1"
+                            data-testid="input-quick-departure-city-destination"
+                          />
+                        </div>
+                      </div>
+                      {/* Aeroportos/Rodoviárias */}
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <Label className="text-[10px] font-medium">
+                            {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
+                          </Label>
+                          <Input
+                            placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "GRU"}
                             value={ticketData["quick"]?.departureAirport || ""}
                             onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
                             className="h-6 text-xs px-1"
@@ -679,9 +746,11 @@ export default function Tickets() {
                           />
                         </div>
                         <div>
-                          <Label className="text-[10px] font-medium">Destino *</Label>
+                          <Label className="text-[10px] font-medium">
+                            {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
+                          </Label>
                           <Input
-                            placeholder="CGH"
+                            placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "CGH"}
                             value={ticketData["quick"]?.destinationAirport || ""}
                             onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
                             className="h-6 text-xs px-1"
@@ -713,56 +782,86 @@ export default function Tickets() {
                       </div>
                     </div>
 
-                    {/* Trecho de VOLTA */}
-                    <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-md">
-                      <h5 className="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
-                        🛬 VOLTA
-                      </h5>
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <Label className="text-[10px] font-medium">Origem *</Label>
-                          <Input
-                            placeholder="CGH"
-                            value={ticketData["quick"]?.returnOriginAirport || ""}
-                            onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                            className="h-6 text-xs px-1"
-                            data-testid="input-quick-return-origin-airport"
-                          />
+                    {/* Trecho de VOLTA - Condicional */}
+                    {!ticketData["quick"]?.isOneWay && (
+                      <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-md">
+                        <h5 className="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
+                          {ticketData["quick"]?.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
+                        </h5>
+                        {/* Cidades */}
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div>
+                            <Label className="text-[10px] font-medium">Cidade Origem</Label>
+                            <Input
+                              placeholder="Rio de Janeiro"
+                              value={ticketData["quick"]?.returnCityOrigin || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-city-origin"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] font-medium">Cidade Destino</Label>
+                            <Input
+                              placeholder="São Paulo"
+                              value={ticketData["quick"]?.returnCityDestination || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-city-destination"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <Label className="text-[10px] font-medium">Destino *</Label>
-                          <Input
-                            placeholder="GRU"
-                            value={ticketData["quick"]?.returnDestinationAirport || ""}
-                            onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                            className="h-6 text-xs px-1"
-                            data-testid="input-quick-return-destination-airport"
-                          />
+                        {/* Aeroportos/Rodoviárias */}
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div>
+                            <Label className="text-[10px] font-medium">
+                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"}
+                            </Label>
+                            <Input
+                              placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "CGH"}
+                              value={ticketData["quick"]?.returnOriginAirport || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-origin-airport"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] font-medium">
+                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"}
+                            </Label>
+                            <Input
+                              placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "GRU"}
+                              value={ticketData["quick"]?.returnDestinationAirport || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-destination-airport"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[10px] font-medium">Data</Label>
+                            <Input
+                              type="date"
+                              value={ticketData["quick"]?.actualReturnDate || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-date"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] font-medium">Horário de Volta</Label>
+                            <Input
+                              type="time"
+                              value={ticketData["quick"]?.actualReturnTime || ""}
+                              onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                              className="h-6 text-xs px-1"
+                              data-testid="input-quick-return-time"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-[10px] font-medium">Data *</Label>
-                          <Input
-                            type="date"
-                            value={ticketData["quick"]?.actualReturnDate || ""}
-                            onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                            className="h-6 text-xs px-1"
-                            data-testid="input-quick-return-date"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] font-medium">Horário de Volta *</Label>
-                          <Input
-                            type="time"
-                            value={ticketData["quick"]?.actualReturnTime || ""}
-                            onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                            className="h-6 text-xs px-1"
-                            data-testid="input-quick-return-time"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Seção de Informações Adicionais */}
@@ -776,6 +875,16 @@ export default function Tickets() {
                         onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
                         className="h-6 text-xs px-1 max-w-20"
                         data-testid="input-quick-card-digits"
+                      />
+                    </div>
+                    <div className="mt-2">
+                      <Label className="text-[10px] font-medium">Observações sobre a passagem (opcional)</Label>
+                      <Textarea
+                        placeholder="Informações adicionais sobre a passagem..."
+                        value={ticketData["quick"]?.ticketObservations || ""}
+                        onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
+                        className="h-16 text-xs px-2 py-1 resize-none"
+                        data-testid="textarea-quick-ticket-observations"
                       />
                     </div>
                   </div>
@@ -1377,15 +1486,22 @@ export default function Tickets() {
                                   setTicketData(prev => ({
                                     ...prev,
                                     [selectedInclusion.id]: {
+                                      transportType: ticket.transportType || "aereo",
+                                      isOneWay: !ticket.actualReturnDate && !ticket.actualReturnTime,
                                       value: ((ticket.value || 0) / 100).toString(),
                                       departureAirport: ticket.departureAirport || "",
                                       destinationAirport: ticket.destinationAirport || "",
+                                      departureCityOrigin: ticket.departureCityOrigin || "",
+                                      departureCityDestination: ticket.departureCityDestination || "",
+                                      returnCityOrigin: ticket.returnCityOrigin || "",
+                                      returnCityDestination: ticket.returnCityDestination || "",
                                       purchaseOrderNumber: ticket.purchaseOrderNumber || "",
                                       actualDepartureDate: ticket.actualDepartureDate || "",
                                       actualReturnDate: ticket.actualReturnDate || "",
                                       actualDepartureTime: ticket.actualDepartureTime || "",
                                       actualReturnTime: ticket.actualReturnTime || "",
                                       cardLastFourDigits: ticket.cardLastFourDigits || "",
+                                      ticketObservations: ticket.ticketObservations || "",
                                       attachmentIds: ticket.attachmentIds || []
                                     }
                                   }));
@@ -1422,6 +1538,44 @@ export default function Tickets() {
 
                         {/* Seção de Dados da Compra */}
                         <div className="space-y-6">
+                          {/* Tipo de Transporte e Configurações */}
+                          <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg border-l-4 border-purple-500">
+                            <h4 className="font-medium mb-4 text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                              🚀 Tipo de Transporte
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor={`transportType-${selectedInclusion.id}`} className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                  Tipo de Transporte *
+                                </Label>
+                                <Select
+                                  value={data.transportType || "aereo"}
+                                  onValueChange={(value) => handleTicketDataChange(selectedInclusion.id, "transportType", value)}
+                                >
+                                  <SelectTrigger className="mt-1" data-testid={`select-transport-type-${selectedInclusion.id}`}>
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="aereo">✈️ Aérea</SelectItem>
+                                    <SelectItem value="rodoviario">🚌 Rodoviária</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex items-center space-x-3 mt-6">
+                                <Checkbox
+                                  id={`one-way-${selectedInclusion.id}`}
+                                  checked={data.isOneWay || false}
+                                  onCheckedChange={(checked) => handleTicketDataChange(selectedInclusion.id, "isOneWay", checked)}
+                                  data-testid={`checkbox-one-way-${selectedInclusion.id}`}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                                <Label htmlFor={`one-way-${selectedInclusion.id}`} className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                  Apenas ida (sem volta)
+                                </Label>
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Informações Gerais */}
                           <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
                             <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
@@ -1440,6 +1594,7 @@ export default function Tickets() {
                                   value={data.value || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                                   className="mt-1"
+                                  data-testid={`input-value-${selectedInclusion.id}`}
                                   disabled={isReadOnly(selectedInclusion)}
                                 />
                               </div>
@@ -1452,16 +1607,17 @@ export default function Tickets() {
                                   placeholder="Número da OC"
                                   value={data.purchaseOrderNumber || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
+                                  data-testid={`input-purchase-order-${selectedInclusion.id}`}
                                   disabled={isReadOnly(selectedInclusion)}
                                 />
                               </div>
                             </div>
                           </div>
 
-                          {/* Informações dos Voos - Agrupadas por Trecho */}
+                          {/* Informações de Viagem - Agrupadas por Trecho */}
                           <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-l-4 border-blue-500">
                             <h4 className="font-medium mb-4 text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              ✈️ Informações dos Voos
+                              {data.transportType === "rodoviario" ? "🚌" : "✈️"} Informações de Viagem
                             </h4>
                             
                             {/* Agrupamento por Trecho - Ida e Volta */}
@@ -1469,32 +1625,64 @@ export default function Tickets() {
                               {/* Trecho de IDA */}
                               <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                                 <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  🛫 IDA
+                                  {data.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
                                 </h5>
                                 <div className="space-y-3">
+                                  {/* Cidades */}
+                                  <div>
+                                    <Label htmlFor={`departureCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Cidade Origem *
+                                    </Label>
+                                    <Input
+                                      id={`departureCityOrigin-${selectedInclusion.id}`}
+                                      placeholder="Ex: São Paulo"
+                                      value={data.departureCityOrigin || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)}
+                                      className="mt-1"
+                                      data-testid={`input-departure-city-origin-${selectedInclusion.id}`}
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`departureCityDestination-${selectedInclusion.id}`} className="text-sm font-medium">
+                                      Cidade Destino *
+                                    </Label>
+                                    <Input
+                                      id={`departureCityDestination-${selectedInclusion.id}`}
+                                      placeholder="Ex: Rio de Janeiro"
+                                      value={data.departureCityDestination || ""}
+                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)}
+                                      className="mt-1"
+                                      data-testid={`input-departure-city-destination-${selectedInclusion.id}`}
+                                      disabled={isReadOnly(selectedInclusion)}
+                                    />
+                                  </div>
+                                  {/* Aeroportos/Rodoviárias */}
                                   <div>
                                     <Label htmlFor={`departureAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Aeroporto Origem *
+                                      {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                     </Label>
                                     <Input
                                       id={`departureAirport-${selectedInclusion.id}`}
-                                      placeholder="Ex: GRU, CGH, BSB"
+                                      placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
                                       value={data.departureAirport || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
                                       className="mt-1"
+                                      data-testid={`input-departure-airport-${selectedInclusion.id}`}
                                       disabled={isReadOnly(selectedInclusion)}
                                     />
                                   </div>
                                   <div>
                                     <Label htmlFor={`destinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Aeroporto Destino *
+                                      {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                     </Label>
                                     <Input
                                       id={`destinationAirport-${selectedInclusion.id}`}
-                                      placeholder="Ex: SDU, GIG, RJ"
+                                      placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, RJ"}
                                       value={data.destinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
                                       className="mt-1"
+                                      data-testid={`input-destination-airport-${selectedInclusion.id}`}
                                       disabled={isReadOnly(selectedInclusion)}
                                     />
                                   </div>
@@ -1508,6 +1696,7 @@ export default function Tickets() {
                                       value={data.actualDepartureDate || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)}
                                       className="mt-1"
+                                      data-testid={`input-departure-date-${selectedInclusion.id}`}
                                       disabled={isReadOnly(selectedInclusion)}
                                     />
                                   </div>
@@ -1522,73 +1711,110 @@ export default function Tickets() {
                                       value={data.actualDepartureTime || ""}
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
                                       className="mt-1"
+                                      data-testid={`input-departure-time-${selectedInclusion.id}`}
                                       disabled={isReadOnly(selectedInclusion)}
                                     />
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Trecho de VOLTA */}
-                              <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                                <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
-                                  🛬 VOLTA
-                                </h5>
-                                <div className="space-y-3">
-                                  <div>
-                                    <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Aeroporto Origem *
-                                    </Label>
-                                    <Input
-                                      id={`returnOriginAirport-${selectedInclusion.id}`}
-                                      placeholder="Ex: SDU, GIG, GRU"
-                                      value={data.returnOriginAirport || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
-                                      className="mt-1"
-                                      disabled={isReadOnly(selectedInclusion)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Aeroporto Destino *
-                                    </Label>
-                                    <Input
-                                      id={`returnDestinationAirport-${selectedInclusion.id}`}
-                                      placeholder="Ex: GRU, CGH, BSB"
-                                      value={data.returnDestinationAirport || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
-                                      className="mt-1"
-                                      disabled={isReadOnly(selectedInclusion)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Data de Volta *
-                                    </Label>
-                                    <Input
-                                      id={`actualReturnDate-${selectedInclusion.id}`}
-                                      type="date"
-                                      value={data.actualReturnDate || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
-                                      className="mt-1"
-                                      disabled={isReadOnly(selectedInclusion)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                                      Horário de Volta *
-                                    </Label>
-                                    <Input
-                                      id={`actualReturnTime-${selectedInclusion.id}`}
-                                      type="time"
-                                      placeholder="Ex: 18:45"
-                                      value={data.actualReturnTime || ""}
-                                      onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
-                                      className="mt-1"
-                                      disabled={isReadOnly(selectedInclusion)}
-                                    />
+                              {/* Trecho de VOLTA - Condicional */}
+                              {!data.isOneWay && (
+                                <div className="bg-white dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                  <h5 className="font-medium text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+                                    {data.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
+                                  </h5>
+                                  <div className="space-y-3">
+                                    {/* Cidades */}
+                                    <div>
+                                      <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        Cidade Origem
+                                      </Label>
+                                      <Input
+                                        id={`returnCityOrigin-${selectedInclusion.id}`}
+                                        placeholder="Ex: Rio de Janeiro"
+                                        value={data.returnCityOrigin || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-city-origin-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        Cidade Destino
+                                      </Label>
+                                      <Input
+                                        id={`returnCityDestination-${selectedInclusion.id}`}
+                                        placeholder="Ex: São Paulo"
+                                        value={data.returnCityDestination || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-city-destination-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
+                                    {/* Aeroportos/Rodoviárias */}
+                                    <div>
+                                      <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"}
+                                      </Label>
+                                      <Input
+                                        id={`returnOriginAirport-${selectedInclusion.id}`}
+                                        placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: SDU, GIG, GRU"}
+                                        value={data.returnOriginAirport || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-origin-airport-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"}
+                                      </Label>
+                                      <Input
+                                        id={`returnDestinationAirport-${selectedInclusion.id}`}
+                                        placeholder={data.transportType === "rodoviario" ? "Ex: Terminal Rodoviário" : "Ex: GRU, CGH, BSB"}
+                                        value={data.returnDestinationAirport || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-destination-airport-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        Data de Volta
+                                      </Label>
+                                      <Input
+                                        id={`actualReturnDate-${selectedInclusion.id}`}
+                                        type="date"
+                                        value={data.actualReturnDate || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-date-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
+                                        Horário de Volta
+                                      </Label>
+                                      <Input
+                                        id={`actualReturnTime-${selectedInclusion.id}`}
+                                        type="time"
+                                        placeholder="Ex: 18:45"
+                                        value={data.actualReturnTime || ""}
+                                        onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
+                                        className="mt-1"
+                                        data-testid={`input-return-time-${selectedInclusion.id}`}
+                                        disabled={isReadOnly(selectedInclusion)}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           </div>
 
@@ -1597,20 +1823,36 @@ export default function Tickets() {
                             <h4 className="font-medium mb-4 text-gray-800 dark:text-gray-200 flex items-center gap-2">
                               💳 Informações Adicionais
                             </h4>
-                            <div>
-                              <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Últimos 4 Dígitos do Cartão (Opcional)
-                              </Label>
-                              <Input
-                                id={`cardLastFourDigits-${selectedInclusion.id}`}
-                                placeholder="1234"
-                                maxLength={4}
-                                value={data.cardLastFourDigits || ""}
-                                onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                className="mt-1"
-                                data-testid={`input-card-digits-${selectedInclusion.id}`}
-                                disabled={isReadOnly(selectedInclusion)}
-                              />
+                            <div className="space-y-4">
+                              <div>
+                                <Label htmlFor={`cardLastFourDigits-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                  Últimos 4 Dígitos do Cartão (Opcional)
+                                </Label>
+                                <Input
+                                  id={`cardLastFourDigits-${selectedInclusion.id}`}
+                                  placeholder="1234"
+                                  maxLength={4}
+                                  value={data.cardLastFourDigits || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                  className="mt-1"
+                                  data-testid={`input-card-digits-${selectedInclusion.id}`}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`ticketObservations-${selectedInclusion.id}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                  Observações sobre a Passagem (Opcional)
+                                </Label>
+                                <Textarea
+                                  id={`ticketObservations-${selectedInclusion.id}`}
+                                  placeholder="Informações adicionais sobre a passagem..."
+                                  value={data.ticketObservations || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
+                                  className="mt-1 h-20 resize-none"
+                                  data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
+                                  disabled={isReadOnly(selectedInclusion)}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1707,15 +1949,21 @@ export default function Tickets() {
                                         await updateTicketMutation.mutateAsync({
                                           id: ticketToUpdate.id,
                                           data: {
+                                            transportType: data.transportType || ticketToUpdate.transportType || "aereo",
                                             value: data.value ? Math.round(parseFloat(data.value) * 100) : ticketToUpdate.value,
                                             actualDepartureDate: data.actualDepartureDate || ticketToUpdate.actualDepartureDate,
                                             actualDepartureTime: data.actualDepartureTime || ticketToUpdate.actualDepartureTime,
-                                            actualReturnDate: data.actualReturnDate || ticketToUpdate.actualReturnDate,
-                                            actualReturnTime: data.actualReturnTime || ticketToUpdate.actualReturnTime,
+                                            actualReturnDate: data.isOneWay ? null : data.actualReturnDate || ticketToUpdate.actualReturnDate,
+                                            actualReturnTime: data.isOneWay ? null : data.actualReturnTime || ticketToUpdate.actualReturnTime,
+                                            departureCityOrigin: data.departureCityOrigin || ticketToUpdate.departureCityOrigin,
+                                            departureCityDestination: data.departureCityDestination || ticketToUpdate.departureCityDestination,
+                                            returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || ticketToUpdate.returnCityOrigin,
+                                            returnCityDestination: data.isOneWay ? null : data.returnCityDestination || ticketToUpdate.returnCityDestination,
                                             departureAirport: data.departureAirport || ticketToUpdate.departureAirport,
                                             destinationAirport: data.destinationAirport || ticketToUpdate.destinationAirport,
                                             purchaseOrderNumber: data.purchaseOrderNumber || ticketToUpdate.purchaseOrderNumber,
                                             cardLastFourDigits: data.cardLastFourDigits || ticketToUpdate.cardLastFourDigits,
+                                            ticketObservations: data.ticketObservations || ticketToUpdate.ticketObservations,
                                             attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : ticketToUpdate.attachmentIds
                                           }
                                         });
@@ -1724,18 +1972,24 @@ export default function Tickets() {
                                       // Criar novo ticket com dados parciais (se pelo menos um campo estiver preenchido)
                                       await createTicketMutation.mutateAsync({
                                         teamInclusionId: selectedInclusion.id,
+                                        transportType: data.transportType || "aereo",
                                         value: data.value ? Math.round(parseFloat(data.value) * 100) : 0,
                                         purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                         actualDepartureDate: data.actualDepartureDate || null,
                                         actualDepartureTime: data.actualDepartureTime || null,
-                                        actualReturnDate: data.actualReturnDate || null,
-                                        actualReturnTime: data.actualReturnTime || null,
+                                        actualReturnDate: data.isOneWay ? null : data.actualReturnDate || null,
+                                        actualReturnTime: data.isOneWay ? null : data.actualReturnTime || null,
+                                        departureCityOrigin: data.departureCityOrigin || null,
+                                        departureCityDestination: data.departureCityDestination || null,
+                                        returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
+                                        returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
                                         departureAirport: data.departureAirport || "",
                                         destinationAirport: data.destinationAirport || "",
                                         purchaseOrderNumber: data.purchaseOrderNumber || "",
                                         fileUrl: data.fileUrl || null,
                                         attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                        cardLastFourDigits: data.cardLastFourDigits || null
+                                        cardLastFourDigits: data.cardLastFourDigits || null,
+                                        ticketObservations: data.ticketObservations || null
                                       });
                                     }
 
@@ -1763,10 +2017,15 @@ export default function Tickets() {
                               <Button
                                 onClick={async () => {
                                   // Validar campos obrigatórios
-                                  if (!data.value || !data.departureAirport || !data.destinationAirport || !data.purchaseOrderNumber || !data.actualDepartureDate || !data.actualReturnDate || !data.actualDepartureTime || !data.actualReturnTime) {
+                                  const baseFields = ['value', 'departureAirport', 'destinationAirport', 'purchaseOrderNumber', 'actualDepartureDate', 'actualDepartureTime'];
+                                  const requiredFieldsModal = data.isOneWay ? baseFields : [...baseFields, 'actualReturnDate', 'actualReturnTime'];
+                                  
+                                  const missingModalFields = requiredFieldsModal.filter(field => !data[field] || data[field] === '');
+                                  if (missingModalFields.length > 0) {
+                                    const transportLabel = data.transportType === 'rodoviario' ? 'Rodoviária' : 'Aeroporto';
                                     toast({
                                       title: "Erro",
-                                      description: "Preencha todos os campos obrigatórios (incluindo horários)",
+                                      description: `Preencha todos os campos obrigatórios (${transportLabel} Ida/Volta, datas e horários)`,
                                       variant: "destructive",
                                     });
                                     return;
@@ -1780,15 +2039,21 @@ export default function Tickets() {
                                         await updateTicketMutation.mutateAsync({
                                           id: ticket.id,
                                         data: {
+                                          transportType: data.transportType || "aereo",
                                           value: Math.round(parseFloat(data.value) * 100),
                                           actualDepartureDate: data.actualDepartureDate,
                                           actualDepartureTime: data.actualDepartureTime,
-                                          actualReturnDate: data.actualReturnDate,
-                                          actualReturnTime: data.actualReturnTime,
+                                          actualReturnDate: data.isOneWay ? null : data.actualReturnDate,
+                                          actualReturnTime: data.isOneWay ? null : data.actualReturnTime,
+                                          departureCityOrigin: data.departureCityOrigin || null,
+                                          departureCityDestination: data.departureCityDestination || null,
+                                          returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
+                                          returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
                                           departureAirport: data.departureAirport,
                                           destinationAirport: data.destinationAirport,
                                           purchaseOrderNumber: data.purchaseOrderNumber,
                                           cardLastFourDigits: data.cardLastFourDigits || null,
+                                          ticketObservations: data.ticketObservations || null,
                                           attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null
                                         }
                                         });
@@ -1797,18 +2062,24 @@ export default function Tickets() {
                                       // Criar novo ticket
                                       await createTicketMutation.mutateAsync({
                                         teamInclusionId: selectedInclusion.id,
+                                        transportType: data.transportType || "aereo",
                                         value: Math.round(parseFloat(data.value) * 100),
                                         purchaseDate: data.purchaseDate || new Date().toISOString().split('T')[0],
                                         actualDepartureDate: data.actualDepartureDate,
                                         actualDepartureTime: data.actualDepartureTime,
-                                        actualReturnDate: data.actualReturnDate,
-                                        actualReturnTime: data.actualReturnTime,
+                                        actualReturnDate: data.isOneWay ? null : data.actualReturnDate,
+                                        actualReturnTime: data.isOneWay ? null : data.actualReturnTime,
+                                        departureCityOrigin: data.departureCityOrigin || null,
+                                        departureCityDestination: data.departureCityDestination || null,
+                                        returnCityOrigin: data.isOneWay ? null : data.returnCityOrigin || null,
+                                        returnCityDestination: data.isOneWay ? null : data.returnCityDestination || null,
                                         departureAirport: data.departureAirport,
                                         destinationAirport: data.destinationAirport,
                                         purchaseOrderNumber: data.purchaseOrderNumber,
                                         fileUrl: data.fileUrl || null,
                                         attachmentIds: data.attachmentIds && data.attachmentIds.length > 0 ? data.attachmentIds : null,
-                                        cardLastFourDigits: data.cardLastFourDigits || null
+                                        cardLastFourDigits: data.cardLastFourDigits || null,
+                                        ticketObservations: data.ticketObservations || null
                                       });
 
                                       // Atualizar team inclusion para fechamento (só quando criar novo)
