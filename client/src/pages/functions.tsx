@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +45,12 @@ export default function Functions() {
   const { data: functions } = useQuery<Function[]>({
     queryKey: ["/api/functions"],
   });
+
+  // Sort functions alphabetically by name
+  const sortedFunctions = useMemo(() => {
+    if (!functions) return functions;
+    return [...functions].sort((a, b) => a.name.localeCompare(b.name));
+  }, [functions]);
 
   const { data: users } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
@@ -232,7 +238,7 @@ export default function Functions() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {functions?.map((func) => (
+                    {sortedFunctions?.map((func) => (
                       <TableRow key={func.id}>
                         <TableCell className="font-medium">{func.name}</TableCell>
                         <TableCell>
@@ -261,7 +267,7 @@ export default function Functions() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {(!functions || functions.length === 0) && (
+                    {(!sortedFunctions || sortedFunctions.length === 0) && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                           Nenhuma função cadastrada. Clique em "Nova Função" para criar a primeira.
