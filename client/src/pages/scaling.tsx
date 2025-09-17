@@ -76,12 +76,31 @@ export default function Scaling() {
     queryKey: ["/api/functions"],
   });
 
+  // Query para buscar managers de todas as funções
+  const { data: allFunctionManagers } = useQuery<{ functionId: string; userId: string }[]>({
+    queryKey: ["/api/function-managers"],
+    queryFn: async () => {
+      if (!functions) return [];
+      const managersPromises = functions.map(async (func) => {
+        const response = await fetch(`/api/functions/${func.id}/managers`);
+        const managers = await response.json();
+        return managers.map((manager: any) => ({
+          functionId: func.id,
+          userId: manager.userId
+        }));
+      });
+      const managersArrays = await Promise.all(managersPromises);
+      return managersArrays.flat();
+    },
+    enabled: !!functions,
+  });
+
   // Filtrar teamInclusions - administradores veem tudo, outros apenas suas funções
-  const userFunctionIds = functions?.filter(f => f.userId === user?.id).map(f => f.id) || [];
+  const userFunctionIds = allFunctionManagers?.filter(m => m.userId === user?.id).map(m => m.functionId) || [];
   const filteredTeamInclusions = teamInclusions?.filter(ti => {
     // Administradores veem todas as inclusões (verificando diferentes formatos de role)
     if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
-    // Outros usuários veem apenas suas funções atribuídas
+    // Outros usuários veem apenas suas funções atribuídas como managers
     return userFunctionIds.includes(ti.functionId);
   }) || [];
 
@@ -191,10 +210,10 @@ export default function Scaling() {
 
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
-    if (!user || !functions) return false;
+    if (!user || !allFunctionManagers) return false;
     if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator') return true;
-    const func = functions.find(f => f.id === functionId);
-    return func?.userId === user.id;
+    // Check if user is a manager of this function
+    return allFunctionManagers.some(manager => manager.functionId === functionId && manager.userId === user.id);
   };
 
   // Check if user can confirm escalation (only responsible for function)
@@ -342,6 +361,14 @@ export default function Scaling() {
 
   const handleSave = () => {
     if (!selectedInclusion) return;
+    if (!canConfirmEscalation(selectedInclusion)) {
+      toast({
+        title: "Erro",
+        description: "Você não tem permissão para salvar alterações nesta função",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
@@ -361,6 +388,14 @@ export default function Scaling() {
 
   const handleConfirmEscalation = () => {
     if (!selectedInclusion) return;
+    if (!canConfirmEscalation(selectedInclusion)) {
+      toast({
+        title: "Erro",
+        description: "Você não tem permissão para confirmar escalações nesta função",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!modalData.collaboratorId) {
       toast({
@@ -860,7 +895,12 @@ export default function Scaling() {
                   <Select 
                     value={modalData.collaboratorId} 
                     onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
-                    disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                    disabled={(() => {
+                      if (!selectedInclusion) return true;
+                      if (isReadOnly(selectedInclusion)) return true;
+                      if (!canConfirmEscalation(selectedInclusion)) return true;
+                      return false;
+                    })()}
                   >
                     <SelectTrigger className="mt-2">
                       <SelectValue placeholder="Selecione um colaborador" />
@@ -1183,7 +1223,13 @@ export default function Scaling() {
                       value={modalData.dailyValue || ""}
                       onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
                       className="mt-1 text-xs h-8"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion) || isEscalated(selectedInclusion)}
+                      disabled={(() => {
+                        if (!selectedInclusion) return true;
+                        if (isReadOnly(selectedInclusion)) return true;
+                        if (!canConfirmEscalation(selectedInclusion)) return true;
+                        if (isEscalated(selectedInclusion)) return true;
+                        return false;
+                      })()}
                     />
                   </div>
                   <div>
@@ -1266,7 +1312,13 @@ export default function Scaling() {
                     <Button 
                       variant="secondary"
                       onClick={handleSave}
-                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado' || !canConfirmEscalation(selectedInclusion)}
+                      disabled={(() => {
+                        if (!selectedInclusion) return true;
+                        if (updateTeamInclusionMutation.isPending) return true;
+                        if (selectedInclusion.status === 'cancelado') return true;
+                        if (!canConfirmEscalation(selectedInclusion)) return true;
+                        return false;
+                      })()}
                       className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
                     >
                       <Save className="w-4 h-4" />
@@ -1274,7 +1326,13 @@ export default function Scaling() {
                     </Button>
                     <Button 
                       onClick={handleConfirmEscalation}
-                      disabled={updateTeamInclusionMutation.isPending || selectedInclusion.status === 'cancelado' || !canConfirmEscalation(selectedInclusion)}
+                      disabled={(() => {
+                        if (!selectedInclusion) return true;
+                        if (updateTeamInclusionMutation.isPending) return true;
+                        if (selectedInclusion.status === 'cancelado') return true;
+                        if (!canConfirmEscalation(selectedInclusion)) return true;
+                        return false;
+                      })()}
                       className="flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" />
