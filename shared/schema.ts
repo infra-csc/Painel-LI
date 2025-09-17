@@ -121,11 +121,16 @@ export const teamInclusions = pgTable("team_inclusions", {
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
+  transportType: text("transport_type"), // aereo, rodoviario
   purchaseDate: date("purchase_date"),
   actualDepartureDate: date("actual_departure_date"),
   actualDepartureTime: text("actual_departure_time"),
-  actualReturnDate: date("actual_return_date").notNull(), // agora obrigatório
+  actualReturnDate: date("actual_return_date"), // agora opcional
   actualReturnTime: text("actual_return_time"),
+  departureCityOrigin: text("departure_city_origin"), // cidade de origem da ida
+  departureCityDestination: text("departure_city_destination"), // cidade de destino da ida
+  returnCityOrigin: text("return_city_origin"), // cidade de origem da volta
+  returnCityDestination: text("return_city_destination"), // cidade de destino da volta
   departureAirport: text("departure_airport"), // aeroporto origem da ida 
   destinationAirport: text("destination_airport"), // aeroporto destino da ida
   value: integer("value"), // valor em centavos
@@ -133,6 +138,7 @@ export const tickets = pgTable("tickets", {
   fileUrl: text("file_url"),
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
+  ticketObservations: text("ticket_observations"), // observações sobre a passagem
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
@@ -233,8 +239,9 @@ export const insertTeamInclusionSchema = createInsertSchema(teamInclusions).omit
 export const insertTicketSchema = createInsertSchema(tickets).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
-  actualReturnDate: z.string().min(1, "Data de volta é obrigatória")
+  transportType: z.enum(["aereo", "rodoviario"]).optional()
 });
 
 export const insertFinancialSchema = createInsertSchema(financial).omit({
