@@ -96,11 +96,13 @@ export default function Scaling() {
     enabled: !!functions,
   });
 
-  // Filtrar teamInclusions - administradores veem tudo, outros apenas suas funções
+  // Filtrar teamInclusions baseado nas permissões de visualização
   const userFunctionIds = allFunctionManagers?.filter(m => m.userId === user?.id).map(m => m.functionId) || [];
   const filteredTeamInclusions = teamInclusions?.filter(ti => {
     // Administradores veem todas as inclusões (verificando diferentes formatos de role)
     if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
+    // Usuários "Logística Interna" (production) também veem todas as inclusões
+    if (user?.role === 'production') return true;
     // Outros usuários veem apenas suas funções atribuídas como managers
     return userFunctionIds.includes(ti.functionId);
   }) || [];
