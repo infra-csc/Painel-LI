@@ -29,7 +29,6 @@ import { Eye, EyeOff } from "lucide-react";
 const profileSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("E-mail inválido"),
-  username: z.string().min(3, "Usuário deve ter pelo menos 3 caracteres"),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
@@ -71,7 +70,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     defaultValues: {
       name: user?.name || "",
       email: user?.email || "",
-      username: user?.username || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -94,7 +92,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       form.reset({
         name: updatedUser.name,
         email: updatedUser.email,
-        username: updatedUser.username,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -123,7 +120,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     form.reset({
       name: user?.name || "",
       email: user?.email || "",
-      username: user?.username || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -173,24 +169,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                         type="email"
                         placeholder="Digite seu e-mail"
                         data-testid="input-email"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome de Usuário</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Digite seu nome de usuário"
-                        data-testid="input-username"
                         {...field}
                       />
                     </FormControl>
