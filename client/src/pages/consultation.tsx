@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -42,7 +42,7 @@ interface LogsResponse {
 }
 
 export default function SystemLogsPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [filters, setFilters] = useState({
     entityType: "all",
     action: "all",
@@ -66,22 +66,21 @@ export default function SystemLogsPage() {
     );
   }
 
+  // Build query URL with parameters
+  const queryUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: "20",
+      ...Object.fromEntries(
+        Object.entries(filters).filter(([_, value]) => value !== "all")
+      ),
+    });
+    return `/api/system-logs?${params}`;
+  }, [filters, page]);
+
   const { data: logsResponse, isLoading, error } = useQuery<LogsResponse>({
-    queryKey: ["/api/system-logs", filters, page],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: "20",
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([_, value]) => value !== "all")
-        ),
-      });
-      const response = await fetch(`/api/system-logs?${params}`);
-      if (!response.ok) {
-        throw new Error("Erro ao carregar logs");
-      }
-      return response.json();
-    },
+    queryKey: [queryUrl],
+    enabled: !authLoading && !!user, // Only run query when auth is loaded and user is authenticated
   });
 
   const toggleExpanded = (logId: string) => {
