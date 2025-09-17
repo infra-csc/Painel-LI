@@ -5,11 +5,11 @@ export type UserRole = "admin" | "production" | "function_area" | "purchasing" |
 export interface RolePermissions {
   canAccessScreen0: boolean;  // user registration - admin only
   canEditScreen0: boolean;
-  canAccessScreen1: boolean;
-  canEditScreen1: boolean;
-  canAccessScreen2: boolean;
+  canAccessScreen1: boolean;  // functions management - admin only
+  canEditScreen1: boolean;    // team inclusion
+  canAccessScreen2: boolean;  // scaling
   canSelectCollaborators: boolean;
-  canAccessScreen3: boolean;
+  canAccessScreen3: boolean;  // tickets
   canRegisterTickets: boolean;
   canAccessScreen4: boolean;
   canEditScreen4: boolean;
@@ -42,11 +42,11 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       return {
         canAccessScreen0: false,
         canEditScreen0: false,
-        canAccessScreen1: true,
-        canEditScreen1: false,
-        canAccessScreen2: false,
+        canAccessScreen1: false,  // functions - admin only
+        canEditScreen1: true,     // team inclusion - total access
+        canAccessScreen2: true,   // scaling - view access
         canSelectCollaborators: false,
-        canAccessScreen3: false,
+        canAccessScreen3: true,   // tickets - view access
         canRegisterTickets: false,
         canAccessScreen4: true,
         canEditScreen4: true,
