@@ -181,8 +181,7 @@ export default function Tickets() {
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
     const [year, month, day] = dateStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    return date.toLocaleDateString("pt-BR");
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   };
 
   const formatCurrency = (value: number) => {
