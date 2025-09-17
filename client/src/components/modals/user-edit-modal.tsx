@@ -165,10 +165,10 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="production">Produção</SelectItem>
-                        <SelectItem value="function_area">Área de Função</SelectItem>
-                        <SelectItem value="purchasing">Compras</SelectItem>
-                        <SelectItem value="financial">Financeiro</SelectItem>
+                        <SelectItem value="production">Logística Interna</SelectItem>
+                        <SelectItem value="function_area">Área responsável por funções</SelectItem>
+                        <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>
+                        <SelectItem value="financial">Área Financeira</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
