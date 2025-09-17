@@ -24,7 +24,7 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       path: "/functions",
       label: "Funções",
       icon: Wrench,
-      permission: "canAccessScreen1" as const,
+      permission: "canAccessScreen0" as const,
     },
     {
       id: "team-inclusion",
