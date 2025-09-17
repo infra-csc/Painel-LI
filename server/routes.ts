@@ -58,9 +58,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
       
+      // Public registration should require admin approval
       const userWithHashedPassword = {
         ...userData,
         password: hashedPassword,
+        status: "pending", // Public registration requires admin approval
       };
       
       const user = await storage.createUser(userWithHashedPassword);
@@ -138,6 +140,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes (for admin)
   app.post("/api/users", async (req, res) => {
     try {
+      // Check authentication and authorization
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can create users via this route
+      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Sem permissão para criar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      }
+
       const userData = insertUserSchema.parse(req.body);
       
       // Check if email already exists
@@ -222,6 +241,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User approval route (admin only)
   app.patch("/api/users/:id/approval", async (req, res) => {
     try {
+      // Check authentication and authorization
+      const userId = req.headers['user-id'] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can approve/reject users
+      const isAdmin = currentUser.role === 'administrador' || currentUser.role === 'admin' || currentUser.role === 'administrator';
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Sem permissão para aprovar usuários. Apenas administradores podem acessar esta funcionalidade." });
+      }
+
       const { id } = req.params;
       const { status, role } = req.body;
       
@@ -585,7 +621,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("🔧 PATCH team-inclusion:", id, req.body);
       const updates = { 
         ...req.body, 
-        updatedAt: new Date(),
         updatedBy: userId // Use authenticated user ID
       };
       console.log("🔧 Updates to apply:", updates);
@@ -593,7 +628,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(inclusion);
     } catch (error) {
       console.error("❌ Error updating team inclusion:", error);
-      res.status(400).json({ message: "Erro ao atualizar inclusão", details: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Erro ao atualizar inclusão", details: errorMessage });
     }
   });
 
@@ -629,8 +665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (ida || horario) {
             await storage.updateTeamInclusion(inclusion.id, {
               flightDepartureSuggestedTime: ida,
-              flightReturnSuggestedTime: horario,
-              updatedAt: new Date()
+              flightReturnSuggestedTime: horario
             });
             
             updatedCount++;
@@ -669,7 +704,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ticket);
     } catch (error) {
       console.error("❌ Erro na validação:", error);
-      res.status(400).json({ message: "Dados inválidos", error: error.message });
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Dados inválidos", error: errorMessage });
     }
   });
 
@@ -746,8 +782,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/all-comments", async (req, res) => {
     try {
-      const comments = await storage.getAllComments();
-      res.json(comments);
+      // Get all comments - this endpoint should get comments for all team inclusions
+      const teamInclusions = await storage.getTeamInclusions();
+      let allComments: any[] = [];
+      for (const inclusion of teamInclusions) {
+        const comments = await storage.getComments(inclusion.id);
+        allComments = allComments.concat(comments);
+      }
+      res.json(allComments);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar todos os comentários" });
     }
@@ -785,14 +827,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const objectStorageService = new ObjectStorageService();
       
       // Função auxiliar para analisar caminho do objeto  
-      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+      const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
         if (!path.startsWith("/")) path = `/${path}`;
         const pathParts = path.split("/");
         if (pathParts.length < 3) throw new Error("Invalid path: must contain at least a bucket name");
         const bucketName = pathParts[1];
         const objectName = pathParts.slice(2).join("/");
         return { bucketName, objectName };
-      }
+      };
       
       try {
         // Simplesmente confirmar o upload - o arquivo já foi enviado via presigned URL
@@ -824,12 +866,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const privateDir = objectStorageService.getPrivateObjectDir();
         const fullPath = `${privateDir}/uploads/${id}`;
         
-        function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+        const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
           if (!path.startsWith("/")) path = `/${path}`;
           const pathParts = path.split("/");
           if (pathParts.length < 3) throw new Error("Invalid path");
           return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
-        }
+        };
         
         const { bucketName, objectName } = parseObjectPath(fullPath);
         const bucket = objectStorageClient.bucket(bucketName);
@@ -844,7 +886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id,
           name: originalFileName,
           type: metadata.contentType || "application/octet-stream",
-          size: metadata.size ? `${(parseInt(metadata.size) / 1024 / 1024).toFixed(2)} MB` : "Desconhecido",
+          size: metadata.size ? `${(parseInt(String(metadata.size)) / 1024 / 1024).toFixed(2)} MB` : "Desconhecido",
           downloadUrl: `/api/attachments/${id}/download`,
           viewUrl: `/api/attachments/${id}/view`,
           message: "Arquivo encontrado no storage"
@@ -882,11 +924,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const privateDir = objectStorageService.getPrivateObjectDir();
       const fullPath = `${privateDir}/uploads/${id}`;
       
-      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+      const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
         if (!path.startsWith("/")) path = `/${path}`;
         const pathParts = path.split("/");
         return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
-      }
+      };
       
       const { bucketName, objectName } = parseObjectPath(fullPath);
       const bucket = objectStorageClient.bucket(bucketName);
@@ -914,11 +956,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const privateDir = objectStorageService.getPrivateObjectDir();
       const fullPath = `${privateDir}/uploads/${id}`;
       
-      function parseObjectPath(path: string): { bucketName: string; objectName: string } {
+      const parseObjectPath = (path: string): { bucketName: string; objectName: string } => {
         if (!path.startsWith("/")) path = `/${path}`;
         const pathParts = path.split("/");
         return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
-      }
+      };
       
       const { bucketName, objectName } = parseObjectPath(fullPath);
       const bucket = objectStorageClient.bucket(bucketName);
