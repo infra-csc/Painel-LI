@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
+import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import type { TeamInclusion, Event, Function, Collaborator, Ticket, Comment } from "@shared/schema";
@@ -549,6 +550,21 @@ export default function Tickets() {
     }
   };
 
+  // Check if user can access this screen
+  if (!canView(user as any, 'tickets')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -785,38 +801,40 @@ export default function Tickets() {
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleApplyToSelected}
-                      disabled={
-                        selectedTickets.length === 0 || 
-                        createTicketMutation.isPending
-                      }
-                      data-testid="button-apply-to-selected"
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Limpar campos do registro rápido
-                        setTicketData(prev => {
-                          const newData = { ...prev };
-                          delete newData["quick"];
-                          return newData;
-                        });
-                      }}
-                      disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
-                      data-testid="button-clear-quick"
-                    >
-                      Limpar Campos
-                    </Button>
-                  </div>
+                  {canEditScreen(user as any, 'tickets') && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleApplyToSelected}
+                        disabled={
+                          selectedTickets.length === 0 || 
+                          createTicketMutation.isPending
+                        }
+                        data-testid="button-apply-to-selected"
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Limpar campos do registro rápido
+                          setTicketData(prev => {
+                            const newData = { ...prev };
+                            delete newData["quick"];
+                            return newData;
+                          });
+                        }}
+                        disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
+                        data-testid="button-clear-quick"
+                      >
+                        Limpar Campos
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1674,8 +1692,11 @@ export default function Tickets() {
                           
                           {selectedInclusion?.status !== 'fechamento' && !isReadOnly(selectedInclusion) && (
                             <>
-                              {/* Botão Salvar - para dados parciais */}
-                              <Button
+                              {/* Botões de edição - apenas para usuários com permissão */}
+                              {canEditScreen(user as any, 'tickets') && (
+                                <>
+                                  {/* Botão Salvar - para dados parciais */}
+                                  <Button
                                 variant="secondary"
                                 onClick={async () => {
                                   try {
@@ -1820,6 +1841,8 @@ export default function Tickets() {
                                   : (editingTicketId ? "Atualizar Passagem" : "Registrar Passagem")
                                 }
                               </Button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>

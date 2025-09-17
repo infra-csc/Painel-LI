@@ -20,6 +20,7 @@ import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } fr
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
+import { canView, canEdit } from "@/lib/permissions";
 
 export default function Scaling() {
   const [filters, setFilters] = useState({
@@ -211,8 +212,14 @@ export default function Scaling() {
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
     if (!user || !allFunctionManagers) return false;
+    
+    // Check new permission system first
+    if (!canEdit(user as any, 'scaling')) return false;
+    
+    // Admins can manage all functions
     if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator') return true;
-    // Check if user is a manager of this function
+    
+    // Check if user is a manager of this specific function (existing logic)
     return allFunctionManagers.some(manager => manager.functionId === functionId && manager.userId === user.id);
   };
 
@@ -220,6 +227,21 @@ export default function Scaling() {
   const canConfirmEscalation = (inclusion: TeamInclusion) => {
     return canManageFunction(inclusion.functionId);
   };
+
+  // Check if user can access this screen
+  if (!canView(user as any, 'scaling')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Filter and sort inclusions using memoization
   const scalingInclusions = useMemo(() => {

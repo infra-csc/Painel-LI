@@ -4,7 +4,7 @@ import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import GridTeamInclusionForm from "@/components/forms/grid-team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import { useAuth } from "@/hooks/use-auth";
-import { hasPermission } from "@/lib/role-utils";
+import { canView, canEdit } from "@/lib/permissions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Calendar, MapPin } from "lucide-react";
@@ -98,7 +98,7 @@ export default function TeamInclusion() {
   };
 
   // Check if user can access this screen
-  if (!hasPermission(user, 'canAccessScreen1')) {
+  if (!canView(user as any, 'team_inclusion')) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -119,17 +119,19 @@ export default function TeamInclusion() {
         <NavigationTabs activeTab="team-inclusion" />
         <WorkflowIndicator currentPhase="inclusao" />
         
-        {/* Botão para criar evento */}
-        <div className="mb-6">
-          <Button 
-            onClick={() => setShowEventModal(true)}
-            className="gap-2"
-            data-testid="button-create-event"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Criar Novo Evento
-          </Button>
-        </div>
+        {/* Botão para criar evento - apenas para usuários com permissão de edição */}
+        {canEdit(user as any, 'team_inclusion') && (
+          <div className="mb-6">
+            <Button 
+              onClick={() => setShowEventModal(true)}
+              className="gap-2"
+              data-testid="button-create-event"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Criar Novo Evento
+            </Button>
+          </div>
+        )}
         
         <div className="space-y-6">
           <GridTeamInclusionForm />
