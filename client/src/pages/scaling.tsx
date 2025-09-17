@@ -215,16 +215,13 @@ export default function Scaling() {
 
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
-    if (!user || !allFunctionManagers) return false;
-    
-    // Check new permission system first
-    if (!canEdit(user as any, 'scaling')) return false;
+    if (!user) return false;
     
     // Admins can manage all functions
     if (user.role === 'administrador' || user.role === 'admin' || user.role === 'administrator') return true;
     
-    // Check if user is a manager of this specific function (existing logic)
-    return allFunctionManagers.some(manager => manager.functionId === functionId && manager.userId === user.id);
+    // Check if user is a manager of this specific function
+    return allFunctionManagers?.some(manager => manager.functionId === functionId && manager.userId === user.id) ?? false;
   };
 
   // Check if user can confirm escalation (only responsible for function)
