@@ -29,7 +29,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   // Escalação
   scaling: {
     admin: 'edit',      // Administrador: acesso total
-    production: 'edit', // Logística Interna: acesso total
+    production: 'view', // Logística Interna: apenas visualização
     function_area: 'edit', // Área Responsável por Funções: acesso total
     purchasing: 'view', // Área de Compras/Viagens: apenas visualização
     financial: 'view'   // Financial: apenas visualização
