@@ -101,8 +101,10 @@ export default function Scaling() {
   const filteredTeamInclusions = teamInclusions?.filter(ti => {
     // Administradores veem todas as inclusões (verificando diferentes formatos de role)
     if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
-    // Usuários "Logística Interna" (production) também veem todas as inclusões
+    // Usuários "Logística Interna" (production) veem todas as inclusões
     if (user?.role === 'production') return true;
+    // Usuários "Área De Função" (function_area) veem todas as inclusões
+    if (user?.role === 'function_area') return true;
     // Outros usuários veem apenas suas funções atribuídas como managers
     return userFunctionIds.includes(ti.functionId);
   }) || [];
