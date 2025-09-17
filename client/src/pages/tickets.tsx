@@ -1477,7 +1477,7 @@ export default function Tickets() {
 
                           {/* Botão de Edição */}
                           <div className="mt-6 flex justify-end">
-                            {!isReadOnly(selectedInclusion) && (
+                            {!isReadOnly(selectedInclusion) && canEditScreen(user as any, 'tickets') && (
                               <Button
                                 variant="outline"
                                 size="sm"
