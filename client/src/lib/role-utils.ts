@@ -78,7 +78,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen0: false,
         canAccessScreen1: false,
         canEditScreen1: false,
-        canAccessScreen2: false,
+        canAccessScreen2: true,  // scaling - view access
         canSelectCollaborators: false,
         canAccessScreen3: true,
         canRegisterTickets: true,
