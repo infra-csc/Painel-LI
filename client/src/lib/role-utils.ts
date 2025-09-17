@@ -15,7 +15,7 @@ export interface RolePermissions {
   canEditScreen4: boolean;
   canAccessScreen5: boolean;
   canApproveFinancial: boolean;
-  canAccessScreen6: boolean; // consultation - all users
+  canAccessScreen6: boolean; // consultation - admin only
   canAccessAdminUsers: boolean; // admin users management - admin only
 }
 
@@ -52,7 +52,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: true,
         canAccessScreen5: false,
         canApproveFinancial: false,
-        canAccessScreen6: true,
+        canAccessScreen6: false,
         canAccessAdminUsers: false,
       };
     case "function_area":
@@ -69,7 +69,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
-        canAccessScreen6: true,
+        canAccessScreen6: false,
         canAccessAdminUsers: false,
       };
     case "purchasing":
@@ -86,7 +86,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
-        canAccessScreen6: true,
+        canAccessScreen6: false,
         canAccessAdminUsers: false,
       };
     case "financial":
@@ -103,7 +103,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: true,
         canApproveFinancial: true,
-        canAccessScreen6: true,
+        canAccessScreen6: false,
         canAccessAdminUsers: false,
       };
     default:
@@ -120,7 +120,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditScreen4: false,
         canAccessScreen5: false,
         canApproveFinancial: false,
-        canAccessScreen6: true,
+        canAccessScreen6: false,
         canAccessAdminUsers: false,
       };
   }
