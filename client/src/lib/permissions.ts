@@ -3,15 +3,10 @@
  * Define quais roles têm acesso a quais funcionalidades
  */
 
+import type { User } from "@shared/schema";
+
 export type UserRole = 'admin' | 'production' | 'function_area' | 'purchasing' | 'financial';
 export type AccessLevel = 'none' | 'view' | 'edit';
-
-export interface User {
-  id: string;
-  role: UserRole;
-  name: string;
-  email: string;
-}
 
 /**
  * Matriz de permissões por funcionalidade
@@ -135,7 +130,9 @@ export function isAdmin(user: User | null): boolean {
  */
 export function getAccessLevel(user: User | null, feature: string): AccessLevel {
   if (!user) return 'none';
-  return PERMISSIONS[feature]?.[user.role] || 'none';
+  const normalizedRole = normalizeRole(user.role);
+  if (!normalizedRole) return 'none';
+  return PERMISSIONS[feature]?.[normalizedRole] || 'none';
 }
 
 /**

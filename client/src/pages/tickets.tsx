@@ -564,7 +564,7 @@ export default function Tickets() {
   };
 
   // Check if user can access this screen
-  if (!canView(user as any, 'tickets')) {
+  if (!canView(user, 'tickets')) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -897,7 +897,7 @@ export default function Tickets() {
                     onAttachmentsChange={(attachmentIds) => 
                       handleTicketDataChange("quick", "attachmentIds", attachmentIds)
                     }
-                    disabled={!canEditScreen(user as any, 'tickets')}
+                    disabled={!canEditScreen(user, 'tickets')}
                   />
                 </div>
 
@@ -910,7 +910,7 @@ export default function Tickets() {
                       </span>
                     )}
                   </div>
-                  {canEditScreen(user as any, 'tickets') && (
+                  {canEditScreen(user, 'tickets') && (
                     <div className="flex gap-2">
                       <Button
                         variant="default"
@@ -1477,7 +1477,7 @@ export default function Tickets() {
 
                           {/* Botão de Edição */}
                           <div className="mt-6 flex justify-end">
-                            {!isReadOnly(selectedInclusion) && canEditScreen(user as any, 'tickets') && (
+                            {!isReadOnly(selectedInclusion) && canEditScreen(user, 'tickets') && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1567,7 +1567,7 @@ export default function Tickets() {
                                   checked={data.isOneWay || false}
                                   onCheckedChange={(checked) => handleTicketDataChange(selectedInclusion.id, "isOneWay", checked)}
                                   data-testid={`checkbox-one-way-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                                 <Label htmlFor={`one-way-${selectedInclusion.id}`} className="text-sm font-medium text-purple-700 dark:text-purple-300">
                                   Apenas ida (sem volta)
@@ -1595,7 +1595,7 @@ export default function Tickets() {
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "value", e.target.value)}
                                   className="mt-1"
                                   data-testid={`input-value-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                               </div>
                               <div>
@@ -1608,7 +1608,7 @@ export default function Tickets() {
                                   value={data.purchaseOrderNumber || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                                   data-testid={`input-purchase-order-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                               </div>
                             </div>
@@ -1640,7 +1640,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityOrigin", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-departure-city-origin-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                   <div>
@@ -1654,7 +1654,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureCityDestination", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-departure-city-destination-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                   {/* Aeroportos/Rodoviárias */}
@@ -1669,7 +1669,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "departureAirport", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-departure-airport-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                   <div>
@@ -1683,7 +1683,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "destinationAirport", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-destination-airport-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                   <div>
@@ -1697,7 +1697,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureDate", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-departure-date-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                   <div>
@@ -1712,7 +1712,7 @@ export default function Tickets() {
                                       onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualDepartureTime", e.target.value)}
                                       className="mt-1"
                                       data-testid={`input-departure-time-${selectedInclusion.id}`}
-                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                      disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                     />
                                   </div>
                                 </div>
@@ -1737,7 +1737,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityOrigin", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-city-origin-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                     <div>
@@ -1751,7 +1751,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnCityDestination", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-city-destination-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                     {/* Aeroportos/Rodoviárias */}
@@ -1766,7 +1766,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnOriginAirport", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-origin-airport-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                     <div>
@@ -1780,7 +1780,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "returnDestinationAirport", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-destination-airport-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                     <div>
@@ -1794,7 +1794,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnDate", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-date-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                     <div>
@@ -1809,7 +1809,7 @@ export default function Tickets() {
                                         onChange={(e) => handleTicketDataChange(selectedInclusion.id, "actualReturnTime", e.target.value)}
                                         className="mt-1"
                                         data-testid={`input-return-time-${selectedInclusion.id}`}
-                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                        disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                       />
                                     </div>
                                   </div>
@@ -1836,7 +1836,7 @@ export default function Tickets() {
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
                                   className="mt-1"
                                   data-testid={`input-card-digits-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                               </div>
                               <div>
@@ -1850,7 +1850,7 @@ export default function Tickets() {
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "ticketObservations", e.target.value)}
                                   className="mt-1 h-20 resize-none"
                                   data-testid={`textarea-ticket-observations-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user as any, 'tickets')}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                               </div>
                             </div>
@@ -1935,7 +1935,7 @@ export default function Tickets() {
                           {selectedInclusion?.status !== 'fechamento' && !isReadOnly(selectedInclusion) && (
                             <>
                               {/* Botões de edição - apenas para usuários com permissão */}
-                              {canEditScreen(user as any, 'tickets') && (
+                              {canEditScreen(user, 'tickets') && (
                                 <>
                                   {/* Botão Salvar - para dados parciais */}
                                   <Button
