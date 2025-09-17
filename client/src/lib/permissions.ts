@@ -62,6 +62,8 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
  * Normaliza roles legados para os roles canônicos do sistema
  */
 function normalizeRole(role: string): UserRole | null {
+  if (!role) return null;
+  
   const roleMap: Record<string, UserRole> = {
     // Roles canônicos
     'admin': 'admin',
@@ -74,14 +76,20 @@ function normalizeRole(role: string): UserRole | null {
     'administrador': 'admin',
     'administrator': 'admin',
     'logistica_interna': 'production',
+    'logistica': 'production',
     'area_funcional': 'function_area',
     'area_responsavel': 'function_area',
+    'function_manager': 'function_area',
     'compras': 'purchasing',
     'viagens': 'purchasing',
-    'compras_viagens': 'purchasing'
+    'compras_viagens': 'purchasing',
+    'purchase': 'purchasing',
+    'travel': 'purchasing',
+    'financeiro': 'financial',
+    'finance': 'financial'
   };
   
-  return roleMap[role.toLowerCase()] || null;
+  return roleMap[role.toLowerCase().trim()] || null;
 }
 
 /**

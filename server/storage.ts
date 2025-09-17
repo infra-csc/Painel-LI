@@ -111,7 +111,7 @@ export class MemStorage implements IStorage {
   }
 
   private initializeDemoData() {
-    // Create demo user with hashed password
+    // Create demo admin user with hashed password
     const demoUser: User = {
       id: "demo-user-1",
       email: "admin@sistema.com",
@@ -126,6 +126,22 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.users.set(demoUser.id, demoUser);
+
+    // Create demo purchasing user for testing
+    const purchasingUser: User = {
+      id: "demo-user-purchasing",
+      email: "compras@sistema.com",
+      password: "$2b$10$s39R6A1cSe6scFn/rIfPL.4LDZZGSXwDEw8Sf/TXXbiXihRLVfQJy", // admin123
+      name: "Maria Santos",
+      role: "purchasing",
+      area: "Compras e Viagens",
+      resetToken: null,
+      resetTokenExpiry: null,
+      status: "approved",
+      isActive: true,
+      createdAt: new Date(),
+    };
+    this.users.set(purchasingUser.id, purchasingUser);
   }
 
   // Users
@@ -293,7 +309,7 @@ export class MemStorage implements IStorage {
   }
 
   async removeUserFromFunction(functionId: string, userId: string): Promise<void> {
-    for (const [id, fu] of this.functionUsers.entries()) {
+    for (const [id, fu] of Array.from(this.functionUsers.entries())) {
       if (fu.functionId === functionId && fu.userId === userId) {
         this.functionUsers.delete(id);
         break;
@@ -327,7 +343,7 @@ export class MemStorage implements IStorage {
   }
 
   async removeManagerFromFunction(functionId: string, userId: string): Promise<void> {
-    for (const [id, fm] of this.functionManagers.entries()) {
+    for (const [id, fm] of Array.from(this.functionManagers.entries())) {
       if (fm.functionId === functionId && fm.userId === userId) {
         this.functionManagers.delete(id);
         break;
@@ -405,6 +421,7 @@ export class MemStorage implements IStorage {
       updatedAt: new Date(),
       updatedBy: insertInclusion.updatedBy || null,
       status: insertInclusion.status || 'planejado',
+      previousStatus: insertInclusion.previousStatus ?? null,
       phase: insertInclusion.phase || 'inclusao',
       observations: insertInclusion.observations ?? null,
       actualObservations: insertInclusion.actualObservations ?? null,
@@ -457,6 +474,7 @@ export class MemStorage implements IStorage {
     const ticket: Ticket = { 
       id,
       teamInclusionId: insertTicket.teamInclusionId,
+      transportType: insertTicket.transportType ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
       updatedBy: insertTicket.updatedBy || null,
@@ -465,13 +483,18 @@ export class MemStorage implements IStorage {
       actualDepartureTime: insertTicket.actualDepartureTime ?? null,
       actualReturnDate: insertTicket.actualReturnDate || new Date().toISOString().split('T')[0],
       actualReturnTime: insertTicket.actualReturnTime ?? null,
+      departureCityOrigin: insertTicket.departureCityOrigin ?? null,
+      departureCityDestination: insertTicket.departureCityDestination ?? null,
+      returnCityOrigin: insertTicket.returnCityOrigin ?? null,
+      returnCityDestination: insertTicket.returnCityDestination ?? null,
       departureAirport: insertTicket.departureAirport ?? null,
       destinationAirport: insertTicket.destinationAirport ?? null,
       value: insertTicket.value ?? null,
       purchaseOrderNumber: insertTicket.purchaseOrderNumber ?? null,
       fileUrl: insertTicket.fileUrl ?? null,
       attachmentIds: insertTicket.attachmentIds || null,
-      cardLastFourDigits: insertTicket.cardLastFourDigits ?? null
+      cardLastFourDigits: insertTicket.cardLastFourDigits ?? null,
+      ticketObservations: insertTicket.ticketObservations ?? null
     };
     this.tickets.set(id, ticket);
     return ticket;
@@ -826,6 +849,7 @@ export class DatabaseStorage implements IStorage {
         actualObservations: teamInclusions.actualObservations,
         emergencyRecord: teamInclusions.emergencyRecord,
         status: teamInclusions.status,
+        previousStatus: teamInclusions.previousStatus,
         phase: teamInclusions.phase,
         userId: teamInclusions.userId,
         createdAt: teamInclusions.createdAt,
@@ -902,6 +926,13 @@ export class DatabaseStorage implements IStorage {
   // Comments
   async getComments(teamInclusionId: string): Promise<Comment[]> {
     return await db.select().from(comments).where(eq(comments.teamInclusionId, teamInclusionId));
+  }
+
+  async getAllComments(): Promise<Comment[]> {
+    const allComments = await db.select().from(comments);
+    return allComments.sort((a, b) => 
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
   }
 
   async createComment(commentData: InsertComment): Promise<Comment> {
