@@ -3,10 +3,10 @@ import type { User } from "@shared/schema";
 export type UserRole = "admin" | "production" | "function_area" | "purchasing" | "financial";
 
 export interface RolePermissions {
-  canAccessScreen0: boolean;  // user registration - admin only
+  canAccessScreen0: boolean;  // user registration + functions - admin only
   canEditScreen0: boolean;
-  canAccessScreen1: boolean;  // functions management - admin only
-  canEditScreen1: boolean;    // team inclusion
+  canAccessScreen1: boolean;  // team inclusion
+  canEditScreen1: boolean;    // team inclusion editing
   canAccessScreen2: boolean;  // scaling
   canSelectCollaborators: boolean;
   canAccessScreen3: boolean;  // tickets
@@ -42,8 +42,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       return {
         canAccessScreen0: false,
         canEditScreen0: false,
-        canAccessScreen1: false,  // functions - admin only
-        canEditScreen1: true,     // team inclusion - total access
+        canAccessScreen1: true,   // team inclusion - access
+        canEditScreen1: true,     // team inclusion - can edit
         canAccessScreen2: true,   // scaling - view access
         canSelectCollaborators: false,
         canAccessScreen3: true,   // tickets - view access
@@ -135,8 +135,8 @@ export function hasPermission(user: User | null, permission: keyof RolePermissio
 export function getRoleLabel(role: UserRole): string {
   switch (role) {
     case "admin": return "Administrador";
-    case "production": return "Área de Produção";
-    case "function_area": return "Áreas responsáveis por funções";
+    case "production": return "Logística Interna";
+    case "function_area": return "Área responsável por funções";
     case "purchasing": return "Área de Compras/Viagem";
     case "financial": return "Área Financeira";
     default: return "Usuário";

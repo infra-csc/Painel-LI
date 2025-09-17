@@ -43,7 +43,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/functions">
-            <ProtectedRoute permission="canAccessScreen1">
+            <ProtectedRoute permission="canAccessScreen0">
               <Functions />
             </ProtectedRoute>
           </Route>

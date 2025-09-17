@@ -16,6 +16,7 @@ export default function Dashboard() {
 
     // Find the first available screen for the user
     const availableRoutes = [
+      { path: "/functions", permission: "canAccessScreen0" as const },
       { path: "/user-registration", permission: "canAccessScreen0" as const },
       { path: "/team-inclusion", permission: "canAccessScreen1" as const },
       { path: "/scaling", permission: "canAccessScreen2" as const },
