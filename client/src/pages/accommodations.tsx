@@ -161,9 +161,11 @@ export default function Accommodations() {
     useEffect(() => {
       if (selectedInclusion) {
         const existingAttachments = accommodation?.attachmentIds || [];
+        console.log("🔍 DEBUG ANEXOS: Inicializando attachment IDs:", existingAttachments);
         setCurrentAttachmentIds(existingAttachments);
       } else {
         // Limpar quando fechar
+        console.log("🔍 DEBUG ANEXOS: Limpando attachment IDs");
         setCurrentAttachmentIds([]);
       }
     }, [selectedInclusion?.id, accommodation?.attachmentIds]);
@@ -581,7 +583,10 @@ export default function Accommodations() {
               
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
-                onAttachmentsChange={setCurrentAttachmentIds}
+                onAttachmentsChange={(newIds) => {
+                  console.log("🔍 DEBUG ANEXOS: Mudança nos anexos:", newIds);
+                  setCurrentAttachmentIds(newIds);
+                }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
               />
