@@ -795,10 +795,20 @@ export default function Accommodations() {
     queryKey: ["/api/users"],
   });
 
-  // Filtrar team inclusions que precisam de hospedagem
+  // Filtrar team inclusions que precisam de hospedagem E estão no status correto
   const teamInclusionsWithAccommodation = useMemo(() => {
     if (!teamInclusions) return [];
-    return teamInclusions.filter(inclusion => inclusion.needsAccommodation === true);
+    
+    const filtered = teamInclusions.filter(inclusion => {
+      // Deve precisar de hospedagem
+      if (inclusion.needsAccommodation !== true) return false;
+      
+      // Deve estar no status "hospedagem" (aguardando hospedagem) ou "hospedagem_comprada" (já registrada)
+      const correctStatus = inclusion.status === "hospedagem" || inclusion.status === "hospedagem_comprada";
+      
+      return correctStatus;
+    });
+    return filtered;
   }, [teamInclusions]);
 
   // Criar map de accommodations por teamInclusionId
@@ -870,39 +880,28 @@ export default function Accommodations() {
   // Mutations
   const createAccommodationMutation = useMutation({
     mutationFn: async (accommodationData: any) => {
-      console.log("🏨 Iniciando registro de hospedagem:", accommodationData);
-      
       // 1. Criar accommodation
-      console.log("🏨 Criando accommodation...");
       const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
-      console.log("🏨 Accommodation criado:", accommodation);
       
       // 2. Atualizar status do teamInclusion para "hospedagem_comprada" e phase para "aprovacao"
-      console.log("🏨 Atualizando status do teamInclusion para hospedagem_comprada...");
-      const updateData = {
+      await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
         status: "hospedagem_comprada",
         phase: "aprovacao",
         updatedBy: user?.id
-      };
-      console.log("🏨 Dados de atualização:", updateData);
-      
-      const updateResult = await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, updateData);
-      console.log("🏨 TeamInclusion atualizado:", updateResult);
+      });
       
       return accommodation;
     },
     onSuccess: () => {
-      console.log("🏨 SUCCESS: Hospedagem registrada com sucesso! Invalidando queries...");
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-      console.log("🏨 SUCCESS: Queries invalidadas");
       toast({
         title: "✅ Sucesso",
         description: "Hospedagem registrada com sucesso!",
       });
     },
     onError: (error: any) => {
-      console.error("🏨 ERROR: Erro ao criar hospedagem:", error);
+      console.error("Erro ao criar hospedagem:", error);
       toast({
         variant: "destructive",
         title: "❌ Erro",

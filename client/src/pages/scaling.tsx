@@ -122,10 +122,6 @@ export default function Scaling() {
     refetchOnWindowFocus: true, // Atualizar quando a janela recebe foco
   });
 
-  // Debug log para verificar se os dados de accommodation estão chegando
-  useEffect(() => {
-    console.log("🔍 SCALING: Accommodations data updated:", accommodations);
-  }, [accommodations]);
 
   const { data: tickets } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
@@ -229,9 +225,7 @@ export default function Scaling() {
 
   // Helper function to get accommodation for an inclusion
   const getAccommodation = (inclusionId: string) => {
-    const accommodation = accommodations?.find(a => a.teamInclusionId === inclusionId);
-    console.log(`🔍 SCALING: Buscando accommodation para inclusão ${inclusionId}:`, accommodation);
-    return accommodation;
+    return accommodations?.find(a => a.teamInclusionId === inclusionId);
   };
 
   // Helper function to format accommodation data
