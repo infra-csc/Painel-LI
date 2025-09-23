@@ -887,6 +887,7 @@ export class DatabaseStorage implements IStorage {
         flightReturnDate: teamInclusions.flightReturnDate,
         flightReturnSuggestedTime: teamInclusions.flightReturnSuggestedTime,
         needsTicket: teamInclusions.needsTicket,
+        needsAccommodation: teamInclusions.needsAccommodation,
         dailyRates: teamInclusions.dailyRates,
         dailyValue: teamInclusions.dailyValue,
         actualDailyRates: teamInclusions.actualDailyRates,
