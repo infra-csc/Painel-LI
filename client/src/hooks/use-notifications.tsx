@@ -82,19 +82,19 @@ export function useNotifications() {
     }
   }
 
-  // Área de Produção - pode ver fechamentos pendentes (Tela 4)
+  // Área de Produção - pode ver hospedagens pendentes (Tela 4)
   if (hasPermission(user, "canAccessScreen4")) {
-    const pendingClosure = teamInclusions.filter(
-      (inclusion) => inclusion.status === "fechamento"
+    const pendingAccommodation = teamInclusions.filter(
+      (inclusion) => inclusion.status === "hospedagem"
     );
-    if (pendingClosure.length > 0) {
+    if (pendingAccommodation.length > 0) {
       notifications.push({
-        id: "pending-closure",
-        title: "Fechamentos Pendentes",
-        description: `${pendingClosure.length} fechamento(s) aguardando`,
-        type: "closure",
-        count: pendingClosure.length,
-        route: "/closure",
+        id: "pending-accommodation",
+        title: "Hospedagens Pendentes",
+        description: `${pendingAccommodation.length} hospedagem(ns) aguardando`,
+        type: "accommodation",
+        count: pendingAccommodation.length,
+        route: "/accommodations",
       });
     }
   }

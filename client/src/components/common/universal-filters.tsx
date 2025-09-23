@@ -35,7 +35,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     { value: "planejado", label: "Aguardando Escalação" },
     { value: "escalacao", label: "Em Escalação" },
     { value: "passagem", label: "Aguardando Passagem" },
-    { value: "fechamento", label: "Em Fechamento" },
+    { value: "hospedagem", label: "Aguardando Hospedagem" },
     { value: "aprovado", label: "Aprovado" }
   ];
 

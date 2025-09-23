@@ -257,11 +257,11 @@ export default function Tickets() {
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
       // Show all inclusions that need tickets and have collaborators assigned
-      // This includes both "passagem" (pending) and "fechamento"+ (processed)
+      // This includes both "passagem" (pending) and "hospedagem"+ (processed)
       const needsTicketMatch = inclusion.needsTicket && inclusion.collaboratorId && 
         (inclusion.status === "aguardando_passagem" ||
          inclusion.status === "passagem" || 
-         inclusion.status === "fechamento" || 
+         inclusion.status === "hospedagem" || 
          inclusion.status === "aprovacao" || 
          inclusion.status === "aprovado" ||
          inclusion.status === "cancelado");
@@ -308,7 +308,7 @@ export default function Tickets() {
     const statusPriority: Record<string, number> = {
       'aprovado': 6,
       'aprovacao': 5,
-      'fechamento': 4,
+      'hospedagem': 4,
       'passagem': 3,
       'aguardando_passagem': 2,
       'cancelado': 1  // Lowest priority so active records are kept over canceled ones
@@ -522,12 +522,13 @@ export default function Tickets() {
             ticketObservations: quickData.ticketObservations || null
           });
 
-          // Atualizar team inclusion para fechamento
+          // Atualizar team inclusion para hospedagem se necessário, senão finaliza
+          const needsAccommodation = inclusion.needsAccommodation;
           await updateTeamInclusionMutation.mutateAsync({
             id: inclusion.id,
             data: {
-              status: "fechamento",
-              phase: "fechamento"
+              status: needsAccommodation ? "hospedagem" : "aprovado",
+              phase: needsAccommodation ? "hospedagem" : "aprovacao"
             }
           });
 
@@ -1946,7 +1947,7 @@ export default function Tickets() {
                             Cancelar
                           </Button>
                           
-                          {selectedInclusion?.status !== 'fechamento' && !isReadOnly(selectedInclusion) && (
+                          {selectedInclusion?.status !== 'hospedagem' && !isReadOnly(selectedInclusion) && (
                             <>
                               {/* Botões de edição - apenas para usuários com permissão */}
                               {canEditScreen(user, 'tickets') && (
@@ -2096,12 +2097,13 @@ export default function Tickets() {
                                         ticketObservations: data.ticketObservations || null
                                       });
 
-                                      // Atualizar team inclusion para fechamento (só quando criar novo)
+                                      // Atualizar team inclusion para hospedagem se necessário, senão finaliza (só quando criar novo)
+                                      const needsAccommodation = selectedInclusion.needsAccommodation;
                                       await updateTeamInclusionMutation.mutateAsync({
                                         id: selectedInclusion.id,
                                         data: {
-                                          status: "fechamento",
-                                          phase: "fechamento"
+                                          status: needsAccommodation ? "hospedagem" : "aprovado",
+                                          phase: needsAccommodation ? "hospedagem" : "aprovacao"
                                         }
                                       });
                                     }

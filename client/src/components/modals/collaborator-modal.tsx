@@ -99,9 +99,9 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
           dailyValue: 0, // Valor padrão, pode ser editado depois
           needsTicket: false,
           emergencyRecord: true,
-          status: "fechamento",
-          phase: "fechamento",
-          observations: "Colaborador emergencial adicionado durante o fechamento"
+          status: "hospedagem",
+          phase: "hospedagem",
+          observations: "Colaborador emergencial adicionado durante a hospedagem"
         };
         
         await apiRequest("POST", "/api/team-inclusions", teamInclusionData);
@@ -113,7 +113,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       toast({
         title: "Sucesso",
         description: isEmergency 
-          ? "Colaborador emergencial criado e adicionado ao fechamento com sucesso"
+          ? "Colaborador emergencial criado e adicionado à hospedagem com sucesso"
           : "Colaborador criado com sucesso",
       });
       form.reset();

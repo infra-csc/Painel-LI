@@ -126,8 +126,8 @@ export default function TeamInclusionTable() {
 
   const canEditInclusion = (status: string) => {
     // Pode editar até a confirmação de escalação (antes da passagem)
-    // Status que NÃO permitem edição: passagem, fechamento, aprovacao, aprovado, cancelado
-    const nonEditableStatuses = ['passagem', 'fechamento', 'aprovacao', 'aprovado', 'cancelado'];
+    // Status que NÃO permitem edição: passagem, hospedagem, aprovacao, aprovado, cancelado
+    const nonEditableStatuses = ['passagem', 'hospedagem', 'aprovacao', 'aprovado', 'cancelado'];
     return !nonEditableStatuses.includes(status);
   };
 
@@ -273,7 +273,7 @@ export default function TeamInclusionTable() {
     pendentes: filteredAndSortedInclusions.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
     escalados: filteredAndSortedInclusions.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
     aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
-    fechamento: filteredAndSortedInclusions.filter(i => i.status === 'fechamento').length,
+    hospedagem: filteredAndSortedInclusions.filter(i => i.status === 'hospedagem').length,
     aprovados: filteredAndSortedInclusions.filter(i => i.status === 'aprovado').length,
     cancelados: filteredAndSortedInclusions.filter(i => i.status === 'cancelado').length,
   };
@@ -318,8 +318,8 @@ export default function TeamInclusionTable() {
             <div className="text-sm text-muted-foreground">Passagem</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600" data-testid="total-fechamento">{totals.fechamento}</div>
-            <div className="text-sm text-muted-foreground">Fechamento</div>
+            <div className="text-2xl font-bold text-blue-600" data-testid="total-hospedagem">{totals.hospedagem}</div>
+            <div className="text-sm text-muted-foreground">Hospedagem</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600" data-testid="total-aprovados">{totals.aprovados}</div>

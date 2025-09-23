@@ -182,7 +182,7 @@ export default function Scaling() {
     return inclusion.collaboratorId && (
       inclusion.status === "escalacao" || 
       inclusion.status === "passagem" || 
-      inclusion.status === "fechamento" || 
+      inclusion.status === "hospedagem" || 
       inclusion.status === "aprovacao" || 
       inclusion.status === "aprovado"
     );
@@ -193,7 +193,7 @@ export default function Scaling() {
     return inclusion.collaboratorId && (
       inclusion.status === "escalado" ||
       inclusion.status === "passagem" || 
-      inclusion.status === "fechamento" || 
+      inclusion.status === "hospedagem" || 
       inclusion.status === "aprovacao" || 
       inclusion.status === "aprovado"
     );
@@ -431,10 +431,11 @@ export default function Scaling() {
       return;
     }
 
-    // If the inclusion doesn't need a ticket, skip ticket phase and go directly to closure
+    // If the inclusion doesn't need a ticket and accommodation, skip ticket phase and go directly to accommodation
     const needsTicket = selectedInclusion.needsTicket;
-    const nextStatus = needsTicket ? "passagem" : "fechamento";
-    const nextPhase = needsTicket ? "passagem" : "fechamento";
+    const needsAccommodation = selectedInclusion.needsAccommodation;
+    const nextStatus = needsTicket ? "passagem" : (needsAccommodation ? "hospedagem" : "aprovado");
+    const nextPhase = needsTicket ? "passagem" : (needsAccommodation ? "hospedagem" : "aprovacao");
 
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
@@ -553,8 +554,8 @@ export default function Scaling() {
         return "Escalação";
       case "passagem":
         return "Compra de Passagem";
-      case "fechamento":
-        return "Fechamento";
+      case "hospedagem":
+        return "Hospedagem";
       case "aprovacao":
         return "Aprovação";
       default:
