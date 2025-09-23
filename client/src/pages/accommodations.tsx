@@ -570,13 +570,24 @@ export default function Accommodations() {
                 </Button>
                 <Button 
                   type="submit" 
+                  variant="outline"
                   disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
                   data-testid="button-save"
                 >
                   {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
                   )}
-                  {isEditing ? 'Salvar' : 'Registrar Hospedagem'}
+                  Salvar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+                  data-testid="button-register"
+                >
+                  {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                  )}
+                  Registrar Hospedagem
                 </Button>
               </div>
             )}
