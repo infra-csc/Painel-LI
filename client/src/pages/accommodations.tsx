@@ -156,24 +156,17 @@ export default function Accommodations() {
     const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    // Estado para gerenciar anexos no modal individual - inicializar com anexos existentes
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
-      const existing = accommodation?.attachmentIds || [];
-      console.log("🔍 DEBUG ANEXOS: Inicialização do estado com anexos:", existing);
-      return existing;
-    });
+    // Estado para gerenciar anexos no modal individual
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
     
-    // Debug: Log sempre que o modal abre/fecha
+    // Inicializar anexos quando o modal abre
     useEffect(() => {
-      console.log("🔍 DEBUG MODAL: selectedInclusion mudou:", selectedInclusion?.id || 'null');
-      console.log("🔍 DEBUG MODAL: accommodation atual:", accommodation?.id || 'null', "anexos:", accommodation?.attachmentIds || []);
-      
       if (selectedInclusion) {
         const existingAttachments = accommodation?.attachmentIds || [];
-        console.log("🔍 DEBUG ANEXOS: Atualizando estado para:", existingAttachments);
+        console.log("🔍 DEBUG MODAL: Abriu para inclusão", selectedInclusion.id, "anexos existentes:", existingAttachments);
         setCurrentAttachmentIds(existingAttachments);
       } else {
-        console.log("🔍 DEBUG ANEXOS: Limpando estado");
+        console.log("🔍 DEBUG MODAL: Fechando - limpar anexos");
         setCurrentAttachmentIds([]);
       }
     }, [selectedInclusion?.id, accommodation?.id]);
@@ -592,8 +585,9 @@ export default function Accommodations() {
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
                 onAttachmentsChange={(newIds) => {
-                  console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", currentAttachmentIds, "para", newIds);
-                  setCurrentAttachmentIds(newIds);
+                  console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", JSON.stringify(currentAttachmentIds), "para", JSON.stringify(newIds));
+                  setCurrentAttachmentIds([...newIds]); // Force new array reference
+                  console.log("🔍 DEBUG ANEXOS: Estado atualizado, deve re-renderizar agora");
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
