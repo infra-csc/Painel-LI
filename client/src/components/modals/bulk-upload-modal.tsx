@@ -31,10 +31,10 @@ interface ParsedCollaborator {
   fullName: string;
   documentType: string;
   document: string;
-  birthDate: string;
   phone?: string;
-  type: string;
   city: string;
+  birthDate: string;
+  type: string;
   area: string;
   isValid: boolean;
   errors: string[];
@@ -86,9 +86,23 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
+    // Espera cabeçalho: Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc
     const headers = lines[0].split(',').map(h => h.trim());
-    const expectedHeaders = ['Nome', 'TipoDoc', 'Documento', 'DataNasc', 'Telefone', 'Tipo', 'Cidade', 'Area'];
+    const expectedHeaders = ['Nome', 'TipoDoc', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
+    
+    // Validar cabeçalho
+    const headerMatch = expectedHeaders.every((header, index) => 
+      headers[index]?.toLowerCase() === header.toLowerCase()
+    );
+    
+    if (!headerMatch) {
+      toast({
+        title: "Erro no cabeçalho",
+        description: `O cabeçalho deve ser: ${expectedHeaders.join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     const parsed: ParsedCollaborator[] = [];
     
@@ -98,28 +112,25 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       
       // Validações básicas
       if (!values[0]) errors.push('Nome é obrigatório');
-      if (!values[1] || !['cpf', 'rg', 'passaporte'].includes(values[1].toLowerCase())) {
-        errors.push('Tipo de documento deve ser: cpf, rg ou passaporte');
+      if (!values[1] || values[1].toLowerCase() !== 'rg') {
+        errors.push('Tipo de documento deve ser: rg');
       }
-      if (!values[2]) errors.push('Documento é obrigatório');
-      if (!values[3] || !values[3].match(/^\d{4}-\d{2}-\d{2}$/)) {
+      if (!values[2]) errors.push('Número do RG é obrigatório');
+      if (!values[3]) errors.push('Telefone é obrigatório');
+      if (!values[4]) errors.push('Cidade é obrigatória');
+      if (!values[5] || !values[5].match(/^\d{4}-\d{2}-\d{2}$/)) {
         errors.push('Data de nascimento deve estar no formato YYYY-MM-DD');
       }
-      if (!values[5] || !['funcionario', 'terceiro', 'freelancer'].includes(values[5].toLowerCase())) {
-        errors.push('Tipo deve ser: funcionario, terceiro ou freelancer');
-      }
-      if (!values[6]) errors.push('Cidade é obrigatória');
-      if (!values[7]) errors.push('Área é obrigatória');
 
       parsed.push({
         fullName: values[0] || '',
-        documentType: values[1]?.toLowerCase() || '',
+        documentType: values[1]?.toLowerCase() || 'rg',
         document: values[2] || '',
-        birthDate: values[3] || '',
-        phone: values[4] || undefined,
-        type: values[5]?.toLowerCase() || '',
-        city: values[6] || '',
-        area: values[7] || '',
+        phone: values[3] || undefined,
+        city: values[4] || '',
+        birthDate: values[5] || '',
+        type: 'funcionario', // padrão
+        area: 'Geral', // padrão
         isValid: errors.length === 0,
         errors
       });
@@ -168,9 +179,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area\n" +
-      "João Silva,cpf,12345678901,1990-01-15,11999999999,funcionario,São Paulo,Tecnologia\n" +
-      "Maria Santos,cpf,98765432100,1985-03-22,,terceiro,Rio de Janeiro,Marketing";
+    const csvContent = "Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc\n" +
+      "João Silva,rg,123456789,11999999999,São Paulo,1990-01-15\n" +
+      "Maria Santos,rg,987654321,11888888888,Rio de Janeiro,1985-03-22";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -244,13 +255,13 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 O arquivo deve conter as seguintes colunas (nesta ordem):
               </p>
               <code className="text-xs bg-background p-2 rounded block">
-                Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
+                Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc
               </code>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                <li>• <strong>TipoDoc:</strong> cpf, rg ou passaporte</li>
+                <li>• <strong>TipoDoc:</strong> sempre "rg"</li>
+                <li>• <strong>Documento:</strong> número do RG</li>
                 <li>• <strong>DataNasc:</strong> formato YYYY-MM-DD</li>
-                <li>• <strong>Telefone:</strong> opcional</li>
-                <li>• <strong>Tipo:</strong> funcionario, terceiro ou freelancer</li>
+                <li>• <strong>Telefone:</strong> obrigatório</li>
               </ul>
             </div>
           </div>
@@ -282,7 +293,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                   <tr>
                     <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Nome</th>
-                    <th className="p-2 text-left">Documento</th>
+                    <th className="p-2 text-left">RG</th>
+                    <th className="p-2 text-left">Telefone</th>
                     <th className="p-2 text-left">Cidade</th>
                     <th className="p-2 text-left">Erros</th>
                   </tr>
@@ -299,6 +311,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                       </td>
                       <td className="p-2">{item.fullName}</td>
                       <td className="p-2">{item.document}</td>
+                      <td className="p-2">{item.phone || 'N/A'}</td>
                       <td className="p-2">{item.city}</td>
                       <td className="p-2">
                         {item.errors.length > 0 && (

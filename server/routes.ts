@@ -831,12 +831,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (let i = 0; i < collaborators.length; i++) {
         const collaboratorData = collaborators[i];
         try {
-          // Validate each collaborator
+          // Validate each collaborator - convert string date to Date object
           const validatedData = insertCollaboratorSchema.parse({
             fullName: collaboratorData.fullName,
             officialDocument: collaboratorData.document,
             documentType: collaboratorData.documentType,
-            birthDate: collaboratorData.birthDate,
+            birthDate: new Date(collaboratorData.birthDate + 'T00:00:00.000Z'), // convert string to Date
             phone: collaboratorData.phone,
             type: collaboratorData.type,
             city: collaboratorData.city,
