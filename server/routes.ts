@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
 import { storage } from "./storage";
 import { 
   insertEventSchema, 
@@ -116,6 +117,18 @@ async function createAuditLog(
     console.error('Failed to create audit log:', error);
   }
 }
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept all file types for now
+    cb(null, true);
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -1103,6 +1116,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(allComments);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar todos os comentários" });
+    }
+  });
+
+  // Simple file upload endpoint for FileUpload component
+  app.post("/api/upload", upload.array('files', 10), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: "Nenhum arquivo enviado" });
+      }
+
+      const { ObjectStorageService } = await import("./objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      const uploadedFiles = [];
+      
+      for (const file of files) {
+        // Generate unique ID for the attachment
+        const attachmentId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+        
+        // Get upload URL from object storage
+        const uploadURL = await objectStorageService.getObjectEntityUploadURL(attachmentId);
+        
+        // Upload file directly using the presigned URL
+        const response = await fetch(uploadURL, {
+          method: 'PUT',
+          body: file.buffer,
+          headers: {
+            'Content-Type': file.mimetype,
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Upload failed for ${file.originalname}`);
+        }
+        
+        // Build file info
+        const fileInfo = {
+          id: attachmentId,
+          name: file.originalname,
+          type: file.mimetype,
+          size: file.size,
+          url: `/api/attachments/${attachmentId}/view`
+        };
+        
+        uploadedFiles.push(fileInfo);
+      }
+      
+      res.json(uploadedFiles);
+      
+    } catch (error) {
+      console.error("Erro no upload:", error);
+      res.status(500).json({ message: "Erro ao fazer upload dos arquivos" });
     }
   });
 
