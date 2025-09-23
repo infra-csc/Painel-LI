@@ -31,7 +31,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       case "planejado":
         return "Aguardando Escalação";
       case "escalacao":
-        return "Em Escalação";
+        return "Escalado";
       case "passagem":
         return "Aguardando Passagem";
       case "hospedagem":
