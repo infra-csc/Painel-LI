@@ -1581,7 +1581,7 @@ export default function Tickets() {
                             <h4 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
                               💰 Informações da Compra
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <Label htmlFor={`value-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
                                   Valor da Passagem (R$) *
@@ -1608,6 +1608,20 @@ export default function Tickets() {
                                   value={data.purchaseOrderNumber || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                                   data-testid={`input-purchase-order-${selectedInclusion.id}`}
+                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`purchaseDate-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
+                                  Data da Compra *
+                                </Label>
+                                <Input
+                                  id={`purchaseDate-${selectedInclusion.id}`}
+                                  type="date"
+                                  value={data.purchaseDate || ""}
+                                  onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseDate", e.target.value)}
+                                  className="mt-1"
+                                  data-testid={`input-purchase-date-${selectedInclusion.id}`}
                                   disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
                                 />
                               </div>
