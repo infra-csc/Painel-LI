@@ -96,6 +96,10 @@
     @apply bg-emerald-100 text-emerald-800 border border-emerald-200; 
   }
   
+  .status-hospedagem_comprada { 
+    @apply bg-emerald-100 text-emerald-800 border border-emerald-200; 
+  }
+  
   .status-aprovacao { 
     @apply bg-yellow-100 text-yellow-800 border border-yellow-200; 
   }
