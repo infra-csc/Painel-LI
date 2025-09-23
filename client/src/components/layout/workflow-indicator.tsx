@@ -1,4 +1,4 @@
-import { Users, UserCheck, Plane, Calculator, CheckCircle } from "lucide-react";
+import { Users, UserCheck, Plane, Hotel, CheckCircle } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface WorkflowIndicatorProps {
@@ -8,13 +8,11 @@ interface WorkflowIndicatorProps {
 export default function WorkflowIndicator({ currentPhase }: WorkflowIndicatorProps) {
   const [, setLocation] = useLocation();
   
-  // Temporarily disable closure and approval steps
   const steps = [
     { id: "inclusao", name: "Inclusão", icon: Users, route: "/team-inclusion" },
     { id: "escalacao", name: "Escalação", icon: UserCheck, route: "/scaling" },
     { id: "passagem", name: "Passagem", icon: Plane, route: "/tickets" },
-    // { id: "fechamento", name: "Fechamento", icon: Calculator, route: "/closure" },
-    // { id: "aprovacao", name: "Aprovação", icon: CheckCircle, route: "/approval" },
+    { id: "hospedagem", name: "Hospedagem", icon: Hotel, route: "/accommodations" },
   ];
 
   const getCurrentStepIndex = () => {

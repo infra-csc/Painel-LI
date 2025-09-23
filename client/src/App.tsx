@@ -10,7 +10,6 @@ import TeamInclusion from "@/pages/team-inclusion";
 import Scaling from "@/pages/scaling";
 import Tickets from "@/pages/tickets";
 import Accommodations from "@/pages/accommodations";
-import Closure from "@/pages/closure";
 import Approval from "@/pages/approval";
 import Consultation from "@/pages/consultation";
 import AdminUsers from "@/pages/admin-users";
@@ -66,11 +65,6 @@ function Router() {
           <Route path="/accommodations">
             <ProtectedRoute permission="canAccessScreen3">
               <Accommodations />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/closure">
-            <ProtectedRoute permission="canAccessScreen4">
-              <Closure />
             </ProtectedRoute>
           </Route>
           <Route path="/approval">
