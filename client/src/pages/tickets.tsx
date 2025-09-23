@@ -690,7 +690,7 @@ export default function Tickets() {
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] font-medium">Compra</Label>
+                      <Label className="text-[10px] font-medium">Data da Compra</Label>
                       <Input
                         type="date"
                         value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
