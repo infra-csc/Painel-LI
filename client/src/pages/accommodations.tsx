@@ -154,7 +154,15 @@ export default function Accommodations() {
     const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    
+    // Estado para gerenciar anexos no modal individual
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(
+      accommodation?.attachmentIds || []
+    );
+
+    // Sincronizar attachments quando o accommodation muda
+    useEffect(() => {
+      setCurrentAttachmentIds(accommodation?.attachmentIds || []);
+    }, [accommodation?.id]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -185,6 +193,7 @@ export default function Accommodations() {
           dailyRate: data.dailyRate ? Math.round(data.dailyRate * 100) : undefined, // Converter para centavos
           checkInDate: format(data.checkInDate, 'yyyy-MM-dd'),
           checkOutDate: format(data.checkOutDate, 'yyyy-MM-dd'),
+          attachmentIds: currentAttachmentIds && currentAttachmentIds.length > 0 ? currentAttachmentIds : null,
         };
         
         if (accommodation) {
@@ -553,6 +562,24 @@ export default function Accommodations() {
                   </div>
                 </div>
               )}
+            </div>
+            
+            {/* Seção de Anexos */}
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => toggleFormSection('attachments' as any)}
+                >
+                  <h4 className="text-base font-semibold text-foreground">📎 Anexos da Hospedagem</h4>
+                </div>
+              </div>
+              
+              <AttachmentUpload
+                attachmentIds={currentAttachmentIds}
+                onAttachmentsChange={setCurrentAttachmentIds}
+                disabled={!canEditRecord}
+              />
             </div>
             
             {/* Ações */}
