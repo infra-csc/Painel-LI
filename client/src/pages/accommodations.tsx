@@ -105,6 +105,13 @@ export default function Accommodations() {
     }));
   };
 
+  // Formatação de data no padrão brasileiro
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "N/A";
+    const [year, month, day] = dateStr.split('-');
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  };
+
   // Aplicar dados do registro rápido às hospedagens selecionadas
   const handleApplyToSelected = async () => {
     const quickData = accommodationData["quick"];
@@ -787,23 +794,27 @@ export default function Accommodations() {
                         {collaborator?.fullName}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
-                        {accommodation?.checkInDate && (
-                          <div>
-                            <div>{new Date(accommodation.checkInDate).toLocaleDateString('pt-BR')}</div>
+                        {accommodation?.checkInDate ? (
+                          <div className="text-sm font-medium text-foreground">
+                            <div>{formatDate(accommodation.checkInDate)}</div>
                             {accommodation.checkInTime && (
-                              <div className="text-xs text-gray-500">{accommodation.checkInTime}</div>
+                              <div className="text-xs text-blue-600">{accommodation.checkInTime}</div>
                             )}
                           </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">-</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
-                        {accommodation?.checkOutDate && (
-                          <div>
-                            <div>{new Date(accommodation.checkOutDate).toLocaleDateString('pt-BR')}</div>
+                        {accommodation?.checkOutDate ? (
+                          <div className="text-sm font-medium text-foreground">
+                            <div>{formatDate(accommodation.checkOutDate)}</div>
                             {accommodation.checkOutTime && (
-                              <div className="text-xs text-gray-500">{accommodation.checkOutTime}</div>
+                              <div className="text-xs text-blue-600">{accommodation.checkOutTime}</div>
                             )}
                           </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">-</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
