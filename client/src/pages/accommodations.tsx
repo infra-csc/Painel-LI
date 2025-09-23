@@ -149,20 +149,10 @@ export default function Accommodations() {
   // Componente do Modal de Hospedagem
   const AccommodationModal = () => {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
-    // Considera que está editando apenas se a accommodation tem dados preenchidos (hotel name)
-    const isEditing = !!(accommodation && accommodation.hotelName && accommodation.hotelName.trim() !== '');
+    // Considera que está editando se existe um registro de accommodation
+    const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    // Log temporário para debugging
-    console.log('Debugging accommodation modal:', {
-      inclusionId: selectedInclusion?.id,
-      inclusionNumber: selectedInclusion?.inclusionNumber,
-      hasAccommodation: !!accommodation,
-      accommodationId: accommodation?.id,
-      hotelName: accommodation?.hotelName,
-      isEditing,
-      buttonText: isEditing ? 'Salvar' : 'Registrar Hospedagem'
-    });
     
     
     // Configurar valores padrão do formulário
