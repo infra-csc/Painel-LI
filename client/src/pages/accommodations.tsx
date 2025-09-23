@@ -158,11 +158,24 @@ export default function Accommodations() {
     const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(
       accommodation?.attachmentIds || []
     );
+    
+    // Debug: Log do estado atual
+    console.log("Modal accommodation attachments state:", {
+      accommodationId: accommodation?.id,
+      accommodationAttachments: accommodation?.attachmentIds,
+      currentLocalAttachments: currentAttachmentIds
+    });
 
-    // Sincronizar attachments quando o accommodation muda
+    // Sincronizar attachments quando o accommodation muda, mas só se não houver anexos locais pendentes
     useEffect(() => {
-      setCurrentAttachmentIds(accommodation?.attachmentIds || []);
-    }, [accommodation?.id]);
+      // Só atualiza se o accommodation mudou E se não há anexos locais não salvos
+      if (accommodation?.id && accommodation?.attachmentIds) {
+        setCurrentAttachmentIds(accommodation.attachmentIds);
+      } else if (!accommodation) {
+        // Se não há accommodation, limpar os anexos
+        setCurrentAttachmentIds([]);
+      }
+    }, [accommodation?.id, accommodation?.attachmentIds]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -577,7 +590,10 @@ export default function Accommodations() {
               
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
-                onAttachmentsChange={setCurrentAttachmentIds}
+                onAttachmentsChange={(newIds) => {
+                  console.log("AttachmentUpload onAttachmentsChange called with:", newIds);
+                  setCurrentAttachmentIds(newIds);
+                }}
                 disabled={!canEditRecord}
               />
             </div>
