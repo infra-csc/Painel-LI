@@ -248,6 +248,8 @@ export const insertFunctionSchema = createInsertSchema(functions).omit({
 export const insertCollaboratorSchema = createInsertSchema(collaborators).omit({
   id: true,
   createdAt: true,
+}).extend({
+  birthDate: z.string().optional(), // Força string para birthDate
 });
 
 export const insertTeamInclusionSchema = createInsertSchema(teamInclusions).omit({

@@ -835,33 +835,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const collaboratorData = collaborators[i];
         
         // Verificar se o documento já foi processado no lote atual
-        if (processedDocuments.has(collaboratorData.document)) {
+        const docToCheck = collaboratorData.officialDocument || collaboratorData.document;
+        if (processedDocuments.has(docToCheck)) {
           // Ignorar silenciosamente os duplicados no mesmo CSV
           continue;
         }
         
         // Adicionar documento ao conjunto de processados
-        processedDocuments.add(collaboratorData.document);
+        processedDocuments.add(docToCheck);
         
         try {
           // Validate each collaborator - tratar campos vazios
-          // Para campos vazios, usar datas padrão ou valores padrão
           const birthDateValue = collaboratorData.birthDate 
-            ? new Date(collaboratorData.birthDate + 'T00:00:00.000Z') 
-            : new Date('1900-01-01T00:00:00.000Z'); // data padrão para campos vazios
+            ? collaboratorData.birthDate // já está em formato YYYY-MM-DD
+            : '1900-01-01'; // data padrão para campos vazios
             
           const validatedData = insertCollaboratorSchema.parse({
             fullName: collaboratorData.fullName || 'Sem nome',
-            officialDocument: collaboratorData.document || 'SEM-DOCUMENTO-' + Date.now(),
+            officialDocument: collaboratorData.officialDocument || collaboratorData.document || 'SEM-DOCUMENTO-' + Date.now(),
             documentType: collaboratorData.documentType || 'rg',
             birthDate: birthDateValue,
             phone: collaboratorData.phone || null,
             type: collaboratorData.type || 'freela',
             city: collaboratorData.city || 'Não informado',
             area: collaboratorData.area || 'Geral',
-            status: "aprovado", // colaboradores importados via CSV já são aprovados automaticamente
-            approvedAt: new Date(), // data de aprovação automática
-            approvedBy: "sistema" // aprovado pelo sistema via upload em lote
+            status: "aprovado" // colaboradores importados via CSV são aprovados automaticamente
           });
 
           // Check if collaborator with same document already exists
