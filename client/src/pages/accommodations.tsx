@@ -234,20 +234,10 @@ export default function Accommodations() {
     queryKey: ["/api/users"],
   });
 
-  // Filtrar team inclusions que estão na fase de hospedagem (após passagens)
+  // Filtrar team inclusions que precisam de hospedagem
   const teamInclusionsWithAccommodation = useMemo(() => {
     if (!teamInclusions) return [];
-    return teamInclusions.filter(inclusion => {
-      // Incluir todas as inclusões que têm colaborador atribuído
-      // e estão em status que permitem hospedagem
-      return inclusion.collaboratorId && 
-        (inclusion.status === "hospedagem" ||
-         inclusion.status === "aprovacao" ||
-         inclusion.status === "passagem_comprada" ||
-         inclusion.status === "passagem" ||
-         inclusion.status === "aguardando_hospedagem" ||
-         inclusion.status === "cancelado");
-    });
+    return teamInclusions.filter(inclusion => inclusion.needsAccommodation === true);
   }, [teamInclusions]);
 
   // Criar map de accommodations por teamInclusionId
