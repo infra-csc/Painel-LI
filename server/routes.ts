@@ -45,7 +45,7 @@ function safeDiff(oldData: any, newData: any): { changed: string[], previous: an
   // Compare all fields from both objects
   const allFields = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
   
-  for (const field of allFields) {
+  for (const field of Array.from(allFields)) {
     if (oldData[field] !== newData[field]) {
       changed.push(field);
       previous[field] = oldData[field];
