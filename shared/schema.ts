@@ -155,7 +155,10 @@ export const accommodations = pgTable("accommodations", {
   checkOutTime: text("check_out_time"),
   hotelLocation: text("hotel_location"), // local do hotel
   hotelName: text("hotel_name"), // nome do hotel
+  dailyRate: integer("daily_rate"), // valor da diária em centavos
+  reservationNumber: text("reservation_number"), // número da reserva/LOC
   accommodationObservations: text("accommodation_observations"), // observações
+  attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da hospedagem
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
