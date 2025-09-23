@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
@@ -117,7 +117,15 @@ export default function Scaling() {
 
   const { data: accommodations } = useQuery<Accommodation[]>({
     queryKey: ["/api/accommodations"],
+    staleTime: 0, // Sempre considerar dados como desatualizados
+    gcTime: 0, // Não manter cache
+    refetchOnWindowFocus: true, // Atualizar quando a janela recebe foco
   });
+
+  // Debug log para verificar se os dados de accommodation estão chegando
+  useEffect(() => {
+    console.log("🔍 SCALING: Accommodations data updated:", accommodations);
+  }, [accommodations]);
 
   const { data: tickets } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
@@ -221,7 +229,9 @@ export default function Scaling() {
 
   // Helper function to get accommodation for an inclusion
   const getAccommodation = (inclusionId: string) => {
-    return accommodations?.find(a => a.teamInclusionId === inclusionId);
+    const accommodation = accommodations?.find(a => a.teamInclusionId === inclusionId);
+    console.log(`🔍 SCALING: Buscando accommodation para inclusão ${inclusionId}:`, accommodation);
+    return accommodation;
   };
 
   // Helper function to format accommodation data
