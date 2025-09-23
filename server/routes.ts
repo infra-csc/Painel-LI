@@ -828,8 +828,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: [] as Array<{ row: number; name: string; error: string }>
       };
 
+      // Set para controlar documentos já processados no lote atual
+      const processedDocuments = new Set<string>();
+
       for (let i = 0; i < collaborators.length; i++) {
         const collaboratorData = collaborators[i];
+        
+        // Verificar se o documento já foi processado no lote atual
+        if (processedDocuments.has(collaboratorData.document)) {
+          // Ignorar silenciosamente os duplicados no mesmo CSV
+          continue;
+        }
+        
+        // Adicionar documento ao conjunto de processados
+        processedDocuments.add(collaboratorData.document);
+        
         try {
           // Validate each collaborator - convert string date to Date object
           const validatedData = insertCollaboratorSchema.parse({
