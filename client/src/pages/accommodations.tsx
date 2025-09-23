@@ -156,23 +156,17 @@ export default function Accommodations() {
     const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    // Estado para gerenciar anexos no modal individual
+    // Estado para gerenciar anexos no modal individual - estratégia mais simples
     const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
     
-    // Inicializar anexos apenas quando o modal abre (não quando accommodation muda)
+    // Reset apenas quando fecha o modal
     useEffect(() => {
-      if (selectedInclusion) {
-        // Só sobrescrever se ainda não temos anexos no estado local
-        if (currentAttachmentIds.length === 0) {
-          const existingAttachments = accommodation?.attachmentIds || [];
-          console.log("🔍 DEBUG MODAL: Inicializando anexos para inclusão", selectedInclusion.id, "anexos existentes:", existingAttachments);
-          setCurrentAttachmentIds(existingAttachments);
-        }
-      } else {
+      if (!selectedInclusion) {
         console.log("🔍 DEBUG MODAL: Fechando - limpar anexos");
         setCurrentAttachmentIds([]);
       }
-    }, [selectedInclusion?.id]); // Removido accommodation?.id da dependência
+      // Não fazer nada quando abre - deixar vazio para novos uploads
+    }, [selectedInclusion]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
