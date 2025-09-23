@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
@@ -11,15 +14,47 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment } from "@shared/schema";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, insertAccommodationSchema } from "@shared/schema";
+
+// Schema de validação estendido
+const accommodationFormSchema = z.object({
+  teamInclusionId: z.string(),
+  hotelName: z.string().min(1, "Nome do hotel é obrigatório"),
+  hotelLocation: z.string().min(1, "Localização do hotel é obrigatória"),
+  checkInDate: z.date({
+    required_error: "Data de check-in é obrigatória",
+  }),
+  checkInTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato de hora inválido (HH:MM)"),
+  checkOutDate: z.date({
+    required_error: "Data de check-out é obrigatória",
+  }),
+  checkOutTime: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "Formato de hora inválido (HH:MM)"),
+  dailyRate: z.number().min(0.01, "Diária deve ser maior que zero").optional(),
+  reservationNumber: z.string().optional(),
+  accommodationObservations: z.string().optional(),
+}).refine(data => {
+  return data.checkInDate < data.checkOutDate;
+}, {
+  message: "Data de check-out deve ser posterior à data de check-in",
+  path: ["checkOutDate"],
+});
+
+type AccommodationFormData = z.infer<typeof accommodationFormSchema>;
 
 export default function Accommodations() {
   const { user } = useAuth();
@@ -109,6 +144,395 @@ export default function Accommodations() {
     if (inclusion.status === 'cancelado') return;
     setSelectedInclusion(inclusion);
     setShowModal(true);
+  };
+
+  // Componente do Modal de Hospedagem
+  const AccommodationModal = () => {
+    const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
+    const isEditing = !!accommodation;
+    const canEditRecord = selectedInclusion && canEdit(user) && !isReadOnly(user, selectedInclusion);
+    
+    // Configurar valores padrão do formulário
+    const defaultValues: Partial<AccommodationFormData> = {
+      teamInclusionId: selectedInclusion?.id || '',
+      hotelName: accommodation?.hotelName || '',
+      hotelLocation: accommodation?.hotelLocation || '',
+      checkInDate: accommodation?.checkInDate ? new Date(accommodation.checkInDate) : undefined,
+      checkInTime: accommodation?.checkInTime || '',
+      checkOutDate: accommodation?.checkOutDate ? new Date(accommodation.checkOutDate) : undefined,
+      checkOutTime: accommodation?.checkOutTime || '',
+      dailyRate: accommodation?.dailyRate ? accommodation.dailyRate / 100 : undefined, // Converter de centavos
+      reservationNumber: accommodation?.reservationNumber || '',
+      accommodationObservations: accommodation?.accommodationObservations || '',
+    };
+
+    const form = useForm<AccommodationFormData>({
+      resolver: zodResolver(accommodationFormSchema),
+      defaultValues,
+    });
+
+    const onSubmit = async (data: AccommodationFormData) => {
+      if (!selectedInclusion) return;
+      
+      try {
+        const submitData = {
+          ...data,
+          dailyRate: data.dailyRate ? Math.round(data.dailyRate * 100) : undefined, // Converter para centavos
+          checkInDate: format(data.checkInDate, 'yyyy-MM-dd'),
+          checkOutDate: format(data.checkOutDate, 'yyyy-MM-dd'),
+        };
+        
+        if (isEditing && accommodation) {
+          await updateAccommodationMutation.mutateAsync({
+            id: accommodation.id,
+            data: submitData,
+          });
+        } else {
+          await createAccommodationMutation.mutateAsync(submitData);
+        }
+        
+        setShowModal(false);
+        form.reset();
+      } catch (error) {
+        console.error('Erro ao salvar hospedagem:', error);
+      }
+    };
+    
+    const [formSections, setFormSections] = useState({
+      basic: true,
+      dates: true,
+    });
+    
+    const toggleFormSection = (section: string) => {
+      setFormSections(prev => ({
+        ...prev,
+        [section]: !prev[section]
+      }));
+    };
+    
+    if (!selectedInclusion) return null;
+    
+    const event = events?.find(e => e.id === selectedInclusion.eventId);
+    const func = functions?.find(f => f.id === selectedInclusion.functionId);
+    const collaborator = collaborators?.find(c => c.id === selectedInclusion.collaboratorId);
+    
+    return (
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Hotel className="w-5 h-5" />
+            {isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}
+          </DialogTitle>
+          <DialogDescription>
+            {isEditing ? 'Edite os dados de hospedagem' : 'Preencha os dados de hospedagem'}
+          </DialogDescription>
+          
+          {/* Informações do colaborador e evento */}
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Badge variant="secondary">{collaborator?.fullName}</Badge>
+            <Badge variant="outline">{event?.name}</Badge>
+            <Badge variant="outline">{func?.name}</Badge>
+            <StatusBadge status={selectedInclusion.status} />
+          </div>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            
+            {/* Seção: Informações Básicas */}
+            <div className="border rounded-lg">
+              <div 
+                className="flex items-center gap-2 p-4 cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
+                onClick={() => toggleFormSection('basic')}
+              >
+                {formSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                <h3 className="text-lg font-semibold">Informações Básicas</h3>
+              </div>
+              
+              {formSections.basic && (
+                <div className="p-4 pt-0 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="hotelName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome do Hotel *</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: Hotel Copacabana Palace"
+                              data-testid="input-hotel-name"
+                              disabled={!canEditRecord}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="hotelLocation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Localização do Hotel *</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: Copacabana, Rio de Janeiro - RJ"
+                              data-testid="input-hotel-location"
+                              disabled={!canEditRecord}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="reservationNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Número da Reserva</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Ex: RES123456"
+                              data-testid="input-reservation"
+                              disabled={!canEditRecord}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="dailyRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Diária (R$)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Ex: 350.00"
+                              data-testid="input-daily-rate"
+                              disabled={!canEditRecord}
+                              {...field}
+                              value={field.value || ''}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="accommodationObservations"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Observações</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Observações adicionais sobre a hospedagem..."
+                            data-testid="textarea-observations"
+                            disabled={!canEditRecord}
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+            </div>
+            
+            {/* Seção: Datas e Horários */}
+            <div className="border rounded-lg">
+              <div 
+                className="flex items-center gap-2 p-4 cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
+                onClick={() => toggleFormSection('dates')}
+              >
+                {formSections.dates ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                <h3 className="text-lg font-semibold">Datas e Horários</h3>
+              </div>
+              
+              {formSections.dates && (
+                <div className="p-4 pt-0 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="checkInDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Data Check-in *</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={!canEditRecord}
+                                  data-testid="input-checkin-date"
+                                >
+                                  {field.value ? (
+                                    format(field.value, "dd/MM/yyyy", { locale: ptBR })
+                                  ) : (
+                                    <span>dd/mm/aaaa</span>
+                                  )}
+                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                  date < new Date("1900-01-01")
+                                }
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="checkInTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hora Check-in *</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="--:--"
+                              data-testid="input-checkin-time"
+                              disabled={!canEditRecord}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="checkOutDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Data Check-out *</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                  disabled={!canEditRecord}
+                                  data-testid="input-checkout-date"
+                                >
+                                  {field.value ? (
+                                    format(field.value, "dd/MM/yyyy", { locale: ptBR })
+                                  ) : (
+                                    <span>dd/mm/aaaa</span>
+                                  )}
+                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                  date < new Date("1900-01-01")
+                                }
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="checkOutTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hora Check-out *</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="--:--"
+                              data-testid="input-checkout-time"
+                              disabled={!canEditRecord}
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Ações */}
+            {canEditRecord && (
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowModal(false);
+                    form.reset();
+                  }}
+                  data-testid="button-cancel"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+                  data-testid="button-save"
+                >
+                  {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                  )}
+                  {isEditing ? 'Atualizar' : 'Salvar'}
+                </Button>
+              </div>
+            )}
+          </form>
+        </Form>
+      </DialogContent>
+    );
   };
 
   // Formatação de data no padrão brasileiro
@@ -907,35 +1331,10 @@ export default function Accommodations() {
         </div>
       </div>
 
-      {/* Modal de Detalhes da Hospedagem */}
-      {showModal && selectedInclusion && (
-        <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Hotel className="w-5 h-5" />
-                Hospedagem - {selectedInclusion.inclusionNumber}
-              </DialogTitle>
-            </DialogHeader>
-            
-            <AccommodationDetailForm 
-              inclusion={selectedInclusion}
-              accommodation={accommodationMap.get(selectedInclusion.id)}
-              events={events}
-              functions={functions}
-              collaborators={collaborators}
-              users={users}
-              canEditField={canEditField}
-              editingAccommodationId={editingAccommodationId}
-              setEditingAccommodationId={setEditingAccommodationId}
-              onSubmit={handleUpdateAccommodation}
-              expandedSections={expandedSections}
-              setExpandedSections={setExpandedSections}
-              isUpdating={updateAccommodationMutation.isPending}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Modal de Hospedagem */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <AccommodationModal />
+      </Dialog>
 
       {/* Modal de Comentários */}
       {showCommentsModal && selectedInclusion && (
