@@ -680,7 +680,7 @@ export default function Tickets() {
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px] font-medium">OC *</Label>
+                      <Label className="text-[10px] font-medium">LOC *</Label>
                       <Input
                         placeholder="123"
                         value={ticketData["quick"]?.purchaseOrderNumber || ""}
@@ -1604,7 +1604,7 @@ export default function Tickets() {
                                 </Label>
                                 <Input
                                   id={`purchaseOrderNumber-${selectedInclusion.id}`}
-                                  placeholder="Número da OC"
+                                  placeholder="Número da LOC"
                                   value={data.purchaseOrderNumber || ""}
                                   onChange={(e) => handleTicketDataChange(selectedInclusion.id, "purchaseOrderNumber", e.target.value)}
                                   data-testid={`input-purchase-order-${selectedInclusion.id}`}
