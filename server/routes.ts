@@ -7,6 +7,7 @@ import {
   insertCollaboratorSchema,
   insertTeamInclusionSchema,
   insertTicketSchema,
+  insertAccommodationSchema,
   insertFinancialSchema,
   insertCommentSchema,
   insertUserSchema,
@@ -992,6 +993,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ticket);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar passagem" });
+    }
+  });
+
+  // Accommodations routes
+  app.get("/api/accommodations", async (req, res) => {
+    try {
+      const accommodations = await storage.getAccommodations();
+      res.json(accommodations);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar hospedagens" });
+    }
+  });
+
+  app.post("/api/accommodations", async (req, res) => {
+    try {
+      console.log("📝 Dados de hospedagem recebidos:", JSON.stringify(req.body, null, 2));
+      const accommodationData = insertAccommodationSchema.parse(req.body);
+      console.log("✅ Dados de hospedagem validados:", JSON.stringify(accommodationData, null, 2));
+      const accommodation = await storage.createAccommodation(accommodationData);
+      res.json(accommodation);
+    } catch (error) {
+      console.error("❌ Erro na validação de hospedagem:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      res.status(400).json({ message: "Dados inválidos", error: errorMessage });
+    }
+  });
+
+  app.patch("/api/accommodations/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = { 
+        ...req.body, 
+        updatedAt: new Date(),
+        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+      };
+      const accommodation = await storage.updateAccommodation(id, updates);
+      res.json(accommodation);
+    } catch (error) {
+      res.status(400).json({ message: "Erro ao atualizar hospedagem" });
     }
   });
 

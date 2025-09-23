@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
-  users, events, functions, collaborators, teamInclusions, tickets, financial, comments, systemLogs,
+  users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
   functionUsers, functionManagers,
   type User, type InsertUser,
   type Event, type InsertEvent,
@@ -9,6 +9,7 @@ import {
   type Collaborator, type InsertCollaborator,
   type TeamInclusion, type InsertTeamInclusion,
   type Ticket, type InsertTicket,
+  type Accommodation, type InsertAccommodation,
   type Financial, type InsertFinancial,
   type Comment, type InsertComment,
   type SystemLog, type InsertSystemLog,
@@ -75,6 +76,12 @@ export interface IStorage {
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket>;
   
+  // Accommodations
+  getAccommodations(): Promise<Accommodation[]>;
+  getAccommodation(id: string): Promise<Accommodation | undefined>;
+  createAccommodation(accommodation: InsertAccommodation): Promise<Accommodation>;
+  updateAccommodation(id: string, accommodation: Partial<InsertAccommodation>): Promise<Accommodation>;
+  
   // Financial
   getFinancials(): Promise<Financial[]>;
   getFinancial(id: string): Promise<Financial | undefined>;
@@ -98,6 +105,7 @@ export class MemStorage implements IStorage {
   private collaborators: Map<string, Collaborator> = new Map();
   private teamInclusions: Map<string, TeamInclusion> = new Map();
   private tickets: Map<string, Ticket> = new Map();
+  private accommodations: Map<string, Accommodation> = new Map();
   private financials: Map<string, Financial> = new Map();
   private comments: Map<string, Comment> = new Map();
   private systemLogs: Map<string, SystemLog> = new Map();
@@ -508,6 +516,43 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  // Accommodations
+  async getAccommodations(): Promise<Accommodation[]> {
+    return Array.from(this.accommodations.values());
+  }
+
+  async getAccommodation(id: string): Promise<Accommodation | undefined> {
+    return this.accommodations.get(id);
+  }
+
+  async createAccommodation(insertAccommodation: InsertAccommodation): Promise<Accommodation> {
+    const id = randomUUID();
+    const accommodation: Accommodation = { 
+      id,
+      teamInclusionId: insertAccommodation.teamInclusionId,
+      checkInDate: insertAccommodation.checkInDate ?? null,
+      checkInTime: insertAccommodation.checkInTime ?? null,
+      checkOutDate: insertAccommodation.checkOutDate ?? null,
+      checkOutTime: insertAccommodation.checkOutTime ?? null,
+      hotelLocation: insertAccommodation.hotelLocation ?? null,
+      hotelName: insertAccommodation.hotelName ?? null,
+      accommodationObservations: insertAccommodation.accommodationObservations ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      updatedBy: insertAccommodation.updatedBy || null
+    };
+    this.accommodations.set(id, accommodation);
+    return accommodation;
+  }
+
+  async updateAccommodation(id: string, accommodationUpdate: Partial<InsertAccommodation>): Promise<Accommodation> {
+    const existing = this.accommodations.get(id);
+    if (!existing) throw new Error("Accommodation not found");
+    const updated = { ...existing, ...accommodationUpdate };
+    this.accommodations.set(id, updated);
+    return updated;
+  }
+
   // Financial
   async getFinancials(): Promise<Financial[]> {
     return Array.from(this.financials.values());
@@ -901,6 +946,26 @@ export class DatabaseStorage implements IStorage {
   async updateTicket(id: string, ticketData: Partial<InsertTicket>): Promise<Ticket> {
     const [ticket] = await db.update(tickets).set(ticketData).where(eq(tickets.id, id)).returning();
     return ticket;
+  }
+
+  // Accommodations
+  async getAccommodations(): Promise<Accommodation[]> {
+    return await db.select().from(accommodations);
+  }
+
+  async getAccommodation(id: string): Promise<Accommodation | undefined> {
+    const [accommodation] = await db.select().from(accommodations).where(eq(accommodations.id, id));
+    return accommodation;
+  }
+
+  async createAccommodation(accommodationData: InsertAccommodation): Promise<Accommodation> {
+    const [accommodation] = await db.insert(accommodations).values(accommodationData).returning();
+    return accommodation;
+  }
+
+  async updateAccommodation(id: string, accommodationData: Partial<InsertAccommodation>): Promise<Accommodation> {
+    const [accommodation] = await db.update(accommodations).set(accommodationData).where(eq(accommodations.id, id)).returning();
+    return accommodation;
   }
 
   // Financial

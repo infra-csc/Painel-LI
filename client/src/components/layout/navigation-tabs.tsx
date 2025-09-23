@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Users, UserCheck, Plane, Calculator, CheckCircle, Search, UserPlus, Settings, Wrench, UserCog } from "lucide-react";
+import { Users, UserCheck, Plane, Hotel, Calculator, CheckCircle, Search, UserPlus, Settings, Wrench, UserCog } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
@@ -45,6 +45,13 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       path: "/tickets",
       label: "Compra de Passagem",
       icon: Plane,
+      permission: "canAccessScreen3" as const,
+    },
+    {
+      id: "accommodations",
+      path: "/accommodations",
+      label: "Hospedagem",
+      icon: Hotel,
       permission: "canAccessScreen3" as const,
     },
     {

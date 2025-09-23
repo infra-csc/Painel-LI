@@ -36,6 +36,7 @@ interface FunctionRow {
   retorno: string;
   horarioRetorno: string;
   needsTicket: boolean; // se precisa de passagem
+  needsAccommodation: boolean; // se precisa de hospedagem
   dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
   isCustom: boolean; // se é uma função adicionada dinamicamente
 }
@@ -64,7 +65,7 @@ export default function GridTeamInclusionForm() {
   const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
-  const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean} | null>(null);
+  const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean, needsAccommodation: boolean} | null>(null);
   const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -265,7 +266,7 @@ export default function GridTeamInclusionForm() {
         });
 
         return {
-          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket
+          ...templateFunc, // Preserva ida, chegada, retorno, horarioRetorno, needsTicket, needsAccommodation
           dailyRates, // Aplica nas novas datas
         };
       });
@@ -290,6 +291,7 @@ export default function GridTeamInclusionForm() {
           retorno: "", // Vazio para grade nova
           horarioRetorno: "", // Vazio para grade nova
           needsTicket: false, // Desmarcado para grade nova
+          needsAccommodation: false, // Desmarcado para grade nova
           dailyRates,
           isCustom: false,
         };
@@ -325,6 +327,14 @@ export default function GridTeamInclusionForm() {
     ));
   };
 
+  const updateNeedsAccommodation = (functionId: string, needsAccommodation: boolean) => {
+    setFunctionRows(prev => prev.map(row => 
+      row.functionId === functionId 
+        ? { ...row, needsAccommodation }
+        : row
+    ));
+  };
+
 
   const addSystemFunction = (functionId: string) => {
     const selectedFunction = functions?.find(f => f.id === functionId);
@@ -346,6 +356,7 @@ export default function GridTeamInclusionForm() {
       retorno: "",
       horarioRetorno: "",
       needsTicket: false,
+      needsAccommodation: false,
       dailyRates,
       isCustom: false,
     };
@@ -430,7 +441,8 @@ export default function GridTeamInclusionForm() {
       chegada: row.chegada,
       retorno: row.retorno,
       horarioRetorno: row.horarioRetorno,
-      needsTicket: row.needsTicket
+      needsTicket: row.needsTicket,
+      needsAccommodation: row.needsAccommodation
     });
     
     toast({
@@ -454,7 +466,8 @@ export default function GridTeamInclusionForm() {
             chegada: copiedSchedule.chegada,
             retorno: copiedSchedule.retorno,
             horarioRetorno: copiedSchedule.horarioRetorno,
-            needsTicket: copiedSchedule.needsTicket
+            needsTicket: copiedSchedule.needsTicket,
+            needsAccommodation: copiedSchedule.needsAccommodation
           }
         : r
     ));
@@ -491,6 +504,7 @@ export default function GridTeamInclusionForm() {
       retorno: selectedRowForScheduleCopy.retorno,   // Copia horário retorno
       horarioRetorno: selectedRowForScheduleCopy.horarioRetorno, // Copia horário retorno
       needsTicket: selectedRowForScheduleCopy.needsTicket,       // Copia se precisa passagem
+      needsAccommodation: selectedRowForScheduleCopy.needsAccommodation, // Copia se precisa hospedagem
       dailyRates,                                    // NÃO copia as diárias
       isCustom: false,
     };
@@ -677,6 +691,7 @@ export default function GridTeamInclusionForm() {
           dailyRates: dailyRatesCount, // número de dias trabalhados
           dailyValue: dailyRatesCount * 5000, // valor total (dias * valor unitário de R$50)
           needsTicket: functionRow?.needsTicket || false,
+          needsAccommodation: functionRow?.needsAccommodation || false,
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
           rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
@@ -883,6 +898,12 @@ export default function GridTeamInclusionForm() {
                               <span>Passagem</span>
                             </div>
                           </th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-20">
+                            <div className="flex items-center justify-center gap-1">
+                              🏨
+                              <span>Hospedagem</span>
+                            </div>
+                          </th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Ida</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Horário de Chegada</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Retorno</th>
@@ -908,6 +929,13 @@ export default function GridTeamInclusionForm() {
                                 checked={row.needsTicket}
                                 onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
                                 data-testid={`checkbox-needs-ticket-${row.functionId}`}
+                              />
+                            </td>
+                            <td className="px-2 py-2 border-r text-center">
+                              <Checkbox
+                                checked={row.needsAccommodation}
+                                onCheckedChange={(checked) => updateNeedsAccommodation(row.functionId, checked === true)}
+                                data-testid={`checkbox-needs-accommodation-${row.functionId}`}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
