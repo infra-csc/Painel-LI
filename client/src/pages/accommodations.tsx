@@ -152,7 +152,7 @@ export default function Accommodations() {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
     // Considera que está editando se existe um registro de accommodation
     const isEditing = !!accommodation;
-    const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
+    const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Estado para gerenciar anexos no modal individual
     const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
@@ -584,23 +584,15 @@ export default function Accommodations() {
                 onAttachmentsChange={async (newIds) => {
                   setCurrentAttachmentIds(newIds);
                   
-                  // Salvar anexos imediatamente se há uma nova inclusão de anexo
-                  if (newIds.length > currentAttachmentIds.length && selectedInclusion) {
+                  // Salvar anexos apenas se já existe um registro de hospedagem
+                  if (newIds.length > currentAttachmentIds.length && selectedInclusion && accommodation) {
                     try {
                       const saveData = {
                         attachmentIds: newIds
                       };
                       
-                      if (accommodation) {
-                        // Atualizar registro existente silenciosamente
-                        await apiRequest("PATCH", `/api/accommodations/${accommodation.id}`, saveData);
-                      } else {
-                        // Criar novo registro apenas com anexos silenciosamente
-                        await apiRequest("POST", "/api/accommodations", {
-                          teamInclusionId: selectedInclusion.id,
-                          ...saveData
-                        });
-                      }
+                      // Atualizar registro existente silenciosamente
+                      await apiRequest("PATCH", `/api/accommodations/${accommodation.id}`, saveData);
                       
                       // Invalida o cache para atualizar os dados
                       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
