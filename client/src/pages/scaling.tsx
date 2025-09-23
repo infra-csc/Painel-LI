@@ -791,6 +791,19 @@ export default function Scaling() {
                                       ✈️ Passagem Comprada
                                     </div>
                                   )}
+                                  {(() => {
+                                    const accommodation = getAccommodation(inclusion.id);
+                                    const accommodationInfo = formatAccommodationInfo(accommodation);
+                                    return accommodationInfo && (
+                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        🏨 {accommodationInfo.hotel}
+                                        {accommodationInfo.hasAttachments && (
+                                          <span className="ml-1">📎</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                             </tr>
@@ -892,6 +905,19 @@ export default function Scaling() {
                                       ✈️ Passagem Comprada
                                     </div>
                                   )}
+                                  {(() => {
+                                    const accommodation = getAccommodation(inclusion.id);
+                                    const accommodationInfo = formatAccommodationInfo(accommodation);
+                                    return accommodationInfo && (
+                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        🏨 {accommodationInfo.hotel}
+                                        {accommodationInfo.hasAttachments && (
+                                          <span className="ml-1">📎</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                             </tr>
