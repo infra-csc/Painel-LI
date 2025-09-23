@@ -166,16 +166,23 @@ export default function Accommodations() {
       currentLocalAttachments: currentAttachmentIds
     });
 
-    // Sincronizar attachments quando o accommodation muda, mas só se não houver anexos locais pendentes
+    // Sincronizar attachments quando o selectedInclusion muda (novo modal abrindo)
     useEffect(() => {
-      // Só atualiza se o accommodation mudou E se não há anexos locais não salvos
-      if (accommodation?.id && accommodation?.attachmentIds) {
-        setCurrentAttachmentIds(accommodation.attachmentIds);
-      } else if (!accommodation) {
-        // Se não há accommodation, limpar os anexos
+      if (selectedInclusion) {
+        // Quando abrir um novo modal, carregar os anexos do accommodation
+        const currentAccommodation = accommodationMap.get(selectedInclusion.id);
+        const attachmentsToLoad = currentAccommodation?.attachmentIds || [];
+        console.log("useEffect: Loading attachments for new modal", {
+          inclusionId: selectedInclusion.id,
+          attachmentsToLoad
+        });
+        setCurrentAttachmentIds(attachmentsToLoad);
+      } else {
+        // Quando fechar o modal, limpar os anexos
+        console.log("useEffect: Clearing attachments - modal closing");
         setCurrentAttachmentIds([]);
       }
-    }, [accommodation?.id, accommodation?.attachmentIds]);
+    }, [selectedInclusion?.id]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -595,6 +602,7 @@ export default function Accommodations() {
                   setCurrentAttachmentIds(newIds);
                 }}
                 disabled={!canEditRecord}
+                title="📎 Anexos da Hospedagem"
               />
             </div>
             

@@ -9,12 +9,14 @@ interface AttachmentUploadProps {
   attachmentIds?: string[];
   onAttachmentsChange: (attachmentIds: string[]) => void;
   disabled?: boolean;
+  title?: string;
 }
 
 export default function AttachmentUpload({ 
   attachmentIds = [], 
   onAttachmentsChange, 
-  disabled = false 
+  disabled = false,
+  title = "📎 Anexos"
 }: AttachmentUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,8 +27,13 @@ export default function AttachmentUpload({
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("AttachmentUpload: handleFileSelect called");
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("AttachmentUpload: no file selected");
+      return;
+    }
+    console.log("AttachmentUpload: file selected:", file.name, file.type, file.size);
 
     // Validar tipo de arquivo
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
@@ -98,6 +105,11 @@ export default function AttachmentUpload({
       
       // 4. Adicionar ID do anexo à lista
       const updatedIds = [...attachmentIds, attachmentId];
+      console.log("AttachmentUpload: About to call onAttachmentsChange", {
+        currentIds: attachmentIds,
+        newId: attachmentId,
+        updatedIds
+      });
       onAttachmentsChange(updatedIds);
       
       toast({
@@ -143,7 +155,7 @@ export default function AttachmentUpload({
   return (
     <div className="space-y-3 p-4 border-2 border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
       <div className="flex items-center justify-between">
-        <Label className="text-lg font-semibold text-blue-700 dark:text-blue-300">📎 Anexos da Passagem</Label>
+        <Label className="text-lg font-semibold text-blue-700 dark:text-blue-300">{title}</Label>
         {attachmentIds.length > 1 && (
           <Button
             type="button"
