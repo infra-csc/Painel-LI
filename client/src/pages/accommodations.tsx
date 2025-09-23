@@ -35,7 +35,6 @@ export default function Accommodations() {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [selectedAccommodations, setSelectedAccommodations] = useState<string[]>([]); // IDs dos accommodations selecionados
   const [editingAccommodationId, setEditingAccommodationId] = useState<string | null>(null); // ID da accommodation sendo editado
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     basic: false,
@@ -135,6 +134,17 @@ export default function Accommodations() {
       toast({
         title: "Erro",
         description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar se valor da diária é numérico
+    const dailyRateValue = parseFloat(quickData.dailyRate);
+    if (isNaN(dailyRateValue) || dailyRateValue <= 0) {
+      toast({
+        title: "Erro",
+        description: "O valor da diária deve ser um número válido maior que zero",
         variant: "destructive",
       });
       return;
