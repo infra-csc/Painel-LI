@@ -80,6 +80,10 @@ export default function Accommodations() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [accommodationData, setAccommodationData] = useState<Record<string, any>>({});
   const [selectedInclusionsForBatch, setSelectedInclusionsForBatch] = useState<string[]>([]);
+  
+  // Estado para gerenciar anexos no modal - movido para o componente pai para evitar reset
+  const [modalAttachmentIds, setModalAttachmentIds] = useState<string[]>([]);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -145,6 +149,12 @@ export default function Accommodations() {
     if (inclusion.status === 'cancelado') return;
     console.log("🔍 DEBUG CLICK: handleViewAccommodationDetails chamado para inclusão", inclusion.id, inclusion.inclusionNumber);
     
+    // Limpar anexos apenas quando muda de inclusão
+    if (selectedInclusion?.id !== inclusion.id) {
+      console.log("🔍 DEBUG CLICK: Mudando de inclusão - limpar anexos");
+      setModalAttachmentIds([]);
+    }
+    
     setSelectedInclusion(inclusion);
     setShowModal(true);
     console.log("🔍 DEBUG CLICK: Modal deve abrir agora");
@@ -157,14 +167,8 @@ export default function Accommodations() {
     const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    // Estado para gerenciar anexos no modal individual - estratégia mais simples
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
-      console.log("🔍 DEBUG ESTADO: Inicializando currentAttachmentIds com array vazio");
-      return [];
-    });
-    
-    // Remover useEffect problemático - deixar estado gerenciar anexos sem interferência
-    // O estado será limpo apenas quando necessário, não automaticamente
+    // Usar estado do componente pai para anexos (evita reset por re-mount)
+    console.log("🔍 DEBUG MODAL: Usando modalAttachmentIds do pai:", modalAttachmentIds.length, "anexos");
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -195,7 +199,7 @@ export default function Accommodations() {
           dailyRate: data.dailyRate ? Math.round(data.dailyRate * 100) : undefined, // Converter para centavos
           checkInDate: format(data.checkInDate, 'yyyy-MM-dd'),
           checkOutDate: format(data.checkOutDate, 'yyyy-MM-dd'),
-          attachmentIds: currentAttachmentIds && currentAttachmentIds.length > 0 ? currentAttachmentIds : null,
+          attachmentIds: modalAttachmentIds && modalAttachmentIds.length > 0 ? modalAttachmentIds : null,
         };
         
         if (accommodation) {
@@ -577,35 +581,24 @@ export default function Accommodations() {
                 </div>
               </div>
               
-              {(() => {
-                console.log("🔍 DEBUG PARENT: Renderizando AttachmentUpload com", currentAttachmentIds.length, "anexos:", currentAttachmentIds);
-                return null;
-              })()}
               <AttachmentUpload
-                attachmentIds={currentAttachmentIds}
+                attachmentIds={modalAttachmentIds}
                 onAttachmentsChange={(newIds) => {
-                  console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", JSON.stringify(currentAttachmentIds), "para", JSON.stringify(newIds));
-                  console.log("🔍 DEBUG ANEXOS: Antes de setState:", currentAttachmentIds);
-                  
-                  // Usar setState funcional para garantir atualização
-                  setCurrentAttachmentIds(prev => {
-                    console.log("🔍 DEBUG ANEXOS: setState funcional - prev:", prev, "novo:", newIds);
-                    return [...newIds];
-                  });
-                  
-                  console.log("🔍 DEBUG ANEXOS: setState funcional executado");
+                  console.log("🔍 DEBUG ANEXOS: CALLBACK no componente pai! De", JSON.stringify(modalAttachmentIds), "para", JSON.stringify(newIds));
+                  setModalAttachmentIds(newIds);
+                  console.log("🔍 DEBUG ANEXOS: Estado pai atualizado");
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
               />
               
               {/* Mostrar aviso se há anexos não salvos */}
-              {currentAttachmentIds.length > 0 && !accommodation && (
+              {modalAttachmentIds.length > 0 && !accommodation && (
                 <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
                   <div className="flex items-start gap-2">
                     <div className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5">⚠️</div>
                     <div className="text-sm text-yellow-700 dark:text-yellow-300">
-                      <strong>Anexos carregados:</strong> {currentAttachmentIds.length} arquivo(s) anexado(s). 
+                      <strong>Anexos carregados:</strong> {modalAttachmentIds.length} arquivo(s) anexado(s). 
                       Clique em "Registrar Hospedagem" para salvá-los permanentemente.
                     </div>
                   </div>
