@@ -86,9 +86,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,Tipo,Documento,Telefone,Cidade,DataNasc
+    // Espera cabeçalho: Nome,Tipo,Documento,Cidade,Telefone,DataNasc
     const headers = lines[0].split(',').map(h => h.trim());
-    const expectedHeaders = ['Nome', 'Tipo', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
+    const expectedHeaders = ['Nome', 'Tipo', 'Documento', 'Cidade', 'Telefone', 'DataNasc'];
     
     // Validar cabeçalho
     const headerMatch = expectedHeaders.every((header, index) => 
@@ -125,8 +125,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         errors.push('Tipo deve ser: CASA, FREELA ou LOCAL');
       }
       if (!values[2]) errors.push('Número do RG é obrigatório');
-      // Telefone é opcional agora
-      if (!values[4]) errors.push('Cidade é obrigatória');
+      if (!values[3]) errors.push('Cidade é obrigatória');
+      // Telefone é opcional agora (values[4])
       if (!values[5] || !values[5].match(/^\d{2}\/\d{2}\/\d{4}$/)) {
         errors.push('Data de nascimento deve estar no formato DD/MM/AAAA');
       }
@@ -138,8 +138,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         type: values[1]?.toLowerCase() || '',
         documentType: 'rg', // sempre RG
         document: values[2] || '',
-        phone: values[3] || undefined,
-        city: values[4] || '',
+        city: values[3] || '', // cidade agora é values[3]
+        phone: values[4] || undefined, // telefone agora é values[4]
         birthDate: convertedDate, // já convertida para YYYY-MM-DD
         area: 'Geral', // padrão
         isValid: errors.length === 0,
@@ -190,10 +190,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Nome,Tipo,Documento,Telefone,Cidade,DataNasc\n" +
-      "João Silva,casa,123456789,11999999999,São Paulo,15/01/1990\n" +
-      "Maria Santos,freela,987654321,11888888888,Rio de Janeiro,22/03/1985\n" +
-      "Pedro Costa,local,456789123,,Belo Horizonte,10/07/1992";
+    const csvContent = "Nome,Tipo,Documento,Cidade,Telefone,DataNasc\n" +
+      "João Silva,casa,123456789,São Paulo,11999999999,15/01/1990\n" +
+      "Maria Santos,freela,987654321,Rio de Janeiro,11888888888,22/03/1985\n" +
+      "Pedro Costa,local,456789123,Belo Horizonte,,10/07/1992";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -267,7 +267,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 O arquivo deve conter as seguintes colunas (nesta ordem):
               </p>
               <code className="text-xs bg-background p-2 rounded block">
-                Nome,Tipo,Documento,Telefone,Cidade,DataNasc
+                Nome,Tipo,Documento,Cidade,Telefone,DataNasc
               </code>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
                 <li>• <strong>Tipo:</strong> CASA, FREELA ou LOCAL</li>
@@ -307,8 +307,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                     <th className="p-2 text-left">Nome</th>
                     <th className="p-2 text-left">Tipo</th>
                     <th className="p-2 text-left">RG</th>
-                    <th className="p-2 text-left">Telefone</th>
                     <th className="p-2 text-left">Cidade</th>
+                    <th className="p-2 text-left">Telefone</th>
                     <th className="p-2 text-left">Data Nasc</th>
                     <th className="p-2 text-left">Erros</th>
                   </tr>
@@ -326,8 +326,8 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                       <td className="p-2">{item.fullName}</td>
                       <td className="p-2 uppercase">{item.type}</td>
                       <td className="p-2">{item.document}</td>
-                      <td className="p-2">{item.phone || 'N/A'}</td>
                       <td className="p-2">{item.city}</td>
+                      <td className="p-2">{item.phone || 'N/A'}</td>
                       <td className="p-2">{item.birthDate}</td>
                       <td className="p-2">
                         {item.errors.length > 0 && (
