@@ -229,6 +229,9 @@ export default function Accommodations() {
           
           {/* Informações do colaborador e evento */}
           <div className="flex flex-wrap gap-2 mt-2">
+            <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+              ID: {selectedInclusion.inclusionNumber || 'N/A'}
+            </Badge>
             <Badge variant="secondary">{collaborator?.fullName}</Badge>
             <Badge variant="outline">{event?.name}</Badge>
             <Badge variant="outline">{func?.name}</Badge>
@@ -525,7 +528,7 @@ export default function Accommodations() {
                   {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
                   )}
-                  {isEditing ? 'Atualizar' : 'Salvar'}
+                  {isEditing ? 'Atualizar Hospedagem' : 'Registrar Hospedagem'}
                 </Button>
               </div>
             )}
