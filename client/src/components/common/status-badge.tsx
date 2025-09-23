@@ -17,8 +17,6 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "status-passagem_comprada"; // Verde esmeralda - passagem comprada
       case "aprovacao":
         return "status-aprovacao"; // Amarelo - em andamento
-      case "aprovado":
-        return "status-aprovado"; // Verde - completo
       case "rejeitado":
         return "status-rejeitado"; // Vermelho - erro/problema
       case "cancelado":
@@ -42,8 +40,6 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Passagem Comprada";
       case "aprovacao":
         return "Aguardando Aprovação";
-      case "aprovado":
-        return "Aprovado";
       case "rejeitado":
         return "Rejeitado";
       case "cancelado":
