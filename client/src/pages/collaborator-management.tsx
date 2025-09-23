@@ -33,6 +33,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
+import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
 
 export default function CollaboratorManagement() {
@@ -530,6 +531,12 @@ export default function CollaboratorManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Upload em Lote */}
+      <BulkUploadModal 
+        open={showBulkUploadModal} 
+        onClose={() => setBulkUploadModal(false)} 
+      />
 
       {/* Modal de Adicionar Colaborador */}
       <CollaboratorModal 
