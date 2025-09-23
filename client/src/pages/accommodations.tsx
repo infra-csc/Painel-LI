@@ -869,12 +869,25 @@ export default function Accommodations() {
 
   // Mutations
   const createAccommodationMutation = useMutation({
-    mutationFn: (accommodationData: any) => apiRequest("POST", "/api/accommodations", accommodationData),
+    mutationFn: async (accommodationData: any) => {
+      // 1. Criar accommodation
+      const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
+      
+      // 2. Atualizar status do teamInclusion para "aprovado" e phase para "aprovacao"
+      await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
+        status: "aprovado",
+        phase: "aprovacao",
+        updatedBy: user?.id
+      });
+      
+      return accommodation;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       toast({
         title: "✅ Sucesso",
-        description: "Hospedagem criada com sucesso!",
+        description: "Hospedagem registrada com sucesso!",
       });
     },
     onError: (error: any) => {
@@ -882,7 +895,7 @@ export default function Accommodations() {
       toast({
         variant: "destructive",
         title: "❌ Erro",
-        description: error?.message || "Erro ao criar hospedagem",
+        description: error?.message || "Erro ao registrar hospedagem",
       });
     },
   });
@@ -904,6 +917,16 @@ export default function Accommodations() {
         title: "❌ Erro",
         description: error?.message || "Erro ao atualizar hospedagem",
       });
+    },
+  });
+
+  const updateTeamInclusionMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest("PATCH", `/api/team-inclusions/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: (error: any) => {
+      console.error("Erro ao atualizar inclusão de equipe:", error);
     },
   });
 
