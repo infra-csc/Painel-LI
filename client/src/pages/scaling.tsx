@@ -192,6 +192,7 @@ export default function Scaling() {
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
+      inclusion.status === "hospedagem_comprada" ||
       inclusion.status === "aprovacao"
     );
   };
@@ -203,6 +204,7 @@ export default function Scaling() {
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
+      inclusion.status === "hospedagem_comprada" ||
       inclusion.status === "aprovacao"
     );
   };
@@ -801,7 +803,7 @@ export default function Scaling() {
                                     return accommodationInfo && (
                                       <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
                                         <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                        🏨 {accommodationInfo.hotel}
+                                        🏨 Hospedagem Disponível
                                         {accommodationInfo.hasAttachments && (
                                           <span className="ml-1">📎</span>
                                         )}
@@ -915,7 +917,7 @@ export default function Scaling() {
                                     return accommodationInfo && (
                                       <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
                                         <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                        🏨 {accommodationInfo.hotel}
+                                        🏨 Hospedagem Disponível
                                         {accommodationInfo.hasAttachments && (
                                           <span className="ml-1">📎</span>
                                         )}
