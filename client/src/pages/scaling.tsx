@@ -182,20 +182,20 @@ export default function Scaling() {
     return inclusion.collaboratorId && (
       inclusion.status === "escalacao" || 
       inclusion.status === "passagem" || 
+      inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
-      inclusion.status === "aprovacao" || 
-      inclusion.status === "aprovado"
+      inclusion.status === "aprovacao"
     );
   };
 
   // Helper function to determine if escalation is confirmed (após confirmar escalação)
   const isEscalationConfirmed = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "escalado" ||
+      inclusion.status === "escalacao" ||
       inclusion.status === "passagem" || 
+      inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
-      inclusion.status === "aprovacao" || 
-      inclusion.status === "aprovado"
+      inclusion.status === "aprovacao"
     );
   };
 
