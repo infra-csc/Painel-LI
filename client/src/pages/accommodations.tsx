@@ -155,34 +155,19 @@ export default function Accommodations() {
     const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Estado para gerenciar anexos no modal individual
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(
-      accommodation?.attachmentIds || []
-    );
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
     
-    // Debug: Log do estado atual
-    console.log("Modal accommodation attachments state:", {
-      accommodationId: accommodation?.id,
-      accommodationAttachments: accommodation?.attachmentIds,
-      currentLocalAttachments: currentAttachmentIds
-    });
-
-    // Sincronizar attachments quando o selectedInclusion muda (novo modal abrindo)
+    // Inicializar com os anexos existentes quando abrir o modal
     useEffect(() => {
       if (selectedInclusion) {
-        // Quando abrir um novo modal, carregar os anexos do accommodation
-        const currentAccommodation = accommodationMap.get(selectedInclusion.id);
-        const attachmentsToLoad = currentAccommodation?.attachmentIds || [];
-        console.log("useEffect: Loading attachments for new modal", {
-          inclusionId: selectedInclusion.id,
-          attachmentsToLoad
-        });
-        setCurrentAttachmentIds(attachmentsToLoad);
+        const existingAttachments = accommodation?.attachmentIds || [];
+        console.log("Modal opened - initializing attachments:", existingAttachments);
+        setCurrentAttachmentIds(existingAttachments);
       } else {
-        // Quando fechar o modal, limpar os anexos
-        console.log("useEffect: Clearing attachments - modal closing");
+        // Limpar quando fechar
         setCurrentAttachmentIds([]);
       }
-    }, [selectedInclusion?.id]);
+    }, [selectedInclusion?.id, accommodation?.attachmentIds]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -597,9 +582,36 @@ export default function Accommodations() {
               
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
-                onAttachmentsChange={(newIds) => {
+                onAttachmentsChange={async (newIds) => {
                   console.log("AttachmentUpload onAttachmentsChange called with:", newIds);
                   setCurrentAttachmentIds(newIds);
+                  
+                  // Salvar anexos imediatamente se há uma nova inclusão de anexo
+                  if (newIds.length > currentAttachmentIds.length && selectedInclusion) {
+                    try {
+                      const saveData = {
+                        attachmentIds: newIds
+                      };
+                      
+                      if (accommodation) {
+                        // Atualizar registro existente
+                        await updateAccommodationMutation.mutateAsync({
+                          id: accommodation.id,
+                          data: saveData,
+                        });
+                      } else {
+                        // Criar novo registro apenas com anexos
+                        await createAccommodationMutation.mutateAsync({
+                          teamInclusionId: selectedInclusion.id,
+                          ...saveData
+                        });
+                      }
+                      
+                      console.log("Attachment saved immediately");
+                    } catch (error) {
+                      console.error("Error saving attachment:", error);
+                    }
+                  }
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
