@@ -150,7 +150,7 @@ export default function Accommodations() {
   const AccommodationModal = () => {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
     const isEditing = !!accommodation;
-    const canEditRecord = selectedInclusion && canEdit(user) && !isReadOnly(user, selectedInclusion);
+    const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -203,7 +203,7 @@ export default function Accommodations() {
       dates: true,
     });
     
-    const toggleFormSection = (section: string) => {
+    const toggleFormSection = (section: 'basic' | 'dates') => {
       setFormSections(prev => ({
         ...prev,
         [section]: !prev[section]
