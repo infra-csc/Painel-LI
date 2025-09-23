@@ -155,29 +155,23 @@ export default function Accommodations() {
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Estado para gerenciar anexos no modal individual
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
-      // Inicializar na primeira renderização com os anexos existentes
-      if (selectedInclusion && accommodation?.attachmentIds) {
-        console.log("🔍 DEBUG ANEXOS: Inicializando na criação do estado com:", accommodation.attachmentIds);
-        return accommodation.attachmentIds;
-      }
-      return [];
-    });
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
     
-    // Reset apenas quando o modal for fechado ou mudança de inclusão
+    // Estado para forçar re-render quando necessário
+    const [attachmentUpdateCount, setAttachmentUpdateCount] = useState(0);
+    
+    // Inicializar com os anexos existentes quando abrir o modal
     useEffect(() => {
-      if (!selectedInclusion) {
+      if (selectedInclusion) {
+        const existingAttachments = accommodation?.attachmentIds || [];
+        console.log("🔍 DEBUG ANEXOS: Modal aberto para inclusão", selectedInclusion.id, "- anexos existentes:", existingAttachments);
+        setCurrentAttachmentIds(existingAttachments);
+      } else {
         console.log("🔍 DEBUG ANEXOS: Modal fechado - limpando anexos");
         setCurrentAttachmentIds([]);
-      } else {
-        // Só inicializar se ainda não tem anexos e há anexos existentes
-        const existingAttachments = accommodation?.attachmentIds || [];
-        if (currentAttachmentIds.length === 0 && existingAttachments.length > 0) {
-          console.log("🔍 DEBUG ANEXOS: Modal aberto - carregando anexos existentes:", existingAttachments);
-          setCurrentAttachmentIds(existingAttachments);
-        }
       }
-    }, [selectedInclusion?.id]);
+      setAttachmentUpdateCount(prev => prev + 1);
+    }, [selectedInclusion?.id, accommodation?.id]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -591,10 +585,12 @@ export default function Accommodations() {
               </div>
               
               <AttachmentUpload
+                key={`attachments-${attachmentUpdateCount}`} // Force re-mount on changes
                 attachmentIds={currentAttachmentIds}
                 onAttachmentsChange={(newIds) => {
-                  console.log("🔍 DEBUG ANEXOS: Mudança nos anexos:", newIds);
-                  setCurrentAttachmentIds(newIds);
+                  console.log("🔍 DEBUG ANEXOS: Mudança nos anexos de", currentAttachmentIds, "para", newIds);
+                  setCurrentAttachmentIds([...newIds]);
+                  setAttachmentUpdateCount(prev => prev + 1);
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"

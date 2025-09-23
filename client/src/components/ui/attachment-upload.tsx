@@ -22,7 +22,7 @@ export default function AttachmentUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  console.log("🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com", attachmentIds.length, "anexos:", attachmentIds);
+  console.log("🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com", attachmentIds?.length || 0, "anexos:", attachmentIds);
   
 
   const generateAttachmentId = () => {
