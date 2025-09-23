@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket, Accommodation } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
@@ -113,6 +113,10 @@ export default function Scaling() {
 
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
+  });
+
+  const { data: accommodations } = useQuery<Accommodation[]>({
+    queryKey: ["/api/accommodations"],
   });
 
   const { data: tickets } = useQuery<Ticket[]>({
@@ -213,6 +217,27 @@ export default function Scaling() {
   const getCollaboratorName = (collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não escalado";
     return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+  };
+
+  // Helper function to get accommodation for an inclusion
+  const getAccommodation = (inclusionId: string) => {
+    return accommodations?.find(a => a.teamInclusionId === inclusionId);
+  };
+
+  // Helper function to format accommodation data
+  const formatAccommodationInfo = (accommodation: Accommodation | undefined) => {
+    if (!accommodation) return null;
+    
+    const checkinDate = accommodation.checkInDate ? new Date(accommodation.checkInDate).toLocaleDateString('pt-BR') : '';
+    const checkoutDate = accommodation.checkOutDate ? new Date(accommodation.checkOutDate).toLocaleDateString('pt-BR') : '';
+    const dates = checkinDate && checkoutDate ? `${checkinDate} - ${checkoutDate}` : '';
+    
+    return {
+      hotel: accommodation.hotelName || 'Hotel não informado',
+      location: accommodation.hotelLocation || '',
+      dates,
+      hasAttachments: accommodation.attachmentIds && accommodation.attachmentIds.length > 0
+    };
   };
 
   // Check if user can manage function (is responsible for it)
