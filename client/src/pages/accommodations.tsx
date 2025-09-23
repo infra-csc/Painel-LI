@@ -143,8 +143,10 @@ export default function Accommodations() {
   // Função para visualizar detalhes da hospedagem (similar à handleViewTicketDetails)
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
+    console.log("🔍 DEBUG CLICK: handleViewAccommodationDetails chamado para inclusão", inclusion.id, inclusion.inclusionNumber);
     setSelectedInclusion(inclusion);
     setShowModal(true);
+    console.log("🔍 DEBUG CLICK: Modal deve abrir agora");
   };
 
   // Componente do Modal de Hospedagem
@@ -154,23 +156,26 @@ export default function Accommodations() {
     const isEditing = !!accommodation;
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
-    // Estado para gerenciar anexos no modal individual
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
+    // Estado para gerenciar anexos no modal individual - inicializar com anexos existentes
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
+      const existing = accommodation?.attachmentIds || [];
+      console.log("🔍 DEBUG ANEXOS: Inicialização do estado com anexos:", existing);
+      return existing;
+    });
     
-    // Estado para forçar re-render quando necessário
-    const [attachmentUpdateCount, setAttachmentUpdateCount] = useState(0);
-    
-    // Inicializar com os anexos existentes quando abrir o modal
+    // Debug: Log sempre que o modal abre/fecha
     useEffect(() => {
+      console.log("🔍 DEBUG MODAL: selectedInclusion mudou:", selectedInclusion?.id || 'null');
+      console.log("🔍 DEBUG MODAL: accommodation atual:", accommodation?.id || 'null', "anexos:", accommodation?.attachmentIds || []);
+      
       if (selectedInclusion) {
         const existingAttachments = accommodation?.attachmentIds || [];
-        console.log("🔍 DEBUG ANEXOS: Modal aberto para inclusão", selectedInclusion.id, "- anexos existentes:", existingAttachments);
+        console.log("🔍 DEBUG ANEXOS: Atualizando estado para:", existingAttachments);
         setCurrentAttachmentIds(existingAttachments);
       } else {
-        console.log("🔍 DEBUG ANEXOS: Modal fechado - limpando anexos");
+        console.log("🔍 DEBUG ANEXOS: Limpando estado");
         setCurrentAttachmentIds([]);
       }
-      setAttachmentUpdateCount(prev => prev + 1);
     }, [selectedInclusion?.id, accommodation?.id]);
     
     // Configurar valores padrão do formulário
@@ -585,12 +590,10 @@ export default function Accommodations() {
               </div>
               
               <AttachmentUpload
-                key={`attachments-${attachmentUpdateCount}`} // Force re-mount on changes
                 attachmentIds={currentAttachmentIds}
                 onAttachmentsChange={(newIds) => {
-                  console.log("🔍 DEBUG ANEXOS: Mudança nos anexos de", currentAttachmentIds, "para", newIds);
-                  setCurrentAttachmentIds([...newIds]);
-                  setAttachmentUpdateCount(prev => prev + 1);
+                  console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", currentAttachmentIds, "para", newIds);
+                  setCurrentAttachmentIds(newIds);
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
