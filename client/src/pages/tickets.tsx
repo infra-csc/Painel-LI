@@ -263,7 +263,7 @@ export default function Tickets() {
          inclusion.status === "passagem" || 
          inclusion.status === "hospedagem" || 
          inclusion.status === "aprovacao" || 
-         inclusion.status === "aprovado" ||
+         inclusion.status === "passagem_comprada" ||
          inclusion.status === "cancelado");
       
       if (!needsTicketMatch) return false;
@@ -306,9 +306,9 @@ export default function Tickets() {
     };
     
     const statusPriority: Record<string, number> = {
-      'aprovado': 6,
-      'aprovacao': 5,
-      'hospedagem': 4,
+      'passagem_comprada': 6,
+      'hospedagem': 5,
+      'aprovacao': 4,
       'passagem': 3,
       'aguardando_passagem': 2,
       'cancelado': 1  // Lowest priority so active records are kept over canceled ones
@@ -527,8 +527,8 @@ export default function Tickets() {
           await updateTeamInclusionMutation.mutateAsync({
             id: inclusion.id,
             data: {
-              status: needsAccommodation ? "hospedagem" : "aprovado",
-              phase: needsAccommodation ? "hospedagem" : "aprovacao"
+              status: needsAccommodation ? "hospedagem" : "passagem_comprada",
+              phase: needsAccommodation ? "hospedagem" : "passagem"
             }
           });
 
@@ -2102,8 +2102,8 @@ export default function Tickets() {
                                       await updateTeamInclusionMutation.mutateAsync({
                                         id: selectedInclusion.id,
                                         data: {
-                                          status: needsAccommodation ? "hospedagem" : "aprovado",
-                                          phase: needsAccommodation ? "hospedagem" : "aprovacao"
+                                          status: needsAccommodation ? "hospedagem" : "passagem_comprada",
+                                          phase: needsAccommodation ? "hospedagem" : "passagem"
                                         }
                                       });
                                     }
