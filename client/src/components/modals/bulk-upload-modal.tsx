@@ -86,9 +86,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc
+    // Espera cabeçalho: Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc
     const headers = lines[0].split(',').map(h => h.trim());
-    const expectedHeaders = ['Nome', 'TipoDoc', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
+    const expectedHeaders = ['Nome', 'Tipo', 'TipoDoc', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
     
     // Validar cabeçalho
     const headerMatch = expectedHeaders.every((header, index) => 
@@ -112,24 +112,27 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       
       // Validações básicas
       if (!values[0]) errors.push('Nome é obrigatório');
-      if (!values[1] || values[1].toLowerCase() !== 'rg') {
-        errors.push('Tipo de documento deve ser: rg');
+      if (!values[1] || !['casa', 'freela', 'local'].includes(values[1].toLowerCase())) {
+        errors.push('Tipo deve ser: CASA, FREELA ou LOCAL');
       }
-      if (!values[2]) errors.push('Número do RG é obrigatório');
-      if (!values[3]) errors.push('Telefone é obrigatório');
-      if (!values[4]) errors.push('Cidade é obrigatória');
-      if (!values[5] || !values[5].match(/^\d{4}-\d{2}-\d{2}$/)) {
+      if (!values[2] || values[2].toLowerCase() !== 'rg') {
+        errors.push('Tipo de documento deve ser: RG');
+      }
+      if (!values[3]) errors.push('Número do RG é obrigatório');
+      if (!values[4]) errors.push('Telefone é obrigatório');
+      if (!values[5]) errors.push('Cidade é obrigatória');
+      if (!values[6] || !values[6].match(/^\d{4}-\d{2}-\d{2}$/)) {
         errors.push('Data de nascimento deve estar no formato YYYY-MM-DD');
       }
 
       parsed.push({
         fullName: values[0] || '',
-        documentType: values[1]?.toLowerCase() || 'rg',
-        document: values[2] || '',
-        phone: values[3] || undefined,
-        city: values[4] || '',
-        birthDate: values[5] || '',
-        type: 'funcionario', // padrão
+        type: values[1]?.toLowerCase() || '',
+        documentType: values[2]?.toLowerCase() || 'rg',
+        document: values[3] || '',
+        phone: values[4] || undefined,
+        city: values[5] || '',
+        birthDate: values[6] || '',
         area: 'Geral', // padrão
         isValid: errors.length === 0,
         errors
@@ -179,9 +182,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc\n" +
-      "João Silva,rg,123456789,11999999999,São Paulo,1990-01-15\n" +
-      "Maria Santos,rg,987654321,11888888888,Rio de Janeiro,1985-03-22";
+    const csvContent = "Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc\n" +
+      "João Silva,casa,rg,123456789,11999999999,São Paulo,1990-01-15\n" +
+      "Maria Santos,freela,rg,987654321,11888888888,Rio de Janeiro,1985-03-22\n" +
+      "Pedro Costa,local,rg,456789123,11777777777,Belo Horizonte,1992-07-10";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -255,9 +259,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 O arquivo deve conter as seguintes colunas (nesta ordem):
               </p>
               <code className="text-xs bg-background p-2 rounded block">
-                Nome,TipoDoc,Documento,Telefone,Cidade,DataNasc
+                Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc
               </code>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
+                <li>• <strong>Tipo:</strong> CASA, FREELA ou LOCAL</li>
                 <li>• <strong>TipoDoc:</strong> sempre "rg"</li>
                 <li>• <strong>Documento:</strong> número do RG</li>
                 <li>• <strong>DataNasc:</strong> formato YYYY-MM-DD</li>
@@ -293,6 +298,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                   <tr>
                     <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Nome</th>
+                    <th className="p-2 text-left">Tipo</th>
                     <th className="p-2 text-left">RG</th>
                     <th className="p-2 text-left">Telefone</th>
                     <th className="p-2 text-left">Cidade</th>
@@ -310,6 +316,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                         )}
                       </td>
                       <td className="p-2">{item.fullName}</td>
+                      <td className="p-2 uppercase">{item.type}</td>
                       <td className="p-2">{item.document}</td>
                       <td className="p-2">{item.phone || 'N/A'}</td>
                       <td className="p-2">{item.city}</td>
