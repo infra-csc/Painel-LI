@@ -86,19 +86,23 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,Tipo,Documento,Telefone,Cidade,DataNasc
+    // Espera cabeçalho: Nome,Tipo,Documento,Telefone,Cidade,DataNasc ou Data Nascimento
     const headers = lines[0].split(',').map(h => h.trim());
     const expectedHeaders = ['Nome', 'Tipo', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
+    const alternativeHeaders = ['Nome', 'Tipo', 'Documento', 'Telefone', 'Cidade', 'Data Nascimento'];
     
-    // Validar cabeçalho
+    // Validar cabeçalho (aceita duas versões)
     const headerMatch = expectedHeaders.every((header, index) => 
       headers[index]?.toLowerCase() === header.toLowerCase()
     );
+    const alternativeHeaderMatch = alternativeHeaders.every((header, index) => 
+      headers[index]?.toLowerCase() === header.toLowerCase()
+    );
     
-    if (!headerMatch) {
+    if (!headerMatch && !alternativeHeaderMatch) {
       toast({
         title: "Erro no cabeçalho",
-        description: `O cabeçalho deve ser: ${expectedHeaders.join(', ')}`,
+        description: `O cabeçalho deve ser: ${expectedHeaders.join(', ')} ou ${alternativeHeaders.join(', ')}`,
         variant: "destructive",
       });
       return;
