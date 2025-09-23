@@ -153,6 +153,17 @@ export default function Accommodations() {
     const isEditing = !!(accommodation && accommodation.hotelName && accommodation.hotelName.trim() !== '');
     const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
+    // Log temporário para debugging
+    console.log('Debugging accommodation modal:', {
+      inclusionId: selectedInclusion?.id,
+      inclusionNumber: selectedInclusion?.inclusionNumber,
+      hasAccommodation: !!accommodation,
+      accommodationId: accommodation?.id,
+      hotelName: accommodation?.hotelName,
+      isEditing,
+      buttonText: isEditing ? 'Salvar' : 'Registrar Hospedagem'
+    });
+    
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
