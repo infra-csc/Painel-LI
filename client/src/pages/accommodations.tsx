@@ -155,22 +155,27 @@ export default function Accommodations() {
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Estado para gerenciar anexos no modal individual
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
+      // Inicializar na primeira renderização com os anexos existentes
+      if (selectedInclusion && accommodation?.attachmentIds) {
+        console.log("🔍 DEBUG ANEXOS: Inicializando na criação do estado com:", accommodation.attachmentIds);
+        return accommodation.attachmentIds;
+      }
+      return [];
+    });
     
-    // Inicializar com os anexos existentes quando abrir o modal
+    // Reset apenas quando o modal for fechado ou mudança de inclusão
     useEffect(() => {
-      if (selectedInclusion) {
+      if (!selectedInclusion) {
+        console.log("🔍 DEBUG ANEXOS: Modal fechado - limpando anexos");
+        setCurrentAttachmentIds([]);
+      } else {
+        // Só inicializar se ainda não tem anexos e há anexos existentes
         const existingAttachments = accommodation?.attachmentIds || [];
-        console.log("🔍 DEBUG ANEXOS: Inicializando attachment IDs para inclusão", selectedInclusion.id, ":", existingAttachments);
-        
-        // Só sobrescrever se há anexos existentes OU se estamos mudando de inclusão
-        if (existingAttachments.length > 0 || currentAttachmentIds.length === 0) {
+        if (currentAttachmentIds.length === 0 && existingAttachments.length > 0) {
+          console.log("🔍 DEBUG ANEXOS: Modal aberto - carregando anexos existentes:", existingAttachments);
           setCurrentAttachmentIds(existingAttachments);
         }
-      } else {
-        // Limpar quando fechar
-        console.log("🔍 DEBUG ANEXOS: Limpando attachment IDs - modal fechado");
-        setCurrentAttachmentIds([]);
       }
     }, [selectedInclusion?.id]);
     
