@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -149,8 +149,10 @@ export default function Accommodations() {
   // Componente do Modal de Hospedagem
   const AccommodationModal = () => {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
-    const isEditing = !!accommodation;
+    // Considera que está editando apenas se a accommodation tem dados preenchidos (hotel name)
+    const isEditing = !!(accommodation && accommodation.hotelName && accommodation.hotelName.trim() !== '');
     const canEditRecord = selectedInclusion && canEdit(user) && selectedInclusion.status !== 'cancelado';
+    
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -170,6 +172,7 @@ export default function Accommodations() {
       resolver: zodResolver(accommodationFormSchema),
       defaultValues,
     });
+    
 
     const onSubmit = async (data: AccommodationFormData) => {
       if (!selectedInclusion) return;
@@ -182,12 +185,14 @@ export default function Accommodations() {
           checkOutDate: format(data.checkOutDate, 'yyyy-MM-dd'),
         };
         
-        if (isEditing && accommodation) {
+        if (accommodation) {
+          // Se existe registro de accommodation (mesmo vazio), atualiza
           await updateAccommodationMutation.mutateAsync({
             id: accommodation.id,
             data: submitData,
           });
         } else {
+          // Se não existe registro, cria novo
           await createAccommodationMutation.mutateAsync(submitData);
         }
         
