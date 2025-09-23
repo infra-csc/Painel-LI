@@ -269,12 +269,6 @@ export default function Accommodations() {
                       <div className="text-muted-foreground">{collaborator.city}</div>
                     </div>
                   )}
-                  {collaborator.area && (
-                    <div>
-                      <span className="font-medium text-foreground">Área:</span>
-                      <div className="text-muted-foreground">{collaborator.area}</div>
-                    </div>
-                  )}
                   {collaborator.birthDate && (
                     <div>
                       <span className="font-medium text-foreground">Nascimento:</span>
