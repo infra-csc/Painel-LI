@@ -401,7 +401,7 @@ export default function Accommodations() {
     );
   }
 
-  if (!canView(user, "tickets")) {
+  if (!canView(user, "accommodations")) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <Header />
@@ -413,7 +413,7 @@ export default function Accommodations() {
     );
   }
 
-  const canEditField = canEditScreen(user, "tickets");
+  const canEditField = canEditScreen(user, "accommodations");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
