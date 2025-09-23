@@ -147,17 +147,14 @@ export default function Accommodations() {
   // Função para visualizar detalhes da hospedagem (similar à handleViewTicketDetails)
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
-    console.log("🔍 DEBUG CLICK: handleViewAccommodationDetails chamado para inclusão", inclusion.id, inclusion.inclusionNumber);
     
     // Limpar anexos apenas quando muda de inclusão
     if (selectedInclusion?.id !== inclusion.id) {
-      console.log("🔍 DEBUG CLICK: Mudando de inclusão - limpar anexos");
       setModalAttachmentIds([]);
     }
     
     setSelectedInclusion(inclusion);
     setShowModal(true);
-    console.log("🔍 DEBUG CLICK: Modal deve abrir agora");
   };
 
   // Componente do Modal de Hospedagem
@@ -168,7 +165,6 @@ export default function Accommodations() {
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Usar estado do componente pai para anexos (evita reset por re-mount)
-    console.log("🔍 DEBUG MODAL: Usando modalAttachmentIds do pai:", modalAttachmentIds.length, "anexos");
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -584,26 +580,12 @@ export default function Accommodations() {
               <AttachmentUpload
                 attachmentIds={modalAttachmentIds}
                 onAttachmentsChange={(newIds) => {
-                  console.log("🔍 DEBUG ANEXOS: CALLBACK no componente pai! De", JSON.stringify(modalAttachmentIds), "para", JSON.stringify(newIds));
                   setModalAttachmentIds(newIds);
-                  console.log("🔍 DEBUG ANEXOS: Estado pai atualizado");
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
               />
               
-              {/* Mostrar aviso se há anexos não salvos */}
-              {modalAttachmentIds.length > 0 && !accommodation && (
-                <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                  <div className="flex items-start gap-2">
-                    <div className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5">⚠️</div>
-                    <div className="text-sm text-yellow-700 dark:text-yellow-300">
-                      <strong>Anexos carregados:</strong> {modalAttachmentIds.length} arquivo(s) anexado(s). 
-                      Clique em "Registrar Hospedagem" para salvá-los permanentemente.
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
             
             {/* Ações */}
