@@ -579,12 +579,17 @@ export default function Accommodations() {
                 </div>
               </div>
               
+              {(() => {
+                console.log("🔍 DEBUG PARENT: Renderizando AttachmentUpload com", currentAttachmentIds.length, "anexos:", currentAttachmentIds);
+                return null;
+              })()}
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
                 onAttachmentsChange={(newIds) => {
                   console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", JSON.stringify(currentAttachmentIds), "para", JSON.stringify(newIds));
+                  console.log("🔍 DEBUG ANEXOS: Antes de setState:", currentAttachmentIds);
                   setCurrentAttachmentIds([...newIds]); // Force new array reference
-                  console.log("🔍 DEBUG ANEXOS: Estado atualizado, deve re-renderizar agora");
+                  console.log("🔍 DEBUG ANEXOS: Depois de setState, deve re-renderizar");
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"

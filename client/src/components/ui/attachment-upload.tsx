@@ -178,6 +178,10 @@ export default function AttachmentUpload({
       </div>
       
       {/* Lista de anexos existentes */}
+      {(() => {
+        console.log("🔍 DEBUG RENDER: Renderizando", attachmentIds.length, "anexos:", attachmentIds);
+        return null;
+      })()}
       {attachmentIds.map((attachmentId, index) => (
         <div key={attachmentId} className="flex items-center gap-2 p-2 border rounded-md bg-green-50 dark:bg-green-900/20">
           <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
