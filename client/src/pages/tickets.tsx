@@ -458,7 +458,7 @@ export default function Tickets() {
       { field: 'value', label: 'Valor da Passagem' },
       { field: 'departureAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Ida' : 'Aeroporto Ida' },
       { field: 'destinationAirport', label: quickData.transportType === 'rodoviario' ? 'Rodoviária Volta' : 'Aeroporto Volta' },
-      { field: 'purchaseOrderNumber', label: 'Ordem de Compra' },
+      { field: 'purchaseOrderNumber', label: 'LOC' },
       { field: 'actualDepartureDate', label: 'Data de Ida' },
       { field: 'actualDepartureTime', label: 'Horário de Ida' }
     ];
@@ -1326,7 +1326,7 @@ export default function Tickets() {
                             </div>
                             {ticket.purchaseOrderNumber && (
                               <div>
-                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 Ordem de Compra</Label>
+                                <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📋 LOC</Label>
                                 <p className="font-medium">{ticket.purchaseOrderNumber}</p>
                               </div>
                             )}
@@ -1600,7 +1600,7 @@ export default function Tickets() {
                               </div>
                               <div>
                                 <Label htmlFor={`purchaseOrderNumber-${selectedInclusion.id}`} className="text-sm font-medium text-green-700 dark:text-green-300">
-                                  Ordem de Compra *
+                                  LOC *
                                 </Label>
                                 <Input
                                   id={`purchaseOrderNumber-${selectedInclusion.id}`}
