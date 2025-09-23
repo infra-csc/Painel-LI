@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,12 @@ export default function AttachmentUpload({
   const { toast } = useToast();
 
   console.log("🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com", attachmentIds?.length || 0, "anexos:", attachmentIds);
+  
+  // Verificar se há anexos para renderizar
+  useEffect(() => {
+    console.log("🔍 DEBUG ATTACHMENT EFFECT: AttachmentIds prop mudou para:", attachmentIds);
+    console.log("🔍 DEBUG ATTACHMENT EFFECT: Vai renderizar", attachmentIds?.length || 0, "anexos");
+  }, [attachmentIds]);
   
 
   const generateAttachmentId = () => {
