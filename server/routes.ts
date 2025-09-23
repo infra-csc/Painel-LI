@@ -841,7 +841,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: collaboratorData.type,
             city: collaboratorData.city,
             area: collaboratorData.area,
-            status: "pendente"
+            status: "aprovado", // colaboradores importados via CSV já são aprovados automaticamente
+            approvedAt: new Date(), // data de aprovação automática
+            approvedBy: "sistema" // aprovado pelo sistema via upload em lote
           });
 
           // Check if collaborator with same document already exists
