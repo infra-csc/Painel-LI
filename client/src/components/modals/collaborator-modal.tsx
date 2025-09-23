@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Event, Function } from "@shared/schema";
+import type { Event, Function, Collaborator } from "@shared/schema";
 
 const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
@@ -34,9 +35,11 @@ interface CollaboratorModalProps {
   eventName?: string;
   functionName?: string;
   isEmergency?: boolean;
+  collaborator?: Collaborator | null;
+  isEdit?: boolean;
 }
 
-export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName, isEmergency = false }: CollaboratorModalProps) {
+export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName, isEmergency = false, collaborator = null, isEdit = false }: CollaboratorModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -68,15 +71,50 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     },
   });
 
-  const createCollaboratorMutation = useMutation({
+  // Reset form with collaborator data when editing
+  useEffect(() => {
+    if (open && isEdit && collaborator) {
+      form.reset({
+        fullName: collaborator.fullName || "",
+        officialDocument: collaborator.officialDocument || "",
+        documentType: collaborator.documentType as "cpf" | "rg" || "cpf",
+        birthDate: collaborator.birthDate || "",
+        type: collaborator.type || "",
+        phone: collaborator.phone || "",
+        city: collaborator.city || "",
+        actualStartDate: "",
+        actualEndDate: "",
+        eventId: "",
+        functionId: "",
+      });
+    } else if (open && !isEdit) {
+      form.reset({
+        fullName: "",
+        officialDocument: "",
+        documentType: "cpf" as const,
+        birthDate: "",
+        type: "",
+        phone: "",
+        city: "",
+        actualStartDate: "",
+        actualEndDate: "",
+        eventId: "",
+        functionId: "",
+      });
+    }
+  }, [open, isEdit, collaborator, form]);
+
+  const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
       // Ensure area is set from defaultArea
       const collaboratorData = {
         ...data,
         area: defaultArea || ""
       };
-      const response = await apiRequest("POST", "/api/collaborators", collaboratorData);
-      const collaborator = await response.json();
+      const response = isEdit && collaborator
+        ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
+        : await apiRequest("POST", "/api/collaborators", collaboratorData);
+      const result = await response.json();
       
       // Se for colaborador emergencial, criar também um registro de inclusão de equipe
       if (isEmergency && data.actualStartDate && data.actualEndDate && data.eventId && data.functionId) {
@@ -88,7 +126,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         const teamInclusionData = {
           eventId: data.eventId,
           functionId: data.functionId,
-          collaboratorId: collaborator.id,
+          collaboratorId: result.id,
           area: defaultArea || "Emergencial",
           scheduleStartDate: data.actualStartDate,
           scheduleEndDate: data.actualEndDate,
@@ -107,12 +145,14 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         await apiRequest("POST", "/api/team-inclusions", teamInclusionData);
       }
       
-      return collaborator;
+      return result;
     },
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: isEmergency 
+        description: isEdit 
+          ? "Colaborador atualizado com sucesso!"
+          : isEmergency 
           ? "Colaborador emergencial criado e adicionado à hospedagem com sucesso"
           : "Colaborador criado com sucesso",
       });
@@ -124,14 +164,14 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     onError: () => {
       toast({
         title: "Erro",
-        description: "Erro ao criar colaborador",
+        description: isEdit ? "Erro ao atualizar colaborador" : "Erro ao criar colaborador",
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: CollaboratorFormData) => {
-    createCollaboratorMutation.mutate(data);
+    collaboratorMutation.mutate(data);
   };
 
   const handleClose = () => {
@@ -143,7 +183,14 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl" data-testid="modal-collaborator">
         <DialogHeader>
-          <DialogTitle>Adicionar Novo Colaborador</DialogTitle>
+          <DialogTitle>
+            {isEdit 
+              ? 'Editar Colaborador'
+              : isEmergency 
+              ? 'Adicionar Colaborador Emergencial' 
+              : 'Adicionar Novo Colaborador'
+            }
+          </DialogTitle>
           {(eventName || functionName || defaultArea) && (
             <div className="text-sm text-muted-foreground space-y-1">
               {eventName && <p><strong>Evento:</strong> {eventName}</p>}
@@ -402,10 +449,10 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
               </Button>
               <Button 
                 type="submit" 
-                disabled={createCollaboratorMutation.isPending}
+                disabled={collaboratorMutation.isPending}
                 data-testid="button-save-collaborator"
               >
-                {createCollaboratorMutation.isPending ? "Salvando..." : "Salvar Colaborador"}
+                {collaboratorMutation.isPending ? "Salvando..." : isEdit ? "Atualizar Colaborador" : "Salvar Colaborador"}
               </Button>
             </div>
           </form>

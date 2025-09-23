@@ -28,7 +28,8 @@ import {
   Eye,
   UserPlus,
   Upload,
-  FileText
+  FileText,
+  Edit
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +47,7 @@ export default function CollaboratorManagement() {
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showBulkUploadModal, setBulkUploadModal] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
@@ -134,6 +136,11 @@ export default function CollaboratorManagement() {
   const handleViewDetails = (collaborator: Collaborator) => {
     setSelectedCollaborator(collaborator);
     setShowDetailsModal(true);
+  };
+
+  const handleEditCollaborator = (collaborator: Collaborator) => {
+    setSelectedCollaborator(collaborator);
+    setShowEditModal(true);
   };
 
   const formatDate = (dateStr: string) => {
@@ -330,7 +337,7 @@ export default function CollaboratorManagement() {
                         {getStatusBadge(collaborator.status)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center gap-3">
+                        <div className="flex items-center justify-center gap-2">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -338,6 +345,15 @@ export default function CollaboratorManagement() {
                             className="p-2"
                           >
                             <Eye className="w-4 h-4" />
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditCollaborator(collaborator)}
+                            className="p-2"
+                          >
+                            <Edit className="w-4 h-4" />
                           </Button>
                           
                           {collaborator.status === "pendente" && (
@@ -400,7 +416,7 @@ export default function CollaboratorManagement() {
                 <div>
                   <label className="text-sm font-medium text-foreground">Data de Nascimento</label>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {formatDate(selectedCollaborator.birthDate)}
+                    {selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : 'Não informado'}
                   </div>
                 </div>
                 <div>
@@ -542,6 +558,14 @@ export default function CollaboratorManagement() {
       <CollaboratorModal 
         open={showAddModal} 
         onClose={() => setShowAddModal(false)}
+      />
+      
+      {/* Modal de Editar Colaborador */}
+      <CollaboratorModal 
+        open={showEditModal} 
+        onClose={() => setShowEditModal(false)}
+        collaborator={selectedCollaborator}
+        isEdit={true}
       />
     </div>
   );
