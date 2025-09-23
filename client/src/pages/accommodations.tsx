@@ -581,35 +581,23 @@ export default function Accommodations() {
               
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
-                onAttachmentsChange={async (newIds) => {
-                  setCurrentAttachmentIds(newIds);
-                  
-                  // Salvar anexos apenas se já existe um registro de hospedagem
-                  if (newIds.length > currentAttachmentIds.length && selectedInclusion && accommodation) {
-                    try {
-                      const saveData = {
-                        attachmentIds: newIds
-                      };
-                      
-                      // Atualizar registro existente silenciosamente
-                      await apiRequest("PATCH", `/api/accommodations/${accommodation.id}`, saveData);
-                      
-                      // Invalida o cache para atualizar os dados
-                      queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
-                      
-                    } catch (error) {
-                      console.error("Error saving attachment:", error);
-                      toast({
-                        variant: "destructive",
-                        title: "❌ Erro",
-                        description: "Erro ao salvar anexo",
-                      });
-                    }
-                  }
-                }}
+                onAttachmentsChange={setCurrentAttachmentIds}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
               />
+              
+              {/* Mostrar aviso se há anexos não salvos */}
+              {currentAttachmentIds.length > 0 && !accommodation && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5">⚠️</div>
+                    <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                      <strong>Anexos carregados:</strong> {currentAttachmentIds.length} arquivo(s) anexado(s). 
+                      Clique em "Registrar Hospedagem" para salvá-los permanentemente.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Ações */}
