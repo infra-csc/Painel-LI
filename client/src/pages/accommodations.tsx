@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
-import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CommentsModal from "@/components/modals/comments-modal";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
@@ -285,10 +285,131 @@ export default function Accommodations() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hospedagem</h1>
           </div>
           
-          <SimpleFilters
-            filters={filters}
-            onFiltersChange={setFilters}
-          />
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Buscar por ID */}
+              <div>
+                <Label htmlFor="searchId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Buscar por ID
+                </Label>
+                <Input
+                  id="searchId"
+                  type="text"
+                  placeholder="Digite o ID"
+                  value={filters.searchId}
+                  onChange={(e) => setFilters({ ...filters, searchId: e.target.value })}
+                  className="mt-1"
+                  data-testid="input-search-id"
+                />
+              </div>
+
+              {/* Status da Hospedagem */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Status da Hospedagem:
+                </Label>
+                <Select
+                  value={filters.accommodationStatus}
+                  onValueChange={(value) => setFilters({ ...filters, accommodationStatus: value })}
+                >
+                  <SelectTrigger className="mt-1" data-testid="select-accommodation-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="processed">Processado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status da Inclusão */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Status da Inclusão:
+                </Label>
+                <Select
+                  value={filters.inclusionStatus}
+                  onValueChange={(value) => setFilters({ ...filters, inclusionStatus: value })}
+                >
+                  <SelectTrigger className="mt-1" data-testid="select-inclusion-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativas</SelectItem>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="aprovado">Aprovadas</SelectItem>
+                    <SelectItem value="pendente">Pendentes</SelectItem>
+                    <SelectItem value="cancelado">Canceladas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Evento */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Evento
+                </Label>
+                <Select
+                  value={filters.eventId}
+                  onValueChange={(value) => setFilters({ ...filters, eventId: value })}
+                >
+                  <SelectTrigger className="mt-1" data-testid="select-event">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os eventos</SelectItem>
+                    {events?.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Função */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Função
+                </Label>
+                <Select
+                  value={filters.functionId}
+                  onValueChange={(value) => setFilters({ ...filters, functionId: value })}
+                >
+                  <SelectTrigger className="mt-1" data-testid="select-function">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as funções</SelectItem>
+                    {functions?.map((func) => (
+                      <SelectItem key={func.id} value={func.id}>
+                        {func.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Botão Limpar Filtros */}
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setFilters({
+                  eventId: "all",
+                  functionId: "all", 
+                  collaboratorId: "all",
+                  searchId: "",
+                  accommodationStatus: "all",
+                  inclusionStatus: "active",
+                })}
+                data-testid="clear-filters"
+              >
+                Limpar Filtros
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
