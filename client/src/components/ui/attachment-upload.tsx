@@ -109,8 +109,13 @@ export default function AttachmentUpload({
       
       // 4. Adicionar ID do anexo à lista
       const updatedIds = [...attachmentIds, attachmentId];
+      console.log("🔍 DEBUG UPLOAD: Antes de chamar callback - attachmentIds:", attachmentIds, "novo ID:", attachmentId, "updatedIds:", updatedIds);
+      console.log("🔍 DEBUG UPLOAD: Callback function exists?", typeof onAttachmentsChange, onAttachmentsChange);
+      
+      // Chamar callback para notificar o componente pai
       console.log("🔍 DEBUG UPLOAD: Chamando onAttachmentsChange com:", updatedIds);
       onAttachmentsChange(updatedIds);
+      console.log("🔍 DEBUG UPLOAD: Callback executado com sucesso");
       
       toast({
         title: "Anexo carregado",
@@ -134,6 +139,7 @@ export default function AttachmentUpload({
 
   const removeAttachment = (attachmentToRemove: string) => {
     const updatedIds = attachmentIds.filter(id => id !== attachmentToRemove);
+    console.log("🔍 DEBUG REMOVE: Removendo anexo", attachmentToRemove, "updatedIds:", updatedIds);
     onAttachmentsChange(updatedIds);
     toast({
       title: "Anexo removido",
