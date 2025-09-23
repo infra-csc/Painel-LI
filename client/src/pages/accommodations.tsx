@@ -161,7 +161,6 @@ export default function Accommodations() {
     useEffect(() => {
       if (selectedInclusion) {
         const existingAttachments = accommodation?.attachmentIds || [];
-        console.log("Modal opened - initializing attachments:", existingAttachments);
         setCurrentAttachmentIds(existingAttachments);
       } else {
         // Limpar quando fechar
@@ -583,7 +582,6 @@ export default function Accommodations() {
               <AttachmentUpload
                 attachmentIds={currentAttachmentIds}
                 onAttachmentsChange={async (newIds) => {
-                  console.log("AttachmentUpload onAttachmentsChange called with:", newIds);
                   setCurrentAttachmentIds(newIds);
                   
                   // Salvar anexos imediatamente se há uma nova inclusão de anexo
@@ -594,22 +592,26 @@ export default function Accommodations() {
                       };
                       
                       if (accommodation) {
-                        // Atualizar registro existente
-                        await updateAccommodationMutation.mutateAsync({
-                          id: accommodation.id,
-                          data: saveData,
-                        });
+                        // Atualizar registro existente silenciosamente
+                        await apiRequest("PATCH", `/api/accommodations/${accommodation.id}`, saveData);
                       } else {
-                        // Criar novo registro apenas com anexos
-                        await createAccommodationMutation.mutateAsync({
+                        // Criar novo registro apenas com anexos silenciosamente
+                        await apiRequest("POST", "/api/accommodations", {
                           teamInclusionId: selectedInclusion.id,
                           ...saveData
                         });
                       }
                       
-                      console.log("Attachment saved immediately");
+                      // Invalida o cache para atualizar os dados
+                      queryClient.invalidateQueries({ queryKey: ["/api/accommodations"] });
+                      
                     } catch (error) {
                       console.error("Error saving attachment:", error);
+                      toast({
+                        variant: "destructive",
+                        title: "❌ Erro",
+                        description: "Erro ao salvar anexo",
+                      });
                     }
                   }
                 }}

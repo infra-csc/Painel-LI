@@ -22,26 +22,14 @@ export default function AttachmentUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
-  // Debug: Log das props recebidas
-  console.log("AttachmentUpload render:", {
-    attachmentIdsLength: attachmentIds.length,
-    attachmentIds,
-    title,
-    disabled
-  });
 
   const generateAttachmentId = () => {
     return `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("AttachmentUpload: handleFileSelect called");
     const file = event.target.files?.[0];
-    if (!file) {
-      console.log("AttachmentUpload: no file selected");
-      return;
-    }
-    console.log("AttachmentUpload: file selected:", file.name, file.type, file.size);
+    if (!file) return;
 
     // Validar tipo de arquivo
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
@@ -113,11 +101,6 @@ export default function AttachmentUpload({
       
       // 4. Adicionar ID do anexo à lista
       const updatedIds = [...attachmentIds, attachmentId];
-      console.log("AttachmentUpload: About to call onAttachmentsChange", {
-        currentIds: attachmentIds,
-        newId: attachmentId,
-        updatedIds
-      });
       onAttachmentsChange(updatedIds);
       
       toast({
