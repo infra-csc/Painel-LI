@@ -7,6 +7,7 @@ import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -1002,28 +1003,16 @@ export default function Scaling() {
                     </div>
                   </div>
                 ) : (
-                  // Select normal quando ainda não escalado
-                  <Select 
-                    value={modalData.collaboratorId} 
-                    onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
-                    disabled={(() => {
-                      if (!selectedInclusion) return true;
-                      if (isReadOnly(selectedInclusion)) return true;
-                      if (!canConfirmEscalation(selectedInclusion)) return true;
-                      return false;
-                    })()}
-                  >
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder="Selecione um colaborador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
-                        <SelectItem key={collaborator.id} value={collaborator.id}>
-                          {collaborator.fullName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  // CollaboratorCombobox para buscar colaborador quando ainda não escalado  
+                  <div className="mt-2">
+                    <CollaboratorCombobox
+                      collaborators={collaborators}
+                      value={modalData.collaboratorId}
+                      onValueChange={(value) => setModalData(prev => ({...prev, collaboratorId: value}))}
+                      placeholder="Selecione um colaborador"
+                      testId="select-collaborator-escalation"
+                    />
+                  </div>
                 )}
               </div>
 

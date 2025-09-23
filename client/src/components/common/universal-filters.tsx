@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
+import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
 interface UniversalFiltersProps {
@@ -127,23 +128,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
           <label className="block text-sm font-medium text-foreground mb-1">
             Colaborador
           </label>
-          <Select 
-            value={filters.collaboratorId} 
+          <CollaboratorCombobox
+            collaborators={collaborators}
+            value={filters.collaboratorId}
             onValueChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
-            data-testid="filter-collaborator"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar colaborador" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Colaboradores</SelectItem>
-              {collaborators?.filter(c => c.status === 'aprovado').map((collaborator) => (
-                <SelectItem key={collaborator.id} value={collaborator.id}>
-                  {collaborator.fullName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecionar colaborador"
+            testId="filter-collaborator"
+          />
         </div>
 
         {!hideStatusFilter && (
