@@ -103,6 +103,7 @@ export default function AttachmentUpload({
       
       // 4. Adicionar ID do anexo à lista
       const updatedIds = [...attachmentIds, attachmentId];
+      console.log("🔍 DEBUG UPLOAD: Chamando onAttachmentsChange com:", updatedIds);
       onAttachmentsChange(updatedIds);
       
       toast({

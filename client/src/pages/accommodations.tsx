@@ -161,14 +161,18 @@ export default function Accommodations() {
     useEffect(() => {
       if (selectedInclusion) {
         const existingAttachments = accommodation?.attachmentIds || [];
-        console.log("🔍 DEBUG ANEXOS: Inicializando attachment IDs:", existingAttachments);
-        setCurrentAttachmentIds(existingAttachments);
+        console.log("🔍 DEBUG ANEXOS: Inicializando attachment IDs para inclusão", selectedInclusion.id, ":", existingAttachments);
+        
+        // Só sobrescrever se há anexos existentes OU se estamos mudando de inclusão
+        if (existingAttachments.length > 0 || currentAttachmentIds.length === 0) {
+          setCurrentAttachmentIds(existingAttachments);
+        }
       } else {
         // Limpar quando fechar
-        console.log("🔍 DEBUG ANEXOS: Limpando attachment IDs");
+        console.log("🔍 DEBUG ANEXOS: Limpando attachment IDs - modal fechado");
         setCurrentAttachmentIds([]);
       }
-    }, [selectedInclusion?.id, accommodation?.attachmentIds]);
+    }, [selectedInclusion?.id]);
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
