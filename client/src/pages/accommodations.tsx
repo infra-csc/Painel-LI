@@ -104,6 +104,13 @@ export default function Accommodations() {
     }));
   };
 
+  // Função para visualizar detalhes da hospedagem (similar à handleViewTicketDetails)
+  const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
+    if (inclusion.status === 'cancelado') return;
+    setSelectedInclusion(inclusion);
+    setShowModal(true);
+  };
+
   // Formatação de data no padrão brasileiro
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
@@ -794,19 +801,38 @@ export default function Accommodations() {
                           <div className="w-4 h-4"></div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white" data-testid={`accommodation-id-${inclusion.inclusionNumber}`}>
-                        {inclusion.inclusionNumber}
+                      <td className={`px-4 py-3 text-sm font-medium text-gray-900 dark:text-white ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-id-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-mono text-foreground">
+                            <span>#{inclusion.inclusionNumber || 'N/A'}</span>
+                          </div>
+                          <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
+                            <Eye 
+                              className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                            />
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-event-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {event?.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-function-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-function-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {func?.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {collaborator?.fullName}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {accommodation?.checkInDate ? (
                           <div className="text-sm font-medium text-foreground">
                             <div>{formatDate(accommodation.checkInDate)}</div>
@@ -818,7 +844,9 @@ export default function Accommodations() {
                           <div className="text-sm text-muted-foreground">-</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {accommodation?.checkOutDate ? (
                           <div className="text-sm font-medium text-foreground">
                             <div>{formatDate(accommodation.checkOutDate)}</div>
@@ -830,7 +858,9 @@ export default function Accommodations() {
                           <div className="text-sm text-muted-foreground">-</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300" data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
+                      <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
+                          data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}
+                          onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
                         {accommodation?.hotelName && (
                           <div>
                             <div>{accommodation.hotelName}</div>
@@ -842,49 +872,23 @@ export default function Accommodations() {
                       </td>
                       <td className="px-4 py-3" data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
                         <StatusBadge 
-                          status={hasAccommodation ? "processed" : "pending"} 
+                          status={inclusion.status} 
                         />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {!hasAccommodation && canPerformActions(inclusion) && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleCreateAccommodation(inclusion)}
-                              disabled={createAccommodationMutation.isPending}
-                              data-testid={`create-accommodation-${inclusion.inclusionNumber}`}
-                            >
-                              <Hotel className="w-4 h-4 mr-1" />
-                              Criar
-                            </Button>
-                          )}
-                          
                           {hasAccommodation && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedInclusion(inclusion);
-                                  setShowModal(true);
-                                }}
-                                data-testid={`view-accommodation-${inclusion.inclusionNumber}`}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedInclusion(inclusion);
-                                  setShowCommentsModal(true);
-                                }}
-                                data-testid={`comments-accommodation-${inclusion.inclusionNumber}`}
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedInclusion(inclusion);
+                                setShowCommentsModal(true);
+                              }}
+                              data-testid={`comments-accommodation-${inclusion.inclusionNumber}`}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </Button>
                           )}
                         </div>
                       </td>
