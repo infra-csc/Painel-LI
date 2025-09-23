@@ -123,27 +123,31 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
         return `${year}-${month}-${day}`;
       };
 
-      // Validações básicas
-      if (!values[0]) errors.push('Nome é obrigatório');
-      if (!values[1] || !['casa', 'freela', 'local'].includes(values[1].toLowerCase())) {
-        errors.push('Tipo deve ser: CASA, FREELA ou LOCAL');
+      // Validações básicas - apenas nome é obrigatório
+      if (!values[0] || !values[0].trim()) {
+        // Ignorar silenciosamente linhas sem nome
+        continue;
       }
-      if (!values[2]) errors.push('Número do RG é obrigatório');
-      // Telefone é opcional agora (values[3])
-      if (!values[4]) errors.push('Cidade é obrigatória');
-      if (!values[5] || !values[5].match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-        errors.push('Data de nascimento deve estar no formato DD/MM/AAAA');
+      
+      // Validar tipo se não estiver vazio
+      if (values[1] && values[1].trim() && !['casa', 'freela', 'local'].includes(values[1].toLowerCase())) {
+        errors.push('Tipo deve ser: CASA, FREELA ou LOCAL (ou deixar vazio)');
+      }
+      
+      // Validar data se não estiver vazia
+      if (values[5] && values[5].trim() && !values[5].match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        errors.push('Data de nascimento deve estar no formato DD/MM/AAAA (ou deixar vazio)');
       }
 
-      const convertedDate = convertDate(values[5] || '');
+      const convertedDate = values[5] && values[5].trim() ? convertDate(values[5]) : '';
       
       parsed.push({
-        fullName: values[0] || '',
-        type: values[1]?.toLowerCase() || '',
+        fullName: values[0]?.trim() || '',
+        type: values[1]?.trim()?.toLowerCase() || 'freela', // padrão se vazio
         documentType: 'rg', // sempre RG
-        document: values[2] || '',
-        phone: values[3] || undefined, // telefone agora é values[3]
-        city: values[4] || '', // cidade agora é values[4]
+        document: values[2]?.trim() || '',
+        phone: values[3]?.trim() || undefined,
+        city: values[4]?.trim() || '',
         birthDate: convertedDate, // já convertida para YYYY-MM-DD
         area: 'Geral', // padrão
         isValid: errors.length === 0,

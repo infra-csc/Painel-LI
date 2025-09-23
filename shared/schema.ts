@@ -72,7 +72,7 @@ export const collaborators = pgTable("collaborators", {
   fullName: text("full_name").notNull(),
   officialDocument: text("official_document").notNull().unique(), // CPF or RG
   documentType: text("document_type").notNull(), // "cpf" or "rg"
-  birthDate: date("birth_date").notNull(),
+  birthDate: date("birth_date"),
   area: text("area").notNull(),
   type: text("type").notNull(), // casa, freela, local
   phone: text("phone"), // Make phone optional

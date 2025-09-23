@@ -844,16 +844,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedDocuments.add(collaboratorData.document);
         
         try {
-          // Validate each collaborator - convert string date to Date object
+          // Validate each collaborator - tratar campos vazios
+          // Para campos vazios, usar datas padrão ou valores padrão
+          const birthDateValue = collaboratorData.birthDate 
+            ? new Date(collaboratorData.birthDate + 'T00:00:00.000Z') 
+            : new Date('1900-01-01T00:00:00.000Z'); // data padrão para campos vazios
+            
           const validatedData = insertCollaboratorSchema.parse({
-            fullName: collaboratorData.fullName,
-            officialDocument: collaboratorData.document,
-            documentType: collaboratorData.documentType,
-            birthDate: new Date(collaboratorData.birthDate + 'T00:00:00.000Z'), // convert string to Date
-            phone: collaboratorData.phone,
-            type: collaboratorData.type,
-            city: collaboratorData.city,
-            area: collaboratorData.area,
+            fullName: collaboratorData.fullName || 'Sem nome',
+            officialDocument: collaboratorData.document || 'SEM-DOCUMENTO-' + Date.now(),
+            documentType: collaboratorData.documentType || 'rg',
+            birthDate: birthDateValue,
+            phone: collaboratorData.phone || null,
+            type: collaboratorData.type || 'freela',
+            city: collaboratorData.city || 'Não informado',
+            area: collaboratorData.area || 'Geral',
             status: "aprovado", // colaboradores importados via CSV já são aprovados automaticamente
             approvedAt: new Date(), // data de aprovação automática
             approvedBy: "sistema" // aprovado pelo sistema via upload em lote
