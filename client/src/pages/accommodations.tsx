@@ -809,6 +809,7 @@ export default function Accommodations() {
     return new Map(accommodations.map(acc => [acc.teamInclusionId, acc]));
   }, [accommodations]);
 
+
   // Filtrar e ordenar dados
   const filteredData = useMemo(() => {
     let data = teamInclusionsWithAccommodation.filter(inclusion => {
@@ -1034,7 +1035,7 @@ export default function Accommodations() {
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-green-600">{filteredData.filter(inc => accommodationMap.get(inc.id)).length}</div>
-                  <div className="text-xs text-muted-foreground">processadas</div>
+                  <div className="text-xs text-muted-foreground">compradas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-orange-600">{filteredData.filter(inc => !accommodationMap.get(inc.id)).length}</div>
