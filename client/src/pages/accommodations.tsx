@@ -105,6 +105,94 @@ export default function Accommodations() {
     }));
   };
 
+  // Aplicar dados do registro rápido às hospedagens selecionadas
+  const handleApplyToSelected = async () => {
+    const quickData = accommodationData["quick"];
+    if (!quickData || selectedInclusionsForBatch.length === 0) return;
+
+    // Validar campos obrigatórios
+    const requiredFields = [
+      { field: 'hotelName', label: 'Nome do Hotel' },
+      { field: 'hotelLocation', label: 'Localização' },
+      { field: 'dailyRate', label: 'Valor da Diária' },
+      { field: 'checkInDate', label: 'Data de Check-in' },
+      { field: 'checkOutDate', label: 'Data de Check-out' }
+    ];
+    
+    const missingFields = requiredFields.filter(({ field }) => {
+      let value = quickData[field];
+      return !value || value === '';
+    });
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Erro",
+        description: `Preencha os campos obrigatórios: ${missingFields.map(f => f.label).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const inclusionId of selectedInclusionsForBatch) {
+        const inclusion = filteredData.find(inc => inc.id === inclusionId);
+        if (!inclusion) continue;
+
+        // Verificar se não tem accommodation já
+        if (accommodationMap.get(inclusion.id)) {
+          errors.push(`Hospedagem #${inclusion.inclusionNumber} já foi processada`);
+          continue;
+        }
+
+        try {
+          // Criar accommodation com os dados comuns completos
+          await createAccommodationMutation.mutateAsync({
+            teamInclusionId: inclusion.id,
+            hotelName: quickData.hotelName,
+            hotelLocation: quickData.hotelLocation,
+            checkInDate: quickData.checkInDate,
+            checkInTime: quickData.checkInTime || '14:00',
+            checkOutDate: quickData.checkOutDate,
+            checkOutTime: quickData.checkOutTime || '12:00',
+            dailyRate: Math.round(parseFloat(quickData.dailyRate) * 100),
+            reservationNumber: quickData.reservationNumber || null,
+            accommodationObservations: quickData.accommodationObservations || null
+          });
+
+          successCount++;
+        } catch (error) {
+          errors.push(`Erro na hospedagem #${inclusion.inclusionNumber}`);
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Sucesso",
+          description: `${successCount} hospedagem(ns) registrada(s) com os mesmos dados!`,
+        });
+        // Limpar seleções após sucesso
+        setSelectedInclusionsForBatch([]);
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "Alguns erros ocorreram",
+          description: errors.join(", "),
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao processar hospedagens em lote",
+        variant: "destructive",
+      });
+    }
+  };
+
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
   });
@@ -553,7 +641,7 @@ export default function Accommodations() {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => {}} // TODO: handleApplyToSelected
+                      onClick={handleApplyToSelected}
                       disabled={
                         selectedInclusionsForBatch.length === 0 || 
                         createAccommodationMutation.isPending
@@ -592,18 +680,15 @@ export default function Accommodations() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                 <tr>
-                  <th className="px-4 py-3 text-left">
-                    <Checkbox 
-                      data-testid="select-all-accommodations"
-                      checked={selectedAccommodations.length === filteredData.length && filteredData.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedAccommodations(filteredData.map(item => accommodationMap.get(item.id)?.id).filter(Boolean));
-                        } else {
-                          setSelectedAccommodations([]);
-                        }
-                      }}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={selectedInclusionsForBatch.length > 0}
+                      onChange={toggleAllInclusions}
+                      className="rounded border-gray-300 mr-2"
+                      data-testid="checkbox-select-all"
                     />
+                    Seleção
                   </th>
                   <SortableHeader 
                     field="id" 
@@ -676,20 +761,18 @@ export default function Accommodations() {
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       data-testid={`accommodation-row-${inclusion.inclusionNumber}`}
                     >
-                      <td className="px-4 py-3">
-                        <Checkbox 
-                          data-testid={`select-accommodation-${inclusion.inclusionNumber}`}
-                          checked={accommodation ? selectedAccommodations.includes(accommodation.id) : false}
-                          onCheckedChange={(checked) => {
-                            if (!accommodation) return;
-                            if (checked) {
-                              setSelectedAccommodations([...selectedAccommodations, accommodation.id]);
-                            } else {
-                              setSelectedAccommodations(selectedAccommodations.filter(id => id !== accommodation.id));
-                            }
-                          }}
-                          disabled={!accommodation}
-                        />
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {!accommodation && inclusion.status !== 'cancelado' ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedInclusionsForBatch.includes(inclusion.id)}
+                            onChange={() => toggleInclusionSelection(inclusion.id)}
+                            className="rounded border-gray-300"
+                            data-testid={`checkbox-inclusion-${inclusion.id}`}
+                          />
+                        ) : (
+                          <div className="w-4 h-4"></div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white" data-testid={`accommodation-id-${inclusion.inclusionNumber}`}>
                         {inclusion.inclusionNumber}
