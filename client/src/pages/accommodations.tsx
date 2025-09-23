@@ -159,14 +159,14 @@ export default function Accommodations() {
     // Estado para gerenciar anexos no modal individual - estratégia mais simples
     const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
     
-    // Reset apenas quando fecha o modal
+    // Reset apenas quando fecha o modal - usar ID para evitar re-triggers desnecessários  
     useEffect(() => {
       if (!selectedInclusion) {
         console.log("🔍 DEBUG MODAL: Fechando - limpar anexos");
         setCurrentAttachmentIds([]);
       }
       // Não fazer nada quando abre - deixar vazio para novos uploads
-    }, [selectedInclusion]);
+    }, [selectedInclusion?.id]); // Usar apenas ID, não objeto completo
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {
@@ -588,8 +588,14 @@ export default function Accommodations() {
                 onAttachmentsChange={(newIds) => {
                   console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", JSON.stringify(currentAttachmentIds), "para", JSON.stringify(newIds));
                   console.log("🔍 DEBUG ANEXOS: Antes de setState:", currentAttachmentIds);
-                  setCurrentAttachmentIds([...newIds]); // Force new array reference
-                  console.log("🔍 DEBUG ANEXOS: Depois de setState, deve re-renderizar");
+                  
+                  // Usar setState funcional para garantir atualização
+                  setCurrentAttachmentIds(prev => {
+                    console.log("🔍 DEBUG ANEXOS: setState funcional - prev:", prev, "novo:", newIds);
+                    return [...newIds];
+                  });
+                  
+                  console.log("🔍 DEBUG ANEXOS: setState funcional executado");
                 }}
                 disabled={!canEditRecord}
                 title="📎 Anexos da Hospedagem"
