@@ -10,6 +10,7 @@ import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CommentsModal from "@/components/modals/comments-modal";
+import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -669,7 +670,8 @@ export default function Accommodations() {
             checkOutTime: quickData.checkOutTime || '12:00',
             dailyRate: Math.round(parseFloat(quickData.dailyRate) * 100),
             reservationNumber: quickData.reservationNumber || null,
-            accommodationObservations: quickData.accommodationObservations || null
+            accommodationObservations: quickData.accommodationObservations || null,
+            attachmentIds: quickData.attachmentIds && quickData.attachmentIds.length > 0 ? quickData.attachmentIds : null
           });
 
           successCount++;
@@ -679,9 +681,10 @@ export default function Accommodations() {
       }
 
       if (successCount > 0) {
+        const hasAttachments = quickData.attachmentIds && quickData.attachmentIds.length > 0;
         toast({
           title: "Sucesso",
-          description: `${successCount} hospedagem(ns) registrada(s) com os mesmos dados!`,
+          description: `${successCount} hospedagem(ns) registrada(s) com os mesmos dados${hasAttachments ? ' e anexos' : ''}!`,
         });
         // Limpar seleções após sucesso
         setSelectedInclusionsForBatch([]);
@@ -1137,6 +1140,20 @@ export default function Accommodations() {
                       data-testid="textarea-quick-accommodation-observations"
                     />
                   </div>
+                </div>
+
+                {/* Seção de Anexos */}
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-md">
+                  <h5 className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-1">
+                    📎 ANEXOS DA HOSPEDAGEM
+                  </h5>
+                  <AttachmentUpload
+                    attachmentIds={accommodationData["quick"]?.attachmentIds || []}
+                    onAttachmentsChange={(attachmentIds) => 
+                      handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
+                    }
+                    disabled={!canEditScreen(user, 'accommodations')}
+                  />
                 </div>
               </div>
 
