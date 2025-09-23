@@ -86,9 +86,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc
+    // Espera cabeçalho: Nome,Tipo,Documento,Telefone,Cidade,DataNasc
     const headers = lines[0].split(',').map(h => h.trim());
-    const expectedHeaders = ['Nome', 'Tipo', 'TipoDoc', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
+    const expectedHeaders = ['Nome', 'Tipo', 'Documento', 'Telefone', 'Cidade', 'DataNasc'];
     
     // Validar cabeçalho
     const headerMatch = expectedHeaders.every((header, index) => 
@@ -110,29 +110,37 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       const values = lines[i].split(',').map(v => v.trim());
       const errors: string[] = [];
       
+      // Função para converter data DD/MM/AAAA para YYYY-MM-DD
+      const convertDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!match) return '';
+        const [, day, month, year] = match;
+        return `${year}-${month}-${day}`;
+      };
+
       // Validações básicas
       if (!values[0]) errors.push('Nome é obrigatório');
       if (!values[1] || !['casa', 'freela', 'local'].includes(values[1].toLowerCase())) {
         errors.push('Tipo deve ser: CASA, FREELA ou LOCAL');
       }
-      if (!values[2] || values[2].toLowerCase() !== 'rg') {
-        errors.push('Tipo de documento deve ser: RG');
-      }
-      if (!values[3]) errors.push('Número do RG é obrigatório');
-      if (!values[4]) errors.push('Telefone é obrigatório');
-      if (!values[5]) errors.push('Cidade é obrigatória');
-      if (!values[6] || !values[6].match(/^\d{4}-\d{2}-\d{2}$/)) {
-        errors.push('Data de nascimento deve estar no formato YYYY-MM-DD');
+      if (!values[2]) errors.push('Número do RG é obrigatório');
+      // Telefone é opcional agora
+      if (!values[4]) errors.push('Cidade é obrigatória');
+      if (!values[5] || !values[5].match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        errors.push('Data de nascimento deve estar no formato DD/MM/AAAA');
       }
 
+      const convertedDate = convertDate(values[5] || '');
+      
       parsed.push({
         fullName: values[0] || '',
         type: values[1]?.toLowerCase() || '',
-        documentType: values[2]?.toLowerCase() || 'rg',
-        document: values[3] || '',
-        phone: values[4] || undefined,
-        city: values[5] || '',
-        birthDate: values[6] || '',
+        documentType: 'rg', // sempre RG
+        document: values[2] || '',
+        phone: values[3] || undefined,
+        city: values[4] || '',
+        birthDate: convertedDate, // já convertida para YYYY-MM-DD
         area: 'Geral', // padrão
         isValid: errors.length === 0,
         errors
@@ -182,10 +190,10 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc\n" +
-      "João Silva,casa,rg,123456789,11999999999,São Paulo,1990-01-15\n" +
-      "Maria Santos,freela,rg,987654321,11888888888,Rio de Janeiro,1985-03-22\n" +
-      "Pedro Costa,local,rg,456789123,11777777777,Belo Horizonte,1992-07-10";
+    const csvContent = "Nome,Tipo,Documento,Telefone,Cidade,DataNasc\n" +
+      "João Silva,casa,123456789,11999999999,São Paulo,15/01/1990\n" +
+      "Maria Santos,freela,987654321,11888888888,Rio de Janeiro,22/03/1985\n" +
+      "Pedro Costa,local,456789123,,Belo Horizonte,10/07/1992";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -259,14 +267,13 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 O arquivo deve conter as seguintes colunas (nesta ordem):
               </p>
               <code className="text-xs bg-background p-2 rounded block">
-                Nome,Tipo,TipoDoc,Documento,Telefone,Cidade,DataNasc
+                Nome,Tipo,Documento,Telefone,Cidade,DataNasc
               </code>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
                 <li>• <strong>Tipo:</strong> CASA, FREELA ou LOCAL</li>
-                <li>• <strong>TipoDoc:</strong> sempre "rg"</li>
-                <li>• <strong>Documento:</strong> número do RG</li>
-                <li>• <strong>DataNasc:</strong> formato YYYY-MM-DD</li>
-                <li>• <strong>Telefone:</strong> obrigatório</li>
+                <li>• <strong>Documento:</strong> número do RG (tipo RG é automático)</li>
+                <li>• <strong>DataNasc:</strong> formato DD/MM/AAAA</li>
+                <li>• <strong>Telefone:</strong> opcional</li>
               </ul>
             </div>
           </div>
@@ -302,6 +309,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                     <th className="p-2 text-left">RG</th>
                     <th className="p-2 text-left">Telefone</th>
                     <th className="p-2 text-left">Cidade</th>
+                    <th className="p-2 text-left">Data Nasc</th>
                     <th className="p-2 text-left">Erros</th>
                   </tr>
                 </thead>
@@ -320,6 +328,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                       <td className="p-2">{item.document}</td>
                       <td className="p-2">{item.phone || 'N/A'}</td>
                       <td className="p-2">{item.city}</td>
+                      <td className="p-2">{item.birthDate}</td>
                       <td className="p-2">
                         {item.errors.length > 0 && (
                           <div className="text-xs text-red-600">
