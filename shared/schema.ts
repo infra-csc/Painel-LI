@@ -102,6 +102,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   flightReturnDate: date("flight_return_date"),
   flightReturnSuggestedTime: text("flight_return_suggested_time"),
   needsTicket: boolean("needs_ticket").default(false),
+  needsAccommodation: boolean("needs_accommodation").default(false),
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
   actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
@@ -139,6 +140,22 @@ export const tickets = pgTable("tickets", {
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
   ticketObservations: text("ticket_observations"), // observações sobre a passagem
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
+});
+
+// Accommodations table
+export const accommodations = pgTable("accommodations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
+  checkInDate: date("check_in_date"),
+  checkInTime: text("check_in_time"),
+  checkOutDate: date("check_out_date"),
+  checkOutTime: text("check_out_time"),
+  hotelLocation: text("hotel_location"), // local do hotel
+  hotelName: text("hotel_name"), // nome do hotel
+  accommodationObservations: text("accommodation_observations"), // observações
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
@@ -244,6 +261,12 @@ export const insertTicketSchema = createInsertSchema(tickets).omit({
   transportType: z.enum(["aereo", "rodoviario"]).optional()
 });
 
+export const insertAccommodationSchema = createInsertSchema(accommodations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertFinancialSchema = createInsertSchema(financial).omit({
   id: true,
   createdAt: true,
@@ -288,6 +311,9 @@ export type InsertTeamInclusion = z.infer<typeof insertTeamInclusionSchema>;
 
 export type Ticket = typeof tickets.$inferSelect;
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
+
+export type Accommodation = typeof accommodations.$inferSelect;
+export type InsertAccommodation = z.infer<typeof insertAccommodationSchema>;
 
 export type Financial = typeof financial.$inferSelect;
 export type InsertFinancial = z.infer<typeof insertFinancialSchema>;
