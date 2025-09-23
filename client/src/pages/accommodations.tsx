@@ -43,6 +43,8 @@ export default function Accommodations() {
     additional: false
   });
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [accommodationData, setAccommodationData] = useState<Record<string, any>>({});
+  const [selectedInclusionsForBatch, setSelectedInclusionsForBatch] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -57,6 +59,50 @@ export default function Accommodations() {
         return { field, direction: 'asc' };
       }
     });
+  };
+
+  // Função para alterar dados de hospedagem
+  const handleAccommodationDataChange = (inclusionId: string, field: string, value: any) => {
+    setAccommodationData(prev => ({
+      ...prev,
+      [inclusionId]: {
+        ...prev[inclusionId],
+        [field]: value
+      }
+    }));
+  };
+
+  // Toggle seleção de inclusão para lote
+  const toggleInclusionSelection = (inclusionId: string) => {
+    setSelectedInclusionsForBatch(prev => {
+      if (prev.includes(inclusionId)) {
+        return prev.filter(id => id !== inclusionId);
+      } else {
+        return [...prev, inclusionId];
+      }
+    });
+  };
+
+  // Selecionar/deselecionar todos os pendentes
+  const toggleAllInclusions = () => {
+    const pendingInclusions = filteredData.filter(inclusion => 
+      !accommodationMap.get(inclusion.id)
+    );
+    const allPendingIds = pendingInclusions.map(inclusion => inclusion.id);
+    
+    if (selectedInclusionsForBatch.length === allPendingIds.length) {
+      setSelectedInclusionsForBatch([]); // Deselecionar todos
+    } else {
+      setSelectedInclusionsForBatch(allPendingIds); // Selecionar todos pendentes
+    }
+  };
+
+  // Toggle seções expansíveis
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
@@ -354,6 +400,191 @@ export default function Accommodations() {
           >
             Limpar Filtros
           </Button>
+        </div>
+
+        {/* Seção de Registro Rápido */}
+        <div className="px-6 py-4 border-b border-border bg-accent/20 rounded-lg border">
+          <div 
+            className="flex items-center gap-2 cursor-pointer mb-4"
+            onClick={() => toggleSection('basic')}
+          >
+            {expandedSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <h3 className="text-lg font-semibold text-foreground">🏨 Registro Rápido em Lote</h3>
+            <span className="text-sm text-muted-foreground">(Aplicar mesmos dados a múltiplas hospedagens)</span>
+          </div>
+
+          {expandedSections.basic && (
+            <>
+              {/* Grade Organizada por Seções */}
+              <div className="space-y-4">
+                {/* Seção de Informações Gerais */}
+                <div className="grid grid-cols-3 gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-md">
+                  <div>
+                    <Label className="text-[10px] font-medium">Nome do Hotel *</Label>
+                    <Input
+                      placeholder="Hotel Copacabana"
+                      value={accommodationData["quick"]?.hotelName || ""}
+                      onChange={(e) => handleAccommodationDataChange("quick", "hotelName", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-hotel-name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Localização *</Label>
+                    <Input
+                      placeholder="Rio de Janeiro, RJ"
+                      value={accommodationData["quick"]?.hotelLocation || ""}
+                      onChange={(e) => handleAccommodationDataChange("quick", "hotelLocation", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-hotel-location"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-medium">Valor da Diária *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="250.00"
+                      value={accommodationData["quick"]?.dailyRate || ""}
+                      onChange={(e) => handleAccommodationDataChange("quick", "dailyRate", e.target.value)}
+                      className="h-6 text-xs px-1"
+                      data-testid="input-quick-daily-rate"
+                    />
+                  </div>
+                </div>
+
+                {/* Seção de Datas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Check-in */}
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md">
+                    <h5 className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
+                      📅 CHECK-IN
+                    </h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px] font-medium">Data *</Label>
+                        <Input
+                          type="date"
+                          value={accommodationData["quick"]?.checkInDate || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkInDate", e.target.value)}
+                          className="h-6 text-xs px-1"
+                          data-testid="input-quick-checkin-date"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-medium">Horário</Label>
+                        <Input
+                          type="time"
+                          value={accommodationData["quick"]?.checkInTime || "14:00"}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkInTime", e.target.value)}
+                          className="h-6 text-xs px-1"
+                          data-testid="input-quick-checkin-time"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Check-out */}
+                  <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-md">
+                    <h5 className="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
+                      📅 CHECK-OUT
+                    </h5>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px] font-medium">Data *</Label>
+                        <Input
+                          type="date"
+                          value={accommodationData["quick"]?.checkOutDate || ""}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutDate", e.target.value)}
+                          className="h-6 text-xs px-1"
+                          data-testid="input-quick-checkout-date"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-medium">Horário</Label>
+                        <Input
+                          type="time"
+                          value={accommodationData["quick"]?.checkOutTime || "12:00"}
+                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutTime", e.target.value)}
+                          className="h-6 text-xs px-1"
+                          data-testid="input-quick-checkout-time"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção de Informações Adicionais */}
+                <div className="grid grid-cols-1 gap-2 p-3 bg-gray-50 dark:bg-gray-950/30 rounded-md">
+                  <div>
+                    <Label className="text-[10px] font-medium">Reserva/LOC (opcional)</Label>
+                    <Input
+                      placeholder="Número da reserva"
+                      value={accommodationData["quick"]?.reservationNumber || ""}
+                      onChange={(e) => handleAccommodationDataChange("quick", "reservationNumber", e.target.value)}
+                      className="h-6 text-xs px-1 max-w-48"
+                      data-testid="input-quick-reservation-number"
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <Label className="text-[10px] font-medium">Observações sobre a hospedagem (opcional)</Label>
+                    <Textarea
+                      placeholder="Informações adicionais sobre a hospedagem..."
+                      value={accommodationData["quick"]?.accommodationObservations || ""}
+                      onChange={(e) => handleAccommodationDataChange("quick", "accommodationObservations", e.target.value)}
+                      className="h-16 text-xs px-2 py-1 resize-none"
+                      data-testid="textarea-quick-accommodation-observations"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Preencha os dados comuns e selecione as hospedagens na tabela para aplicar
+                  {selectedInclusionsForBatch.length > 0 && (
+                    <span className="text-blue-600 font-medium ml-2">
+                      ({selectedInclusionsForBatch.length} hospedagens selecionadas)
+                    </span>
+                  )}
+                </div>
+                {canEditScreen(user, 'accommodations') && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => {}} // TODO: handleApplyToSelected
+                      disabled={
+                        selectedInclusionsForBatch.length === 0 || 
+                        createAccommodationMutation.isPending
+                      }
+                      data-testid="button-apply-to-selected"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedInclusionsForBatch.length} Hospedagens`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Limpar campos do registro rápido
+                        setAccommodationData(prev => {
+                          const newData = { ...prev };
+                          delete newData["quick"];
+                          return newData;
+                        });
+                      }}
+                      disabled={!accommodationData["quick"] || Object.keys(accommodationData["quick"]).length === 0}
+                      data-testid="button-clear-quick"
+                    >
+                      Limpar Campos
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="bg-card rounded-lg shadow-sm border border-border">
