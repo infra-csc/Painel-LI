@@ -26,7 +26,9 @@ import {
   User, 
   Search,
   Eye,
-  UserPlus
+  UserPlus,
+  Upload,
+  FileText
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +46,7 @@ export default function CollaboratorManagement() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showBulkUploadModal, setBulkUploadModal] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
   const [approvalNotes, setApprovalNotes] = useState('');
   
@@ -189,13 +192,23 @@ export default function CollaboratorManagement() {
                   </span>
                 </div>
               </div>
-              <Button 
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4" />
-                Novo Colaborador
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => setBulkUploadModal(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Importar Colaboradores
+                </Button>
+                <Button 
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Novo Colaborador
+                </Button>
+              </div>
             </div>
           </div>
 
