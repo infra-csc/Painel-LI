@@ -401,11 +401,13 @@ export default function Accommodations() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen bg-background">
         <Header />
-        <NavigationTabs activeTab="accommodations" />
-        <div className="flex items-center justify-center h-32">
-          <div className="text-gray-500">Carregando hospedagem...</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+            <div className="h-64 bg-muted rounded"></div>
+          </div>
         </div>
       </div>
     );
@@ -413,11 +415,13 @@ export default function Accommodations() {
 
   if (!canView(user, "accommodations")) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen bg-background">
         <Header />
-        <NavigationTabs activeTab="accommodations" />
-        <div className="flex items-center justify-center h-32">
-          <div className="text-red-500">Acesso não autorizado a esta funcionalidade.</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
+          </div>
         </div>
       </div>
     );
@@ -426,11 +430,10 @@ export default function Accommodations() {
   const canEditField = canEditScreen(user, "accommodations");
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-background">
       <Header />
-      <NavigationTabs activeTab="accommodations" />
-      
-      <div className="container mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <NavigationTabs activeTab="accommodations" />
         <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
