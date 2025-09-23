@@ -144,6 +144,7 @@ export default function Accommodations() {
   const handleViewAccommodationDetails = (inclusion: TeamInclusion) => {
     if (inclusion.status === 'cancelado') return;
     console.log("🔍 DEBUG CLICK: handleViewAccommodationDetails chamado para inclusão", inclusion.id, inclusion.inclusionNumber);
+    
     setSelectedInclusion(inclusion);
     setShowModal(true);
     console.log("🔍 DEBUG CLICK: Modal deve abrir agora");
@@ -157,16 +158,13 @@ export default function Accommodations() {
     const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
     
     // Estado para gerenciar anexos no modal individual - estratégia mais simples
-    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>([]);
+    const [currentAttachmentIds, setCurrentAttachmentIds] = useState<string[]>(() => {
+      console.log("🔍 DEBUG ESTADO: Inicializando currentAttachmentIds com array vazio");
+      return [];
+    });
     
-    // Reset apenas quando fecha o modal - usar ID para evitar re-triggers desnecessários  
-    useEffect(() => {
-      if (!selectedInclusion) {
-        console.log("🔍 DEBUG MODAL: Fechando - limpar anexos");
-        setCurrentAttachmentIds([]);
-      }
-      // Não fazer nada quando abre - deixar vazio para novos uploads
-    }, [selectedInclusion?.id]); // Usar apenas ID, não objeto completo
+    // Remover useEffect problemático - deixar estado gerenciar anexos sem interferência
+    // O estado será limpo apenas quando necessário, não automaticamente
     
     // Configurar valores padrão do formulário
     const defaultValues: Partial<AccommodationFormData> = {

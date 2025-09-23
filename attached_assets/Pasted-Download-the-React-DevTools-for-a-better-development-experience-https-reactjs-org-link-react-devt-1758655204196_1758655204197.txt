@@ -1,0 +1,32 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+4accommodations.tsx:165 🔍 DEBUG MODAL: Fechando - limpar anexos
+accommodations.tsx:146 🔍 DEBUG CLICK: handleViewAccommodationDetails chamado para inclusão 63d47288-457a-4f15-869b-ff0f3679a088 177
+accommodations.tsx:149 🔍 DEBUG CLICK: Modal deve abrir agora
+accommodations.tsx:583 🔍 DEBUG PARENT: Renderizando AttachmentUpload com 0 anexos: []
+attachment-upload.tsx:25 🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com 0 anexos: []
+attachment-upload.tsx:182 🔍 DEBUG RENDER: Renderizando 0 anexos: []
+attachment-upload.tsx:29 🔍 DEBUG ATTACHMENT EFFECT: AttachmentIds prop mudou para: []
+attachment-upload.tsx:30 🔍 DEBUG ATTACHMENT EFFECT: Vai renderizar 0 anexos
+accommodations.tsx:583 🔍 DEBUG PARENT: Renderizando AttachmentUpload com 0 anexos: []
+attachment-upload.tsx:25 🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com 0 anexos: []
+attachment-upload.tsx:182 🔍 DEBUG RENDER: Renderizando 0 anexos: []
+attachment-upload.tsx:25 🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com 0 anexos: []
+attachment-upload.tsx:182 🔍 DEBUG RENDER: Renderizando 0 anexos: []
+attachment-upload.tsx:112 🔍 DEBUG UPLOAD: Antes de chamar callback - attachmentIds: [] novo ID: ATT-1758655113214-P9GO8VM6U updatedIds: ['ATT-1758655113214-P9GO8VM6U']
+attachment-upload.tsx:113 🔍 DEBUG UPLOAD: Callback function exists? function (newIds) => {
+                console.log("🔍 DEBUG ANEXOS: CALLBACK chamado! De", JSON.stringify(currentAttachmentIds), "para", JSON.stringify(newIds));
+                console.log("🔍 DEBUG ANEXOS:…
+attachment-upload.tsx:116 🔍 DEBUG UPLOAD: Chamando onAttachmentsChange com: ['ATT-1758655113214-P9GO8VM6U']
+accommodations.tsx:589 🔍 DEBUG ANEXOS: CALLBACK chamado! De [] para ["ATT-1758655113214-P9GO8VM6U"]
+accommodations.tsx:590 🔍 DEBUG ANEXOS: Antes de setState: []
+accommodations.tsx:594 🔍 DEBUG ANEXOS: setState funcional - prev: [] novo: ['ATT-1758655113214-P9GO8VM6U']
+accommodations.tsx:598 🔍 DEBUG ANEXOS: setState funcional executado
+attachment-upload.tsx:118 🔍 DEBUG UPLOAD: Callback executado com sucesso
+accommodations.tsx:583 🔍 DEBUG PARENT: Renderizando AttachmentUpload com 0 anexos: []
+attachment-upload.tsx:25 🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com 0 anexos: []
+attachment-upload.tsx:182 🔍 DEBUG RENDER: Renderizando 0 anexos: []
+attachment-upload.tsx:29 🔍 DEBUG ATTACHMENT EFFECT: AttachmentIds prop mudou para: []
+attachment-upload.tsx:30 🔍 DEBUG ATTACHMENT EFFECT: Vai renderizar 0 anexos
+accommodations.tsx:583 🔍 DEBUG PARENT: Renderizando AttachmentUpload com 0 anexos: []
+attachment-upload.tsx:25 🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com 0 anexos: []
+attachment-upload.tsx:182 🔍 DEBUG RENDER: Renderizando 0 anexos: []
