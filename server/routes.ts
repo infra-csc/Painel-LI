@@ -813,6 +813,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/collaborators/bulk", async (req, res) => {
+    try {
+      const { collaborators } = req.body;
+      
+      if (!Array.isArray(collaborators) || collaborators.length === 0) {
+        return res.status(400).json({ message: "Lista de colaboradores é obrigatória" });
+      }
+
+      const result = {
+        totalProcessed: collaborators.length,
+        successful: 0,
+        failed: 0,
+        errors: [] as Array<{ row: number; name: string; error: string }>
+      };
+
+      for (let i = 0; i < collaborators.length; i++) {
+        const collaboratorData = collaborators[i];
+        try {
+          // Validate each collaborator
+          const validatedData = insertCollaboratorSchema.parse({
+            fullName: collaboratorData.fullName,
+            officialDocument: collaboratorData.document,
+            documentType: collaboratorData.documentType,
+            birthDate: collaboratorData.birthDate,
+            phone: collaboratorData.phone,
+            type: collaboratorData.type,
+            city: collaboratorData.city,
+            area: collaboratorData.area,
+            status: "pendente"
+          });
+
+          // Check if collaborator with same document already exists
+          const existing = await storage.getCollaborators();
+          const duplicateDoc = existing.find(c => c.officialDocument === validatedData.officialDocument);
+          
+          if (duplicateDoc) {
+            result.failed++;
+            result.errors.push({
+              row: i + 1,
+              name: collaboratorData.fullName || 'N/A', 
+              error: 'Documento oficial já cadastrado'
+            });
+            continue;
+          }
+
+          await storage.createCollaborator(validatedData);
+          result.successful++;
+          
+        } catch (error) {
+          result.failed++;
+          result.errors.push({
+            row: i + 1,
+            name: collaboratorData.fullName || 'N/A',
+            error: error instanceof Error ? error.message : 'Erro de validação'
+          });
+        }
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
   app.patch("/api/collaborators/:id", async (req, res) => {
     try {
       const { id } = req.params;

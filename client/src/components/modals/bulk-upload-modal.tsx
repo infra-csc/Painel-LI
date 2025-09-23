@@ -29,7 +29,6 @@ interface BulkUploadModalProps {
 
 interface ParsedCollaborator {
   fullName: string;
-  email: string;
   documentType: string;
   document: string;
   birthDate: string;
@@ -87,9 +86,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       return;
     }
 
-    // Espera cabeçalho: Nome,Email,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
+    // Espera cabeçalho: Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
     const headers = lines[0].split(',').map(h => h.trim());
-    const expectedHeaders = ['Nome', 'Email', 'TipoDoc', 'Documento', 'DataNasc', 'Telefone', 'Tipo', 'Cidade', 'Area'];
+    const expectedHeaders = ['Nome', 'TipoDoc', 'Documento', 'DataNasc', 'Telefone', 'Tipo', 'Cidade', 'Area'];
     
     const parsed: ParsedCollaborator[] = [];
     
@@ -99,30 +98,28 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
       
       // Validações básicas
       if (!values[0]) errors.push('Nome é obrigatório');
-      if (!values[1] || !values[1].includes('@')) errors.push('Email inválido');
-      if (!values[2] || !['cpf', 'rg', 'passaporte'].includes(values[2].toLowerCase())) {
+      if (!values[1] || !['cpf', 'rg', 'passaporte'].includes(values[1].toLowerCase())) {
         errors.push('Tipo de documento deve ser: cpf, rg ou passaporte');
       }
-      if (!values[3]) errors.push('Documento é obrigatório');
-      if (!values[4] || !values[4].match(/^\d{4}-\d{2}-\d{2}$/)) {
+      if (!values[2]) errors.push('Documento é obrigatório');
+      if (!values[3] || !values[3].match(/^\d{4}-\d{2}-\d{2}$/)) {
         errors.push('Data de nascimento deve estar no formato YYYY-MM-DD');
       }
-      if (!values[6] || !['funcionario', 'terceiro', 'freelancer'].includes(values[6].toLowerCase())) {
+      if (!values[5] || !['funcionario', 'terceiro', 'freelancer'].includes(values[5].toLowerCase())) {
         errors.push('Tipo deve ser: funcionario, terceiro ou freelancer');
       }
-      if (!values[7]) errors.push('Cidade é obrigatória');
-      if (!values[8]) errors.push('Área é obrigatória');
+      if (!values[6]) errors.push('Cidade é obrigatória');
+      if (!values[7]) errors.push('Área é obrigatória');
 
       parsed.push({
         fullName: values[0] || '',
-        email: values[1] || '',
-        documentType: values[2]?.toLowerCase() || '',
-        document: values[3] || '',
-        birthDate: values[4] || '',
-        phone: values[5] || undefined,
-        type: values[6]?.toLowerCase() || '',
-        city: values[7] || '',
-        area: values[8] || '',
+        documentType: values[1]?.toLowerCase() || '',
+        document: values[2] || '',
+        birthDate: values[3] || '',
+        phone: values[4] || undefined,
+        type: values[5]?.toLowerCase() || '',
+        city: values[6] || '',
+        area: values[7] || '',
         isValid: errors.length === 0,
         errors
       });
@@ -171,9 +168,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Nome,Email,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area\n" +
-      "João Silva,joao@example.com,cpf,12345678901,1990-01-15,11999999999,funcionario,São Paulo,Tecnologia\n" +
-      "Maria Santos,maria@example.com,cpf,98765432100,1985-03-22,,terceiro,Rio de Janeiro,Marketing";
+    const csvContent = "Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area\n" +
+      "João Silva,cpf,12345678901,1990-01-15,11999999999,funcionario,São Paulo,Tecnologia\n" +
+      "Maria Santos,cpf,98765432100,1985-03-22,,terceiro,Rio de Janeiro,Marketing";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -247,7 +244,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                 O arquivo deve conter as seguintes colunas (nesta ordem):
               </p>
               <code className="text-xs bg-background p-2 rounded block">
-                Nome,Email,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
+                Nome,TipoDoc,Documento,DataNasc,Telefone,Tipo,Cidade,Area
               </code>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
                 <li>• <strong>TipoDoc:</strong> cpf, rg ou passaporte</li>
@@ -285,7 +282,6 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                   <tr>
                     <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Nome</th>
-                    <th className="p-2 text-left">Email</th>
                     <th className="p-2 text-left">Documento</th>
                     <th className="p-2 text-left">Cidade</th>
                     <th className="p-2 text-left">Erros</th>
@@ -302,7 +298,6 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
                         )}
                       </td>
                       <td className="p-2">{item.fullName}</td>
-                      <td className="p-2">{item.email}</td>
                       <td className="p-2">{item.document}</td>
                       <td className="p-2">{item.city}</td>
                       <td className="p-2">
