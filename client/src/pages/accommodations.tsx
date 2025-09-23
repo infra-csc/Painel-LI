@@ -873,9 +873,9 @@ export default function Accommodations() {
       // 1. Criar accommodation
       const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
       
-      // 2. Atualizar status do teamInclusion para "aprovado" e phase para "aprovacao"
+      // 2. Atualizar status do teamInclusion para "hospedagem_comprada" e phase para "aprovacao"
       await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
-        status: "aprovado",
+        status: "hospedagem_comprada",
         phase: "aprovacao",
         updatedBy: user?.id
       });
