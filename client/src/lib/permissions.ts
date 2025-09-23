@@ -55,6 +55,15 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
     function_area: 'view', // Área Responsável por Funções: visualização
     purchasing: 'view', // Área de Compras/Viagens: visualização
     financial: 'view'   // Financial: visualização
+  },
+  
+  // Hospedagem
+  accommodations: {
+    admin: 'edit',      // Administrador: acesso total
+    production: 'view', // Logística Interna: apenas visualização (inclui cards)
+    function_area: 'view', // Área Responsável por Funções: apenas visualização (inclui cards)
+    purchasing: 'edit', // Área de Compras/Viagens: acesso total
+    financial: 'view'   // Financial: apenas visualização
   }
 };
 
