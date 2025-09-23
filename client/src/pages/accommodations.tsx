@@ -279,13 +279,31 @@ export default function Accommodations() {
       <NavigationTabs activeTab="accommodations" />
       
       <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Hotel className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hospedagem</h1>
+        <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
+          <div className="px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground mb-2">🏨 Hospedagem</h2>
+                <p className="text-muted-foreground">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
+              </div>
+              <div className="flex gap-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">{filteredData.length}</div>
+                  <div className="text-xs text-muted-foreground">hospedagens</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{filteredData.filter(inc => accommodationMap.get(inc.id)).length}</div>
+                  <div className="text-xs text-muted-foreground">processadas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-600">{filteredData.filter(inc => !accommodationMap.get(inc.id)).length}</div>
+                  <div className="text-xs text-muted-foreground">pendentes</div>
+                </div>
+              </div>
+            </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+          <div className="px-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Buscar por ID */}
               <div>
