@@ -228,14 +228,62 @@ export default function Accommodations() {
           </DialogDescription>
           
           {/* Informações do colaborador e evento */}
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
-              ID: {selectedInclusion.inclusionNumber || 'N/A'}
-            </Badge>
-            <Badge variant="secondary">{collaborator?.fullName}</Badge>
-            <Badge variant="outline">{event?.name}</Badge>
-            <Badge variant="outline">{func?.name}</Badge>
-            <StatusBadge status={selectedInclusion.status} />
+          <div className="space-y-3 mt-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+                ID: {selectedInclusion.inclusionNumber || 'N/A'}
+              </Badge>
+              <Badge variant="outline">{event?.name}</Badge>
+              <Badge variant="outline">{func?.name}</Badge>
+              <StatusBadge status={selectedInclusion.status} />
+            </div>
+            
+            {/* Dados do Colaborador */}
+            {collaborator && (
+              <div className="bg-muted/30 rounded-lg p-4 border">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Dados do Colaborador
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium text-foreground">Nome:</span>
+                    <div className="text-muted-foreground">{collaborator.fullName}</div>
+                  </div>
+                  {collaborator.officialDocument && (
+                    <div>
+                      <span className="font-medium text-foreground">
+                        {collaborator.documentType === 'cpf' ? 'CPF:' : 'RG:'}
+                      </span>
+                      <div className="text-muted-foreground">{collaborator.officialDocument}</div>
+                    </div>
+                  )}
+                  {collaborator.phone && (
+                    <div>
+                      <span className="font-medium text-foreground">Telefone:</span>
+                      <div className="text-muted-foreground">{collaborator.phone}</div>
+                    </div>
+                  )}
+                  {collaborator.city && (
+                    <div>
+                      <span className="font-medium text-foreground">Cidade:</span>
+                      <div className="text-muted-foreground">{collaborator.city}</div>
+                    </div>
+                  )}
+                  {collaborator.area && (
+                    <div>
+                      <span className="font-medium text-foreground">Área:</span>
+                      <div className="text-muted-foreground">{collaborator.area}</div>
+                    </div>
+                  )}
+                  {collaborator.birthDate && (
+                    <div>
+                      <span className="font-medium text-foreground">Nascimento:</span>
+                      <div className="text-muted-foreground">{format(new Date(collaborator.birthDate), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </DialogHeader>
         
