@@ -275,6 +275,7 @@ export default function TeamInclusionTable() {
     aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
     hospedagem: filteredAndSortedInclusions.filter(i => i.status === 'hospedagem').length,
     passagem_comprada: filteredAndSortedInclusions.filter(i => i.status === 'passagem_comprada').length,
+    hospedagem_comprada: filteredAndSortedInclusions.filter(i => i.status === 'hospedagem_comprada').length,
     cancelados: filteredAndSortedInclusions.filter(i => i.status === 'cancelado').length,
   };
 
@@ -300,7 +301,7 @@ export default function TeamInclusionTable() {
       {/* Totals Summary */}
       <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Resumo dos Totais</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary" data-testid="total-incluidos">{totals.incluidos}</div>
             <div className="text-sm text-muted-foreground">Total</div>
@@ -324,6 +325,10 @@ export default function TeamInclusionTable() {
           <div className="text-center">
             <div className="text-2xl font-bold text-emerald-600" data-testid="total-passagem-comprada">{totals.passagem_comprada}</div>
             <div className="text-sm text-muted-foreground">Passagem Comprada</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-emerald-600" data-testid="total-hospedagem-comprada">{totals.hospedagem_comprada}</div>
+            <div className="text-sm text-muted-foreground">Hospedagem Comprada</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-500" data-testid="total-cancelados">{totals.cancelados}</div>
