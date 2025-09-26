@@ -26,34 +26,23 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  console.log('========== API REQUEST ==========');
-  console.log('Method:', method, 'URL:', url);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   
-  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
-  
-  // Add user ID for authenticated requests
+  // Always add user ID for authenticated requests
   const authUser = localStorage.getItem('auth-user');
-  console.log('LocalStorage auth-user:', authUser);
-  
   if (authUser) {
     try {
       const parsed = JSON.parse(authUser);
-      console.log('Parsed auth user:', parsed);
-      if (parsed.id) {
-        headers['x-user-id'] = parsed.id;
-        console.log('Added x-user-id header:', parsed.id);
-      } else {
-        console.log('No id found in parsed user');
+      if (parsed && parsed.id) {
+        headers['x-user-id'] = String(parsed.id);
       }
     } catch (error) {
-      console.log('Error parsing auth user:', error);
+      // Clear invalid auth data
       localStorage.removeItem('auth-user');
     }
-  } else {
-    console.log('No auth user in localStorage');
   }
-  
-  console.log('Final headers:', headers);
   
   const res = await fetch(url, {
     method,
