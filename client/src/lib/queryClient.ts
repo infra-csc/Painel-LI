@@ -26,32 +26,23 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Always get fresh user ID from localStorage
-  const authUser = localStorage.getItem('auth-user');
-  let userId: string | null = null;
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
+  // Add user ID for authenticated requests
+  const authUser = localStorage.getItem('auth-user');
   if (authUser) {
     try {
       const parsed = JSON.parse(authUser);
-      userId = parsed.id || null;
+      if (parsed.id) {
+        headers['x-user-id'] = parsed.id;
+        console.log('Adding x-user-id header:', parsed.id);
+      }
     } catch (error) {
-      // Clear invalid auth data
-      localStorage.removeItem('auth-user');
-      window.location.reload();
-      throw new Error('Sessão inválida. Recarregando a página...');
+      console.log('Error parsing auth user:', error);
     }
   }
   
-  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
-  
-  if (userId) {
-    headers['x-user-id'] = userId;
-  } else {
-    // For critical operations, redirect to login
-    if (method === 'POST' && (url.includes('/events') || url.includes('/collaborators') || url.includes('/functions'))) {
-      throw new Error('Você precisa fazer login para realizar esta ação.');
-    }
-  }
+  console.log('ApiRequest headers being sent:', headers);
   
   const res = await fetch(url, {
     method,
@@ -70,16 +61,8 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const userId = getUserId();
-    const headers: Record<string, string> = {};
-    
-    if (userId) {
-      headers['x-user-id'] = userId;
-    }
-    
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
-      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

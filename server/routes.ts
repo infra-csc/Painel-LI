@@ -560,8 +560,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/events", async (req, res) => {
     try {
-      // Check authentication
+      // Check authentication - simplified approach
       const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      console.log('POST /api/events - userId from headers:', userId, 'all headers:', Object.keys(req.headers));
+      
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
