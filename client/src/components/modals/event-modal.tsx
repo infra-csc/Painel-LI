@@ -49,6 +49,19 @@ export default function EventModal({ open, onClose }: EventModalProps) {
 
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
+      // Verify authentication before making request
+      const authUser = localStorage.getItem('auth-user');
+      if (!authUser) {
+        throw new Error('Você precisa fazer login para criar eventos. Recarregue a página e faça login novamente.');
+      }
+      
+      try {
+        JSON.parse(authUser);
+      } catch (error) {
+        localStorage.removeItem('auth-user');
+        throw new Error('Sessão inválida. Recarregue a página e faça login novamente.');
+      }
+      
       const response = await apiRequest("POST", "/api/events", data);
       return response.json();
     },

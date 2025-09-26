@@ -561,11 +561,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events", async (req, res) => {
     try {
       // Check authentication
-      console.log('POST /api/events - All headers:', req.headers);
       const userId = req.headers['user-id'] as string;
-      console.log('POST /api/events - user-id header:', userId);
       if (!userId) {
-        console.log('POST /api/events - No user-id found, returning 401');
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
 
