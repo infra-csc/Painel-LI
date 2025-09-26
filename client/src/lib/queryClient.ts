@@ -45,7 +45,7 @@ export async function apiRequest(
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
   if (userId) {
-    headers['user-id'] = userId;
+    headers['x-user-id'] = userId;
   } else {
     // For critical operations, redirect to login
     if (method === 'POST' && (url.includes('/events') || url.includes('/collaborators') || url.includes('/functions'))) {
@@ -74,7 +74,7 @@ export const getQueryFn: <T>(options: {
     const headers: Record<string, string> = {};
     
     if (userId) {
-      headers['user-id'] = userId;
+      headers['x-user-id'] = userId;
     }
     
     const res = await fetch(queryKey.join("/") as string, {
