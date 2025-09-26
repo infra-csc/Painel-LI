@@ -50,8 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const { user } = await response.json();
+        console.log('Login successful, setting user:', user);
         setUser(user);
         localStorage.setItem("auth-user", JSON.stringify(user));
+        // Force a small delay to ensure localStorage is written
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('User saved to localStorage:', localStorage.getItem("auth-user"));
         return true;
       }
       return false;

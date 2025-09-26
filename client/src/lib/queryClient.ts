@@ -38,6 +38,12 @@ export async function apiRequest(
     console.log(`apiRequest - ${method} ${url} with user-id:`, userId);
   } else {
     console.warn(`apiRequest - ${method} ${url} WITHOUT user-id`);
+    console.warn('Auth data in localStorage:', localStorage.getItem('auth-user'));
+    
+    // For critical operations like creating events, throw an error if not authenticated
+    if (method === 'POST' && (url.includes('/events') || url.includes('/collaborators') || url.includes('/functions'))) {
+      throw new Error('Usuário não autenticado. Faça login novamente.');
+    }
   }
   
   const res = await fetch(url, {
