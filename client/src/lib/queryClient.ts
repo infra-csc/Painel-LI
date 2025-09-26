@@ -10,7 +10,19 @@ async function throwIfResNotOk(res: Response) {
 // Get user ID from localStorage for requests
 function getUserId(): string | null {
   const user = localStorage.getItem('auth-user');
-  return user ? JSON.parse(user).id : null;
+  if (!user) {
+    console.warn('No auth-user found in localStorage');
+    return null;
+  }
+  
+  try {
+    const parsed = JSON.parse(user);
+    console.log('getUserId - parsed user:', parsed);
+    return parsed.id || null;
+  } catch (error) {
+    console.error('Error parsing auth-user from localStorage:', error);
+    return null;
+  }
 }
 
 export async function apiRequest(
@@ -23,6 +35,9 @@ export async function apiRequest(
   
   if (userId) {
     headers['user-id'] = userId;
+    console.log(`apiRequest - ${method} ${url} with user-id:`, userId);
+  } else {
+    console.warn(`apiRequest - ${method} ${url} WITHOUT user-id`);
   }
   
   const res = await fetch(url, {
