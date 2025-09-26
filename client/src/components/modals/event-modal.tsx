@@ -49,7 +49,6 @@ export default function EventModal({ open, onClose }: EventModalProps) {
 
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
-      console.log('Creating event with data:', data);
       const response = await apiRequest("POST", "/api/events", data);
       return response.json();
     },
@@ -62,10 +61,10 @@ export default function EventModal({ open, onClose }: EventModalProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       onClose();
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Erro",
-        description: "Erro ao criar evento",
+        description: error.message || "Erro ao criar evento. Tente novamente.",
         variant: "destructive",
       });
     },

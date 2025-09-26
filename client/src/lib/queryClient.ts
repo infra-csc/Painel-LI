@@ -10,17 +10,13 @@ async function throwIfResNotOk(res: Response) {
 // Get user ID from localStorage for requests
 function getUserId(): string | null {
   const user = localStorage.getItem('auth-user');
-  if (!user) {
-    console.warn('No auth-user found in localStorage');
-    return null;
-  }
+  if (!user) return null;
   
   try {
     const parsed = JSON.parse(user);
-    console.log('getUserId - parsed user:', parsed);
     return parsed.id || null;
   } catch (error) {
-    console.error('Error parsing auth-user from localStorage:', error);
+    localStorage.removeItem('auth-user'); // Clear invalid data
     return null;
   }
 }
@@ -30,19 +26,30 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const userId = getUserId();
+  // Always get fresh user ID from localStorage
+  const authUser = localStorage.getItem('auth-user');
+  let userId: string | null = null;
+  
+  if (authUser) {
+    try {
+      const parsed = JSON.parse(authUser);
+      userId = parsed.id || null;
+    } catch (error) {
+      // Clear invalid auth data
+      localStorage.removeItem('auth-user');
+      window.location.reload();
+      throw new Error('Sessão inválida. Recarregando a página...');
+    }
+  }
+  
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
   if (userId) {
     headers['user-id'] = userId;
-    console.log(`apiRequest - ${method} ${url} with user-id:`, userId);
   } else {
-    console.warn(`apiRequest - ${method} ${url} WITHOUT user-id`);
-    console.warn('Auth data in localStorage:', localStorage.getItem('auth-user'));
-    
-    // For critical operations like creating events, throw an error if not authenticated
+    // For critical operations, redirect to login
     if (method === 'POST' && (url.includes('/events') || url.includes('/collaborators') || url.includes('/functions'))) {
-      throw new Error('Usuário não autenticado. Faça login novamente.');
+      throw new Error('Você precisa fazer login para realizar esta ação.');
     }
   }
   
