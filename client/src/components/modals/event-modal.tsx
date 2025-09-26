@@ -49,15 +49,23 @@ export default function EventModal({ open, onClose }: EventModalProps) {
 
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
-      // Verify authentication before making request
+      // Debug: Check localStorage content
       const authUser = localStorage.getItem('auth-user');
+      console.log('Debug - localStorage auth-user:', authUser);
+      
       if (!authUser) {
+        console.log('Debug - No auth user found in localStorage');
         throw new Error('Você precisa fazer login para criar eventos. Recarregue a página e faça login novamente.');
       }
       
       try {
-        JSON.parse(authUser);
+        const parsedUser = JSON.parse(authUser);
+        console.log('Debug - Parsed user:', parsedUser);
+        if (!parsedUser.id) {
+          throw new Error('ID do usuário não encontrado');
+        }
       } catch (error) {
+        console.log('Debug - Error parsing user data:', error);
         localStorage.removeItem('auth-user');
         throw new Error('Sessão inválida. Recarregue a página e faça login novamente.');
       }
