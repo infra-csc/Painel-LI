@@ -153,6 +153,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
+      // Store user in session
+      req.session.userId = user.id;
+      req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
+      
       // Log successful login
       await createAuditLog(
         'login',
@@ -560,8 +564,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/events", async (req, res) => {
     try {
-      // Check authentication
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      // Check session authentication
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
