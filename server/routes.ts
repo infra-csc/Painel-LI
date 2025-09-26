@@ -560,17 +560,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/events", async (req, res) => {
     try {
+      // Debug: log all headers
+      console.log('========== POST /api/events ==========');
+      console.log('All headers:', JSON.stringify(req.headers, null, 2));
+      console.log('x-user-id header:', req.headers['x-user-id']);
+      console.log('user-id header:', req.headers['user-id']);
+      
       // Check authentication
       const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      console.log('Final userId:', userId);
       
       if (!userId) {
+        console.log('No userId found, returning 401');
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
 
       const currentUser = await storage.getUser(userId);
       if (!currentUser) {
+        console.log('User not found in storage, returning 401');
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
+      
+      console.log('User found:', currentUser.name);
 
       const eventData = insertEventSchema.parse(req.body);
       const event = await storage.createEvent(eventData);
