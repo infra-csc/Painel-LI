@@ -35,14 +35,11 @@ export async function apiRequest(
       const parsed = JSON.parse(authUser);
       if (parsed.id) {
         headers['x-user-id'] = parsed.id;
-        console.log('Adding x-user-id header:', parsed.id);
       }
     } catch (error) {
-      console.log('Error parsing auth user:', error);
+      localStorage.removeItem('auth-user');
     }
   }
-  
-  console.log('ApiRequest headers being sent:', headers);
   
   const res = await fetch(url, {
     method,
