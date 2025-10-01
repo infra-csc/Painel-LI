@@ -374,7 +374,9 @@ export default function Scaling() {
         title: "Sucesso",
         description: "Escalação atualizada com sucesso",
       });
+      // Force refetch to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+      queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
       setShowModal(false);
       setSelectedInclusion(null);
     },
