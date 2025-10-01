@@ -189,7 +189,7 @@ export default function Scaling() {
   // Helper function to determine if escalation is completed
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "escalacao" || 
+      inclusion.status === "escalado" || 
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
@@ -201,7 +201,7 @@ export default function Scaling() {
   // Helper function to determine if escalation is confirmed (após confirmar escalação)
   const isEscalationConfirmed = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "escalacao" ||
+      inclusion.status === "escalado" ||
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
