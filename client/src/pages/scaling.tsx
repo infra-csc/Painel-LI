@@ -194,7 +194,8 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao"
+      inclusion.status === "aprovacao" ||
+      inclusion.status === "concluido"
     );
   };
 
@@ -206,7 +207,8 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao"
+      inclusion.status === "aprovacao" ||
+      inclusion.status === "concluido"
     );
   };
 
@@ -465,12 +467,28 @@ export default function Scaling() {
       return;
     }
 
-    // When confirming escalation, always set status to "escalado" and phase to "escalacao"
+    // Determine next status and phase based on workflow requirements
+    let nextStatus = "escalado";
+    let nextPhase = "escalacao";
+    
+    // Check if this inclusion needs ticket or accommodation
+    if (selectedInclusion.needsTicket) {
+      nextStatus = "passagem";
+      nextPhase = "passagem";
+    } else if (selectedInclusion.needsAccommodation) {
+      nextStatus = "hospedagem";
+      nextPhase = "hospedagem";
+    } else {
+      // If no ticket or accommodation needed, mark as complete (aprovacao)
+      nextStatus = "aprovacao";
+      nextPhase = "aprovacao";
+    }
+
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
-      status: "escalado",
-      phase: "escalacao"
+      status: nextStatus,
+      phase: nextPhase
     };
     
     // Só incluir dailyValue se foi especificamente editado
