@@ -463,17 +463,12 @@ export default function Scaling() {
       return;
     }
 
-    // If the inclusion doesn't need a ticket and accommodation, skip ticket phase and go directly to accommodation
-    const needsTicket = selectedInclusion.needsTicket;
-    const needsAccommodation = selectedInclusion.needsAccommodation;
-    const nextStatus = needsTicket ? "passagem" : (needsAccommodation ? "hospedagem" : "aprovado");
-    const nextPhase = needsTicket ? "passagem" : (needsAccommodation ? "hospedagem" : "aprovacao");
-
+    // When confirming escalation, always set status to "escalado" and phase to "escalacao"
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
-      status: nextStatus,
-      phase: nextPhase
+      status: "escalado",
+      phase: "escalacao"
     };
     
     // Só incluir dailyValue se foi especificamente editado
