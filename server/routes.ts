@@ -927,6 +927,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         inclusions = inclusions.filter(inclusion => inclusion.eventId === eventId);
       }
       
+      // Disable HTTP caching to prevent stale data
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      
       res.json(inclusions);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar inclusões de equipe" });
