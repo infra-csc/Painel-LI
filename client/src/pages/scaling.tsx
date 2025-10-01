@@ -1042,10 +1042,17 @@ export default function Scaling() {
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Documento</Label>
-                        <p className="text-sm font-medium">
-                          {collaborator.documentType?.toUpperCase() || 'DOC'}: {collaborator.officialDocument || 'N/A'}
-                        </p>
+                        <Label className="text-xs text-muted-foreground">Documentos</Label>
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">
+                            {collaborator.documentType?.toUpperCase() || 'DOC'}: {collaborator.officialDocument || 'N/A'}
+                          </p>
+                          {collaborator.secondaryDocument && (
+                            <p className="text-sm font-medium">
+                              {collaborator.secondaryDocumentType?.toUpperCase() || 'DOC'}: {collaborator.secondaryDocument}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>

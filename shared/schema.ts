@@ -70,8 +70,10 @@ export const collaborators = pgTable("collaborators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   collaboratorNumber: integer("collaborator_number").notNull().default(sql`nextval('collaborator_sequence')`),
   fullName: text("full_name").notNull(),
-  officialDocument: text("official_document").notNull().unique(), // CPF or RG
+  officialDocument: text("official_document").notNull().unique(), // CPF or RG (primary document)
   documentType: text("document_type").notNull(), // "cpf" or "rg"
+  secondaryDocument: text("secondary_document"), // RG or CPF (secondary document)
+  secondaryDocumentType: text("secondary_document_type"), // "cpf" or "rg"
   birthDate: date("birth_date"),
   area: text("area").notNull(),
   type: text("type").notNull(), // casa, freela, local
