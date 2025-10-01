@@ -157,6 +157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
       req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
       
+      console.log('[Login] Session saved - SessionID:', req.sessionID, 'UserID:', req.session.userId);
+      
       // Log successful login
       await createAuditLog(
         'login',
@@ -958,7 +960,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session.userId;
+      // Get userId from request body (frontend sends it)
+      const userId = req.body._userId || req.session?.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -992,8 +995,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("🔧 PATCH team-inclusion:", id, req.body);
+      // Remove _userId from body (it's only for auth)
+      const { _userId, ...bodyData } = req.body;
       const updates = { 
-        ...req.body, 
+        ...bodyData, 
         updatedBy: userId // Use authenticated user ID
       };
       console.log("🔧 Updates to apply:", updates);

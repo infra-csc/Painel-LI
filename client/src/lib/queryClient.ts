@@ -30,11 +30,26 @@ export async function apiRequest(
     "Content-Type": "application/json",
   };
   
+  // Get userId from localStorage and include in request body
+  let requestBody = data;
+  const authUser = localStorage.getItem('auth-user');
+  if (authUser) {
+    try {
+      const parsed = JSON.parse(authUser);
+      if (parsed && parsed.id) {
+        // Add _userId to request body
+        requestBody = { ...(data as object || {}), _userId: parsed.id };
+      }
+    } catch (error) {
+      localStorage.removeItem('auth-user');
+    }
+  }
+  
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include", // This ensures cookies are sent
+    body: requestBody ? JSON.stringify(requestBody) : undefined,
+    credentials: "include",
   });
 
   await throwIfResNotOk(res);

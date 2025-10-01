@@ -13,20 +13,33 @@ declare module 'express-session' {
 
 const app = express();
 
+// Trust proxy - required for Replit
+app.set('trust proxy', 1);
+
 // Configure session middleware
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-session-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Set to true in production with HTTPS
+    secure: false,
     httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+  },
+  name: 'sessionId'
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Debug middleware to log session info
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`[Session] ${req.method} ${req.path} - SessionID: ${req.sessionID || 'none'}, UserID: ${req.session?.userId || 'none'}`);
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
