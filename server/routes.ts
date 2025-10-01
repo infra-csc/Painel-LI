@@ -298,7 +298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -356,7 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -384,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", async (req, res) => {
     try {
       // Check authentication
-      const currentUserId = req.headers['user-id'] as string;
+      const currentUserId = req.session.userId;
       if (!currentUserId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -495,7 +495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id/approval", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -609,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get functions for current user
   app.get("/api/functions/my-functions", async (req, res) => {
     try {
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
@@ -666,7 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/users", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -700,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/functions/:functionId/users/:userId", async (req, res) => {
     try {
       const { functionId, userId: targetUserId } = req.params;
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -740,7 +740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/functions/:id/managers", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -773,7 +773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/functions/:functionId/managers/:userId", async (req, res) => {
     try {
       const { functionId, userId: targetUserId } = req.params;
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -958,7 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -1450,7 +1450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/system-logs", async (req, res) => {
     try {
       // Check authentication and authorization
-      const userId = (req.headers['x-user-id'] || req.headers['user-id']) as string;
+      const userId = req.session.userId;
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
