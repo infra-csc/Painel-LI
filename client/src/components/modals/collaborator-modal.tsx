@@ -16,6 +16,8 @@ const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
   officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
   documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
+  secondaryDocument: z.string().optional(),
+  secondaryDocumentType: z.enum(["cpf", "rg"]).optional(),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
@@ -60,6 +62,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       fullName: "",
       officialDocument: "",
       documentType: "cpf" as const,
+      secondaryDocument: "",
+      secondaryDocumentType: undefined,
       birthDate: "",
       type: "",
       phone: "",
@@ -78,6 +82,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         fullName: collaborator.fullName || "",
         officialDocument: collaborator.officialDocument || "",
         documentType: collaborator.documentType as "cpf" | "rg" || "cpf",
+        secondaryDocument: collaborator.secondaryDocument || "",
+        secondaryDocumentType: collaborator.secondaryDocumentType as "cpf" | "rg" | undefined,
         birthDate: collaborator.birthDate || "",
         type: collaborator.type || "",
         phone: collaborator.phone || "",
@@ -92,6 +98,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         fullName: "",
         officialDocument: "",
         documentType: "cpf" as const,
+        secondaryDocument: "",
+        secondaryDocumentType: undefined,
         birthDate: "",
         type: "",
         phone: "",
@@ -254,6 +262,47 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                           placeholder={form.watch("documentType") === "cpf" ? "000.000.000-00" : "00.000.000-0"} 
                           {...field}
                           data-testid="input-collaborator-document"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <FormField
+                  control={form.control}
+                  name="secondaryDocumentType"
+                  render={({ field }) => (
+                    <FormItem className="w-24">
+                      <FormLabel>Tipo 2</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-secondary-document-type">
+                            <SelectValue placeholder="Tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="cpf">CPF</SelectItem>
+                          <SelectItem value="rg">RG</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="secondaryDocument"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>Documento Secundário</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder={form.watch("secondaryDocumentType") === "cpf" ? "000.000.000-00" : "00.000.000-0"} 
+                          {...field}
+                          data-testid="input-secondary-document"
                         />
                       </FormControl>
                       <FormMessage />
