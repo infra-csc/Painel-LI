@@ -52,6 +52,8 @@ export default function CollaboratorManagement() {
   const [showBulkUploadModal, setBulkUploadModal] = useState(false);
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
   const [approvalNotes, setApprovalNotes] = useState('');
+  const [editCpf, setEditCpf] = useState('');
+  const [editRg, setEditRg] = useState('');
   
   const { toast } = useToast();
 
@@ -60,11 +62,23 @@ export default function CollaboratorManagement() {
   });
 
   const updateCollaboratorMutation = useMutation({
-    mutationFn: async ({ id, status, approvalNotes }: { id: string; status: string; approvalNotes?: string }) => {
+    mutationFn: async ({ id, status, approvalNotes, cpf, rg }: { id: string; status: string; approvalNotes?: string; cpf?: string; rg?: string }) => {
       const payload: any = { status };
       if (approvalNotes) {
         payload.approvalNotes = approvalNotes;
         payload.approvedAt = new Date().toISOString();
+      }
+      // Update documents if provided
+      if (cpf) {
+        payload.officialDocument = cpf;
+        payload.documentType = 'cpf';
+        if (rg) {
+          payload.secondaryDocument = rg;
+          payload.secondaryDocumentType = 'rg';
+        }
+      } else if (rg) {
+        payload.officialDocument = rg;
+        payload.documentType = 'rg';
       }
       const response = await apiRequest("PATCH", `/api/collaborators/${id}`, payload);
       return response.json();
@@ -78,6 +92,8 @@ export default function CollaboratorManagement() {
       setShowDetailsModal(false);
       setShowApprovalModal(false);
       setApprovalNotes('');
+      setEditCpf('');
+      setEditRg('');
     },
     onError: () => {
       toast({
@@ -113,6 +129,17 @@ export default function CollaboratorManagement() {
   const handleApprove = (collaborator: Collaborator) => {
     setSelectedCollaborator(collaborator);
     setApprovalAction('approve');
+    // Pre-populate document fields
+    if (collaborator.documentType === 'cpf') {
+      setEditCpf(collaborator.officialDocument || '');
+      setEditRg(collaborator.secondaryDocument || '');
+    } else if (collaborator.documentType === 'rg') {
+      setEditRg(collaborator.officialDocument || '');
+      setEditCpf(collaborator.secondaryDocument || '');
+    } else {
+      setEditCpf(collaborator.officialDocument || '');
+      setEditRg(collaborator.secondaryDocument || '');
+    }
     setShowApprovalModal(true);
   };
 
@@ -129,7 +156,9 @@ export default function CollaboratorManagement() {
     updateCollaboratorMutation.mutate({ 
       id: selectedCollaborator.id, 
       status,
-      approvalNotes: approvalNotes.trim() || undefined
+      approvalNotes: approvalNotes.trim() || undefined,
+      cpf: editCpf.trim() || undefined,
+      rg: editRg.trim() || undefined
     });
   };
 
@@ -495,7 +524,7 @@ export default function CollaboratorManagement() {
             </DialogTitle>
             <DialogDescription>
               {approvalAction === 'approve' 
-                ? 'Tem certeza que deseja aprovar este colaborador?' 
+                ? 'Revise e complete os documentos antes de aprovar' 
                 : 'Tem certeza que deseja rejeitar este colaborador?'}
             </DialogDescription>
           </DialogHeader>
@@ -509,6 +538,38 @@ export default function CollaboratorManagement() {
                 </div>
               </div>
               
+              {approvalAction === 'approve' && (
+                <div className="space-y-3 border-t pt-4">
+                  <div className="text-sm font-medium text-foreground mb-2">Documentos</div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">
+                        CPF
+                      </label>
+                      <Input
+                        value={editCpf}
+                        onChange={(e) => setEditCpf(e.target.value)}
+                        placeholder="000.000.000-00"
+                        className="font-mono"
+                        data-testid="input-cpf-approval"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">
+                        RG <span className="text-muted-foreground font-normal">(opcional)</span>
+                      </label>
+                      <Input
+                        value={editRg}
+                        onChange={(e) => setEditRg(e.target.value)}
+                        placeholder="00.000.000-0"
+                        className="font-mono"
+                        data-testid="input-rg-approval"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">
                   Observações {approvalAction === 'approve' ? '(opcional)' : '(recomendado)'}
@@ -521,6 +582,7 @@ export default function CollaboratorManagement() {
                     : 'Motivo da rejeição...'}
                   rows={3}
                   className="resize-none"
+                  data-testid="textarea-approval-notes"
                 />
               </div>
 
@@ -529,6 +591,7 @@ export default function CollaboratorManagement() {
                   variant="outline"
                   onClick={() => setShowApprovalModal(false)}
                   disabled={updateCollaboratorMutation.isPending}
+                  data-testid="button-cancel-approval"
                 >
                   Cancelar
                 </Button>
@@ -538,6 +601,7 @@ export default function CollaboratorManagement() {
                   className={approvalAction === 'approve' 
                     ? 'bg-green-600 hover:bg-green-700' 
                     : 'bg-red-600 hover:bg-red-700'}
+                  data-testid="button-confirm-approval"
                 >
                   {updateCollaboratorMutation.isPending ? 'Processando...' : 
                    (approvalAction === 'approve' ? 'Confirmar Aprovação' : 'Confirmar Rejeição')}
