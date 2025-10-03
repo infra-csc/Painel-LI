@@ -344,12 +344,16 @@ export default function CollaboratorManagement() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm text-foreground font-mono">
-                          {formatDocument(collaborator.officialDocument, collaborator.documentType)}
-                        </div>
-                        <div className="text-xs text-muted-foreground uppercase">
-                          {collaborator.documentType}
+                      <td className="px-4 py-4">
+                        <div className="space-y-0.5">
+                          <div className="text-sm text-foreground font-mono">
+                            {collaborator.documentType?.toUpperCase()}: {formatDocument(collaborator.officialDocument, collaborator.documentType)}
+                          </div>
+                          {collaborator.secondaryDocument && (
+                            <div className="text-sm text-foreground font-mono">
+                              {collaborator.secondaryDocumentType?.toUpperCase()}: {collaborator.secondaryDocument}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
@@ -437,9 +441,16 @@ export default function CollaboratorManagement() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground">Documento</label>
-                  <div className="text-sm text-muted-foreground mt-1 font-mono">
-                    {formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)} ({selectedCollaborator.documentType.toUpperCase()})
+                  <label className="text-sm font-medium text-foreground">Documentos</label>
+                  <div className="space-y-1 mt-1">
+                    <div className="text-sm text-muted-foreground font-mono">
+                      {selectedCollaborator.documentType.toUpperCase()}: {formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}
+                    </div>
+                    {selectedCollaborator.secondaryDocument && (
+                      <div className="text-sm text-muted-foreground font-mono">
+                        {selectedCollaborator.secondaryDocumentType?.toUpperCase()}: {selectedCollaborator.secondaryDocument}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
