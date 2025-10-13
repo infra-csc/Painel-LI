@@ -88,7 +88,7 @@ function Router() {
             </ProtectedRoute>
           </Route>
           <Route path="/collaborators">
-            <ProtectedRoute permission="canAccessAdminUsers">
+            <ProtectedRoute permission="canAccessCollaborators">
               <CollaboratorManagement />
             </ProtectedRoute>
           </Route>

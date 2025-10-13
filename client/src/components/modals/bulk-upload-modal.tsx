@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface BulkUploadModalProps {
   open: boolean;
@@ -58,6 +59,7 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -163,7 +165,9 @@ export default function BulkUploadModal({ open, onClose }: BulkUploadModalProps)
     mutationFn: async (collaborators: ParsedCollaborator[]) => {
       const validCollaborators = collaborators.filter(c => c.isValid);
       const response = await apiRequest("POST", "/api/collaborators/bulk", {
-        collaborators: validCollaborators
+        collaborators: validCollaborators,
+        _userId: user?.id,
+        _userRole: user?.role
       });
       return response.json();
     },

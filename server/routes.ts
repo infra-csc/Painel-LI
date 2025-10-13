@@ -822,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/collaborators/bulk", async (req, res) => {
     try {
-      const { collaborators } = req.body;
+      const { collaborators, _userId, _userRole } = req.body;
       
       if (!Array.isArray(collaborators) || collaborators.length === 0) {
         return res.status(400).json({ message: "Lista de colaboradores é obrigatória" });
@@ -856,7 +856,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const birthDateValue = collaboratorData.birthDate 
             ? collaboratorData.birthDate // já está em formato YYYY-MM-DD
             : '1900-01-01'; // data padrão para campos vazios
-            
+          
+          // Auto-aprovar apenas se for usuário "Área de Função"
+          const autoApprove = _userRole === 'function_area';
+          
           const validatedData = insertCollaboratorSchema.parse({
             fullName: collaboratorData.fullName || 'Sem nome',
             officialDocument: collaboratorData.officialDocument || collaboratorData.document || 'SEM-DOCUMENTO-' + Date.now(),
@@ -866,7 +869,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: collaboratorData.type || 'freela',
             city: collaboratorData.city || 'Não informado',
             area: collaboratorData.area || 'Geral',
-            status: "aprovado" // colaboradores importados via CSV são aprovados automaticamente
+            status: autoApprove ? "aprovado" : "pendente", // Auto-aprovar apenas para function_area
+            ...(autoApprove && _userId ? {
+              approvedBy: _userId,
+              approvedAt: new Date().toISOString()
+            } : {})
           });
 
           // Check if collaborator with same document already exists

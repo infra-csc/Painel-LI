@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event, Function, Collaborator } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
 
 const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
@@ -44,6 +45,7 @@ interface CollaboratorModalProps {
 export default function CollaboratorModal({ open, onClose, defaultArea, eventName, functionName, isEmergency = false, collaborator = null, isEdit = false }: CollaboratorModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Buscar eventos e funções para seleção (apenas para colaboradores emergenciais)
   const { data: events } = useQuery<Event[]>({
@@ -115,10 +117,18 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
       // Ensure area is set from defaultArea
-      const collaboratorData = {
+      const collaboratorData: any = {
         ...data,
         area: defaultArea || ""
       };
+      
+      // Auto-aprovar colaboradores criados por usuários "Área de Função"
+      if (!isEdit && user?.role === 'function_area') {
+        collaboratorData.status = 'aprovado';
+        collaboratorData.approvedAt = new Date().toISOString();
+        collaboratorData.approvedBy = user.id;
+      }
+      
       const response = isEdit && collaborator
         ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
         : await apiRequest("POST", "/api/collaborators", collaboratorData);
