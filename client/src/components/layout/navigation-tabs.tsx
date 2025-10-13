@@ -87,7 +87,7 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       path: "/collaborators",
       label: "Aprovação de Colaboradores",
       icon: UserCog,
-      permission: "canAccessAdminUsers" as const,
+      permission: "canAccessCollaborators" as const,
     },
   ];
 

@@ -17,6 +17,8 @@ export interface RolePermissions {
   canApproveFinancial: boolean;
   canAccessScreen6: boolean; // consultation - admin only
   canAccessAdminUsers: boolean; // admin users management - admin only
+  canAccessCollaborators: boolean; // collaborator management
+  canEditCollaborators: boolean; // edit collaborators
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -37,6 +39,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: true,
         canAccessScreen6: true,
         canAccessAdminUsers: true,
+        canAccessCollaborators: true,
+        canEditCollaborators: true,
       };
     case "production":
       return {
@@ -54,6 +58,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
+        canAccessCollaborators: true,
+        canEditCollaborators: true,
       };
     case "function_area":
       return {
@@ -71,6 +77,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
+        canAccessCollaborators: true,
+        canEditCollaborators: true,
       };
     case "purchasing":
       return {
@@ -88,6 +96,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
+        canAccessCollaborators: false,
+        canEditCollaborators: false,
       };
     case "financial":
       return {
@@ -105,6 +115,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: true,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
+        canAccessCollaborators: false,
+        canEditCollaborators: false,
       };
     default:
       return {
@@ -122,6 +134,8 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canApproveFinancial: false,
         canAccessScreen6: false,
         canAccessAdminUsers: false,
+        canAccessCollaborators: false,
+        canEditCollaborators: false,
       };
   }
 }
