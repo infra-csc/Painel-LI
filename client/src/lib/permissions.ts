@@ -52,7 +52,7 @@ const PERMISSIONS: Record<string, Record<UserRole, AccessLevel>> = {
   collaborators: {
     admin: 'edit',      // Administrador: acesso total
     production: 'edit', // Logística Interna: acesso total
-    function_area: 'view', // Área Responsável por Funções: visualização
+    function_area: 'edit', // Área Responsável por Funções: acesso total (cadastro habilitado)
     purchasing: 'view', // Área de Compras/Viagens: visualização
     financial: 'view'   // Financial: visualização
   },
