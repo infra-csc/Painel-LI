@@ -4,7 +4,7 @@ import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
 import { canView, canEdit } from "@/lib/permissions";
+import * as XLSX from 'xlsx';
 
 export default function Scaling() {
   const [filters, setFilters] = useState({
@@ -398,6 +399,57 @@ export default function Scaling() {
     }).format(value);
   };
 
+  const handleExportToExcel = () => {
+    if (!scalingInclusions || scalingInclusions.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Não há escalações para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Preparar dados para exportação
+    const exportData = scalingInclusions.map(inclusion => {
+      const event = events?.find(e => e.id === inclusion.eventId);
+      const func = functions?.find(f => f.id === inclusion.functionId);
+      const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
+      
+      const confirmationStatus = inclusion.status === "cancelado" 
+        ? "Cancelado" 
+        : isEscalated(inclusion) 
+        ? "Confirmado" 
+        : "Pendente";
+
+      return {
+        'Nome do Evento': event?.name || 'N/A',
+        'Data do Evento': event?.startDate ? `${formatDate(event.startDate)} a ${formatDate(event.endDate)}` : 'N/A',
+        'Colaborador Escalado': collaborator?.fullName || 'Não escalado',
+        'Função / Cargo': func?.name || 'N/A',
+        'Status da Confirmação': confirmationStatus,
+        'Observações': inclusion.observations || ''
+      };
+    });
+
+    // Criar workbook e worksheet
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Escalações');
+
+    // Gerar nome do arquivo com data atual
+    const today = new Date();
+    const dateStr = `${today.getDate().toString().padStart(2, '0')}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getFullYear()}`;
+    const fileName = `Escalacoes_${dateStr}.xlsx`;
+
+    // Baixar arquivo
+    XLSX.writeFile(wb, fileName);
+
+    toast({
+      title: "Sucesso",
+      description: `Arquivo ${fileName} exportado com sucesso!`,
+    });
+  };
+
   const handleRowClick = (inclusion: TeamInclusion) => {
     setSelectedInclusion(inclusion);
     setModalData({
@@ -647,9 +699,9 @@ export default function Scaling() {
 
           <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
           
-          {/* Filtro específico para status de passagem */}
+          {/* Filtro específico para status de passagem e botão de exportação */}
           <div className="px-6 pb-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="w-64">
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Status da Passagem
@@ -668,6 +720,15 @@ export default function Scaling() {
                   </SelectContent>
                 </Select>
               </div>
+              <Button
+                onClick={handleExportToExcel}
+                variant="outline"
+                className="flex items-center gap-2"
+                data-testid="button-export-excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Exportar para Excel
+              </Button>
             </div>
           </div>
 
