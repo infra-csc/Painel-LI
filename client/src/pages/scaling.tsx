@@ -409,7 +409,7 @@ export default function Scaling() {
       return;
     }
 
-    // Preparar dados para exportação
+    // Preparar dados para exportação com TODAS as informações
     const exportData = scalingInclusions.map(inclusion => {
       const event = events?.find(e => e.id === inclusion.eventId);
       const func = functions?.find(f => f.id === inclusion.functionId);
@@ -421,18 +421,82 @@ export default function Scaling() {
         ? "Confirmado" 
         : "Pendente";
 
+      // Calcular valor total (valor da diária em centavos / 100 * quantidade)
+      const dailyValueInReais = (inclusion.dailyValue || 0) / 100;
+      const totalValue = dailyValueInReais * (inclusion.dailyRates || 0);
+
       return {
-        'Nome do Evento': event?.name || 'N/A',
-        'Data do Evento': event?.startDate ? `${formatDate(event.startDate)} a ${formatDate(event.endDate)}` : 'N/A',
-        'Colaborador Escalado': collaborator?.fullName || 'Não escalado',
-        'Função / Cargo': func?.name || 'N/A',
-        'Status da Confirmação': confirmationStatus,
-        'Observações': inclusion.observations || ''
+        'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
+        'Evento': event?.name || 'N/A',
+        'Local do Evento': event?.location || 'N/A',
+        'Início do Evento': event?.startDate ? formatDate(event.startDate) : 'N/A',
+        'Fim do Evento': event?.endDate ? formatDate(event.endDate) : 'N/A',
+        'Função': func?.name || 'N/A',
+        'Área': inclusion.area || 'N/A',
+        'Colaborador': collaborator?.fullName || 'Não escalado',
+        'Documento Colaborador': collaborator?.officialDocument || 'N/A',
+        'Telefone Colaborador': collaborator?.phone || 'N/A',
+        'Cidade Colaborador': collaborator?.city || 'N/A',
+        'Período Agendado - Início': inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : 'N/A',
+        'Período Agendado - Fim': inclusion.scheduleEndDate ? formatDate(inclusion.scheduleEndDate) : 'N/A',
+        'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
+        'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
+        'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
+        'Data Voo Ida': inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A',
+        'Horário Sugerido Ida': inclusion.flightDepartureSuggestedTime || 'N/A',
+        'Data Voo Volta': inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A',
+        'Horário Sugerido Volta': inclusion.flightReturnSuggestedTime || 'N/A',
+        'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
+        'Diárias Planejadas': inclusion.dailyRates ?? 0,
+        'Diárias Reais': inclusion.actualDailyRates ?? 'N/A',
+        'Valor da Diária (R$)': dailyValueInReais.toFixed(2),
+        'Valor Total (R$)': totalValue.toFixed(2),
+        'Status': confirmationStatus,
+        'Fase Atual': inclusion.phase || 'N/A',
+        'Registro Emergencial': inclusion.emergencyRecord ? 'Sim' : 'Não',
+        'Observações': inclusion.observations || '',
+        'Observações Reais': inclusion.actualObservations || ''
       };
     });
 
     // Criar workbook e worksheet
     const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Ajustar largura das colunas para melhor visualização
+    const colWidths = [
+      { wch: 10 },  // ID
+      { wch: 30 },  // Evento
+      { wch: 25 },  // Local do Evento
+      { wch: 15 },  // Início do Evento
+      { wch: 15 },  // Fim do Evento
+      { wch: 25 },  // Função
+      { wch: 20 },  // Área
+      { wch: 30 },  // Colaborador
+      { wch: 18 },  // Documento
+      { wch: 15 },  // Telefone
+      { wch: 20 },  // Cidade
+      { wch: 18 },  // Período Agendado - Início
+      { wch: 18 },  // Período Agendado - Fim
+      { wch: 18 },  // Período Real - Início
+      { wch: 18 },  // Período Real - Fim
+      { wch: 15 },  // Precisa Passagem
+      { wch: 15 },  // Data Voo Ida
+      { wch: 18 },  // Horário Sugerido Ida
+      { wch: 15 },  // Data Voo Volta
+      { wch: 18 },  // Horário Sugerido Volta
+      { wch: 18 },  // Precisa Hospedagem
+      { wch: 18 },  // Diárias Planejadas
+      { wch: 15 },  // Diárias Reais
+      { wch: 18 },  // Valor da Diária
+      { wch: 18 },  // Valor Total
+      { wch: 15 },  // Status
+      { wch: 15 },  // Fase Atual
+      { wch: 20 },  // Registro Emergencial
+      { wch: 40 },  // Observações
+      { wch: 40 }   // Observações Reais
+    ];
+    ws['!cols'] = colWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Escalações');
 
@@ -446,7 +510,7 @@ export default function Scaling() {
 
     toast({
       title: "Sucesso",
-      description: `Arquivo ${fileName} exportado com sucesso!`,
+      description: `Arquivo ${fileName} exportado com sucesso com ${exportData.length} escalações!`,
     });
   };
 
