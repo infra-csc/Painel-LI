@@ -625,9 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Allow partial updates including status field
-      console.log('[Event Update] Request body:', req.body);
       const eventData = updateEventSchema.parse(req.body);
-      console.log('[Event Update] Parsed data:', eventData);
       const updatedEvent = await storage.updateEvent(eventId, eventData);
       
       // Log event update
@@ -644,8 +642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedEvent);
     } catch (error) {
-      console.error('[Event Update Error]:', error);
-      res.status(400).json({ message: "Dados inválidos", error: error instanceof Error ? error.message : String(error) });
+      res.status(400).json({ message: "Dados inválidos" });
     }
   });
 
