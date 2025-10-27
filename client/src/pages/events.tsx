@@ -31,19 +31,16 @@ export default function Events() {
 
   const deleteEventMutation = useMutation({
     mutationFn: async (eventToDelete: Event) => {
-      // Soft delete - update status to "excluído" while keeping all other data
+      // Soft delete - update status to "excluído"
       const response = await apiRequest("PUT", `/api/events/${eventToDelete.id}`, {
-        name: eventToDelete.name,
-        location: eventToDelete.location,
-        startDate: eventToDelete.startDate,
-        endDate: eventToDelete.endDate,
         status: "excluído",
-        observations: eventToDelete.observations,
       });
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+    onSuccess: async () => {
+      // Force refetch to ensure UI updates
+      await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
       toast({
         title: "Sucesso",
         description: "Evento marcado como excluído com sucesso!",
