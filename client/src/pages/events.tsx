@@ -52,25 +52,40 @@ export default function Events() {
       });
     }
     
-    // Apply start date filter
-    if (startDateFilter) {
+    // Apply date filters - show events that occur within the selected date range
+    // An event is shown if it overlaps with the filter range
+    if (startDateFilter || endDateFilter) {
       filtered = filtered.filter(event => {
         const eventStartDate = new Date(event.startDate);
-        const filterDate = new Date(startDateFilter);
-        eventStartDate.setHours(0, 0, 0, 0);
-        filterDate.setHours(0, 0, 0, 0);
-        return eventStartDate >= filterDate;
-      });
-    }
-    
-    // Apply end date filter
-    if (endDateFilter) {
-      filtered = filtered.filter(event => {
         const eventEndDate = new Date(event.endDate);
-        const filterDate = new Date(endDateFilter);
+        eventStartDate.setHours(0, 0, 0, 0);
         eventEndDate.setHours(0, 0, 0, 0);
-        filterDate.setHours(0, 0, 0, 0);
-        return eventEndDate <= filterDate;
+        
+        // If only start date is set, show events that end on or after this date
+        if (startDateFilter && !endDateFilter) {
+          const filterStartDate = new Date(startDateFilter);
+          filterStartDate.setHours(0, 0, 0, 0);
+          return eventEndDate >= filterStartDate;
+        }
+        
+        // If only end date is set, show events that start on or before this date
+        if (!startDateFilter && endDateFilter) {
+          const filterEndDate = new Date(endDateFilter);
+          filterEndDate.setHours(0, 0, 0, 0);
+          return eventStartDate <= filterEndDate;
+        }
+        
+        // If both dates are set, show events that overlap with the range
+        if (startDateFilter && endDateFilter) {
+          const filterStartDate = new Date(startDateFilter);
+          const filterEndDate = new Date(endDateFilter);
+          filterStartDate.setHours(0, 0, 0, 0);
+          filterEndDate.setHours(0, 0, 0, 0);
+          // Event overlaps if: event ends >= filter start AND event starts <= filter end
+          return eventEndDate >= filterStartDate && eventStartDate <= filterEndDate;
+        }
+        
+        return true;
       });
     }
     
