@@ -11,11 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload } from "lucide-react";
+import { Calendar, Save, Grid3x3, Plus, Trash2, Ticket, Copy, MoreHorizontal, HelpCircle, Download, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -98,6 +101,7 @@ export default function GridTeamInclusionForm() {
   const [autoSave, setAutoSave] = useState(true);
   const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean, needsAccommodation: boolean} | null>(null);
   const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
+  const [openEventCombobox, setOpenEventCombobox] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -776,22 +780,58 @@ export default function GridTeamInclusionForm() {
               control={form.control}
               name="eventId"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Evento *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-grid-event">
-                        <SelectValue placeholder="Selecione um evento" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {events?.map((event) => (
-                        <SelectItem key={event.id} value={event.id}>
-                          {event.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          data-testid="select-grid-event"
+                        >
+                          {field.value
+                            ? events?.find((event) => event.id === field.value)?.name
+                            : "Selecione um evento"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar evento..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            {events?.map((event) => (
+                              <CommandItem
+                                key={event.id}
+                                value={event.name}
+                                onSelect={() => {
+                                  form.setValue("eventId", event.id);
+                                  setOpenEventCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    event.id === field.value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {event.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
