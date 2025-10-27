@@ -242,6 +242,13 @@ export const insertEventSchema = createInsertSchema(events).omit({
   createdAt: true,
 });
 
+// Schema for updating events (allows status field)
+export const updateEventSchema = createInsertSchema(events).omit({
+  id: true,
+  eventNumber: true,
+  createdAt: true,
+}).partial();
+
 export const insertFunctionSchema = createInsertSchema(functions).omit({
   id: true,
   createdAt: true,

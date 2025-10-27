@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { 
-  insertEventSchema, 
+  insertEventSchema,
+  updateEventSchema,
   insertFunctionSchema, 
   insertCollaboratorSchema,
   insertTeamInclusionSchema,
@@ -623,8 +624,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Evento não encontrado" });
       }
 
-      // Allow partial updates
-      const eventData = insertEventSchema.partial().parse(req.body);
+      // Allow partial updates including status field
+      const eventData = updateEventSchema.parse(req.body);
       const updatedEvent = await storage.updateEvent(eventId, eventData);
       
       // Log event update
