@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import Dashboard from "@/pages/dashboard";
+import Events from "@/pages/events";
 import Functions from "@/pages/functions";
 import TeamInclusion from "@/pages/team-inclusion";
 import Scaling from "@/pages/scaling";
@@ -42,6 +43,11 @@ function Router() {
       {user ? (
         <>
           <Route path="/" component={Dashboard} />
+          <Route path="/events">
+            <ProtectedRoute permission="canAccessScreen0">
+              <Events />
+            </ProtectedRoute>
+          </Route>
           <Route path="/functions">
             <ProtectedRoute permission="canAccessScreen0">
               <Functions />
