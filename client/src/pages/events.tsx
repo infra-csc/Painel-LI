@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Plus, Edit, Trash2 } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Search, X } from "lucide-react";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
@@ -16,6 +18,10 @@ import { format } from "date-fns";
 export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -23,11 +29,54 @@ export default function Events() {
     queryKey: ["/api/events"],
   });
 
-  // Sort events by eventNumber descending (latest first)
-  const sortedEvents = useMemo(() => {
+  // Filter and sort events
+  const filteredAndSortedEvents = useMemo(() => {
     if (!events) return [];
-    return [...events].sort((a, b) => b.eventNumber - a.eventNumber);
-  }, [events]);
+    
+    let filtered = [...events];
+    
+    // Apply search filter (by name)
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(event => 
+        event.name.toLowerCase().includes(term) ||
+        event.location.toLowerCase().includes(term)
+      );
+    }
+    
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(event => {
+        const eventStatus = getEventStatus(event);
+        return eventStatus === statusFilter;
+      });
+    }
+    
+    // Apply start date filter
+    if (startDateFilter) {
+      filtered = filtered.filter(event => {
+        const eventStartDate = new Date(event.startDate);
+        const filterDate = new Date(startDateFilter);
+        eventStartDate.setHours(0, 0, 0, 0);
+        filterDate.setHours(0, 0, 0, 0);
+        return eventStartDate >= filterDate;
+      });
+    }
+    
+    // Apply end date filter
+    if (endDateFilter) {
+      filtered = filtered.filter(event => {
+        const eventEndDate = new Date(event.endDate);
+        const filterDate = new Date(endDateFilter);
+        eventEndDate.setHours(0, 0, 0, 0);
+        filterDate.setHours(0, 0, 0, 0);
+        return eventEndDate <= filterDate;
+      });
+    }
+    
+    // Sort by eventNumber descending (latest first)
+    return filtered.sort((a, b) => b.eventNumber - a.eventNumber);
+  }, [events, searchTerm, statusFilter, startDateFilter, endDateFilter]);
 
   const deleteEventMutation = useMutation({
     mutationFn: async (eventToDelete: Event) => {
@@ -115,6 +164,15 @@ export default function Events() {
     }
   };
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setStartDateFilter("");
+    setEndDateFilter("");
+  };
+
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -142,6 +200,76 @@ export default function Events() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Filters Section */}
+              <div className="mb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Search by name */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-search-event"
+                    />
+                  </div>
+
+                  {/* Status filter */}
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger data-testid="select-status-filter">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="planejado">Planejado</SelectItem>
+                      <SelectItem value="concluído">Concluído</SelectItem>
+                      <SelectItem value="excluído">Excluído</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Start date filter */}
+                  <div>
+                    <Input
+                      type="date"
+                      placeholder="Data início (de)"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      data-testid="input-start-date-filter"
+                    />
+                  </div>
+
+                  {/* End date filter */}
+                  <div>
+                    <Input
+                      type="date"
+                      placeholder="Data fim (até)"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      data-testid="input-end-date-filter"
+                    />
+                  </div>
+                </div>
+
+                {/* Clear filters button */}
+                {hasActiveFilters && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {filteredAndSortedEvents.length} evento(s) encontrado(s)
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={clearFilters}
+                      data-testid="button-clear-filters"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Carregando eventos...
@@ -161,7 +289,7 @@ export default function Events() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedEvents.map((event) => {
+                      {filteredAndSortedEvents.map((event) => {
                         const displayStatus = getEventStatus(event);
                         return (
                           <TableRow key={event.id} className={displayStatus === "excluído" ? "opacity-60" : ""}>
@@ -201,10 +329,13 @@ export default function Events() {
                           </TableRow>
                         );
                       })}
-                      {(!sortedEvents || sortedEvents.length === 0) && (
+                      {(!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                            Nenhum evento cadastrado. Clique em "Novo Evento" para criar o primeiro.
+                            {hasActiveFilters 
+                              ? "Nenhum evento encontrado com os filtros aplicados."
+                              : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."
+                            }
                           </TableCell>
                         </TableRow>
                       )}
