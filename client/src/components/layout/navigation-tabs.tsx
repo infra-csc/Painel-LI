@@ -24,7 +24,7 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
       path: "/events",
       label: "Eventos",
       icon: Calendar,
-      permission: "canAccessScreen0" as const,
+      permission: "canAccessAdminUsers" as const,
     },
     {
       id: "functions",

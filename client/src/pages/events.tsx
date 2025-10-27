@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,22 +23,29 @@ export default function Events() {
     queryKey: ["/api/events"],
   });
 
+  // Sort events by eventNumber descending (latest first)
+  const sortedEvents = useMemo(() => {
+    if (!events) return [];
+    return [...events].sort((a, b) => b.eventNumber - a.eventNumber);
+  }, [events]);
+
   const deleteEventMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/events/${id}`);
+      // Soft delete - update status to "excluído"
+      const response = await apiRequest("PUT", `/api/events/${id}`, { status: "excluído" });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       toast({
         title: "Sucesso",
-        description: "Evento removido com sucesso!",
+        description: "Evento marcado como excluído com sucesso!",
       });
     },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Erro ao remover evento. Pode haver inclusões de equipe vinculadas a este evento.",
+        description: "Erro ao marcar evento como excluído.",
         variant: "destructive",
       });
     },
@@ -59,8 +66,21 @@ export default function Events() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (confirm(`Tem certeza que deseja remover o evento "${name}"? Esta ação não pode ser desfeita e pode afetar inclusões de equipe vinculadas.`)) {
+    if (confirm(`Tem certeza que deseja marcar o evento "${name}" como excluído? O evento continuará visível na lista.`)) {
       deleteEventMutation.mutate(id);
+    }
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case "planejado":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      case "concluído":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "excluído":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
     }
   };
 
@@ -118,15 +138,15 @@ export default function Events() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {events?.map((event) => (
-                        <TableRow key={event.id}>
+                      {sortedEvents.map((event) => (
+                        <TableRow key={event.id} className={event.status === "excluído" ? "opacity-60" : ""}>
                           <TableCell className="font-medium">{event.eventNumber}</TableCell>
                           <TableCell>{event.name}</TableCell>
                           <TableCell>{event.location}</TableCell>
                           <TableCell>{formatDate(event.startDate)}</TableCell>
                           <TableCell>{formatDate(event.endDate)}</TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(event.status)}`}>
                               {event.status}
                             </span>
                           </TableCell>
@@ -136,6 +156,7 @@ export default function Events() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleOpenModal(event)}
+                                disabled={event.status === "excluído"}
                                 data-testid={`button-edit-event-${event.id}`}
                               >
                                 <Edit className="w-3 h-3" />
@@ -144,6 +165,7 @@ export default function Events() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleDelete(event.id, event.name)}
+                                disabled={event.status === "excluído"}
                                 className="text-destructive hover:text-destructive"
                                 data-testid={`button-delete-event-${event.id}`}
                               >
@@ -153,7 +175,7 @@ export default function Events() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {(!events || events.length === 0) && (
+                      {(!sortedEvents || sortedEvents.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                             Nenhum evento cadastrado. Clique em "Novo Evento" para criar o primeiro.

@@ -44,7 +44,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/events">
-            <ProtectedRoute permission="canAccessScreen0">
+            <ProtectedRoute permission="canAccessAdminUsers">
               <Events />
             </ProtectedRoute>
           </Route>

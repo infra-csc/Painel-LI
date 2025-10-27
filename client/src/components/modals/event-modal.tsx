@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event } from "@shared/schema";
@@ -17,6 +18,7 @@ const eventSchema = z.object({
   location: z.string().min(1, "Local é obrigatório"),
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().min(1, "Data de fim é obrigatória"),
+  status: z.enum(["planejado", "concluído", "excluído"]).optional(),
   observations: z.string().optional(),
 }).refine((data) => {
   const startDate = new Date(data.startDate);
@@ -47,6 +49,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       location: "",
       startDate: "",
       endDate: "",
+      status: "planejado",
       observations: "",
     },
   });
@@ -58,6 +61,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
         location: event.location,
         startDate: event.startDate,
         endDate: event.endDate,
+        status: event.status as "planejado" | "concluído" | "excluído",
         observations: event.observations || "",
       });
     } else {
@@ -66,6 +70,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
         location: "",
         startDate: "",
         endDate: "",
+        status: "planejado",
         observations: "",
       });
     }
@@ -190,6 +195,31 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                 )}
               />
             </div>
+            
+            {isEditing && (
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-event-status">
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="planejado">Planejado</SelectItem>
+                        <SelectItem value="concluído">Concluído</SelectItem>
+                        <SelectItem value="excluído">Excluído</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             
             <FormField
               control={form.control}
