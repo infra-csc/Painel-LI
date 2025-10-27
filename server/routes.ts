@@ -623,7 +623,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Evento não encontrado" });
       }
 
-      const eventData = insertEventSchema.parse(req.body);
+      // Allow partial updates
+      const eventData = insertEventSchema.partial().parse(req.body);
       const updatedEvent = await storage.updateEvent(eventId, eventData);
       
       // Log event update

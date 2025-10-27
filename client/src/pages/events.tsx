@@ -30,9 +30,16 @@ export default function Events() {
   }, [events]);
 
   const deleteEventMutation = useMutation({
-    mutationFn: async (id: string) => {
-      // Soft delete - update status to "excluído"
-      const response = await apiRequest("PUT", `/api/events/${id}`, { status: "excluído" });
+    mutationFn: async (eventToDelete: Event) => {
+      // Soft delete - update status to "excluído" while keeping all other data
+      const response = await apiRequest("PUT", `/api/events/${eventToDelete.id}`, {
+        name: eventToDelete.name,
+        location: eventToDelete.location,
+        startDate: eventToDelete.startDate,
+        endDate: eventToDelete.endDate,
+        status: "excluído",
+        observations: eventToDelete.observations,
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -65,9 +72,9 @@ export default function Events() {
     setEditingEvent(null);
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Tem certeza que deseja marcar o evento "${name}" como excluído? O evento continuará visível na lista.`)) {
-      deleteEventMutation.mutate(id);
+  const handleDelete = (event: Event) => {
+    if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`)) {
+      deleteEventMutation.mutate(event);
     }
   };
 
@@ -82,6 +89,25 @@ export default function Events() {
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
     }
+  };
+
+  const getEventStatus = (event: Event): string => {
+    // If already excluded, keep as excluded
+    if (event.status === "excluído") {
+      return "excluído";
+    }
+    
+    // Check if event has ended (endDate has passed)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(event.endDate);
+    endDate.setHours(0, 0, 0, 0);
+    
+    if (endDate < today) {
+      return "concluído";
+    }
+    
+    return event.status;
   };
 
   const formatDate = (dateString: string) => {
@@ -138,43 +164,46 @@ export default function Events() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedEvents.map((event) => (
-                        <TableRow key={event.id} className={event.status === "excluído" ? "opacity-60" : ""}>
-                          <TableCell className="font-medium">{event.eventNumber}</TableCell>
-                          <TableCell>{event.name}</TableCell>
-                          <TableCell>{event.location}</TableCell>
-                          <TableCell>{formatDate(event.startDate)}</TableCell>
-                          <TableCell>{formatDate(event.endDate)}</TableCell>
-                          <TableCell>
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(event.status)}`}>
-                              {event.status}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleOpenModal(event)}
-                                disabled={event.status === "excluído"}
-                                data-testid={`button-edit-event-${event.id}`}
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDelete(event.id, event.name)}
-                                disabled={event.status === "excluído"}
-                                className="text-destructive hover:text-destructive"
-                                data-testid={`button-delete-event-${event.id}`}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {sortedEvents.map((event) => {
+                        const displayStatus = getEventStatus(event);
+                        return (
+                          <TableRow key={event.id} className={displayStatus === "excluído" ? "opacity-60" : ""}>
+                            <TableCell className="font-medium">{event.eventNumber}</TableCell>
+                            <TableCell>{event.name}</TableCell>
+                            <TableCell>{event.location}</TableCell>
+                            <TableCell>{formatDate(event.startDate)}</TableCell>
+                            <TableCell>{formatDate(event.endDate)}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(displayStatus)}`}>
+                                {displayStatus}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenModal(event)}
+                                  disabled={displayStatus === "excluído"}
+                                  data-testid={`button-edit-event-${event.id}`}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDelete(event)}
+                                  disabled={displayStatus === "excluído"}
+                                  className="text-destructive hover:text-destructive"
+                                  data-testid={`button-delete-event-${event.id}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                       {(!sortedEvents || sortedEvents.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
