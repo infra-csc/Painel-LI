@@ -20,6 +20,37 @@ import type { Event, Function, User } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 
+const FUNCTION_ORDER = [
+  'atendimento',
+  'dir prova',
+  'produção sp 1',
+  'produção sp 2',
+  'produção local',
+  'ativação sp',
+  'ativação local',
+  'sup ceno',
+  'cenotecnica',
+  'cenotecnica local',
+  'percurso',
+  'kit',
+  '02 prime'
+];
+
+const sortFunctionsByOrder = (functions: Function[]) => {
+  return functions.sort((a, b) => {
+    const aIndex = FUNCTION_ORDER.indexOf(a.name.toLowerCase());
+    const bIndex = FUNCTION_ORDER.indexOf(b.name.toLowerCase());
+    
+    if (aIndex === -1 && bIndex === -1) {
+      return a.name.localeCompare(b.name);
+    }
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    
+    return aIndex - bIndex;
+  });
+};
+
 const gridFormSchema = z.object({
   eventId: z.string().min(1, "Evento é obrigatório"),
   startDate: z.string().min(1, "Data inicial é obrigatória"),
@@ -275,7 +306,7 @@ export default function GridTeamInclusionForm() {
       setTemplateLoaded(false);
     } else {
       // Grade nova - começar com campos VAZIOS
-      rows = (functions || []).sort((a, b) => a.name.localeCompare(b.name)).map(func => {
+      rows = sortFunctionsByOrder([...(functions || [])]).map(func => {
         const dailyRates: { [date: string]: number } = {};
         
         datesList.forEach(date => {
@@ -919,7 +950,18 @@ export default function GridTeamInclusionForm() {
                         </tr>
                       </thead>
                       <tbody>
-                        {functionRows.sort((a, b) => a.functionName.localeCompare(b.functionName)).map(row => (
+                        {[...functionRows].sort((a, b) => {
+                          const aIndex = FUNCTION_ORDER.indexOf(a.functionName.toLowerCase());
+                          const bIndex = FUNCTION_ORDER.indexOf(b.functionName.toLowerCase());
+                          
+                          if (aIndex === -1 && bIndex === -1) {
+                            return a.functionName.localeCompare(b.functionName);
+                          }
+                          if (aIndex === -1) return 1;
+                          if (bIndex === -1) return -1;
+                          
+                          return aIndex - bIndex;
+                        }).map(row => (
                           <tr key={row.functionId} className="border-t">
                             <td className="px-3 py-2 border-r font-medium bg-muted/30">
                               {row.functionName}
@@ -1149,7 +1191,7 @@ export default function GridTeamInclusionForm() {
               Escolha uma função das disponíveis no sistema:
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {functions?.sort((a, b) => a.name.localeCompare(b.name)).map(func => (
+              {sortFunctionsByOrder([...(functions || [])]).map(func => (
                 <Button
                   key={`${func.id}-${Date.now()}-${Math.random()}`}
                   variant="outline"
@@ -1205,7 +1247,7 @@ export default function GridTeamInclusionForm() {
                   <SelectValue placeholder="Selecione uma função" />
                 </SelectTrigger>
                 <SelectContent>
-                  {functions?.sort((a, b) => a.name.localeCompare(b.name)).map((func) => (
+                  {sortFunctionsByOrder([...(functions || [])]).map((func) => (
                     <SelectItem key={func.id} value={func.id}>
                       {func.name}
                     </SelectItem>

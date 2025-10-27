@@ -598,6 +598,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/events/:id", async (req, res) => {
+    try {
+      // Check session authentication
+      const userId = req.session.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can edit events
+      if (currentUser.role !== 'admin') {
+        return res.status(403).json({ message: "Apenas administradores podem editar eventos" });
+      }
+
+      const eventId = req.params.id;
+      const oldEvent = await storage.getEvent(eventId);
+      if (!oldEvent) {
+        return res.status(404).json({ message: "Evento não encontrado" });
+      }
+
+      const eventData = insertEventSchema.parse(req.body);
+      const updatedEvent = await storage.updateEvent(eventId, eventData);
+      
+      // Log event update
+      await createAuditLog(
+        'update',
+        'event',
+        updatedEvent.id,
+        updatedEvent,
+        currentUser.id,
+        currentUser.name,
+        oldEvent,
+        req
+      );
+      
+      res.json(updatedEvent);
+    } catch (error) {
+      res.status(400).json({ message: "Dados inválidos" });
+    }
+  });
+
+  app.delete("/api/events/:id", async (req, res) => {
+    try {
+      // Check session authentication
+      const userId = req.session.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+
+      // Only admins can delete events
+      if (currentUser.role !== 'admin') {
+        return res.status(403).json({ message: "Apenas administradores podem excluir eventos" });
+      }
+
+      const eventId = req.params.id;
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Evento não encontrado" });
+      }
+
+      await storage.deleteEvent(eventId);
+      
+      // Log event deletion
+      await createAuditLog(
+        'delete',
+        'event',
+        eventId,
+        null,
+        currentUser.id,
+        currentUser.name,
+        event,
+        req
+      );
+      
+      res.json({ message: "Evento excluído com sucesso" });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao excluir evento" });
+    }
+  });
+
   // Functions routes
   app.get("/api/functions", async (req, res) => {
     try {

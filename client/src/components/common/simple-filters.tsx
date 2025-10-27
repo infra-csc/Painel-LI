@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
+import EventCombobox from "@/components/ui/event-combobox";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
 interface SimpleFiltersProps {
@@ -62,23 +63,13 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
           <label className="block text-sm font-medium text-foreground mb-1">
             Evento
           </label>
-          <Select 
-            value={filters.eventId} 
+          <EventCombobox
+            events={events}
+            value={filters.eventId}
             onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
-            data-testid="filter-event"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar evento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Eventos</SelectItem>
-              {events?.map((event) => (
-                <SelectItem key={event.id} value={event.id}>
-                  {event.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecionar evento"
+            testId="filter-event"
+          />
         </div>
 
         <div className="flex-1 min-w-48">

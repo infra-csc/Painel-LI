@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import type { Event } from "@shared/schema";
+import { useEffect } from "react";
 
 const eventSchema = z.object({
   name: z.string().min(1, "Nome do evento é obrigatório"),
@@ -30,11 +32,13 @@ type EventFormData = z.infer<typeof eventSchema>;
 interface EventModalProps {
   open: boolean;
   onClose: () => void;
+  event?: Event | null;
 }
 
-export default function EventModal({ open, onClose }: EventModalProps) {
+export default function EventModal({ open, onClose, event }: EventModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isEditing = !!event;
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -47,15 +51,40 @@ export default function EventModal({ open, onClose }: EventModalProps) {
     },
   });
 
-  const createEventMutation = useMutation({
+  useEffect(() => {
+    if (event) {
+      form.reset({
+        name: event.name,
+        location: event.location,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        observations: event.observations || "",
+      });
+    } else {
+      form.reset({
+        name: "",
+        location: "",
+        startDate: "",
+        endDate: "",
+        observations: "",
+      });
+    }
+  }, [event, form]);
+
+  const saveEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
-      const response = await apiRequest("POST", "/api/events", data);
-      return response.json();
+      if (isEditing && event) {
+        const response = await apiRequest("PUT", `/api/events/${event.id}`, data);
+        return response.json();
+      } else {
+        const response = await apiRequest("POST", "/api/events", data);
+        return response.json();
+      }
     },
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Evento criado com sucesso",
+        description: isEditing ? "Evento atualizado com sucesso" : "Evento criado com sucesso",
       });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
@@ -64,14 +93,14 @@ export default function EventModal({ open, onClose }: EventModalProps) {
     onError: (error: any) => {
       toast({
         title: "Erro",
-        description: error.message || "Erro ao criar evento. Tente novamente.",
+        description: error.message || `Erro ao ${isEditing ? 'atualizar' : 'criar'} evento. Tente novamente.`,
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: EventFormData) => {
-    createEventMutation.mutate(data);
+    saveEventMutation.mutate(data);
   };
 
   const handleClose = () => {
@@ -83,7 +112,7 @@ export default function EventModal({ open, onClose }: EventModalProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md" data-testid="modal-event">
         <DialogHeader>
-          <DialogTitle>Adicionar Novo Evento</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar Evento' : 'Adicionar Novo Evento'}</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -192,10 +221,10 @@ export default function EventModal({ open, onClose }: EventModalProps) {
               </Button>
               <Button 
                 type="submit" 
-                disabled={createEventMutation.isPending}
+                disabled={saveEventMutation.isPending}
                 data-testid="button-save-event"
               >
-                {createEventMutation.isPending ? "Salvando..." : "Salvar Evento"}
+                {saveEventMutation.isPending ? "Salvando..." : isEditing ? "Atualizar Evento" : "Salvar Evento"}
               </Button>
             </div>
           </form>

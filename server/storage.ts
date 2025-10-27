@@ -35,6 +35,7 @@ export interface IStorage {
   getEventsWithInclusions(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: string, event: Partial<InsertEvent>): Promise<Event>;
+  deleteEvent(id: string): Promise<void>;
   
   // Functions
   getFunctions(): Promise<Function[]>;
@@ -112,6 +113,8 @@ export class MemStorage implements IStorage {
   private functionUsers: Map<string, FunctionUser> = new Map();
   private functionManagers: Map<string, FunctionManager> = new Map();
   private logCounter: number = 1;
+  private eventCounter: number = 1;
+  private functionCounter: number = 1;
 
   constructor() {
     // Initialize with demo data
@@ -240,7 +243,7 @@ export class MemStorage implements IStorage {
       ...insertEvent, 
       id, 
       createdAt: new Date(), 
-      eventNumber: 1,
+      eventNumber: this.eventCounter++,
       status: 'planejado', 
       observations: insertEvent.observations || null 
     };
@@ -254,6 +257,13 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...eventUpdate };
     this.events.set(id, updated);
     return updated;
+  }
+
+  async deleteEvent(id: string): Promise<void> {
+    if (!this.events.has(id)) {
+      throw new Error("Event not found");
+    }
+    this.events.delete(id);
   }
 
   // Functions
@@ -271,7 +281,7 @@ export class MemStorage implements IStorage {
       ...insertFunction, 
       id, 
       createdAt: new Date(), 
-      functionNumber: insertFunction.functionNumber || 1,
+      functionNumber: this.functionCounter++,
       description: insertFunction.description || null,
       responsibleArea: insertFunction.responsibleArea || null,
       quantity: insertFunction.quantity || 1,
@@ -741,6 +751,10 @@ export class DatabaseStorage implements IStorage {
   async updateEvent(id: string, eventData: Partial<InsertEvent>): Promise<Event> {
     const [event] = await db.update(events).set(eventData).where(eq(events.id, id)).returning();
     return event;
+  }
+
+  async deleteEvent(id: string): Promise<void> {
+    await db.delete(events).where(eq(events.id, id));
   }
 
   // Functions
