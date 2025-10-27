@@ -26,8 +26,7 @@ import { hasPermission } from "@/lib/role-utils";
 const FUNCTION_ORDER = [
   'atendimento',
   'dir prova',
-  'produção sp 1',
-  'produção sp 2',
+  'produção',
   'produção local',
   'ativação sp',
   'ativação local',
@@ -36,7 +35,8 @@ const FUNCTION_ORDER = [
   'cenotecnica local',
   'percurso',
   'kit',
-  '02 prime'
+  'kit local',
+  'o2 prime'
 ];
 
 const sortFunctionsByOrder = (functions: Function[]) => {
