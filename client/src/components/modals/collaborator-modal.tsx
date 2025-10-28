@@ -132,6 +132,12 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       const response = isEdit && collaborator
         ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
         : await apiRequest("POST", "/api/collaborators", collaboratorData);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Erro desconhecido" }));
+        throw new Error(errorData.message || "Erro ao salvar colaborador");
+      }
+      
       const result = await response.json();
       
       // Se for colaborador emergencial, criar também um registro de inclusão de equipe
@@ -154,6 +160,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
           actualDailyRates: dailyRates,
           dailyValue: 0, // Valor padrão, pode ser editado depois
           needsTicket: false,
+          needsAccommodation: false,
           emergencyRecord: true,
           status: "hospedagem",
           phase: "hospedagem",
@@ -179,10 +186,10 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       onClose();
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Erro",
-        description: isEdit ? "Erro ao atualizar colaborador" : "Erro ao criar colaborador",
+        description: error.message || (isEdit ? "Erro ao atualizar colaborador" : "Erro ao criar colaborador"),
         variant: "destructive",
       });
     },

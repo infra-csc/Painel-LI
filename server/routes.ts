@@ -906,10 +906,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/collaborators", async (req, res) => {
     try {
       const collaboratorData = insertCollaboratorSchema.parse(req.body);
+      
+      // Verificar se já existe um colaborador com o mesmo documento oficial
+      const existingCollaborators = await storage.getCollaborators();
+      const duplicateDoc = existingCollaborators.find(
+        c => c.officialDocument === collaboratorData.officialDocument
+      );
+      
+      if (duplicateDoc) {
+        return res.status(400).json({ 
+          message: `Já existe um colaborador cadastrado com o documento ${collaboratorData.officialDocument}` 
+        });
+      }
+      
       const collaborator = await storage.createCollaborator(collaboratorData);
       res.json(collaborator);
     } catch (error) {
-      res.status(400).json({ message: "Dados inválidos" });
+      if (error instanceof Error) {
+        console.error("Erro ao criar colaborador:", error.message);
+      }
+      res.status(400).json({ message: "Dados inválidos. Verifique os campos obrigatórios." });
     }
   });
 
