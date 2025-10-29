@@ -200,7 +200,18 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
 
   const onSubmit = (data: CollaboratorFormData) => {
     console.log("Form submitted with data:", data);
-    console.log("Form errors:", form.formState.errors);
+    console.log("Form errors:", JSON.stringify(form.formState.errors, null, 2));
+    
+    // Check for validation errors
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      console.error("Validation errors found:", errors);
+      Object.keys(errors).forEach(key => {
+        console.error(`Field '${key}':`, errors[key as keyof typeof errors]?.message);
+      });
+      return; // Don't submit if there are errors
+    }
+    
     collaboratorMutation.mutate(data);
   };
 
