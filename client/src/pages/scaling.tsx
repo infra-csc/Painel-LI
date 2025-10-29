@@ -25,9 +25,16 @@ import { canView, canEdit } from "@/lib/permissions";
 import * as XLSX from 'xlsx';
 
 export default function Scaling() {
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    eventId: string;
+    functionId: string[];
+    collaboratorId: string;
+    escalationStatus: string;
+    ticketStatus: string;
+    searchId: string;
+  }>({
     eventId: "all",
-    functionId: "all",
+    functionId: [],
     collaboratorId: "all",
     escalationStatus: "all",
     ticketStatus: "all", // all, purchased, not-purchased
@@ -266,6 +273,23 @@ export default function Scaling() {
     return canManageFunction(inclusion.functionId);
   };
 
+  // Check if user can edit collaborator (admin or function_area, only until ticket is purchased)
+  const canEditCollaborator = (inclusion: TeamInclusion) => {
+    if (!user) return false;
+    
+    // Check if user is admin or function_area
+    const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
+    if (!hasRole) return false;
+    
+    // Check if ticket was actually PURCHASED (has purchaseDate)
+    const ticketPurchased = tickets?.some(t => 
+      t.teamInclusionId === inclusion.id && t.purchaseDate !== null
+    );
+    if (ticketPurchased) return false;
+    
+    return true;
+  };
+
   // Check if user can access this screen
   if (!canView(user, 'scaling')) {
     return (
@@ -291,7 +315,7 @@ export default function Scaling() {
         
         // Apply universal filters
         if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-        if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+        if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
         if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
         
         // Apply escalation status filter
@@ -1135,15 +1159,20 @@ export default function Scaling() {
                 <Label htmlFor="collaborator" className="text-sm font-medium">
                   Colaborador *
                 </Label>
-                {isEscalationConfirmed(selectedInclusion) ? (
-                  // Colaborador fixo quando já escalado
+                {isEscalationConfirmed(selectedInclusion) && !canEditCollaborator(selectedInclusion) ? (
+                  // Colaborador fixo quando já escalado E não pode editar (passagem comprada ou sem permissão)
                   <div className="mt-2 px-3 py-2 bg-muted rounded-md border">
                     <div className="text-sm font-medium">
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
+                    {isEscalationConfirmed(selectedInclusion) && tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ⚠️ Não é possível alterar - passagem já comprada
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  // CollaboratorCombobox para buscar colaborador quando ainda não escalado  
+                  // CollaboratorCombobox para buscar colaborador quando ainda não escalado OU pode editar
                   <div className="mt-2">
                     <CollaboratorCombobox
                       collaborators={collaborators}
@@ -1152,6 +1181,11 @@ export default function Scaling() {
                       placeholder="Selecione um colaborador"
                       testId="select-collaborator-escalation"
                     />
+                    {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        ℹ️ Você pode alterar o colaborador até a passagem ser comprada
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1699,37 +1733,49 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && (
+                {selectedInclusion && !isReadOnly(selectedInclusion) && (
                   <>
-                    <Button 
-                      variant="secondary"
-                      onClick={handleSave}
-                      disabled={(() => {
-                        if (!selectedInclusion) return true;
-                        if (updateTeamInclusionMutation.isPending) return true;
-                        if (selectedInclusion.status === 'cancelado') return true;
-                        if (!canConfirmEscalation(selectedInclusion)) return true;
-                        return false;
-                      })()}
-                      className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
-                    >
-                      <Save className="w-4 h-4" />
-                      {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar"}
-                    </Button>
-                    <Button 
-                      onClick={handleConfirmEscalation}
-                      disabled={(() => {
-                        if (!selectedInclusion) return true;
-                        if (updateTeamInclusionMutation.isPending) return true;
-                        if (selectedInclusion.status === 'cancelado') return true;
-                        if (!canConfirmEscalation(selectedInclusion)) return true;
-                        return false;
-                      })()}
-                      className="flex items-center gap-2"
-                    >
-                      <Save className="w-4 h-4" />
-                      {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
-                    </Button>
+                    {/* Botão Salvar - disponível para quem pode editar colaborador OU confirmar escalação */}
+                    {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
+                      <Button 
+                        variant="secondary"
+                        onClick={handleSave}
+                        disabled={(() => {
+                          if (!selectedInclusion) return true;
+                          if (updateTeamInclusionMutation.isPending) return true;
+                          if (selectedInclusion.status === 'cancelado') return true;
+                          // Se já foi escalado, só pode salvar se pode editar colaborador
+                          if (isEscalated(selectedInclusion)) {
+                            return !canEditCollaborator(selectedInclusion);
+                          }
+                          // Se não foi escalado, precisa ser responsável pela função
+                          if (!canConfirmEscalation(selectedInclusion)) return true;
+                          return false;
+                        })()}
+                        className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
+                      >
+                        <Save className="w-4 h-4" />
+                        {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                      </Button>
+                    )}
+                    
+                    {/* Botão Confirmar Escalação - só antes de escalar */}
+                    {!isEscalated(selectedInclusion) && (
+                      <Button 
+                        onClick={handleConfirmEscalation}
+                        disabled={(() => {
+                          if (!selectedInclusion) return true;
+                          if (updateTeamInclusionMutation.isPending) return true;
+                          if (selectedInclusion.status === 'cancelado') return true;
+                          if (!canConfirmEscalation(selectedInclusion)) return true;
+                          return false;
+                        })()}
+                        className="flex items-center gap-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
+                      </Button>
+                    )}
                   </>
                 )}
                 

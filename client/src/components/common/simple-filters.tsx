@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import EventCombobox from "@/components/ui/event-combobox";
+import FunctionMultiSelect from "@/components/ui/function-multi-select";
 import type { Event, Function, Collaborator } from "@shared/schema";
 
 interface SimpleFiltersProps {
   filters: {
     eventId: string;
-    functionId: string;
+    functionId: string | string[];
     collaboratorId: string;
     searchId: string;
   };
@@ -32,7 +33,7 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
   const clearFilters = () => {
     onFiltersChange({
       eventId: "all",
-      functionId: "all", 
+      functionId: [], 
       collaboratorId: "all",
       searchId: ""
     });
@@ -74,25 +75,15 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
 
         <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-foreground mb-1">
-            Função
+            Funções
           </label>
-          <Select 
-            value={filters.functionId} 
-            onValueChange={(value) => onFiltersChange({ ...filters, functionId: value })}
-            data-testid="filter-function"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecionar função" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Funções</SelectItem>
-              {functions?.map((func) => (
-                <SelectItem key={func.id} value={func.id}>
-                  {func.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <FunctionMultiSelect
+            functions={functions}
+            selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
+            onSelectedChange={(selectedIds) => onFiltersChange({ ...filters, functionId: selectedIds })}
+            placeholder="Selecionar funções"
+            testId="filter-function"
+          />
         </div>
 
         <div className="flex-1 min-w-48">

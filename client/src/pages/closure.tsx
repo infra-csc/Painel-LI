@@ -53,7 +53,7 @@ export default function Closure() {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [filters, setFilters] = useState({
     eventId: "all",
-    functionId: "all",
+    functionId: [] as string[],
     collaboratorId: "all",
     searchId: "",
   });
@@ -112,7 +112,7 @@ export default function Closure() {
       
       // Apply simple filters (event, function, collaborator, and search ID)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
-      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+      if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
       if (filters.searchId && !(
         (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||

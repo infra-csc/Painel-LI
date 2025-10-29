@@ -61,7 +61,7 @@ export default function Accommodations() {
   const { user } = useAuth();
   const [filters, setFilters] = useState({
     eventId: "all",
-    functionId: "all", 
+    functionId: [] as string[], 
     collaboratorId: "all",
     searchId: "",
     accommodationStatus: "all", // all, pending, processed
@@ -790,7 +790,7 @@ export default function Accommodations() {
   const filteredData = useMemo(() => {
     let data = teamInclusionsWithAccommodation.filter(inclusion => {
       const matchesEvent = filters.eventId === "all" || inclusion.eventId === filters.eventId;
-      const matchesFunction = filters.functionId === "all" || inclusion.functionId === filters.functionId;
+      const matchesFunction = filters.functionId.length === 0 || filters.functionId.includes(inclusion.functionId);
       const matchesCollaborator = filters.collaboratorId === "all" || inclusion.collaboratorId === filters.collaboratorId;
       
       const matchesSearchId = filters.searchId === "" || 
@@ -1061,7 +1061,7 @@ export default function Accommodations() {
             variant="outline"
             onClick={() => setFilters({
               eventId: "all",
-              functionId: "all", 
+              functionId: [], 
               collaboratorId: "all",
               searchId: "",
               accommodationStatus: "all",
