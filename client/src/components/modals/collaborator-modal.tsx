@@ -121,7 +121,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         const collaboratorData: any = { ...data };
         if (!isEdit && user?.role === 'function_area') {
           collaboratorData.status = 'aprovado';
-          collaboratorData.approvedAt = new Date().toISOString();
+          collaboratorData.approvedAt = new Date();
           collaboratorData.approvedBy = user.id;
         }
         
