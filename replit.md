@@ -27,6 +27,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema Management**: Drizzle migrations with PostgreSQL as the target database
 - **Data Validation**: Zod schemas for runtime type checking and validation
 - **Relationships**: Foreign key relationships between core entities (events, collaborators, functions)
+- **Area Field**: The 'area' field belongs only to Users and TeamInclusions tables, NOT to Collaborators. Users have an area they're responsible for, and TeamInclusions have an area field to indicate which area the team inclusion belongs to in the context of that specific event
 
 ## Workflow System
 - **Multi-Phase Process**: Five distinct phases (Inclusion, Scaling, Tickets, Closure, Approval)
