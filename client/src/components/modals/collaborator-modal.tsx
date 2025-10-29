@@ -20,6 +20,7 @@ const collaboratorSchema = z.object({
   secondaryDocument: z.string().optional(),
   secondaryDocumentType: z.enum(["cpf", "rg"]).optional(),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
+  area: z.string().optional(), // Será preenchido automaticamente
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
   city: z.string().min(1, "Cidade é obrigatória"),
@@ -67,6 +68,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
       secondaryDocument: "",
       secondaryDocumentType: undefined,
       birthDate: "",
+      area: "",
       type: "",
       phone: "",
       city: "",
@@ -87,6 +89,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         secondaryDocument: collaborator.secondaryDocument || "",
         secondaryDocumentType: collaborator.secondaryDocumentType as "cpf" | "rg" | undefined,
         birthDate: collaborator.birthDate || "",
+        area: collaborator.area || "",
         type: collaborator.type || "",
         phone: collaborator.phone || "",
         city: collaborator.city || "",
@@ -103,6 +106,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         secondaryDocument: "",
         secondaryDocumentType: undefined,
         birthDate: "",
+        area: "",
         type: "",
         phone: "",
         city: "",
@@ -117,8 +121,11 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
       try {
-        // Determine the area value
-        let areaValue = defaultArea;
+        // Determine the area value - priority: data.area > defaultArea > user.area > "Geral"
+        let areaValue = data.area;
+        if (!areaValue || areaValue.trim() === "") {
+          areaValue = defaultArea;
+        }
         if (!areaValue || areaValue.trim() === "") {
           areaValue = user?.area || "Geral";
         }
