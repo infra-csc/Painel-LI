@@ -210,6 +210,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   });
 
   const onSubmit = (data: CollaboratorFormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
     collaboratorMutation.mutate(data);
   };
 

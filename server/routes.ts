@@ -905,7 +905,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/collaborators", async (req, res) => {
     try {
+      console.log("POST /api/collaborators - Dados recebidos:", JSON.stringify(req.body, null, 2));
       const collaboratorData = insertCollaboratorSchema.parse(req.body);
+      console.log("Dados validados com sucesso:", JSON.stringify(collaboratorData, null, 2));
       
       // Verificar se já existe um colaborador com o mesmo documento oficial
       const existingCollaborators = await storage.getCollaborators();
@@ -922,8 +924,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const collaborator = await storage.createCollaborator(collaboratorData);
       res.json(collaborator);
     } catch (error) {
+      console.error("Erro completo ao criar colaborador:", error);
       if (error instanceof Error) {
-        console.error("Erro ao criar colaborador:", error.message);
+        console.error("Mensagem de erro:", error.message);
       }
       res.status(400).json({ message: "Dados inválidos. Verifique os campos obrigatórios." });
     }
