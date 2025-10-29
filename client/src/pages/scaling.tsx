@@ -281,7 +281,8 @@ export default function Scaling() {
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
     if (!hasRole) return false;
     
-    // If needs ticket, block after ticket purchase
+    // If needs ticket, block after ticket purchase (passagem vem primeiro no fluxo)
+    // Mesmo que também precise de hospedagem, o bloqueio acontece na compra da passagem
     if (inclusion.needsTicket) {
       const ticketPurchased = tickets?.some(t => 
         t.teamInclusionId === inclusion.id && t.purchaseDate !== null
