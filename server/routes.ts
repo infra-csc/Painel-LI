@@ -906,8 +906,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/collaborators", async (req, res) => {
     try {
       console.log("POST /api/collaborators - Dados recebidos:", JSON.stringify(req.body, null, 2));
-      const collaboratorData = insertCollaboratorSchema.parse(req.body);
+      
+      // Extrair informações do usuário (não fazem parte do schema)
+      const { _userId, _userRole, ...bodyData } = req.body;
+      
+      // Validar dados do colaborador
+      const collaboratorData = insertCollaboratorSchema.parse(bodyData);
       console.log("Dados validados com sucesso:", JSON.stringify(collaboratorData, null, 2));
+      
+      // Auto-aprovar colaboradores criados por usuários "Área de Função"
+      if (_userRole === 'function_area') {
+        collaboratorData.status = 'aprovado';
+        collaboratorData.approvedAt = new Date();
+        collaboratorData.approvedBy = _userId;
+      }
       
       // Verificar se já existe um colaborador com o mesmo documento oficial
       const existingCollaborators = await storage.getCollaborators();

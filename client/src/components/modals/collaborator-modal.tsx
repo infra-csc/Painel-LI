@@ -117,13 +117,12 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
       try {
-        // Auto-aprovar colaboradores criados por usuários "Área de Função"
+        // Preparar dados do colaborador
         const collaboratorData: any = { ...data };
-        if (!isEdit && user?.role === 'function_area') {
-          collaboratorData.status = 'aprovado';
-          collaboratorData.approvedAt = new Date();
-          collaboratorData.approvedBy = user.id;
-        }
+        
+        // Adicionar informações do usuário para processamento no servidor
+        collaboratorData._userId = user?.id;
+        collaboratorData._userRole = user?.role;
         
         console.log("Dados do colaborador sendo enviados:", collaboratorData);
         
