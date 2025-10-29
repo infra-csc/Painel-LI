@@ -573,6 +573,22 @@ export default function Scaling() {
 
   const handleSave = () => {
     if (!selectedInclusion) return;
+    
+    // Debug: verificar permissões
+    const canConfirm = canConfirmEscalation(selectedInclusion);
+    const canEditCollab = canEditCollaborator(selectedInclusion);
+    console.log('🔍 Debug handleSave:', {
+      user: user?.name,
+      userId: user?.id,
+      userRole: user?.role,
+      functionId: selectedInclusion.functionId,
+      functionName: getFunctionName(selectedInclusion.functionId),
+      canConfirmEscalation: canConfirm,
+      canEditCollaborator: canEditCollab,
+      isEscalated: isEscalated(selectedInclusion),
+      allFunctionManagers: allFunctionManagers?.filter(m => m.functionId === selectedInclusion.functionId),
+    });
+    
     if (!canConfirmEscalation(selectedInclusion)) {
       toast({
         title: "Erro",
