@@ -478,12 +478,6 @@ export default function CollaboratorManagement() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground">Área</label>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {selectedCollaborator.area}
-                  </div>
-                </div>
-                <div>
                   <label className="text-sm font-medium text-foreground">Status Atual</label>
                   <div className="mt-1">
                     {getStatusBadge(selectedCollaborator.status)}
