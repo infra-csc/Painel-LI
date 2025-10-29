@@ -75,7 +75,6 @@ export const collaborators = pgTable("collaborators", {
   secondaryDocument: text("secondary_document"), // RG or CPF (secondary document)
   secondaryDocumentType: text("secondary_document_type"), // "cpf" or "rg"
   birthDate: date("birth_date"),
-  area: text("area").notNull(),
   type: text("type").notNull(), // casa, freela, local
   phone: text("phone"), // Make phone optional
   city: text("city").notNull(),
