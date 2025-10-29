@@ -911,15 +911,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { _userId, _userRole, ...bodyData } = req.body;
       
       // Validar dados do colaborador
-      const collaboratorData = insertCollaboratorSchema.parse(bodyData);
+      let collaboratorData: any = insertCollaboratorSchema.parse(bodyData);
       console.log("Dados validados com sucesso:", JSON.stringify(collaboratorData, null, 2));
       
       // Auto-aprovar colaboradores criados por usuários "Área de Função"
       if (_userRole === 'function_area') {
-        collaboratorData.status = 'aprovado';
-        collaboratorData.approvedAt = new Date();
-        collaboratorData.approvedBy = _userId;
+        console.log("Auto-aprovando colaborador criado por usuário Área de Função");
+        collaboratorData = {
+          ...collaboratorData,
+          status: 'aprovado',
+          approvedAt: new Date(),
+          approvedBy: _userId
+        };
       }
+      
+      console.log("Dados finais do colaborador:", JSON.stringify(collaboratorData, null, 2));
       
       // Verificar se já existe um colaborador com o mesmo documento oficial
       const existingCollaborators = await storage.getCollaborators();
