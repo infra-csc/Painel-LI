@@ -116,61 +116,75 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
 
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
-      // Ensure area is set from defaultArea
-      const collaboratorData: any = {
-        ...data,
-        area: defaultArea || ""
-      };
-      
-      // Auto-aprovar colaboradores criados por usuários "Área de Função"
-      if (!isEdit && user?.role === 'function_area') {
-        collaboratorData.status = 'aprovado';
-        collaboratorData.approvedAt = new Date().toISOString();
-        collaboratorData.approvedBy = user.id;
-      }
-      
-      const response = isEdit && collaborator
-        ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
-        : await apiRequest("POST", "/api/collaborators", collaboratorData);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Erro desconhecido" }));
-        throw new Error(errorData.message || "Erro ao salvar colaborador");
-      }
-      
-      const result = await response.json();
-      
-      // Se for colaborador emergencial, criar também um registro de inclusão de equipe
-      if (isEmergency && data.actualStartDate && data.actualEndDate && data.eventId && data.functionId) {
-        const startDate = new Date(data.actualStartDate);
-        const endDate = new Date(data.actualEndDate);
-        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-        const dailyRates = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      try {
+        // Determine the area value
+        let areaValue = defaultArea;
+        if (!areaValue || areaValue.trim() === "") {
+          areaValue = user?.area || "Geral";
+        }
         
-        const teamInclusionData = {
-          eventId: data.eventId,
-          functionId: data.functionId,
-          collaboratorId: result.id,
-          area: defaultArea || "Emergencial",
-          scheduleStartDate: data.actualStartDate,
-          scheduleEndDate: data.actualEndDate,
-          actualStartDate: data.actualStartDate,
-          actualEndDate: data.actualEndDate,
-          dailyRates: dailyRates,
-          actualDailyRates: dailyRates,
-          dailyValue: 0, // Valor padrão, pode ser editado depois
-          needsTicket: false,
-          needsAccommodation: false,
-          emergencyRecord: true,
-          status: "hospedagem",
-          phase: "hospedagem",
-          observations: "Colaborador emergencial adicionado durante a hospedagem"
+        // Ensure area is set from defaultArea or user area
+        const collaboratorData: any = {
+          ...data,
+          area: areaValue
         };
         
-        await apiRequest("POST", "/api/team-inclusions", teamInclusionData);
+        // Auto-aprovar colaboradores criados por usuários "Área de Função"
+        if (!isEdit && user?.role === 'function_area') {
+          collaboratorData.status = 'aprovado';
+          collaboratorData.approvedAt = new Date().toISOString();
+          collaboratorData.approvedBy = user.id;
+        }
+        
+        console.log("Dados do colaborador sendo enviados:", collaboratorData);
+        
+        const response = isEdit && collaborator
+          ? await apiRequest("PATCH", `/api/collaborators/${collaborator.id}`, collaboratorData)
+          : await apiRequest("POST", "/api/collaborators", collaboratorData);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: "Erro desconhecido" }));
+          console.error("Erro do servidor:", errorData);
+          throw new Error(errorData.message || "Erro ao salvar colaborador");
+        }
+        
+        const result = await response.json();
+        
+        // Se for colaborador emergencial, criar também um registro de inclusão de equipe
+        if (isEmergency && data.actualStartDate && data.actualEndDate && data.eventId && data.functionId) {
+          const startDate = new Date(data.actualStartDate);
+          const endDate = new Date(data.actualEndDate);
+          const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+          const dailyRates = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          
+          const teamInclusionData = {
+            eventId: data.eventId,
+            functionId: data.functionId,
+            collaboratorId: result.id,
+            area: areaValue || "Emergencial",
+            scheduleStartDate: data.actualStartDate,
+            scheduleEndDate: data.actualEndDate,
+            actualStartDate: data.actualStartDate,
+            actualEndDate: data.actualEndDate,
+            dailyRates: dailyRates,
+            actualDailyRates: dailyRates,
+            dailyValue: 0, // Valor padrão, pode ser editado depois
+            needsTicket: false,
+            needsAccommodation: false,
+            emergencyRecord: true,
+            status: "hospedagem",
+            phase: "hospedagem",
+            observations: "Colaborador emergencial adicionado durante a hospedagem"
+          };
+          
+          await apiRequest("POST", "/api/team-inclusions", teamInclusionData);
+        }
+        
+        return result;
+      } catch (error) {
+        console.error("Erro ao processar colaborador:", error);
+        throw error;
       }
-      
-      return result;
     },
     onSuccess: () => {
       toast({
