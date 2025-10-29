@@ -273,7 +273,7 @@ export default function Scaling() {
     return canManageFunction(inclusion.functionId);
   };
 
-  // Check if user can edit collaborator (admin or function_area, only until ticket is purchased)
+  // Check if user can edit collaborator (admin or function_area, only until ticket/accommodation is purchased)
   const canEditCollaborator = (inclusion: TeamInclusion) => {
     if (!user) return false;
     
@@ -281,11 +281,21 @@ export default function Scaling() {
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
     if (!hasRole) return false;
     
-    // Check if ticket was actually PURCHASED (has purchaseDate)
-    const ticketPurchased = tickets?.some(t => 
-      t.teamInclusionId === inclusion.id && t.purchaseDate !== null
-    );
-    if (ticketPurchased) return false;
+    // If needs ticket, block after ticket purchase
+    if (inclusion.needsTicket) {
+      const ticketPurchased = tickets?.some(t => 
+        t.teamInclusionId === inclusion.id && t.purchaseDate !== null
+      );
+      if (ticketPurchased) return false;
+    }
+    
+    // If doesn't need ticket, block after accommodation purchase
+    if (!inclusion.needsTicket) {
+      const accommodationPurchased = accommodations?.some(a => 
+        a.teamInclusionId === inclusion.id && a.purchaseDate !== null
+      );
+      if (accommodationPurchased) return false;
+    }
     
     return true;
   };
@@ -1160,16 +1170,30 @@ export default function Scaling() {
                   Colaborador *
                 </Label>
                 {isEscalationConfirmed(selectedInclusion) && !canEditCollaborator(selectedInclusion) ? (
-                  // Colaborador fixo quando já escalado E não pode editar (passagem comprada ou sem permissão)
+                  // Colaborador fixo quando já escalado E não pode editar (passagem/hospedagem comprada ou sem permissão)
                   <div className="mt-2 px-3 py-2 bg-muted rounded-md border">
                     <div className="text-sm font-medium">
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
-                    {isEscalationConfirmed(selectedInclusion) && tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null) && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        ⚠️ Não é possível alterar - passagem já comprada
-                      </div>
-                    )}
+                    {isEscalationConfirmed(selectedInclusion) && (() => {
+                      const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
+                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.purchaseDate !== null);
+                      
+                      if (selectedInclusion.needsTicket && ticketPurchased) {
+                        return (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            ⚠️ Não é possível alterar - passagem já comprada
+                          </div>
+                        );
+                      } else if (!selectedInclusion.needsTicket && accommodationPurchased) {
+                        return (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            ⚠️ Não é possível alterar - hospedagem já comprada
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 ) : (
                   // CollaboratorCombobox para buscar colaborador quando ainda não escalado OU pode editar
@@ -1183,7 +1207,10 @@ export default function Scaling() {
                     />
                     {isEscalationConfirmed(selectedInclusion) && canEditCollaborator(selectedInclusion) && (
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        ℹ️ Você pode alterar o colaborador até a passagem ser comprada
+                        {selectedInclusion.needsTicket 
+                          ? "ℹ️ Você pode alterar o colaborador até a passagem ser comprada"
+                          : "ℹ️ Você pode alterar o colaborador até a hospedagem ser comprada"
+                        }
                       </div>
                     )}
                   </div>
