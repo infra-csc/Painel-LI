@@ -13,12 +13,42 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
+// Função de validação de CPF
+const validateCPF = (cpf: string): boolean => {
+  cpf = cpf.replace(/[^\d]/g, '');
+  
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1+$/.test(cpf)) return false;
+  
+  let sum = 0;
+  let remainder;
+  
+  for (let i = 1; i <= 9; i++) {
+    sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  }
+  
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cpf.substring(9, 10))) return false;
+  
+  sum = 0;
+  for (let i = 1; i <= 10; i++) {
+    sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  }
+  
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cpf.substring(10, 11))) return false;
+  
+  return true;
+};
+
 const collaboratorSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
-  officialDocument: z.string().min(1, "Documento oficial é obrigatório"),
-  documentType: z.enum(["cpf", "rg"], { required_error: "Tipo de documento é obrigatório" }),
-  secondaryDocument: z.string().optional(),
-  secondaryDocumentType: z.enum(["cpf", "rg"]).optional(),
+  cpf: z.string()
+    .min(1, "CPF é obrigatório")
+    .refine((val) => validateCPF(val), { message: "CPF inválido" }),
+  rg: z.string().optional(),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
@@ -62,10 +92,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     resolver: zodResolver(collaboratorSchema),
     defaultValues: {
       fullName: "",
-      officialDocument: "",
-      documentType: "cpf" as const,
-      secondaryDocument: "",
-      secondaryDocumentType: undefined,
+      cpf: "",
+      rg: "",
       birthDate: "",
       type: "",
       phone: "",
@@ -80,12 +108,22 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   // Reset form with collaborator data when editing
   useEffect(() => {
     if (open && isEdit && collaborator) {
+      // Determinar CPF e RG baseado nos documentos existentes
+      let cpfValue = "";
+      let rgValue = "";
+      
+      if (collaborator.documentType === "cpf") {
+        cpfValue = collaborator.officialDocument || "";
+        rgValue = collaborator.secondaryDocument || "";
+      } else if (collaborator.documentType === "rg") {
+        rgValue = collaborator.officialDocument || "";
+        cpfValue = collaborator.secondaryDocument || "";
+      }
+      
       form.reset({
         fullName: collaborator.fullName || "",
-        officialDocument: collaborator.officialDocument || "",
-        documentType: collaborator.documentType as "cpf" | "rg" || "cpf",
-        secondaryDocument: collaborator.secondaryDocument || "",
-        secondaryDocumentType: collaborator.secondaryDocumentType as "cpf" | "rg" | undefined,
+        cpf: cpfValue,
+        rg: rgValue,
         birthDate: collaborator.birthDate || "",
         type: collaborator.type || "",
         phone: collaborator.phone || "",
@@ -98,10 +136,8 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     } else if (open && !isEdit) {
       form.reset({
         fullName: "",
-        officialDocument: "",
-        documentType: "cpf" as const,
-        secondaryDocument: "",
-        secondaryDocumentType: undefined,
+        cpf: "",
+        rg: "",
         birthDate: "",
         type: "",
         phone: "",
@@ -117,8 +153,18 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
   const collaboratorMutation = useMutation({
     mutationFn: async (data: CollaboratorFormData) => {
       try {
-        // Preparar dados do colaborador
-        const collaboratorData: any = { ...data };
+        // Preparar dados do colaborador convertendo CPF e RG para o formato do banco
+        const collaboratorData: any = {
+          fullName: data.fullName,
+          officialDocument: data.cpf,
+          documentType: "cpf",
+          secondaryDocument: data.rg || null,
+          secondaryDocumentType: data.rg ? "rg" : null,
+          birthDate: data.birthDate,
+          type: data.type,
+          phone: data.phone,
+          city: data.city,
+        };
         
         // Adicionar informações do usuário para processamento no servidor
         collaboratorData._userId = user?.id;
@@ -261,87 +307,41 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                 )}
               />
               
-              <div className="flex gap-2">
-                <FormField
-                  control={form.control}
-                  name="documentType"
-                  render={({ field }) => (
-                    <FormItem className="w-24">
-                      <FormLabel>Tipo *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-document-type">
-                            <SelectValue placeholder="Tipo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="cpf">CPF</SelectItem>
-                          <SelectItem value="rg">RG</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="officialDocument"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>Documento Oficial *</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder={form.watch("documentType") === "cpf" ? "000.000.000-00" : "00.000.000-0"} 
-                          {...field}
-                          data-testid="input-collaborator-document"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="cpf"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CPF *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="000.000.000-00" 
+                        {...field}
+                        data-testid="input-collaborator-cpf"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
-              <div className="flex gap-2">
-                <FormField
-                  control={form.control}
-                  name="secondaryDocumentType"
-                  render={({ field }) => (
-                    <FormItem className="w-24">
-                      <FormLabel>Tipo 2</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-secondary-document-type">
-                            <SelectValue placeholder="Tipo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="cpf">CPF</SelectItem>
-                          <SelectItem value="rg">RG</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="secondaryDocument"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>Documento Secundário</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder={form.watch("secondaryDocumentType") === "cpf" ? "000.000.000-00" : "00.000.000-0"} 
-                          {...field}
-                          data-testid="input-secondary-document"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="rg"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>RG</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="00.000.000-0" 
+                        {...field}
+                        data-testid="input-collaborator-rg"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
               <FormField
                 control={form.control}
