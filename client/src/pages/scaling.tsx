@@ -1276,13 +1276,13 @@ export default function Scaling() {
                 <div>
                   <Label className="text-sm font-medium">Data de Início</Label>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {formatDate(selectedInclusion.scheduleStartDate)}
+                    {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
                   </div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Data de Fim</Label>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {formatDate(selectedInclusion.scheduleEndDate)}
+                    {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
                   </div>
                 </div>
               </div>
