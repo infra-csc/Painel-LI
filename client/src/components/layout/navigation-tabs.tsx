@@ -92,7 +92,7 @@ export default function NavigationTabs({ activeTab }: NavigationTabsProps) {
     {
       id: "collaborators",
       path: "/collaborators",
-      label: "Aprovação de Colaboradores",
+      label: "Colaboradores",
       icon: UserCog,
       permission: "canAccessCollaborators" as const,
     },
