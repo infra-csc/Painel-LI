@@ -290,10 +290,10 @@ export default function Scaling() {
       if (ticketPurchased) return false;
     }
     
-    // If doesn't need ticket, block after accommodation purchase
+    // If doesn't need ticket, block after accommodation has reservation number (indicates purchase)
     if (!inclusion.needsTicket) {
       const accommodationPurchased = accommodations?.some(a => 
-        a.teamInclusionId === inclusion.id && a.purchaseDate !== null
+        a.teamInclusionId === inclusion.id && a.reservationNumber !== null && a.reservationNumber !== ''
       );
       if (accommodationPurchased) return false;
     }
@@ -574,21 +574,6 @@ export default function Scaling() {
   const handleSave = () => {
     if (!selectedInclusion) return;
     
-    // Debug: verificar permissões
-    const canConfirm = canConfirmEscalation(selectedInclusion);
-    const canEditCollab = canEditCollaborator(selectedInclusion);
-    console.log('🔍 Debug handleSave:', {
-      user: user?.name,
-      userId: user?.id,
-      userRole: user?.role,
-      functionId: selectedInclusion.functionId,
-      functionName: getFunctionName(selectedInclusion.functionId),
-      canConfirmEscalation: canConfirm,
-      canEditCollaborator: canEditCollab,
-      isEscalated: isEscalated(selectedInclusion),
-      allFunctionManagers: allFunctionManagers?.filter(m => m.functionId === selectedInclusion.functionId),
-    });
-    
     if (!canConfirmEscalation(selectedInclusion)) {
       toast({
         title: "Erro",
@@ -676,34 +661,52 @@ export default function Scaling() {
   };
 
 
+  // Formata data com dia da semana
+  const formatDateWithWeekday = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "N/A";
+    try {
+      const date = new Date(dateStr + 'T00:00:00'); // Adiciona hora para evitar problemas de timezone
+      return new Intl.DateTimeFormat("pt-BR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(date);
+    } catch {
+      return dateStr;
+    }
+  };
+
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}/${year}`;
   };
 
-  // Função específica para formatar datas nas sugestões de viagem
+  // Função específica para formatar datas nas sugestões de viagem com dia da semana
   const formatSuggestionDate = (dateStr: string | null | undefined) => {
     if (!dateStr || dateStr === 'N/A' || dateStr === 'Não definido' || dateStr === 'Não informado') {
       return 'Não informado';
     }
     
-    // Se já está no formato DD/MM/YYYY, retorna como está
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-      return dateStr;
+    // Se está no formato YYYY-MM-DD, converte com dia da semana
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+      return formatDateWithWeekday(dateStr);
     }
     
-    // Se está no formato YYYY-MM-DD, converte para DD/MM/YYYY
-    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
-      const [year, month, day] = dateStr.split('-');
-      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    // Se já está no formato DD/MM/YYYY, tenta converter para incluir dia da semana
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+      const [day, month, year] = dateStr.split('/');
+      const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      return formatDateWithWeekday(isoDate);
     }
     
     // Para outros formatos, tenta extrair números que possam ser datas
     const dateMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (dateMatch) {
       const [, year, month, day] = dateMatch;
-      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+      const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      return formatDateWithWeekday(isoDate);
     }
     
     // Se não conseguir formatar, retorna o valor original
@@ -1194,7 +1197,7 @@ export default function Scaling() {
                     </div>
                     {isEscalationConfirmed(selectedInclusion) && (() => {
                       const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
-                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.purchaseDate !== null);
+                      const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.reservationNumber !== null && a.reservationNumber !== '');
                       
                       if (selectedInclusion.needsTicket && ticketPurchased) {
                         return (
@@ -1205,7 +1208,7 @@ export default function Scaling() {
                       } else if (!selectedInclusion.needsTicket && accommodationPurchased) {
                         return (
                           <div className="text-xs text-muted-foreground mt-1">
-                            ⚠️ Não é possível alterar - hospedagem já comprada
+                            ⚠️ Não é possível alterar - hospedagem já reservada
                           </div>
                         );
                       }
@@ -1226,7 +1229,7 @@ export default function Scaling() {
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                         {selectedInclusion.needsTicket 
                           ? "ℹ️ Você pode alterar o colaborador até a passagem ser comprada"
-                          : "ℹ️ Você pode alterar o colaborador até a hospedagem ser comprada"
+                          : "ℹ️ Você pode alterar o colaborador até a hospedagem ser reservada"
                         }
                       </div>
                     )}
@@ -1480,7 +1483,7 @@ export default function Scaling() {
                         <div>
                           <span className="text-sm text-muted-foreground">Check-in:</span>
                           <div className="font-medium">
-                            {accommodation.checkInDate ? new Date(accommodation.checkInDate).toLocaleDateString('pt-BR') : 'Não informado'}
+                            {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
                             {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
                           </div>
                         </div>
@@ -1489,7 +1492,7 @@ export default function Scaling() {
                         <div>
                           <span className="text-sm text-muted-foreground">Check-out:</span>
                           <div className="font-medium">
-                            {accommodation.checkOutDate ? new Date(accommodation.checkOutDate).toLocaleDateString('pt-BR') : 'Não informado'}
+                            {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
                             {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
                           </div>
                         </div>
