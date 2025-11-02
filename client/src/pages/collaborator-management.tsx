@@ -485,6 +485,31 @@ export default function CollaboratorManagement() {
                 </div>
               </div>
 
+              {/* Seção de Documento Anexado */}
+              {selectedCollaborator.documentAttachmentId && (
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-foreground block mb-2">Documento Anexado</label>
+                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">CPF/RG - {selectedCollaborator.fullName}</div>
+                      <div className="text-xs text-muted-foreground">Documento do colaborador</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(`/api/attachments/${selectedCollaborator.documentAttachmentId}/view`, '_blank')}
+                        data-testid="button-view-document"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Visualizar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {selectedCollaborator.approvalNotes && (
                 <div>
                   <label className="text-sm font-medium text-foreground">Observações da Aprovação</label>

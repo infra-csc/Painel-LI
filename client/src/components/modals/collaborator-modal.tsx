@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event, Function, Collaborator } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import AttachmentUpload from "@/components/ui/attachment-upload";
 
 // Função de validação de CPF
 const validateCPF = (cpf: string): boolean => {
@@ -49,6 +50,7 @@ const collaboratorSchema = z.object({
     .min(1, "CPF é obrigatório")
     .refine((val) => validateCPF(val), { message: "CPF inválido" }),
   rg: z.string().optional(),
+  documentAttachmentId: z.string().min(1, "Documento é obrigatório"),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória"),
   type: z.string().min(1, "Tipo é obrigatório"),
   phone: z.string().optional(),
@@ -88,12 +90,15 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
     enabled: isEmergency,
   });
 
+  const [documentAttachments, setDocumentAttachments] = useState<string[]>([]);
+
   const form = useForm<CollaboratorFormData>({
     resolver: zodResolver(collaboratorSchema),
     defaultValues: {
       fullName: "",
       cpf: "",
       rg: "",
+      documentAttachmentId: "",
       birthDate: "",
       type: "",
       phone: "",
@@ -120,10 +125,14 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         cpfValue = collaborator.secondaryDocument || "";
       }
       
+      const attachmentIds = collaborator.documentAttachmentId ? [collaborator.documentAttachmentId] : [];
+      setDocumentAttachments(attachmentIds);
+      
       form.reset({
         fullName: collaborator.fullName || "",
         cpf: cpfValue,
         rg: rgValue,
+        documentAttachmentId: collaborator.documentAttachmentId || "",
         birthDate: collaborator.birthDate || "",
         type: collaborator.type || "",
         phone: collaborator.phone || "",
@@ -134,10 +143,12 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         functionId: "",
       });
     } else if (open && !isEdit) {
+      setDocumentAttachments([]);
       form.reset({
         fullName: "",
         cpf: "",
         rg: "",
+        documentAttachmentId: "",
         birthDate: "",
         type: "",
         phone: "",
@@ -160,6 +171,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
           documentType: "cpf",
           secondaryDocument: data.rg || null,
           secondaryDocumentType: data.rg ? "rg" : null,
+          documentAttachmentId: data.documentAttachmentId,
           birthDate: data.birthDate,
           type: data.type,
           phone: data.phone,
@@ -342,7 +354,33 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                   </FormItem>
                 )}
               />
-              
+            </div>
+            
+            {/* Seção de Upload de Documento */}
+            <div className="border-t pt-4">
+              <FormField
+                control={form.control}
+                name="documentAttachmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Documento (CPF/RG) *</FormLabel>
+                    <FormControl>
+                      <AttachmentUpload
+                        attachmentIds={documentAttachments}
+                        onAttachmentsChange={(ids) => {
+                          setDocumentAttachments(ids);
+                          field.onChange(ids[0] || "");
+                        }}
+                        title="📄 Anexar Documento"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="birthDate"
