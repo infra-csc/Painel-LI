@@ -709,6 +709,7 @@ export default function TeamInclusionTable() {
                 functionId: formData.get('functionId') as string,
                 dailyRates: dailyRates,
                 needsTicket: formData.get('needsTicket') === 'true',
+                needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
                 observations: observations || null,
@@ -800,6 +801,18 @@ export default function TeamInclusionTable() {
                     <select
                       name="needsTicket"
                       defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="false">Não</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Precisa de Hospedagem?</label>
+                    <select
+                      name="needsAccommodation"
+                      defaultValue={editingInclusion.needsAccommodation ? 'true' : 'false'}
                       className="w-full p-2 border rounded"
                     >
                       <option value="false">Não</option>
