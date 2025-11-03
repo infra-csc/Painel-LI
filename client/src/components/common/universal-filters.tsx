@@ -39,7 +39,9 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     { value: "escalacao", label: "Em Escalação" },
     { value: "passagem", label: "Aguardando Passagem" },
     { value: "hospedagem", label: "Aguardando Hospedagem" },
-    { value: "aprovado", label: "Aprovado" }
+    { value: "passagem_comprada", label: "Passagem Comprada" },
+    { value: "hospedagem_comprada", label: "Hospedagem Comprada" },
+    { value: "hospedagem_passagem_comprada", label: "Hospedagem e Passagem Comprada" }
   ];
 
 
