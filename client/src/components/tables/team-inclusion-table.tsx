@@ -143,13 +143,6 @@ export default function TeamInclusionTable() {
     },
   });
 
-  const canEditInclusion = (status: string) => {
-    // Pode editar até a confirmação de escalação (antes da passagem)
-    // Status que NÃO permitem edição: passagem, hospedagem, aprovacao, aprovado, cancelado
-    const nonEditableStatuses = ['passagem', 'hospedagem', 'aprovacao', 'aprovado', 'cancelado'];
-    return !nonEditableStatuses.includes(status);
-  };
-
   const canCancelEscalation = (inclusion: TeamInclusion) => {
     // Pode cancelar em qualquer status, exceto quando já está cancelado
     return inclusion.status !== 'cancelado';
@@ -657,56 +650,39 @@ export default function TeamInclusionTable() {
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            {isReadOnly(inclusion, hasTicket(inclusion.id), hasAccommodation(inclusion.id)) ? (
-                              // Para cancelados ou com passagem/hospedagem comprada, permitir apenas exclusão
+                            {!isReadOnly(inclusion, hasTicket(inclusion.id), hasAccommodation(inclusion.id)) && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEdit(inclusion.id)}
+                                  className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
+                                  data-testid={`button-edit-${inclusion.id}`}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDelete(inclusion.id)}
+                                  className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
+                                  data-testid={`button-delete-${inclusion.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            {canCancelEscalation(inclusion) && (
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleDelete(inclusion.id)}
-                                className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                data-testid={`button-delete-${inclusion.id}`}
-                                title="Excluir registro cancelado"
+                                onClick={() => handleCancelEscalation(inclusion.id)}
+                                className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
+                                data-testid={`button-cancel-${inclusion.id}`}
+                                title="Cancelar Escalação"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Ban className="w-4 h-4" />
                               </Button>
-                            ) : (
-                              // Para não cancelados, lógica normal
-                              <>
-                                {canEditInclusion(inclusion.status) && (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleEdit(inclusion.id)}
-                                      className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
-                                      data-testid={`button-edit-${inclusion.id}`}
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleDelete(inclusion.id)}
-                                      className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                      data-testid={`button-delete-${inclusion.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
-                                )}
-                                {canCancelEscalation(inclusion) && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleCancelEscalation(inclusion.id)}
-                                    className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
-                                    data-testid={`button-cancel-${inclusion.id}`}
-                                    title="Cancelar Escalação"
-                                  >
-                                    <Ban className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </>
                             )}
                           </>
                         )}
