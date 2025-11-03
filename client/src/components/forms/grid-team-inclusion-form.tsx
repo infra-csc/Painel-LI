@@ -75,6 +75,8 @@ interface FunctionRow {
   dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
   isCustom: boolean; // se é uma função adicionada dinamicamente
   selected?: boolean; // para exclusão em lote
+  fromExcelPaste?: boolean; // se veio do copy-paste do Excel
+  originalFunctionId?: string; // ID original da função (usado para resolver duplicatas)
 }
 
 interface ProcessedRange {
@@ -729,10 +731,51 @@ export default function GridTeamInclusionForm() {
       }
 
       if (newRows.length > 0) {
-        setFunctionRows(prev => [...prev, ...newRows]);
+        // Em vez de apenas adicionar, substituir linhas existentes da mesma função
+        setFunctionRows(prev => {
+          const updatedRows = [...prev];
+          
+          newRows.forEach(newRow => {
+            // Procurar se já existe uma linha para esta função
+            const existingIndex = updatedRows.findIndex(existingRow => {
+              // Extrair o ID original da função existente
+              let existingFunctionId = (existingRow as any).originalFunctionId;
+              if (!existingFunctionId) {
+                // Tentar extrair do functionId
+                if (existingRow.functionId.includes('-')) {
+                  const parts = existingRow.functionId.split('-');
+                  for (let i = 1; i <= parts.length; i++) {
+                    const testId = parts.slice(0, i).join('-');
+                    const foundFunction = functions?.find(f => f.id === testId);
+                    if (foundFunction) {
+                      existingFunctionId = testId;
+                      break;
+                    }
+                  }
+                } else {
+                  existingFunctionId = existingRow.functionId;
+                }
+              }
+              
+              // Comparar com o ID da nova linha
+              return existingFunctionId === (newRow as any).originalFunctionId;
+            });
+            
+            if (existingIndex >= 0) {
+              // Substituir a linha existente
+              updatedRows[existingIndex] = newRow;
+            } else {
+              // Adicionar nova linha
+              updatedRows.push(newRow);
+            }
+          });
+          
+          return updatedRows;
+        });
+        
         toast({
           title: "Dados colados com sucesso",
-          description: `${newRows.length} linha(s) adicionada(s) à grade.`,
+          description: `${newRows.length} linha(s) processada(s). Linhas duplicadas foram substituídas.`,
         });
         setShowPasteModal(false);
         setPastedData("");
