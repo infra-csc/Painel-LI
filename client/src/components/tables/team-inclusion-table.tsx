@@ -12,7 +12,7 @@ import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import type { TeamInclusion, Event, Function, Collaborator, Ticket, Accommodation } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
 export default function TeamInclusionTable() {
@@ -62,31 +62,6 @@ export default function TeamInclusionTable() {
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
-
-  const { data: tickets } = useQuery<Ticket[]>({
-    queryKey: ["/api/tickets"],
-  });
-
-  const { data: accommodations } = useQuery<Accommodation[]>({
-    queryKey: ["/api/accommodations"],
-  });
-
-  const hasTicket = (inclusionId: string) => {
-    return tickets?.some(t => t.teamInclusionId === inclusionId);
-  };
-
-  const hasAccommodation = (inclusionId: string) => {
-    return accommodations?.some(a => a.teamInclusionId === inclusionId);
-  };
-
-  const getTicket = (inclusionId: string) => {
-    return tickets?.find(t => t.teamInclusionId === inclusionId);
-  };
-
-  const getAccommodation = (inclusionId: string) => {
-    return accommodations?.find(a => a.teamInclusionId === inclusionId);
-  };
-
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -151,6 +126,13 @@ export default function TeamInclusionTable() {
       });
     },
   });
+
+  const canEditInclusion = (status: string) => {
+    // Pode editar até a confirmação de escalação (antes da passagem)
+    // Status que NÃO permitem edição: passagem, hospedagem, aprovacao, aprovado, cancelado
+    const nonEditableStatuses = ['passagem', 'hospedagem', 'aprovacao', 'aprovado', 'cancelado'];
+    return !nonEditableStatuses.includes(status);
+  };
 
   const canCancelEscalation = (inclusion: TeamInclusion) => {
     // Pode cancelar em qualquer status, exceto quando já está cancelado
@@ -632,7 +614,27 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <StatusBadge status={inclusion.status || 'planejado'} />
+                      {canEditStatus(user) && inclusion.status !== 'cancelado' ? (
+                        <Select
+                          value={inclusion.status}
+                          onValueChange={(newStatus) => handleStatusChange(inclusion.id, newStatus)}
+                        >
+                          <SelectTrigger className="w-36 h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="planejado">Planejado</SelectItem>
+                            <SelectItem value="confirmado">Confirmado</SelectItem>
+                            <SelectItem value="reaberto">Reaberto</SelectItem>
+                            <SelectItem value="passagem">Passagem</SelectItem>
+                            <SelectItem value="hospedagem">Hospedagem</SelectItem>
+                            <SelectItem value="aprovacao">Aprovação</SelectItem>
+                            <SelectItem value="aprovado">Aprovado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <StatusBadge status={inclusion.status} />
+                      )}
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
@@ -659,39 +661,56 @@ export default function TeamInclusionTable() {
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            {!isReadOnly(inclusion, hasTicket(inclusion.id), hasAccommodation(inclusion.id)) && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEdit(inclusion.id)}
-                                  className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
-                                  data-testid={`button-edit-${inclusion.id}`}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDelete(inclusion.id)}
-                                  className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                  data-testid={`button-delete-${inclusion.id}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </>
-                            )}
-                            {canCancelEscalation(inclusion) && (
+                            {isReadOnly(inclusion) ? (
+                              // Para cancelados, permitir apenas exclusão
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleCancelEscalation(inclusion.id)}
-                                className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
-                                data-testid={`button-cancel-${inclusion.id}`}
-                                title="Cancelar Escalação"
+                                onClick={() => handleDelete(inclusion.id)}
+                                className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
+                                data-testid={`button-delete-${inclusion.id}`}
+                                title="Excluir registro cancelado"
                               >
-                                <Ban className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4" />
                               </Button>
+                            ) : (
+                              // Para não cancelados, lógica normal
+                              <>
+                                {canEditInclusion(inclusion.status) && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleEdit(inclusion.id)}
+                                      className="text-green-600 hover:text-green-900 h-8 w-8 p-0 shrink-0"
+                                      data-testid={`button-edit-${inclusion.id}`}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleDelete(inclusion.id)}
+                                      className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
+                                      data-testid={`button-delete-${inclusion.id}`}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                {canCancelEscalation(inclusion) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleCancelEscalation(inclusion.id)}
+                                    className="text-orange-600 hover:text-orange-900 h-8 w-8 p-0 shrink-0"
+                                    data-testid={`button-cancel-${inclusion.id}`}
+                                    title="Cancelar Escalação"
+                                  >
+                                    <Ban className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </>
                         )}

@@ -4,7 +4,7 @@ import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, X, Calendar, Edit2 } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -60,18 +60,8 @@ export default function Scaling() {
   // Estado para novo comentário inline
   const [newComment, setNewComment] = useState("");
   
-  // Estados para edição de datas (apenas admin)
-  const [showEditDatesModal, setShowEditDatesModal] = useState(false);
-  const [editDatesData, setEditDatesData] = useState({
-    startDate: "",
-    endDate: "",
-  });
-  
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Verificar se usuário é admin
-  const isAdmin = user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador';
 
   // Handle column sorting
   const handleSort = (field: SortField) => {
@@ -276,7 +266,6 @@ export default function Scaling() {
       hasAttachments: accommodation.attachmentIds && accommodation.attachmentIds.length > 0
     };
   };
-
 
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
@@ -483,7 +472,7 @@ export default function Scaling() {
       const confirmationStatus = inclusion.status === "cancelado" 
         ? "Cancelado" 
         : isEscalated(inclusion) 
-        ? "Escalado" 
+        ? "Confirmado" 
         : "Pendente";
 
       // Calcular valor total (valor da diária em centavos / 100 * quantidade)
@@ -679,108 +668,6 @@ export default function Scaling() {
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
       data: updateData
-    });
-  };
-
-  // Função para cancelar escalação (apenas admin)
-  const handleCancelEscalation = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation(); // Evita abrir o modal
-    
-    if (!isAdmin) {
-      toast({
-        title: "Erro",
-        description: "Apenas administradores podem cancelar escalações",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (inclusion.status === 'cancelado') {
-      toast({
-        title: "Aviso",
-        description: "Esta escalação já está cancelada",
-        variant: "default",
-      });
-      return;
-    }
-
-    if (confirm(`Tem certeza que deseja cancelar a escalação #${inclusion.inclusionNumber}?`)) {
-      updateTeamInclusionMutation.mutate({
-        id: inclusion.id,
-        data: {
-          previousStatus: inclusion.status,
-          status: 'cancelado',
-          updatedBy: user?.id
-        }
-      }, {
-        onSuccess: () => {
-          toast({
-            title: "Sucesso",
-            description: "Escalação cancelada com sucesso",
-          });
-        }
-      });
-    }
-  };
-
-  // Função para abrir modal de edição de datas (apenas admin)
-  const handleEditDates = (e: React.MouseEvent, inclusion: TeamInclusion) => {
-    e.stopPropagation(); // Evita abrir o modal principal
-    
-    if (!isAdmin) {
-      toast({
-        title: "Erro",
-        description: "Apenas administradores podem editar datas",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (inclusion.status === 'cancelado') {
-      toast({
-        title: "Aviso",
-        description: "Não é possível editar datas de escalações canceladas",
-        variant: "default",
-      });
-      return;
-    }
-
-    setSelectedInclusion(inclusion);
-    setEditDatesData({
-      startDate: inclusion.scheduleStartDate || "",
-      endDate: inclusion.scheduleEndDate || "",
-    });
-    setShowEditDatesModal(true);
-  };
-
-  // Função para salvar datas editadas
-  const handleSaveDates = () => {
-    if (!selectedInclusion) return;
-
-    if (!editDatesData.startDate || !editDatesData.endDate) {
-      toast({
-        title: "Erro",
-        description: "Preencha as datas de início e fim",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateTeamInclusionMutation.mutate({
-      id: selectedInclusion.id,
-      data: {
-        scheduleStartDate: editDatesData.startDate,
-        scheduleEndDate: editDatesData.endDate,
-        updatedBy: user?.id
-      }
-    }, {
-      onSuccess: () => {
-        toast({
-          title: "Sucesso",
-          description: "Datas atualizadas com sucesso",
-        });
-        setShowEditDatesModal(false);
-      }
     });
   };
 
@@ -1880,11 +1767,11 @@ export default function Scaling() {
                       onChange={(e) => setNewComment(e.target.value)}
                       className="flex-1"
                       data-testid="textarea-comment-inline"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) || !canConfirmEscalation(selectedInclusion)}
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
-                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id))}
+                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
                       className="flex items-center gap-2"
                       data-testid="button-add-comment-inline"
                     >
@@ -1960,7 +1847,7 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {selectedInclusion && !isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) && (
+                {selectedInclusion && !isReadOnly(selectedInclusion) && (
                   <>
                     {/* Botão Salvar - disponível para quem pode editar colaborador OU confirmar escalação */}
                     {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
@@ -2007,7 +1894,7 @@ export default function Scaling() {
                 )}
                 
                 {/* Mensagem informativa quando usuário não tem permissão */}
-                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) && !canConfirmEscalation(selectedInclusion) && (
+                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
                   <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3 text-center">
                     ⚠️ Apenas o responsável pela função pode confirmar escalações
                   </div>
@@ -2029,79 +1916,6 @@ export default function Scaling() {
           teamInclusionId={selectedInclusionForComments}
         />
       )}
-
-      {/* Modal de Edição de Datas (apenas admin) */}
-      <Dialog open={showEditDatesModal} onOpenChange={setShowEditDatesModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Editar Período de Trabalho
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedInclusion && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Escalação #{selectedInclusion.inclusionNumber || 'N/A'}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  {getCollaboratorName(selectedInclusion.collaboratorId)} - {getFunctionName(selectedInclusion.functionId)}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="edit-start-date" className="text-sm font-medium">
-                    Data de Início
-                  </Label>
-                  <Input
-                    id="edit-start-date"
-                    type="date"
-                    value={editDatesData.startDate}
-                    onChange={(e) => setEditDatesData(prev => ({ ...prev, startDate: e.target.value }))}
-                    className="mt-1"
-                    data-testid="input-edit-start-date"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-end-date" className="text-sm font-medium">
-                    Data de Fim
-                  </Label>
-                  <Input
-                    id="edit-end-date"
-                    type="date"
-                    value={editDatesData.endDate}
-                    onChange={(e) => setEditDatesData(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="mt-1"
-                    data-testid="input-edit-end-date"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowEditDatesModal(false)}
-                  data-testid="button-cancel-edit-dates"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleSaveDates}
-                  disabled={updateTeamInclusionMutation.isPending}
-                  className="flex items-center gap-2"
-                  data-testid="button-save-dates"
-                >
-                  <Save className="w-4 h-4" />
-                  {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Datas"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
