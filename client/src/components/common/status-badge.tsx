@@ -21,6 +21,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "status-passagem_comprada"; // Verde esmeralda - passagem comprada
       case "hospedagem_comprada":
         return "status-hospedagem_comprada"; // Verde esmeralda - hospedagem comprada
+      case "hospedagem_passagem_comprada":
+        return "status-hospedagem_passagem_comprada"; // Verde completo - ambos comprados
       case "aprovacao":
         return "status-aprovacao"; // Amarelo - em andamento
       case "aprovado":
@@ -52,6 +54,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Passagem Comprada";
       case "hospedagem_comprada":
         return "Hospedagem Comprada";
+      case "hospedagem_passagem_comprada":
+        return "Hospedagem e Passagem Comprada";
       case "aprovacao":
         return "Aguardando Aprovação";
       case "aprovado":

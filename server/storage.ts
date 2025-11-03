@@ -976,9 +976,16 @@ export class DatabaseStorage implements IStorage {
     // Status change
     if (inclusionData.status && inclusionData.status !== oldInclusion.status) {
       const statusLabels: Record<string, string> = {
-        'planejado': 'Planejado',
+        'planejado': 'Aguardando Escalação',
         'confirmado': 'Confirmado',
         'reaberto': 'Reaberto',
+        'escalacao': 'Escalado',
+        'passagem': 'Aguardando Passagem',
+        'passagem_comprada': 'Passagem Comprada',
+        'hospedagem': 'Aguardando Hospedagem',
+        'hospedagem_comprada': 'Hospedagem Comprada',
+        'hospedagem_passagem_comprada': 'Hospedagem e Passagem Comprada',
+        'aprovacao': 'Aguardando Aprovação',
         'aprovado': 'Aprovado',
         'cancelado': 'Cancelado'
       };

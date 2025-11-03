@@ -80,6 +80,10 @@ export default function Tickets() {
     queryKey: ["/api/tickets"],
   });
 
+  const { data: accommodations } = useQuery<any[]>({
+    queryKey: ["/api/accommodations"],
+  });
+
   const { data: users } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
@@ -264,6 +268,7 @@ export default function Tickets() {
          inclusion.status === "hospedagem" || 
          inclusion.status === "aprovacao" || 
          inclusion.status === "passagem_comprada" ||
+         inclusion.status === "hospedagem_passagem_comprada" ||
          inclusion.status === "cancelado");
       
       if (!needsTicketMatch) return false;
@@ -306,6 +311,7 @@ export default function Tickets() {
     };
     
     const statusPriority: Record<string, number> = {
+      'hospedagem_passagem_comprada': 7,  // Highest priority - both purchased
       'passagem_comprada': 6,
       'hospedagem': 5,
       'aprovacao': 4,
@@ -522,13 +528,32 @@ export default function Tickets() {
             ticketObservations: quickData.ticketObservations || null
           });
 
-          // Atualizar team inclusion para hospedagem se necessário, senão finaliza
+          // Atualizar team inclusion status baseado em passagem E hospedagem
           const needsAccommodation = inclusion.needsAccommodation;
+          let newStatus = "passagem_comprada";
+          let newPhase = "passagem";
+          
+          if (needsAccommodation) {
+            // Verificar se hospedagem já foi comprada
+            const accommodation = accommodations?.find(acc => acc.teamInclusionId === inclusion.id);
+            const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+            
+            if (accommodationPurchased) {
+              // Ambos comprados
+              newStatus = "hospedagem_passagem_comprada";
+              newPhase = "aprovacao";
+            } else {
+              // Passagem comprada, aguardando hospedagem
+              newStatus = "hospedagem";
+              newPhase = "hospedagem";
+            }
+          }
+          
           await updateTeamInclusionMutation.mutateAsync({
             id: inclusion.id,
             data: {
-              status: needsAccommodation ? "hospedagem" : "passagem_comprada",
-              phase: needsAccommodation ? "hospedagem" : "passagem"
+              status: newStatus,
+              phase: newPhase
             }
           });
 
@@ -2113,13 +2138,32 @@ export default function Tickets() {
                                         ticketObservations: data.ticketObservations || null
                                       });
 
-                                      // Atualizar team inclusion para hospedagem se necessário, senão finaliza (só quando criar novo)
+                                      // Atualizar team inclusion status baseado em passagem E hospedagem (só quando criar novo)
                                       const needsAccommodation = selectedInclusion.needsAccommodation;
+                                      let newStatus = "passagem_comprada";
+                                      let newPhase = "passagem";
+                                      
+                                      if (needsAccommodation) {
+                                        // Verificar se hospedagem já foi comprada
+                                        const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
+                                        const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+                                        
+                                        if (accommodationPurchased) {
+                                          // Ambos comprados
+                                          newStatus = "hospedagem_passagem_comprada";
+                                          newPhase = "aprovacao";
+                                        } else {
+                                          // Passagem comprada, aguardando hospedagem
+                                          newStatus = "hospedagem";
+                                          newPhase = "hospedagem";
+                                        }
+                                      }
+                                      
                                       await updateTeamInclusionMutation.mutateAsync({
                                         id: selectedInclusion.id,
                                         data: {
-                                          status: needsAccommodation ? "hospedagem" : "passagem_comprada",
-                                          phase: needsAccommodation ? "hospedagem" : "passagem"
+                                          status: newStatus,
+                                          phase: newPhase
                                         }
                                       });
                                     }

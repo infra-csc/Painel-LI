@@ -108,6 +108,10 @@
     @apply bg-emerald-100 text-emerald-800 border border-emerald-200; 
   }
   
+  .status-hospedagem_passagem_comprada { 
+    @apply bg-green-600 text-white border border-green-700; 
+  }
+  
   .status-aprovacao { 
     @apply bg-yellow-100 text-yellow-800 border border-yellow-200; 
   }

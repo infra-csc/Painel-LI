@@ -759,6 +759,10 @@ export default function Accommodations() {
     queryKey: ["/api/accommodations"],
   });
 
+  const { data: tickets } = useQuery<any[]>({
+    queryKey: ["/api/tickets"],
+  });
+
   const { data: users } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
@@ -771,8 +775,8 @@ export default function Accommodations() {
       // Deve precisar de hospedagem
       if (inclusion.needsAccommodation !== true) return false;
       
-      // Deve estar no status "hospedagem" (aguardando hospedagem) ou "hospedagem_comprada" (já registrada)
-      const correctStatus = inclusion.status === "hospedagem" || inclusion.status === "hospedagem_comprada";
+      // Deve estar no status "hospedagem" (aguardando hospedagem), "hospedagem_comprada" (já registrada) ou "hospedagem_passagem_comprada" (ambos comprados)
+      const correctStatus = inclusion.status === "hospedagem" || inclusion.status === "hospedagem_comprada" || inclusion.status === "hospedagem_passagem_comprada";
       
       return correctStatus;
     });
@@ -852,10 +856,31 @@ export default function Accommodations() {
       // 1. Criar accommodation
       const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
       
-      // 2. Atualizar status do teamInclusion para "hospedagem_comprada" e phase para "aprovacao"
+      // 2. Atualizar status do teamInclusion baseado em passagem E hospedagem
+      const inclusion = teamInclusions?.find(inc => inc.id === accommodationData.teamInclusionId);
+      const needsTicket = inclusion?.needsTicket;
+      let newStatus = "hospedagem_comprada";
+      let newPhase = "aprovacao";
+      
+      if (needsTicket) {
+        // Verificar se passagem já foi comprada
+        const ticket = tickets?.find(t => t.teamInclusionId === accommodationData.teamInclusionId);
+        const ticketPurchased = ticket && (ticket.purchaseDate || ticket.actualDepartureDate);
+        
+        if (ticketPurchased) {
+          // Ambos comprados
+          newStatus = "hospedagem_passagem_comprada";
+          newPhase = "aprovacao";
+        } else {
+          // Hospedagem comprada, aguardando passagem
+          newStatus = "passagem";
+          newPhase = "passagem";
+        }
+      }
+      
       await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
-        status: "hospedagem_comprada",
-        phase: "aprovacao",
+        status: newStatus,
+        phase: newPhase,
         updatedBy: user?.id
       });
       
