@@ -330,8 +330,8 @@ export default function Scaling() {
       return { text: 'Aguardando Hospedagem', color: 'yellow' };
     }
 
-    // 9. Se confirmou mas não precisa de passagem nem hospedagem - aguarda aprovação
-    return { text: 'Aguardando Aprovação', color: 'yellow' };
+    // 9. Se confirmou mas não precisa de passagem nem hospedagem - está escalado
+    return { text: 'Escalado', color: 'green' };
   };
 
   // Check if user can manage function (is responsible for it)
