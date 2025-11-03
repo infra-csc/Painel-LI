@@ -100,9 +100,10 @@ export const teamInclusions = pgTable("team_inclusions", {
   actualStartDate: date("actual_start_date"), // data real de início de trabalho
   actualEndDate: date("actual_end_date"), // data real final
   flightDepartureDate: date("flight_departure_date"),
-  flightArrivalSuggestedTime: text("flight_arrival_suggested_time"),
+  flightDepartureSuggestedTime: text("flight_departure_suggested_time"), // horário sugerido de ida
+  flightArrivalSuggestedTime: text("flight_arrival_suggested_time"), // horário sugerido de chegada
   flightReturnDate: date("flight_return_date"),
-  flightReturnSuggestedTime: text("flight_return_suggested_time"),
+  flightReturnSuggestedTime: text("flight_return_suggested_time"), // horário sugerido de volta
   needsTicket: boolean("needs_ticket").default(false),
   needsAccommodation: boolean("needs_accommodation").default(false),
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
@@ -191,6 +192,19 @@ export const comments = pgTable("comments", {
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   phase: text("phase").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Team Inclusion Logs table - audit trail for escalation changes
+export const teamInclusionLogs = pgTable("team_inclusion_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: 'cascade' }),
+  action: text("action").notNull(), // created, collaborator_changed, status_changed, dates_changed, confirmed, reopened, etc
+  details: text("details").notNull(), // human-readable description of what changed
+  previousValue: text("previous_value"), // previous value for the field that changed
+  newValue: text("new_value"), // new value for the field that changed
+  userId: varchar("user_id").notNull().references(() => users.id),
+  userName: text("user_name").notNull(), // cached for performance
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -291,6 +305,11 @@ export const insertCommentSchema = createInsertSchema(comments).omit({
   createdAt: true,
 });
 
+export const insertTeamInclusionLogSchema = createInsertSchema(teamInclusionLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
   id: true,
   logNumber: true,
@@ -334,6 +353,9 @@ export type InsertFinancial = z.infer<typeof insertFinancialSchema>;
 
 export type Comment = typeof comments.$inferSelect;
 export type InsertComment = z.infer<typeof insertCommentSchema>;
+
+export type TeamInclusionLog = typeof teamInclusionLogs.$inferSelect;
+export type InsertTeamInclusionLog = z.infer<typeof insertTeamInclusionLogSchema>;
 
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
