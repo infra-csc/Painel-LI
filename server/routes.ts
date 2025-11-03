@@ -1075,6 +1075,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get logs for a specific team inclusion
+  app.get("/api/team-inclusions/:id/logs", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const logs = await storage.getTeamInclusionLogs(id);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar histórico de alterações" });
+    }
+  });
+
   app.post("/api/team-inclusions", async (req, res) => {
     try {
       // Clean empty date strings before validation

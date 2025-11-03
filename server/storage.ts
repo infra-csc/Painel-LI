@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers,
+  functionUsers, functionManagers, teamInclusionLogs,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -14,7 +14,8 @@ import {
   type Comment, type InsertComment,
   type SystemLog, type InsertSystemLog,
   type FunctionUser, type InsertFunctionUser,
-  type FunctionManager, type InsertFunctionManager
+  type FunctionManager, type InsertFunctionManager,
+  type TeamInclusionLog, type InsertTeamInclusionLog
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -97,6 +98,10 @@ export interface IStorage {
   // System Logs
   getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]>;
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
+  
+  // Team Inclusion Logs
+  getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]>;
+  createTeamInclusionLog(log: InsertTeamInclusionLog): Promise<TeamInclusionLog>;
 }
 
 export class MemStorage implements IStorage {
@@ -666,6 +671,21 @@ export class MemStorage implements IStorage {
     this.systemLogs.set(id, log);
     return log;
   }
+  
+  // Team Inclusion Logs - stub methods (not used in memory storage)
+  async getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]> {
+    return [];
+  }
+  
+  async createTeamInclusionLog(log: InsertTeamInclusionLog): Promise<TeamInclusionLog> {
+    const id = randomUUID();
+    const logEntry: TeamInclusionLog = {
+      ...log,
+      id,
+      createdAt: new Date(),
+    };
+    return logEntry;
+  }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1072,6 +1092,25 @@ export class DatabaseStorage implements IStorage {
 
   async createSystemLog(logData: InsertSystemLog): Promise<SystemLog> {
     const [log] = await db.insert(systemLogs).values(logData).returning();
+    return log;
+  }
+  
+  // Team Inclusion Logs
+  async getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]> {
+    const logs = await db
+      .select()
+      .from(teamInclusionLogs)
+      .where(eq(teamInclusionLogs.teamInclusionId, teamInclusionId));
+    
+    // Sort by creation time, newest first
+    return logs.sort((a, b) => {
+      if (!a.createdAt || !b.createdAt) return 0;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
+  async createTeamInclusionLog(logData: InsertTeamInclusionLog): Promise<TeamInclusionLog> {
+    const [log] = await db.insert(teamInclusionLogs).values(logData).returning();
     return log;
   }
 }
