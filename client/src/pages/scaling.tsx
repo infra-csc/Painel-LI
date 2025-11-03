@@ -489,6 +489,7 @@ export default function Scaling() {
         'Área': inclusion.area || 'N/A',
         'Colaborador': collaborator?.fullName || 'Não escalado',
         'Documento Colaborador': collaborator?.officialDocument || 'N/A',
+        'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
         'Cidade Colaborador': collaborator?.city || 'N/A',
         'Período Agendado - Início': inclusion.scheduleStartDate ? formatDate(inclusion.scheduleStartDate) : 'N/A',
@@ -496,10 +497,12 @@ export default function Scaling() {
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
         'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
         'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
-        'Data Voo Ida': inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A',
-        'Horário Sugerido Ida': inclusion.flightArrivalSuggestedTime || 'N/A',
-        'Data Voo Volta': inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A',
-        'Horário Sugerido Volta': inclusion.flightReturnSuggestedTime || 'N/A',
+        'Data e Horário Ida': inclusion.flightDepartureDate 
+          ? `${formatDate(inclusion.flightDepartureDate)}${inclusion.flightArrivalSuggestedTime ? ' - ' + inclusion.flightArrivalSuggestedTime : ''}`
+          : 'N/A',
+        'Data e Horário Volta': inclusion.flightReturnDate 
+          ? `${formatDate(inclusion.flightReturnDate)}${inclusion.flightReturnSuggestedTime ? ' - ' + inclusion.flightReturnSuggestedTime : ''}`
+          : 'N/A',
         'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
         'Diárias Planejadas': inclusion.dailyRates ?? 0,
         'Diárias Reais': inclusion.actualDailyRates ?? 'N/A',
@@ -527,6 +530,7 @@ export default function Scaling() {
       { wch: 20 },  // Área
       { wch: 30 },  // Colaborador
       { wch: 18 },  // Documento
+      { wch: 15 },  // Data Nascimento
       { wch: 15 },  // Telefone
       { wch: 20 },  // Cidade
       { wch: 18 },  // Período Agendado - Início
@@ -534,10 +538,8 @@ export default function Scaling() {
       { wch: 18 },  // Período Real - Início
       { wch: 18 },  // Período Real - Fim
       { wch: 15 },  // Precisa Passagem
-      { wch: 15 },  // Data Voo Ida
-      { wch: 18 },  // Horário Sugerido Ida
-      { wch: 15 },  // Data Voo Volta
-      { wch: 18 },  // Horário Sugerido Volta
+      { wch: 25 },  // Data e Horário Ida
+      { wch: 25 },  // Data e Horário Volta
       { wch: 18 },  // Precisa Hospedagem
       { wch: 18 },  // Diárias Planejadas
       { wch: 15 },  // Diárias Reais
