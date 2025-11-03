@@ -1,6 +1,8 @@
 // Central rules for interaction with records based on their status
 export function isReadOnly(inclusion: { status?: string }): boolean {
-  return inclusion.status === 'cancelado';
+  // Cannot edit after purchase (passagem_comprada, hospedagem_comprada, hospedagem_passagem_comprada) or if cancelled
+  const purchasedStatuses = ['passagem_comprada', 'hospedagem_comprada', 'hospedagem_passagem_comprada', 'cancelado'];
+  return purchasedStatuses.includes(inclusion.status || '');
 }
 
 export function canView(inclusion: { status?: string }): boolean {
