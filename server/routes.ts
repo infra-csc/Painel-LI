@@ -1139,6 +1139,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("🔧 PATCH team-inclusion:", id, req.body);
       // Remove _userId from body (it's only for auth)
       const { _userId, ...bodyData } = req.body;
+      
+      // VALIDAÇÃO: Impedir reabertura se já houver passagem/hospedagem comprada
+      if (bodyData.status === 'reaberto') {
+        // Verificar se tem passagem comprada (se precisa de passagem)
+        if (currentInclusion.needsTicket) {
+          const tickets = await storage.getTicketsByInclusionId(id);
+          const hasTicketPurchased = tickets.some(ticket => ticket.purchaseDate !== null);
+          
+          if (hasTicketPurchased) {
+            return res.status(400).json({ 
+              message: "Não é possível reabrir esta escalação pois a passagem já foi comprada. Cancele a compra da passagem primeiro." 
+            });
+          }
+        }
+        
+        // Verificar se tem hospedagem comprada (se não precisa de passagem)
+        if (!currentInclusion.needsTicket) {
+          const accommodations = await storage.getAccommodationsByInclusionId(id);
+          const hasAccommodationPurchased = accommodations.some(acc => 
+            acc.reservationNumber !== null && acc.reservationNumber !== ''
+          );
+          
+          if (hasAccommodationPurchased) {
+            return res.status(400).json({ 
+              message: "Não é possível reabrir esta escalação pois a hospedagem já foi reservada. Cancele a reserva primeiro." 
+            });
+          }
+        }
+      }
+      
       const updates = { 
         ...bodyData, 
         updatedBy: userId // Use authenticated user ID
