@@ -23,6 +23,8 @@ import CommentsModal from "@/components/modals/comments-modal";
 import { isReadOnly } from "@/lib/interactions";
 import { canView, canEdit } from "@/lib/permissions";
 import * as XLSX from 'xlsx';
+import { eachDayOfInterval, parseISO, format, isSameDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function Scaling() {
   const [filters, setFilters] = useState<{
@@ -1289,20 +1291,73 @@ export default function Scaling() {
                 );
               })()}
 
-              {/* Informações de Data */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Data de Início</Label>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
+              {/* Período de Trabalho com Calendário Visual */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+                  📅 Período de Trabalho
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label className="text-sm font-medium text-blue-900 dark:text-blue-200">Data de Início</Label>
+                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-1">
+                      {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-blue-900 dark:text-blue-200">Data de Fim</Label>
+                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-1">
+                      {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-sm font-medium">Data de Fim</Label>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
-                  </div>
-                </div>
+
+                {/* Calendário Visual Mini */}
+                {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
+                  const startDate = parseISO(selectedInclusion.scheduleStartDate);
+                  const endDate = parseISO(selectedInclusion.scheduleEndDate);
+                  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+                  
+                  return (
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-blue-300 dark:border-blue-700">
+                      <div className="text-xs font-medium text-muted-foreground mb-3">
+                        Dias do período ({allDays.length} {allDays.length === 1 ? 'dia' : 'dias'})
+                      </div>
+                      <div className="grid grid-cols-7 gap-2">
+                        {allDays.map((day, index) => {
+                          const isWorkDay = true;
+                          const dayFormatted = format(day, 'dd/MM', { locale: ptBR });
+                          const weekday = format(day, 'EEE', { locale: ptBR });
+                          
+                          return (
+                            <div 
+                              key={index}
+                              className={`
+                                flex flex-col items-center justify-center p-2 rounded-md border
+                                ${isWorkDay 
+                                  ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' 
+                                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+                                }
+                              `}
+                            >
+                              <div className="text-xs font-medium text-foreground">
+                                {weekday}
+                              </div>
+                              <div className="text-sm font-semibold text-foreground">
+                                {format(day, 'dd', { locale: ptBR })}
+                              </div>
+                              {isWorkDay && (
+                                <div className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                  ✓
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
 
@@ -1692,49 +1747,6 @@ export default function Scaling() {
               )}
 
               {/* Seção de Comentários */}
-              {/* Valores e Diárias - Movido para antes dos comentários */}
-              <div className="border rounded-lg p-3 bg-muted/30 mb-4">
-                <h4 className="text-xs font-medium text-muted-foreground mb-2">
-                  Valores
-                </h4>
-                <div className="grid grid-cols-3 gap-3 items-end">
-                  <div>
-                    <Label htmlFor="dailyValue" className="text-xs font-medium">
-                      Valor da Diária (R$)
-                    </Label>
-                    <Input
-                      id="dailyValue"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={modalData.dailyValue || ""}
-                      onChange={(e) => setModalData(prev => ({...prev, dailyValue: parseFloat(e.target.value) || 0}))}
-                      className="mt-1 text-xs h-8"
-                      disabled={(() => {
-                        if (!selectedInclusion) return true;
-                        if (isReadOnly(selectedInclusion)) return true;
-                        if (!canConfirmEscalation(selectedInclusion)) return true;
-                        if (isEscalated(selectedInclusion)) return true;
-                        return false;
-                      })()}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium">Quantidade de Diárias</Label>
-                    <div className="text-sm font-semibold text-foreground mt-1 px-2 py-1 bg-muted rounded text-center">
-                      {selectedInclusion.dailyRates}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Valor Total</Label>
-                    <div className="text-xs text-muted-foreground mt-1 font-medium">
-                      {formatCurrency((modalData.dailyValue || 0) * selectedInclusion.dailyRates)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="border-t pt-4">
                 <h3 className="text-lg font-medium mb-3">Comentários</h3>
                 
