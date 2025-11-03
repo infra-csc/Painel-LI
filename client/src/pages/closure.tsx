@@ -285,12 +285,12 @@ export default function Closure() {
         observations: data.observations || null
       });
 
-      // Then update team inclusion status to approval phase
+      // Then update team inclusion status to approved
       await updateTeamInclusionMutation.mutateAsync({
         id: inclusion.id,
         data: {
-          status: "aprovacao",
-          phase: "aprovacao"
+          status: "aprovado",
+          phase: "aprovado"
         }
       });
 
@@ -344,12 +344,12 @@ export default function Closure() {
           observations: data.observations || null
         });
 
-        // Update each team inclusion status to approval phase
+        // Update each team inclusion status to approved
         await updateTeamInclusionMutation.mutateAsync({
           id: inclusion.id,
           data: {
-            status: "aprovacao",
-            phase: "aprovacao"
+            status: "aprovado",
+            phase: "aprovado"
           }
         });
       }
