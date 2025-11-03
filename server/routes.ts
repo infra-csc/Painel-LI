@@ -1144,8 +1144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (bodyData.status === 'reaberto') {
         // Verificar se tem passagem comprada (se precisa de passagem)
         if (currentInclusion.needsTicket) {
-          const tickets = await storage.getTicketsByInclusionId(id);
-          const hasTicketPurchased = tickets.some(ticket => ticket.purchaseDate !== null);
+          const allTickets = await storage.getTickets();
+          const inclusionTickets = allTickets.filter(t => t.teamInclusionId === id);
+          const hasTicketPurchased = inclusionTickets.some(ticket => ticket.purchaseDate !== null);
           
           if (hasTicketPurchased) {
             return res.status(400).json({ 
@@ -1156,8 +1157,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Verificar se tem hospedagem comprada (se não precisa de passagem)
         if (!currentInclusion.needsTicket) {
-          const accommodations = await storage.getAccommodationsByInclusionId(id);
-          const hasAccommodationPurchased = accommodations.some(acc => 
+          const allAccommodations = await storage.getAccommodations();
+          const inclusionAccommodations = allAccommodations.filter(a => a.teamInclusionId === id);
+          const hasAccommodationPurchased = inclusionAccommodations.some(acc => 
             acc.reservationNumber !== null && acc.reservationNumber !== ''
           );
           
