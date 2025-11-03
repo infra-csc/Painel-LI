@@ -7,6 +7,10 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     switch (status) {
       case "planejado":
         return "status-planejado"; // Vermelho - ainda não iniciado
+      case "confirmado":
+        return "status-confirmado"; // Laranja - escalação confirmada e bloqueada
+      case "reaberto":
+        return "status-reaberto"; // Azul claro - gestão liberou para editar
       case "escalacao":
         return "status-escalacao"; // Amarelo - em andamento
       case "passagem":
@@ -19,6 +23,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "status-hospedagem_comprada"; // Verde esmeralda - hospedagem comprada
       case "aprovacao":
         return "status-aprovacao"; // Amarelo - em andamento
+      case "aprovado":
+        return "status-aprovado"; // Verde - processo completo
       case "rejeitado":
         return "status-rejeitado"; // Vermelho - erro/problema
       case "cancelado":
@@ -32,6 +38,10 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     switch (status) {
       case "planejado":
         return "Aguardando Escalação";
+      case "confirmado":
+        return "Confirmado";
+      case "reaberto":
+        return "Reaberto";
       case "escalacao":
         return "Escalado";
       case "passagem":
@@ -44,6 +54,8 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Hospedagem Comprada";
       case "aprovacao":
         return "Aguardando Aprovação";
+      case "aprovado":
+        return "Aprovado";
       case "rejeitado":
         return "Rejeitado";
       case "cancelado":
