@@ -1257,40 +1257,6 @@ export default function Scaling() {
                 )}
               </div>
 
-              {/* Dados do Colaborador Selecionado - só após escalação confirmada */}
-              {modalData.collaboratorId && isEscalationConfirmed(selectedInclusion) && (() => {
-                const collaborator = getCollaborator(modalData.collaboratorId);
-                if (!collaborator) return null;
-                return (
-                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                      Dados do Colaborador
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Documentos</Label>
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">
-                            {collaborator.documentType?.toUpperCase() || 'DOC'}: {collaborator.officialDocument || 'N/A'}
-                          </p>
-                          {collaborator.secondaryDocument && (
-                            <p className="text-sm font-medium">
-                              {collaborator.secondaryDocumentType?.toUpperCase() || 'DOC'}: {collaborator.secondaryDocument}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>
-                        <p className="text-sm font-medium">
-                          {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* Período de Trabalho com Calendário Visual */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
