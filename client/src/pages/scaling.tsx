@@ -277,64 +277,6 @@ export default function Scaling() {
     };
   };
 
-  // Função para determinar o status correto a exibir
-  const getDisplayStatus = (inclusion: TeamInclusion) => {
-    // 1. Cancelado
-    if (inclusion.status === 'cancelado') {
-      return { text: 'Cancelado', color: 'gray' };
-    }
-
-    // 2. Aguardando Escalação = status "planejado" ou "reaberto"
-    if (inclusion.status === 'planejado' || inclusion.status === 'reaberto') {
-      return { text: 'Aguardando Escalação', color: 'red' };
-    }
-
-    // A partir daqui, escalação foi confirmada (status = "confirmado")
-    const ticket = getTicket(inclusion.id);
-    const accommodation = getAccommodation(inclusion.id);
-    
-    // Verifica se a passagem foi COMPRADA (tem purchaseDate)
-    const hasTicketPurchased = !!ticket && !!ticket.purchaseDate;
-    
-    // Verifica se a hospedagem foi COMPRADA (tem reservationNumber)
-    const hasAccommodationPurchased = !!accommodation && 
-      !!accommodation.reservationNumber && 
-      accommodation.reservationNumber.trim() !== '';
-
-    // 3. Passagem e Hospedagem Compradas = tem as duas e as duas foram compradas
-    if (inclusion.needsTicket && inclusion.needsAccommodation && hasTicketPurchased && hasAccommodationPurchased) {
-      return { text: 'Passagem e Hospedagem Compradas', color: 'green' };
-    }
-
-    // 4. Passagem Comprada = tem apenas passagem e foi comprada
-    if (inclusion.needsTicket && !inclusion.needsAccommodation && hasTicketPurchased) {
-      return { text: 'Passagem Comprada', color: 'green' };
-    }
-
-    // 5. Hospedagem Comprada = tem apenas hospedagem e foi comprada
-    if (!inclusion.needsTicket && inclusion.needsAccommodation && hasAccommodationPurchased) {
-      return { text: 'Hospedagem Comprada', color: 'green' };
-    }
-
-    // 6. Aguardando Hospedagem = tem hospedagem E (passagem já foi comprada OU não tem passagem)
-    if (inclusion.needsAccommodation && !hasAccommodationPurchased) {
-      if (inclusion.needsTicket && hasTicketPurchased) {
-        // Tem passagem e já foi comprada, aguarda hospedagem
-        return { text: 'Aguardando Hospedagem', color: 'yellow' };
-      } else if (!inclusion.needsTicket) {
-        // Não tem passagem, só hospedagem, aguarda hospedagem
-        return { text: 'Aguardando Hospedagem', color: 'yellow' };
-      }
-    }
-
-    // 7. Aguardando Passagem = tem passagem e foi confirmado mas não comprou ainda
-    if (inclusion.needsTicket && !hasTicketPurchased) {
-      return { text: 'Aguardando Passagem', color: 'yellow' };
-    }
-
-    // 8. Escalado = confirmado mas não precisa de passagem nem hospedagem
-    return { text: 'Escalado', color: 'green' };
-  };
 
   // Check if user can manage function (is responsible for it)
   const canManageFunction = (functionId: string) => {
@@ -538,9 +480,11 @@ export default function Scaling() {
       const func = functions?.find(f => f.id === inclusion.functionId);
       const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
       
-      // Usar a mesma lógica de status da tela
-      const displayStatus = getDisplayStatus(inclusion);
-      const confirmationStatus = displayStatus.text;
+      const confirmationStatus = inclusion.status === "cancelado" 
+        ? "Cancelado" 
+        : isEscalated(inclusion) 
+        ? "Escalado" 
+        : "Pendente";
 
       // Calcular valor total (valor da diária em centavos / 100 * quantidade)
       const dailyValueInReais = (inclusion.dailyValue || 0) / 100;
@@ -1156,21 +1100,38 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="flex flex-col gap-1">
+                                  {inclusion.status === "cancelado" ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                      Cancelado
+                                    </div>
+                                  ) : isEscalated(inclusion) ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Escalado
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                      Pendente
+                                    </div>
+                                  )}
+                                  {getTicket(inclusion.id) && (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      ✈️ Passagem Comprada
+                                    </div>
+                                  )}
                                   {(() => {
-                                    const displayStatus = getDisplayStatus(inclusion);
-                                    const colorMap = {
-                                      gray: { bg: 'bg-gray-100 dark:bg-gray-900/30', text: 'text-gray-700 dark:text-gray-300', dot: 'bg-gray-500' },
-                                      red: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
-                                      yellow: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
-                                      orange: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500' },
-                                      green: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },
-                                    };
-                                    const colors = colorMap[displayStatus.color as keyof typeof colorMap] || colorMap.gray;
-                                    
-                                    return (
-                                      <div className={`inline-flex items-center gap-2 px-3 py-1 ${colors.bg} ${colors.text} text-sm rounded-full`}>
-                                        <div className={`w-2 h-2 ${colors.dot} rounded-full`}></div>
-                                        {displayStatus.text}
+                                    const accommodation = getAccommodation(inclusion.id);
+                                    const accommodationInfo = formatAccommodationInfo(accommodation);
+                                    return accommodationInfo && (
+                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        🏨 Hospedagem Disponível
+                                        {accommodationInfo.hasAttachments && (
+                                          <span className="ml-1">📎</span>
+                                        )}
                                       </div>
                                     );
                                   })()}
@@ -1253,21 +1214,38 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="flex flex-col gap-1">
+                                  {inclusion.status === "cancelado" ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                      Cancelado
+                                    </div>
+                                  ) : isEscalated(inclusion) ? (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Escalado
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                      Pendente
+                                    </div>
+                                  )}
+                                  {getTicket(inclusion.id) && (
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      ✈️ Passagem Comprada
+                                    </div>
+                                  )}
                                   {(() => {
-                                    const displayStatus = getDisplayStatus(inclusion);
-                                    const colorMap = {
-                                      gray: { bg: 'bg-gray-100 dark:bg-gray-900/30', text: 'text-gray-700 dark:text-gray-300', dot: 'bg-gray-500' },
-                                      red: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
-                                      yellow: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
-                                      orange: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500' },
-                                      green: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },
-                                    };
-                                    const colors = colorMap[displayStatus.color as keyof typeof colorMap] || colorMap.gray;
-                                    
-                                    return (
-                                      <div className={`inline-flex items-center gap-2 px-3 py-1 ${colors.bg} ${colors.text} text-sm rounded-full`}>
-                                        <div className={`w-2 h-2 ${colors.dot} rounded-full`}></div>
-                                        {displayStatus.text}
+                                    const accommodation = getAccommodation(inclusion.id);
+                                    const accommodationInfo = formatAccommodationInfo(accommodation);
+                                    return accommodationInfo && (
+                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        🏨 Hospedagem Disponível
+                                        {accommodationInfo.hasAttachments && (
+                                          <span className="ml-1">📎</span>
+                                        )}
                                       </div>
                                     );
                                   })()}
