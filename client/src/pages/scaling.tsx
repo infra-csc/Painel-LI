@@ -1209,7 +1209,7 @@ export default function Scaling() {
                       if (selectedInclusion.status === 'confirmado') {
                         return (
                           <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                            🔒 Escalação confirmada - Para editar, altere o status para "Reaberto" na tela de inclusões
+                            Escalação confirmada: para alterações nesse momento entre em contato com o time de Viagens
                           </div>
                         );
                       }
