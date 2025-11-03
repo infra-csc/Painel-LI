@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +19,7 @@ export default function TeamInclusionTable() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInclusion, setEditingInclusion] = useState<TeamInclusion | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
     eventId: "all",
     functionId: "all",
@@ -196,6 +198,110 @@ export default function TeamInclusionTable() {
     }
   };
 
+  // Ações em lote
+  const toggleRowSelection = (inclusionId: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(inclusionId)) {
+        newSet.delete(inclusionId);
+      } else {
+        newSet.add(inclusionId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRows.size === filteredAndSortedInclusions.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(filteredAndSortedInclusions.map(i => i.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "Nenhuma seleção",
+        description: "Selecione pelo menos uma inclusão para excluir.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedRows.size} inclusão(ões) selecionada(s)?`)) {
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of Array.from(selectedRows)) {
+      try {
+        const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
+        if (response.ok) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (error) {
+        errorCount++;
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    setSelectedRows(new Set());
+
+    toast({
+      title: successCount > 0 ? "Sucesso" : "Erro",
+      description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
+  const handleBulkCancel = async () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "Nenhuma seleção",
+        description: "Selecione pelo menos uma inclusão para cancelar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja cancelar ${selectedRows.size} escalação(ões) selecionada(s)?`)) {
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of Array.from(selectedRows)) {
+      try {
+        const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, {
+          status: "cancelado",
+          phase: "cancelado"
+        });
+        if (response.ok) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (error) {
+        errorCount++;
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    setSelectedRows(new Set());
+
+    toast({
+      title: successCount > 0 ? "Sucesso" : "Erro",
+      description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
   // Filter and sort inclusions based on current filters
   const filteredAndSortedInclusions = useMemo(() => {
     const filtered = teamInclusions?.filter(inclusion => {
@@ -337,6 +443,38 @@ export default function TeamInclusionTable() {
         </div>
       </div>
 
+      {/* Barra de ações em lote */}
+      {selectedRows.size > 0 && hasPermission(user, 'canEditScreen1') && (
+        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              {selectedRows.size} inclusão(ões) selecionada(s)
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir Selecionadas
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkCancel}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                data-testid="button-bulk-cancel"
+              >
+                <Ban className="w-4 h-4 mr-2" />
+                Cancelar Selecionadas
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-card rounded-lg shadow-sm border border-border">
         <div className="px-6 py-4 border-b border-border">
@@ -347,6 +485,13 @@ export default function TeamInclusionTable() {
           <table className="w-full table-fixed">
             <thead className="bg-muted">
               <tr>
+                <th className="w-12 px-3 py-3">
+                  <Checkbox
+                    checked={selectedRows.size === filteredAndSortedInclusions.length && filteredAndSortedInclusions.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                    data-testid="checkbox-select-all"
+                  />
+                </th>
                 <SortableHeader field="id" className="w-20" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                 <SortableHeader field="event" className="w-36" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
                 <SortableHeader field="function" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
@@ -364,7 +509,7 @@ export default function TeamInclusionTable() {
             <tbody className="bg-card divide-y divide-border">
               {filteredAndSortedInclusions?.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
@@ -373,6 +518,13 @@ export default function TeamInclusionTable() {
                   const isCanceled = inclusion.status === 'cancelado';
                   return (
                   <tr key={inclusion.id} className={`transition-colors ${isCanceled ? 'opacity-60' : 'hover:bg-accent/50'}`} data-testid={`row-inclusion-${inclusion.id}`}>
+                    <td className="px-3 py-4">
+                      <Checkbox
+                        checked={selectedRows.has(inclusion.id)}
+                        onCheckedChange={() => toggleRowSelection(inclusion.id)}
+                        data-testid={`checkbox-row-${inclusion.id}`}
+                      />
+                    </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-1 truncate">
                         <div className="text-sm font-mono text-foreground font-medium truncate">
