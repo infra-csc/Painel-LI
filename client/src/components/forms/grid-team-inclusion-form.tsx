@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -65,14 +66,15 @@ type GridFormData = z.infer<typeof gridFormSchema>;
 interface FunctionRow {
   functionId: string;
   functionName: string;
-  ida: string;
-  chegada: string;
-  retorno: string;
-  horarioRetorno: string;
+  dataVooIda: string;
+  horarioChegadaSugerido: string;
+  dataVooRetorno: string;
+  horarioPartidaSugerido: string;
   needsTicket: boolean; // se precisa de passagem
   needsAccommodation: boolean; // se precisa de hospedagem
   dailyRates: { [date: string]: number }; // date -> daily rate (1, 2, or 3)
   isCustom: boolean; // se é uma função adicionada dinamicamente
+  selected?: boolean; // para exclusão em lote
 }
 
 interface ProcessedRange {
@@ -82,10 +84,10 @@ interface ProcessedRange {
   startDate: string;
   endDate: string;
   travelInfo: {
-    ida: string;
-    chegada: string;
-    retorno: string;
-    horarioRetorno: string;
+    dataVooIda: string;
+    horarioChegadaSugerido: string;
+    dataVooRetorno: string;
+    horarioPartidaSugerido: string;
   };
 }
 
@@ -99,7 +101,10 @@ export default function GridTeamInclusionForm() {
   const [focusedCell, setFocusedCell] = useState<{functionId: string, date: string} | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
-  const [copiedSchedule, setCopiedSchedule] = useState<{ida: string, chegada: string, retorno: string, horarioRetorno: string, needsTicket: boolean, needsAccommodation: boolean} | null>(null);
+  const [copiedSchedule, setCopiedSchedule] = useState<{dataVooIda: string, horarioChegadaSugerido: string, dataVooRetorno: string, horarioPartidaSugerido: string, needsTicket: boolean, needsAccommodation: boolean} | null>(null);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pastedData, setPastedData] = useState<string>("");
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [templateLoaded, setTemplateLoaded] = useState<boolean>(false);
   const [openEventCombobox, setOpenEventCombobox] = useState(false);
   const { toast } = useToast();
@@ -321,14 +326,15 @@ export default function GridTeamInclusionForm() {
         return {
           functionId: func.id,
           functionName: func.name,
-          ida: "", // Vazio para grade nova
-          chegada: "", // Vazio para grade nova
-          retorno: "", // Vazio para grade nova
-          horarioRetorno: "", // Vazio para grade nova
+          dataVooIda: "", // Vazio para grade nova
+          horarioChegadaSugerido: "", // Vazio para grade nova
+          dataVooRetorno: "", // Vazio para grade nova
+          horarioPartidaSugerido: "", // Vazio para grade nova
           needsTicket: false, // Desmarcado para grade nova
           needsAccommodation: false, // Desmarcado para grade nova
           dailyRates,
           isCustom: false,
+          selected: false,
         };
       });
     }
@@ -386,14 +392,15 @@ export default function GridTeamInclusionForm() {
     const newRow: FunctionRow = {
       functionId: uniqueId,
       functionName: selectedFunction.name,
-      ida: "",
-      chegada: "",
-      retorno: "",
-      horarioRetorno: "",
+      dataVooIda: "",
+      horarioChegadaSugerido: "",
+      dataVooRetorno: "",
+      horarioPartidaSugerido: "",
       needsTicket: false,
       needsAccommodation: false,
       dailyRates,
       isCustom: false,
+      selected: false,
     };
 
     setFunctionRows(prev => [...prev, newRow]);
@@ -472,10 +479,10 @@ export default function GridTeamInclusionForm() {
     if (!row) return;
     
     setCopiedSchedule({
-      ida: row.ida,
-      chegada: row.chegada,
-      retorno: row.retorno,
-      horarioRetorno: row.horarioRetorno,
+      dataVooIda: row.dataVooIda,
+      horarioChegadaSugerido: row.horarioChegadaSugerido,
+      dataVooRetorno: row.dataVooRetorno,
+      horarioPartidaSugerido: row.horarioPartidaSugerido,
       needsTicket: row.needsTicket,
       needsAccommodation: row.needsAccommodation
     });
@@ -497,10 +504,10 @@ export default function GridTeamInclusionForm() {
       r.functionId === functionId 
         ? { 
             ...r, 
-            ida: copiedSchedule.ida,
-            chegada: copiedSchedule.chegada,
-            retorno: copiedSchedule.retorno,
-            horarioRetorno: copiedSchedule.horarioRetorno,
+            dataVooIda: copiedSchedule.dataVooIda,
+            horarioChegadaSugerido: copiedSchedule.horarioChegadaSugerido,
+            dataVooRetorno: copiedSchedule.dataVooRetorno,
+            horarioPartidaSugerido: copiedSchedule.horarioPartidaSugerido,
             needsTicket: copiedSchedule.needsTicket,
             needsAccommodation: copiedSchedule.needsAccommodation
           }
@@ -534,14 +541,15 @@ export default function GridTeamInclusionForm() {
     const newRow: FunctionRow = {
       functionId: uniqueId,
       functionName: selectedFunction.name,
-      ida: selectedRowForScheduleCopy.ida,           // Copia horário ida
-      chegada: selectedRowForScheduleCopy.chegada,   // Copia horário chegada
-      retorno: selectedRowForScheduleCopy.retorno,   // Copia horário retorno
-      horarioRetorno: selectedRowForScheduleCopy.horarioRetorno, // Copia horário retorno
+      dataVooIda: selectedRowForScheduleCopy.dataVooIda,           // Copia data voo ida
+      horarioChegadaSugerido: selectedRowForScheduleCopy.horarioChegadaSugerido,   // Copia horário chegada
+      dataVooRetorno: selectedRowForScheduleCopy.dataVooRetorno,   // Copia data voo retorno
+      horarioPartidaSugerido: selectedRowForScheduleCopy.horarioPartidaSugerido, // Copia horário partida
       needsTicket: selectedRowForScheduleCopy.needsTicket,       // Copia se precisa passagem
       needsAccommodation: selectedRowForScheduleCopy.needsAccommodation, // Copia se precisa hospedagem
       dailyRates,                                    // NÃO copia as diárias
       isCustom: false,
+      selected: false,
     };
 
     setFunctionRows(prev => [...prev, newRow]);
@@ -557,6 +565,143 @@ export default function GridTeamInclusionForm() {
 
   const removeFunction = (functionId: string) => {
     setFunctionRows(prev => prev.filter(row => row.functionId !== functionId));
+  };
+
+  // Exclusão em lote
+  const toggleRowSelection = (functionId: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(functionId)) {
+        newSet.delete(functionId);
+      } else {
+        newSet.add(functionId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedRows.size === functionRows.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(functionRows.map(r => r.functionId)));
+    }
+  };
+
+  const deleteSelectedRows = () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "Nenhuma linha selecionada",
+        description: "Selecione pelo menos uma função para excluir.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFunctionRows(prev => prev.filter(row => !selectedRows.has(row.functionId)));
+    setSelectedRows(new Set());
+    toast({
+      title: "Linhas excluídas",
+      description: `${selectedRows.size} linha(s) removida(s) com sucesso.`,
+    });
+  };
+
+  // Copy-Paste do Excel
+  const handlePasteFromExcel = () => {
+    if (!pastedData.trim()) {
+      toast({
+        title: "Dados vazios",
+        description: "Cole os dados do Excel primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const lines = pastedData.trim().split('\n');
+      const newRows: FunctionRow[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const columns = line.split('\t');
+        
+        if (columns.length < 4) continue; // Precisa ter pelo menos função, data ida, horário chegada, data retorno
+
+        const functionName = columns[0]?.trim();
+        const dataVooIda = columns[1]?.trim() || "";
+        const horarioChegadaSugerido = columns[2]?.trim() || "";
+        const dataVooRetorno = columns[3]?.trim() || "";
+        const horarioPartidaSugerido = columns[4]?.trim() || "";
+        const needsTicketStr = columns[5]?.trim().toLowerCase() || "";
+        const needsAccommodationStr = columns[6]?.trim().toLowerCase() || "";
+
+        // Encontrar função no sistema
+        const matchedFunction = functions?.find(f => 
+          f.name.toLowerCase() === functionName?.toLowerCase()
+        );
+
+        if (!matchedFunction) {
+          console.warn(`Função não encontrada: ${functionName}`);
+          continue;
+        }
+
+        // Interpretar checkboxes
+        const needsTicket = ['sim', 's', '1', 'x', 'true'].includes(needsTicketStr);
+        const needsAccommodation = ['sim', 's', '1', 'x', 'true'].includes(needsAccommodationStr);
+
+        // Criar diárias vazias para as datas existentes
+        const dailyRates: { [date: string]: number } = {};
+        dates.forEach(date => {
+          dailyRates[date] = 0; // Começar vazio
+        });
+
+        // Processar diárias se houver colunas adicionais
+        for (let j = 7; j < columns.length && j - 7 < dates.length; j++) {
+          const value = parseInt(columns[j]?.trim() || "0");
+          dailyRates[dates[j - 7]] = isNaN(value) ? 0 : value;
+        }
+
+        const uniqueId = `${matchedFunction.id}-${Date.now()}-${i}`;
+
+        newRows.push({
+          functionId: uniqueId,
+          functionName: matchedFunction.name,
+          dataVooIda,
+          horarioChegadaSugerido,
+          dataVooRetorno,
+          horarioPartidaSugerido,
+          needsTicket,
+          needsAccommodation,
+          dailyRates,
+          isCustom: false,
+          selected: false,
+        });
+      }
+
+      if (newRows.length > 0) {
+        setFunctionRows(prev => [...prev, ...newRows]);
+        toast({
+          title: "Dados colados com sucesso",
+          description: `${newRows.length} linha(s) adicionada(s) à grade.`,
+        });
+        setShowPasteModal(false);
+        setPastedData("");
+      } else {
+        toast({
+          title: "Nenhum dado válido",
+          description: "Verifique o formato dos dados colados.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao processar dados",
+        description: "Verifique se os dados estão no formato correto.",
+        variant: "destructive",
+      });
+    }
   };
 
 
@@ -635,10 +780,10 @@ export default function GridTeamInclusionForm() {
             startDate: personStartDate,
             endDate: personEndDate,
             travelInfo: {
-              ida: row.ida,
-              chegada: row.chegada,
-              retorno: row.retorno,
-              horarioRetorno: row.horarioRetorno,
+              dataVooIda: row.dataVooIda,
+              horarioChegadaSugerido: row.horarioChegadaSugerido,
+              dataVooRetorno: row.dataVooRetorno,
+              horarioPartidaSugerido: row.horarioPartidaSugerido,
             },
           });
         }
@@ -731,9 +876,10 @@ export default function GridTeamInclusionForm() {
           phase: "inclusao", // Fase obrigatória
           rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
           // Salvar horários sugeridos nos campos específicos
-          flightDepartureSuggestedTime: functionRow?.ida || null,
-          flightReturnSuggestedTime: functionRow?.horarioRetorno || null,
-          observations: `Ida: ${functionRow?.ida || ''} | Chegada: ${functionRow?.chegada || ''} | Retorno: ${functionRow?.retorno || ''} | Horário: ${functionRow?.horarioRetorno || ''}`.replace(/\|\s*\|/g, '|').replace(/^\|\s*/, '').replace(/\s*\|$/, '')
+          flightDepartureDate: functionRow?.dataVooIda || null,
+          flightArrivalSuggestedTime: functionRow?.horarioChegadaSugerido || null,
+          flightReturnDate: functionRow?.dataVooRetorno || null,
+          flightReturnSuggestedTime: functionRow?.horarioPartidaSugerido || null
         });
         
         successCount++;
@@ -907,6 +1053,28 @@ export default function GridTeamInclusionForm() {
                     </Button>
                     <Button
                       type="button"
+                      onClick={() => setShowPasteModal(true)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Colar do Excel
+                    </Button>
+                    {selectedRows.size > 0 && (
+                      <Button
+                        type="button"
+                        onClick={deleteSelectedRows}
+                        variant="destructive"
+                        size="sm"
+                        className="flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Excluir ({selectedRows.size})
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
                       onClick={openFunctionSelect}
                       className="flex items-center gap-2"
                     >
@@ -962,6 +1130,13 @@ export default function GridTeamInclusionForm() {
                     <table className="w-full text-sm">
                       <thead className="bg-muted sticky top-0">
                         <tr>
+                          <th className="px-2 py-2 text-center border-r font-medium w-12">
+                            <Checkbox
+                              checked={selectedRows.size === functionRows.length && functionRows.length > 0}
+                              onCheckedChange={toggleSelectAll}
+                              aria-label="Selecionar todas"
+                            />
+                          </th>
                           <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-20">
                             <div className="flex items-center justify-center gap-1">
@@ -975,10 +1150,10 @@ export default function GridTeamInclusionForm() {
                               <span>Hospedagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário de Chegada</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">Dia de Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Horário de Partida</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Ida</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-28">Horário Chegada Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Retorno</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-28">Horário Partida Sugerido</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
                               <div className="text-xs">
@@ -1003,6 +1178,13 @@ export default function GridTeamInclusionForm() {
                           return aIndex - bIndex;
                         }).map(row => (
                           <tr key={row.functionId} className="border-t">
+                            <td className="px-2 py-2 border-r text-center">
+                              <Checkbox
+                                checked={selectedRows.has(row.functionId)}
+                                onCheckedChange={() => toggleRowSelection(row.functionId)}
+                                aria-label={`Selecionar ${row.functionName}`}
+                              />
+                            </td>
                             <td className="px-3 py-2 border-r font-medium bg-muted/30">
                               {row.functionName}
                             </td>
@@ -1023,32 +1205,34 @@ export default function GridTeamInclusionForm() {
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 type="date"
-                                value={row.ida} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'ida', e.target.value)}
-                                className="h-7 text-center"
+                                value={row.dataVooIda} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'dataVooIda', e.target.value)}
+                                className="h-7 text-center text-xs"
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
-                                value={row.chegada} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'chegada', e.target.value)}
-                                placeholder=""
-                                className="h-7 text-center !bg-white dark:!bg-white !text-black dark:!text-black"
+                                value={row.horarioChegadaSugerido} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioChegadaSugerido', e.target.value)}
+                                placeholder="Ex: 14h30"
+                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black"
+                                maxLength={15}
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
                                 type="date"
-                                value={row.retorno} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'retorno', e.target.value)}
-                                className="h-7 text-center"
+                                value={row.dataVooRetorno} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'dataVooRetorno', e.target.value)}
+                                className="h-7 text-center text-xs"
                               />
                             </td>
                             <td className="px-2 py-2 border-r">
                               <Input 
-                                value={row.horarioRetorno} 
-                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioRetorno', e.target.value)}
-                                className="h-7 text-center !bg-white dark:!bg-white !text-black dark:!text-black"
+                                value={row.horarioPartidaSugerido} 
+                                onChange={(e) => updateTravelInfo(row.functionId, 'horarioPartidaSugerido', e.target.value)}
+                                placeholder="Ex: 18h00"
+                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black"
                                 maxLength={15}
                               />
                             </td>
@@ -1272,10 +1456,10 @@ export default function GridTeamInclusionForm() {
                 Copiando horários de: <strong>{selectedRowForScheduleCopy?.functionName}</strong>
               </p>
               <div className="text-xs text-muted-foreground mt-1">
-                ✅ Ida: {selectedRowForScheduleCopy?.ida || "(vazio)"} • 
-                Chegada: {selectedRowForScheduleCopy?.chegada || "(vazio)"} • 
-                Retorno: {selectedRowForScheduleCopy?.retorno || "(vazio)"} • 
-                Horário: {selectedRowForScheduleCopy?.horarioRetorno || "(vazio)"}
+                ✅ Data Voo Ida: {selectedRowForScheduleCopy?.dataVooIda || "(vazio)"} • 
+                Horário Chegada: {selectedRowForScheduleCopy?.horarioChegadaSugerido || "(vazio)"} • 
+                Data Voo Retorno: {selectedRowForScheduleCopy?.dataVooRetorno || "(vazio)"} • 
+                Horário Partida: {selectedRowForScheduleCopy?.horarioPartidaSugerido || "(vazio)"}
               </div>
             </div>
             <div>
@@ -1308,6 +1492,58 @@ export default function GridTeamInclusionForm() {
             >
               Cancelar
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para colar dados do Excel */}
+      <Dialog open={showPasteModal} onOpenChange={setShowPasteModal}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Colar Dados do Excel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">📋 Formato Esperado:</p>
+              <div className="text-xs text-blue-800 dark:text-blue-200 font-mono bg-white dark:bg-gray-900 p-2 rounded">
+                Função | Data Voo Ida | Horário Chegada | Data Voo Retorno | Horário Partida | Passagem | Hospedagem | [Diárias por dia...]
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                <strong>Dica:</strong> Copie as linhas do Excel (sem cabeçalho) e cole abaixo. As diárias nas colunas extras serão aplicadas às datas correspondentes.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cole os dados aqui:</Label>
+              <Textarea
+                value={pastedData}
+                onChange={(e) => setPastedData(e.target.value)}
+                placeholder="Cole os dados do Excel aqui (Ctrl+V)..."
+                className="h-48 font-mono text-xs"
+              />
+            </div>
+
+            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                <strong>Formato de Checkboxes:</strong> Use "Sim", "S", "1", "x" ou "true" para marcar. Qualquer outro valor = desmarcado.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowPasteModal(false);
+                  setPastedData("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handlePasteFromExcel}>
+                <Upload className="w-4 h-4 mr-2" />
+                Processar e Adicionar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

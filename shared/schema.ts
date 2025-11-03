@@ -100,7 +100,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   actualStartDate: date("actual_start_date"), // data real de início de trabalho
   actualEndDate: date("actual_end_date"), // data real final
   flightDepartureDate: date("flight_departure_date"),
-  flightDepartureSuggestedTime: text("flight_departure_suggested_time"),
+  flightArrivalSuggestedTime: text("flight_arrival_suggested_time"),
   flightReturnDate: date("flight_return_date"),
   flightReturnSuggestedTime: text("flight_return_suggested_time"),
   needsTicket: boolean("needs_ticket").default(false),
