@@ -94,9 +94,14 @@ export default function TeamInclusionTable() {
       return { text: 'Cancelado', color: 'gray' };
     }
 
-    // 2. Se não confirmou ainda, mostrar "Aguardando Escalação"
-    if (inclusion.status !== 'confirmado') {
+    // 2. Se NÃO tem colaborador, mostrar "Aguardando Escalação"
+    if (!inclusion.collaboratorId) {
       return { text: 'Aguardando Escalação', color: 'red' };
+    }
+
+    // 3. Se tem colaborador mas status não é "confirmado", mostrar "Escalado"
+    if (inclusion.status !== 'confirmado') {
+      return { text: 'Escalado', color: 'green' };
     }
 
     // 3. Se confirmou, verificar o que foi comprado
