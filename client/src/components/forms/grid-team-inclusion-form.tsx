@@ -723,6 +723,8 @@ export default function GridTeamInclusionForm() {
           dailyRates,
           isCustom: false,
           selected: false,
+          fromExcelPaste: true, // Flag para identificar que veio do Excel
+          originalFunctionId: matchedFunction.id, // Guardar ID original da função
         });
       }
 
