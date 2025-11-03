@@ -12,7 +12,7 @@ import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
+import type { TeamInclusion, Event, Function, Collaborator, Ticket, Accommodation } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
 export default function TeamInclusionTable() {
@@ -62,6 +62,22 @@ export default function TeamInclusionTable() {
   const { data: collaborators } = useQuery<Collaborator[]>({
     queryKey: ["/api/collaborators"],
   });
+
+  const { data: tickets } = useQuery<Ticket[]>({
+    queryKey: ["/api/tickets"],
+  });
+
+  const { data: accommodations } = useQuery<Accommodation[]>({
+    queryKey: ["/api/accommodations"],
+  });
+
+  const hasTicket = (inclusionId: string) => {
+    return tickets?.some(t => t.teamInclusionId === inclusionId);
+  };
+
+  const hasAccommodation = (inclusionId: string) => {
+    return accommodations?.some(a => a.teamInclusionId === inclusionId);
+  };
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -661,8 +677,8 @@ export default function TeamInclusionTable() {
                         </Button>
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
-                            {isReadOnly(inclusion) ? (
-                              // Para cancelados, permitir apenas exclusão
+                            {isReadOnly(inclusion, hasTicket(inclusion.id), hasAccommodation(inclusion.id)) ? (
+                              // Para cancelados ou com passagem/hospedagem comprada, permitir apenas exclusão
                               <Button
                                 size="sm"
                                 variant="ghost"

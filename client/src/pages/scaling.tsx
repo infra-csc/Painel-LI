@@ -1879,11 +1879,11 @@ export default function Scaling() {
                       onChange={(e) => setNewComment(e.target.value)}
                       className="flex-1"
                       data-testid="textarea-comment-inline"
-                      disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
+                      disabled={!selectedInclusion || isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
-                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
+                      disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id))}
                       className="flex items-center gap-2"
                       data-testid="button-add-comment-inline"
                     >
@@ -1959,7 +1959,7 @@ export default function Scaling() {
                 <Button variant="outline" onClick={() => setShowModal(false)}>
                   Cancelar
                 </Button>
-                {selectedInclusion && !isReadOnly(selectedInclusion) && (
+                {selectedInclusion && !isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) && (
                   <>
                     {/* Botão Salvar - disponível para quem pode editar colaborador OU confirmar escalação */}
                     {(canEditCollaborator(selectedInclusion) || !isEscalated(selectedInclusion)) && (
@@ -2006,7 +2006,7 @@ export default function Scaling() {
                 )}
                 
                 {/* Mensagem informativa quando usuário não tem permissão */}
-                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion) && !canConfirmEscalation(selectedInclusion) && (
+                {selectedInclusion && !isEscalated(selectedInclusion) && !isReadOnly(selectedInclusion, !!getTicket(selectedInclusion.id), !!getAccommodation(selectedInclusion.id)) && !canConfirmEscalation(selectedInclusion) && (
                   <div className="text-sm text-muted-foreground bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-3 text-center">
                     ⚠️ Apenas o responsável pela função pode confirmar escalações
                   </div>
