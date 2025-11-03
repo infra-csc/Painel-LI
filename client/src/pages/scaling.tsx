@@ -197,6 +197,7 @@ export default function Scaling() {
   // Helper function to determine if escalation is completed
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
+      inclusion.status === "confirmado" ||  // Novo: escalação confirmada
       inclusion.status === "escalado" || 
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
@@ -210,6 +211,7 @@ export default function Scaling() {
   // Helper function to determine if escalation is confirmed (após confirmar escalação)
   const isEscalationConfirmed = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
+      inclusion.status === "confirmado" ||  // Novo: escalação confirmada
       inclusion.status === "escalado" ||
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
@@ -620,19 +622,17 @@ export default function Scaling() {
     }
 
     // Determine next status and phase based on workflow requirements
-    let nextStatus = "escalado";
+    // Novo: Sempre marca como "confirmado" ao confirmar escalação (bloqueia edição de colaborador)
+    let nextStatus = "confirmado";
     let nextPhase = "escalacao";
     
     // Check if this inclusion needs ticket or accommodation
     if (selectedInclusion.needsTicket) {
-      nextStatus = "passagem";
       nextPhase = "passagem";
     } else if (selectedInclusion.needsAccommodation) {
-      nextStatus = "hospedagem";
       nextPhase = "hospedagem";
     } else {
-      // If no ticket or accommodation needed, mark as complete (aprovacao)
-      nextStatus = "aprovacao";
+      // If no ticket or accommodation needed, go to approval phase
       nextPhase = "aprovacao";
     }
 
