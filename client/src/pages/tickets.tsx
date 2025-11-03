@@ -1234,72 +1234,86 @@ export default function Tickets() {
                                 {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
                               </p>
                             </div>
+                            {/* CPF com Destaque */}
+                            {(() => {
+                              // Encontrar o CPF: pode estar no officialDocument ou secondaryDocument
+                              const cpf = collaborator.documentType === 'cpf' 
+                                ? collaborator.officialDocument 
+                                : (collaborator.secondaryDocumentType === 'cpf' ? collaborator.secondaryDocument : null);
+                              
+                              if (!cpf) return null;
+                              
+                              return (
+                                <div className="col-span-2 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md border-l-4 border-yellow-500">
+                                  <Label className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">CPF</Label>
+                                  <p className="font-bold text-lg text-yellow-900 dark:text-yellow-300">
+                                    {cpf}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </>
                         );
                       })()}
                     </div>
                   </div>
 
-                  {/* Sugestões de Viagem - Mesmo formato da Escalação */}
-                  <details className="border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700">
-                    <summary className="p-3 cursor-pointer font-medium text-sm text-blue-700 dark:text-blue-300 hover:bg-opacity-80 transition-colors">
-                      <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        Sugestões de Viagem
-                        <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
-                      </span>
-                    </summary>
-                    <div className="p-4 pt-2">
-                      {(() => {
-                        const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
-                        return (
-                          <div className="space-y-3">
-                            {/* Viagem de IDA */}
-                            <div className="border rounded-md p-3 bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800">
-                              <div className="flex items-center gap-2 mb-2">
-                                <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                </svg>
-                                <span className="text-xs font-medium">🛫 IDA</span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-3 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{formatSuggestionDate(travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado')}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Horário:</span>
-                                  <div className="font-medium">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' ? travelInfo.chegada : 'Não informado'}</div>
-                                </div>
-                              </div>
+                  {/* Sugestões de Viagem - SEMPRE VISÍVEL */}
+                  <div className="border-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-400 dark:border-blue-600 p-4">
+                    <h3 className="font-bold text-base text-blue-800 dark:text-blue-200 mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Sugestões de Viagem
+                      <span className="text-xs opacity-60 font-normal">(vindas da inclusão de equipe)</span>
+                    </h3>
+                    {(() => {
+                      const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                      return (
+                        <div className="space-y-4">
+                          {/* Viagem de IDA */}
+                          <div className="border-2 rounded-md p-4 bg-white dark:bg-blue-950/50 border-blue-300 dark:border-blue-700">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                              </svg>
+                              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">🛫 IDA</span>
                             </div>
-
-                            {/* Viagem de VOLTA */}
-                            <div className="border rounded-md p-3 bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800">
-                              <div className="flex items-center gap-2 mb-2">
-                                <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                                </svg>
-                                <span className="text-xs font-medium">🛬 VOLTA</span>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-sm text-muted-foreground block mb-1">Data:</span>
+                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{formatSuggestionDate(travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado')}</div>
                               </div>
-                              <div className="grid grid-cols-2 gap-3 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Data:</span>
-                                  <div className="font-medium">{formatSuggestionDate(travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado')}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Horário:</span>
-                                  <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' ? travelInfo.horario : 'Não informado'}</div>
-                                </div>
+                              <div>
+                                <span className="text-sm text-muted-foreground block mb-1">Horário:</span>
+                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' ? travelInfo.chegada : 'Não informado'}</div>
                               </div>
                             </div>
                           </div>
-                        );
-                      })()}
-                    </div>
-                  </details>
+
+                          {/* Viagem de VOLTA */}
+                          <div className="border-2 rounded-md p-4 bg-white dark:bg-blue-950/50 border-blue-300 dark:border-blue-700">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                              </svg>
+                              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">🛬 VOLTA</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-sm text-muted-foreground block mb-1">Data:</span>
+                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{formatSuggestionDate(travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado')}</div>
+                              </div>
+                              <div>
+                                <span className="text-sm text-muted-foreground block mb-1">Horário:</span>
+                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' ? travelInfo.horario : 'Não informado'}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                   {(() => {
                     const ticket = getTicket(selectedInclusion.id);
@@ -1521,20 +1535,22 @@ export default function Tickets() {
                     ) : (
                       /* Formulário para registrar passagem */
                       <div className="space-y-6">
-                        {/* Período de Trabalho */}
-                        <div className="p-4 bg-accent/50 rounded-lg">
-                          <h4 className="font-medium text-foreground mb-3">Período de Trabalho</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Período de Trabalho - RECOLHIDO */}
+                        <details className="p-3 bg-accent/30 rounded-lg border border-border">
+                          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                            Período de Trabalho
+                          </summary>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-border">
                             <div>
                               <Label className="text-xs text-muted-foreground">Data Início</Label>
-                              <p className="font-medium">{formatDate(selectedInclusion.scheduleStartDate)}</p>
+                              <p className="text-sm font-medium">{formatDate(selectedInclusion.scheduleStartDate)}</p>
                             </div>
                             <div>
                               <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                              <p className="font-medium">{formatDate(selectedInclusion.scheduleEndDate)}</p>
+                              <p className="text-sm font-medium">{formatDate(selectedInclusion.scheduleEndDate)}</p>
                             </div>
                           </div>
-                        </div>
+                        </details>
 
 
                         {/* Seção de Dados da Compra */}
