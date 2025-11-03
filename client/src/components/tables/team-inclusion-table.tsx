@@ -686,17 +686,6 @@ export default function TeamInclusionTable() {
               const timeDiff = end.getTime() - start.getTime();
               const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 para incluir ambos os dias
               
-              // Montar observações a partir dos campos de viagem (para sugestões na escalação)
-              const ida = formData.get('ida') as string || '';
-              const chegada = formData.get('chegada') as string || '';
-              const retorno = formData.get('retorno') as string || '';
-              const horarioRetorno = formData.get('horarioRetorno') as string || '';
-              
-              let observations = '';
-              if (ida || chegada || retorno || horarioRetorno) {
-                observations = `Ida: ${ida} | Chegada: ${chegada} | Retorno: ${retorno} | Horário: ${horarioRetorno}`;
-              }
-
               const data = {
                 functionId: formData.get('functionId') as string,
                 dailyRates: dailyRates,
@@ -704,7 +693,6 @@ export default function TeamInclusionTable() {
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
-                observations: observations || null,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
