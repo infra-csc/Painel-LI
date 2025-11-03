@@ -536,11 +536,9 @@ export default function Scaling() {
       const func = functions?.find(f => f.id === inclusion.functionId);
       const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
       
-      const confirmationStatus = inclusion.status === "cancelado" 
-        ? "Cancelado" 
-        : isEscalated(inclusion) 
-        ? "Confirmado" 
-        : "Pendente";
+      // Usar a mesma lógica de status da tela
+      const displayStatus = getDisplayStatus(inclusion);
+      const confirmationStatus = displayStatus.text;
 
       // Calcular valor total (valor da diária em centavos / 100 * quantidade)
       const dailyValueInReais = (inclusion.dailyValue || 0) / 100;
