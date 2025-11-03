@@ -606,6 +606,52 @@ export default function GridTeamInclusionForm() {
     });
   };
 
+  // Função para converter datas curtas (15/nov, 16/nov) em datas completas (2025-11-15)
+  const parseShortDate = (dateStr: string): string => {
+    if (!dateStr) return "";
+    
+    // Se já está no formato YYYY-MM-DD, retornar como está
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Formatos aceitos: "15/nov", "15/11", "15-nov", "15-11"
+    const monthMap: { [key: string]: string } = {
+      'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04',
+      'mai': '05', 'jun': '06', 'jul': '07', 'ago': '08',
+      'set': '09', 'out': '10', 'nov': '11', 'dez': '12'
+    };
+    
+    // Tentar extrair dia e mês
+    const parts = dateStr.split(/[\/\-]/);
+    if (parts.length >= 2) {
+      const day = parts[0].padStart(2, '0');
+      let month = parts[1].toLowerCase();
+      
+      // Se é nome do mês, converter para número
+      if (monthMap[month]) {
+        month = monthMap[month];
+      } else {
+        month = month.padStart(2, '0');
+      }
+      
+      // Inferir ano: usar ano do evento se disponível, senão ano atual
+      const selectedEventId = form.getValues().eventId;
+      let year = new Date().getFullYear().toString();
+      
+      if (selectedEventId && events) {
+        const selectedEvent = events.find(e => e.id === selectedEventId);
+        if (selectedEvent && selectedEvent.startDate) {
+          year = selectedEvent.startDate.split('-')[0];
+        }
+      }
+      
+      return `${year}-${month}-${day}`;
+    }
+    
+    return "";
+  };
+
   // Copy-Paste do Excel
   const handlePasteFromExcel = () => {
     if (!pastedData.trim()) {
@@ -630,9 +676,9 @@ export default function GridTeamInclusionForm() {
         if (columns.length < 4) continue; // Precisa ter pelo menos função, data ida, horário chegada, data retorno
 
         const functionName = columns[0]?.trim();
-        const dataVooIda = columns[1]?.trim() || "";
+        const dataVooIda = parseShortDate(columns[1]?.trim() || "");
         const horarioChegadaSugerido = columns[2]?.trim() || "";
-        const dataVooRetorno = columns[3]?.trim() || "";
+        const dataVooRetorno = parseShortDate(columns[3]?.trim() || "");
         const horarioPartidaSugerido = columns[4]?.trim() || "";
         const needsTicketStr = columns[5]?.trim().toLowerCase() || "";
         const needsAccommodationStr = columns[6]?.trim().toLowerCase() || "";
