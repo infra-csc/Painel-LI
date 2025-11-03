@@ -824,20 +824,7 @@ export default function TeamInclusionTable() {
                         <input
                           type="date"
                           name="ida"
-                          defaultValue={(() => {
-                            const obs = editingInclusion.observations || '';
-                            const match = obs.match(/Ida:\s*([^|]*)/);
-                            const dateStr = match ? match[1].trim() : '';
-                            // Tentar converter para formato YYYY-MM-DD se possível
-                            if (dateStr && dateStr.includes('/')) {
-                              const parts = dateStr.split('/');
-                              if (parts.length === 2) {
-                                const currentYear = new Date().getFullYear();
-                                return `${currentYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                              }
-                            }
-                            return '';
-                          })()}
+                          defaultValue={editingInclusion.flightDepartureDate || ''}
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
@@ -847,11 +834,7 @@ export default function TeamInclusionTable() {
                         <input
                           type="text"
                           name="chegada"
-                          defaultValue={(() => {
-                            const obs = editingInclusion.observations || '';
-                            const match = obs.match(/Chegada:\s*([^|]*)/);
-                            return match ? match[1].trim() : '';
-                          })()}
+                          defaultValue={editingInclusion.flightArrivalSuggestedTime || ''}
                           placeholder="Ex: 9h, manhã"
                           className="w-full p-2 border rounded text-sm bg-white"
                         />
@@ -862,20 +845,7 @@ export default function TeamInclusionTable() {
                         <input
                           type="date"
                           name="retorno"
-                          defaultValue={(() => {
-                            const obs = editingInclusion.observations || '';
-                            const match = obs.match(/Retorno:\s*([^|]*)/);
-                            const dateStr = match ? match[1].trim() : '';
-                            // Tentar converter para formato YYYY-MM-DD se possível
-                            if (dateStr && dateStr.includes('/')) {
-                              const parts = dateStr.split('/');
-                              if (parts.length === 2) {
-                                const currentYear = new Date().getFullYear();
-                                return `${currentYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                              }
-                            }
-                            return '';
-                          })()}
+                          defaultValue={editingInclusion.flightReturnDate || ''}
                           className="w-full p-2 border rounded text-sm"
                         />
                       </div>
@@ -885,11 +855,7 @@ export default function TeamInclusionTable() {
                         <input
                           type="text"
                           name="horarioRetorno"
-                          defaultValue={(() => {
-                            const obs = editingInclusion.observations || '';
-                            const match = obs.match(/Horário:\s*([^|]*)/);
-                            return match ? match[1].trim() : '';
-                          })()}
+                          defaultValue={editingInclusion.flightReturnSuggestedTime || ''}
                           placeholder="Ex: 18h, final da tarde"
                           className="w-full p-2 border rounded text-sm bg-white"
                         />
