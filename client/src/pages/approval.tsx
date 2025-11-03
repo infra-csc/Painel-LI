@@ -77,9 +77,9 @@ export default function Approval() {
     });
   };
 
-  // Filter inclusions that need approval
+  // Filter inclusions that are approved
   const approvalInclusions = teamInclusions?.filter(inclusion => {
-    if (inclusion.status !== "aprovacao" || !inclusion.collaboratorId) return false;
+    if (inclusion.status !== "aprovado" || !inclusion.collaboratorId) return false;
     
     // Apply ID search filter
     const idMatch = !searchId || 

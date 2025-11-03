@@ -107,8 +107,8 @@ export default function CommentsModal({ open, onClose, teamInclusionId }: Commen
         return "Compra de Passagem";
       case "hospedagem":
         return "Hospedagem";
-      case "aprovacao":
-        return "Aprovação";
+      case "aprovado":
+        return "Aprovado";
       default:
         return phase;
     }

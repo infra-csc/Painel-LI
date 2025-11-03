@@ -860,7 +860,7 @@ export default function Accommodations() {
       const inclusion = teamInclusions?.find(inc => inc.id === accommodationData.teamInclusionId);
       const needsTicket = inclusion?.needsTicket;
       let newStatus = "hospedagem_comprada";
-      let newPhase = "aprovacao";
+      let newPhase = "hospedagem";
       
       if (needsTicket) {
         // Verificar se passagem já foi comprada
@@ -870,7 +870,7 @@ export default function Accommodations() {
         if (ticketPurchased) {
           // Ambos comprados
           newStatus = "hospedagem_passagem_comprada";
-          newPhase = "aprovacao";
+          newPhase = "hospedagem";
         } else {
           // Hospedagem comprada, aguardando passagem
           newStatus = "passagem";

@@ -211,7 +211,7 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao" ||
+      inclusion.status === "aprovado" ||
       inclusion.status === "concluido"
     );
   };
@@ -225,7 +225,7 @@ export default function Scaling() {
       inclusion.status === "passagem_comprada" ||
       inclusion.status === "hospedagem" || 
       inclusion.status === "hospedagem_comprada" ||
-      inclusion.status === "aprovacao" ||
+      inclusion.status === "aprovado" ||
       inclusion.status === "concluido"
     );
   };
@@ -649,8 +649,9 @@ export default function Scaling() {
     } else if (selectedInclusion.needsAccommodation) {
       nextPhase = "hospedagem";
     } else {
-      // If no ticket or accommodation needed, go to approval phase
-      nextPhase = "aprovacao";
+      // If no ticket or accommodation needed, mark as approved
+      nextStatus = "aprovado";
+      nextPhase = "aprovado";
     }
 
     const updateData: any = {
@@ -790,8 +791,8 @@ export default function Scaling() {
         return "Compra de Passagem";
       case "hospedagem":
         return "Hospedagem";
-      case "aprovacao":
-        return "Aprovação";
+      case "aprovado":
+        return "Aprovado";
       default:
         return phase;
     }

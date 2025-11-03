@@ -266,7 +266,7 @@ export default function Tickets() {
         (inclusion.status === "aguardando_passagem" ||
          inclusion.status === "passagem" || 
          inclusion.status === "hospedagem" || 
-         inclusion.status === "aprovacao" || 
+         inclusion.status === "aprovado" || 
          inclusion.status === "passagem_comprada" ||
          inclusion.status === "hospedagem_passagem_comprada" ||
          inclusion.status === "cancelado");
@@ -312,9 +312,9 @@ export default function Tickets() {
     
     const statusPriority: Record<string, number> = {
       'hospedagem_passagem_comprada': 7,  // Highest priority - both purchased
-      'passagem_comprada': 6,
-      'hospedagem': 5,
-      'aprovacao': 4,
+      'aprovado': 6,
+      'passagem_comprada': 5,
+      'hospedagem': 4,
       'passagem': 3,
       'aguardando_passagem': 2,
       'cancelado': 1  // Lowest priority so active records are kept over canceled ones
@@ -541,7 +541,7 @@ export default function Tickets() {
             if (accommodationPurchased) {
               // Ambos comprados
               newStatus = "hospedagem_passagem_comprada";
-              newPhase = "aprovacao";
+              newPhase = "hospedagem";
             } else {
               // Passagem comprada, aguardando hospedagem
               newStatus = "hospedagem";
@@ -2151,7 +2151,7 @@ export default function Tickets() {
                                         if (accommodationPurchased) {
                                           // Ambos comprados
                                           newStatus = "hospedagem_passagem_comprada";
-                                          newPhase = "aprovacao";
+                                          newPhase = "hospedagem";
                                         } else {
                                           // Passagem comprada, aguardando hospedagem
                                           newStatus = "hospedagem";
