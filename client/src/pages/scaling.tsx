@@ -4,7 +4,7 @@ import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, X, Calendar, Edit2 } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -60,8 +60,18 @@ export default function Scaling() {
   // Estado para novo comentário inline
   const [newComment, setNewComment] = useState("");
   
+  // Estados para edição de datas (apenas admin)
+  const [showEditDatesModal, setShowEditDatesModal] = useState(false);
+  const [editDatesData, setEditDatesData] = useState({
+    startDate: "",
+    endDate: "",
+  });
+  
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Verificar se usuário é admin
+  const isAdmin = user?.role === 'admin' || user?.role === 'administrator' || user?.role === 'administrador';
 
   // Handle column sorting
   const handleSort = (field: SortField) => {
@@ -671,6 +681,108 @@ export default function Scaling() {
     });
   };
 
+  // Função para cancelar escalação (apenas admin)
+  const handleCancelEscalation = (e: React.MouseEvent, inclusion: TeamInclusion) => {
+    e.stopPropagation(); // Evita abrir o modal
+    
+    if (!isAdmin) {
+      toast({
+        title: "Erro",
+        description: "Apenas administradores podem cancelar escalações",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (inclusion.status === 'cancelado') {
+      toast({
+        title: "Aviso",
+        description: "Esta escalação já está cancelada",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (confirm(`Tem certeza que deseja cancelar a escalação #${inclusion.inclusionNumber}?`)) {
+      updateTeamInclusionMutation.mutate({
+        id: inclusion.id,
+        data: {
+          previousStatus: inclusion.status,
+          status: 'cancelado',
+          updatedBy: user?.id
+        }
+      }, {
+        onSuccess: () => {
+          toast({
+            title: "Sucesso",
+            description: "Escalação cancelada com sucesso",
+          });
+        }
+      });
+    }
+  };
+
+  // Função para abrir modal de edição de datas (apenas admin)
+  const handleEditDates = (e: React.MouseEvent, inclusion: TeamInclusion) => {
+    e.stopPropagation(); // Evita abrir o modal principal
+    
+    if (!isAdmin) {
+      toast({
+        title: "Erro",
+        description: "Apenas administradores podem editar datas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (inclusion.status === 'cancelado') {
+      toast({
+        title: "Aviso",
+        description: "Não é possível editar datas de escalações canceladas",
+        variant: "default",
+      });
+      return;
+    }
+
+    setSelectedInclusion(inclusion);
+    setEditDatesData({
+      startDate: inclusion.scheduleStartDate || "",
+      endDate: inclusion.scheduleEndDate || "",
+    });
+    setShowEditDatesModal(true);
+  };
+
+  // Função para salvar datas editadas
+  const handleSaveDates = () => {
+    if (!selectedInclusion) return;
+
+    if (!editDatesData.startDate || !editDatesData.endDate) {
+      toast({
+        title: "Erro",
+        description: "Preencha as datas de início e fim",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateTeamInclusionMutation.mutate({
+      id: selectedInclusion.id,
+      data: {
+        scheduleStartDate: editDatesData.startDate,
+        scheduleEndDate: editDatesData.endDate,
+        updatedBy: user?.id
+      }
+    }, {
+      onSuccess: () => {
+        toast({
+          title: "Sucesso",
+          description: "Datas atualizadas com sucesso",
+        });
+        setShowEditDatesModal(false);
+      }
+    });
+  };
+
 
   const getCollaborator = (collaboratorId?: string | null) => {
     if (!collaboratorId) return null;
@@ -942,6 +1054,11 @@ export default function Scaling() {
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
+                            {isAdmin && (
+                              <th className="px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                Ações
+                              </th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -1024,6 +1141,33 @@ export default function Scaling() {
                                   })()}
                                 </div>
                               </td>
+                              {isAdmin && (
+                                <td className="px-3 py-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={(e) => handleEditDates(e, inclusion)}
+                                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                      title="Editar datas"
+                                      data-testid={`button-edit-dates-${inclusion.id}`}
+                                    >
+                                      <Calendar className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={(e) => handleCancelEscalation(e, inclusion)}
+                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                      title="Cancelar escalação"
+                                      data-testid={`button-cancel-${inclusion.id}`}
+                                      disabled={inclusion.status === 'cancelado'}
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -1056,6 +1200,11 @@ export default function Scaling() {
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
+                            {isAdmin && (
+                              <th className="px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                Ações
+                              </th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -1138,6 +1287,33 @@ export default function Scaling() {
                                   })()}
                                 </div>
                               </td>
+                              {isAdmin && (
+                                <td className="px-3 py-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={(e) => handleEditDates(e, inclusion)}
+                                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                      title="Editar datas"
+                                      data-testid={`button-edit-dates-${inclusion.id}`}
+                                    >
+                                      <Calendar className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={(e) => handleCancelEscalation(e, inclusion)}
+                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                      title="Cancelar escalação"
+                                      data-testid={`button-cancel-${inclusion.id}`}
+                                      disabled={inclusion.status === 'cancelado'}
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -1916,6 +2092,79 @@ export default function Scaling() {
           teamInclusionId={selectedInclusionForComments}
         />
       )}
+
+      {/* Modal de Edição de Datas (apenas admin) */}
+      <Dialog open={showEditDatesModal} onOpenChange={setShowEditDatesModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Editar Período de Trabalho
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedInclusion && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Escalação #{selectedInclusion.inclusionNumber || 'N/A'}
+                </div>
+                <div className="text-xs text-blue-700 dark:text-blue-300">
+                  {getCollaboratorName(selectedInclusion.collaboratorId)} - {getFunctionName(selectedInclusion.functionId)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-start-date" className="text-sm font-medium">
+                    Data de Início
+                  </Label>
+                  <Input
+                    id="edit-start-date"
+                    type="date"
+                    value={editDatesData.startDate}
+                    onChange={(e) => setEditDatesData(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="mt-1"
+                    data-testid="input-edit-start-date"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-end-date" className="text-sm font-medium">
+                    Data de Fim
+                  </Label>
+                  <Input
+                    id="edit-end-date"
+                    type="date"
+                    value={editDatesData.endDate}
+                    onChange={(e) => setEditDatesData(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="mt-1"
+                    data-testid="input-edit-end-date"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowEditDatesModal(false)}
+                  data-testid="button-cancel-edit-dates"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSaveDates}
+                  disabled={updateTeamInclusionMutation.isPending}
+                  className="flex items-center gap-2"
+                  data-testid="button-save-dates"
+                >
+                  <Save className="w-4 h-4" />
+                  {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Datas"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
