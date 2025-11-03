@@ -284,8 +284,8 @@ export default function Scaling() {
       return { text: 'Cancelado', color: 'gray' };
     }
 
-    // 2. Aguardando Escalação = foi incluso mas não foi confirmado
-    if (inclusion.status !== 'confirmado') {
+    // 2. Aguardando Escalação = status "planejado" ou "reaberto"
+    if (inclusion.status === 'planejado' || inclusion.status === 'reaberto') {
       return { text: 'Aguardando Escalação', color: 'red' };
     }
 
