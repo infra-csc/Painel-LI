@@ -87,64 +87,6 @@ export default function TeamInclusionTable() {
     return accommodations?.find(a => a.teamInclusionId === inclusionId);
   };
 
-  // Função para determinar o status correto a exibir
-  const getDisplayStatus = (inclusion: TeamInclusion) => {
-    // 1. Cancelado
-    if (inclusion.status === 'cancelado') {
-      return { text: 'Cancelado', color: 'gray' };
-    }
-
-    // 2. Aguardando Escalação = status "planejado" ou "reaberto"
-    if (inclusion.status === 'planejado' || inclusion.status === 'reaberto') {
-      return { text: 'Aguardando Escalação', color: 'red' };
-    }
-
-    // A partir daqui, escalação foi confirmada (status = "confirmado")
-    const ticket = getTicket(inclusion.id);
-    const accommodation = getAccommodation(inclusion.id);
-    
-    // Verifica se a passagem foi COMPRADA (tem purchaseDate)
-    const hasTicketPurchased = !!ticket && !!ticket.purchaseDate;
-    
-    // Verifica se a hospedagem foi COMPRADA (tem reservationNumber)
-    const hasAccommodationPurchased = !!accommodation && 
-      !!accommodation.reservationNumber && 
-      accommodation.reservationNumber.trim() !== '';
-
-    // 3. Passagem e Hospedagem Compradas = tem as duas e as duas foram compradas
-    if (inclusion.needsTicket && inclusion.needsAccommodation && hasTicketPurchased && hasAccommodationPurchased) {
-      return { text: 'Passagem e Hospedagem Compradas', color: 'green' };
-    }
-
-    // 4. Passagem Comprada = tem apenas passagem e foi comprada
-    if (inclusion.needsTicket && !inclusion.needsAccommodation && hasTicketPurchased) {
-      return { text: 'Passagem Comprada', color: 'green' };
-    }
-
-    // 5. Hospedagem Comprada = tem apenas hospedagem e foi comprada
-    if (!inclusion.needsTicket && inclusion.needsAccommodation && hasAccommodationPurchased) {
-      return { text: 'Hospedagem Comprada', color: 'green' };
-    }
-
-    // 6. Aguardando Hospedagem = tem hospedagem E (passagem já foi comprada OU não tem passagem)
-    if (inclusion.needsAccommodation && !hasAccommodationPurchased) {
-      if (inclusion.needsTicket && hasTicketPurchased) {
-        // Tem passagem e já foi comprada, aguarda hospedagem
-        return { text: 'Aguardando Hospedagem', color: 'yellow' };
-      } else if (!inclusion.needsTicket) {
-        // Não tem passagem, só hospedagem, aguarda hospedagem
-        return { text: 'Aguardando Hospedagem', color: 'yellow' };
-      }
-    }
-
-    // 7. Aguardando Passagem = tem passagem e foi confirmado mas não comprou ainda
-    if (inclusion.needsTicket && !hasTicketPurchased) {
-      return { text: 'Aguardando Passagem', color: 'yellow' };
-    }
-
-    // 8. Escalado = confirmado mas não precisa de passagem nem hospedagem
-    return { text: 'Escalado', color: 'green' };
-  };
 
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
@@ -690,22 +632,7 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      {(() => {
-                        const displayStatus = getDisplayStatus(inclusion);
-                        const colorMap = {
-                          gray: 'status-cancelado',
-                          red: 'status-planejado',
-                          yellow: 'status-passagem',
-                          green: 'status-aprovado',
-                        };
-                        const statusClass = colorMap[displayStatus.color as keyof typeof colorMap] || 'status-planejado';
-                        
-                        return (
-                          <span className={`status-badge ${statusClass}`} data-testid={`status-${inclusion.id}`}>
-                            {displayStatus.text}
-                          </span>
-                        );
-                      })()}
+                      <StatusBadge status={inclusion.status || 'planejado'} />
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
