@@ -279,17 +279,17 @@ export default function Scaling() {
 
   // Função para determinar o status correto a exibir
   const getDisplayStatus = (inclusion: TeamInclusion) => {
-    // Se cancelado, mostrar cancelado
+    // 1. Se cancelado, mostrar cancelado
     if (inclusion.status === 'cancelado') {
       return { text: 'Cancelado', color: 'gray' };
     }
 
-    // Se não confirmou ainda, mostrar "Aguardando Escalação"
+    // 2. Se não confirmou ainda, mostrar "Aguardando Escalação"
     if (inclusion.status !== 'confirmado') {
       return { text: 'Aguardando Escalação', color: 'red' };
     }
 
-    // Se confirmou, verificar o que foi comprado
+    // 3. Se confirmou, verificar o que foi comprado
     const ticket = getTicket(inclusion.id);
     const accommodation = getAccommodation(inclusion.id);
     
@@ -301,36 +301,36 @@ export default function Scaling() {
       !!accommodation.reservationNumber && 
       accommodation.reservationNumber.trim() !== '';
 
-    // Se tem passagem E hospedagem compradas
+    // 4. Se tem passagem E hospedagem compradas
     if (hasTicketPurchased && hasAccommodationPurchased) {
       return { text: 'Passagem e Hospedagem Compradas', color: 'green' };
     }
 
-    // Se tem apenas passagem comprada
-    if (hasTicketPurchased && !hasAccommodationPurchased) {
-      return { text: 'Passagem Comprada', color: 'green' };
-    }
-
-    // Se tem apenas hospedagem comprada
-    if (hasAccommodationPurchased && !hasTicketPurchased) {
-      return { text: 'Hospedagem Comprada', color: 'green' };
-    }
-
-    // Se não tem nada comprado ainda, verificar a fase
-    if (inclusion.phase === 'passagem' || inclusion.needsTicket) {
-      return { text: 'Aguardando Passagem', color: 'yellow' };
-    }
-
-    if (inclusion.phase === 'hospedagem' || inclusion.needsAccommodation) {
+    // 5. Se tem apenas passagem comprada (e ainda aguarda hospedagem)
+    if (hasTicketPurchased && inclusion.needsAccommodation && !hasAccommodationPurchased) {
       return { text: 'Aguardando Hospedagem', color: 'yellow' };
     }
 
-    // Se phase = aprovacao
-    if (inclusion.phase === 'aprovacao') {
-      return { text: 'Aguardando Aprovação', color: 'yellow' };
+    // 6. Se tem apenas passagem comprada (e não precisa de hospedagem)
+    if (hasTicketPurchased) {
+      return { text: 'Passagem Comprada', color: 'green' };
     }
 
-    // Default
+    // 7. Se tem apenas hospedagem comprada
+    if (hasAccommodationPurchased) {
+      return { text: 'Hospedagem Comprada', color: 'green' };
+    }
+
+    // 8. Se confirmou mas ainda não comprou nada - verificar o que está aguardando
+    if (inclusion.needsTicket) {
+      return { text: 'Aguardando Passagem', color: 'yellow' };
+    }
+
+    if (inclusion.needsAccommodation) {
+      return { text: 'Aguardando Hospedagem', color: 'yellow' };
+    }
+
+    // 9. Se confirmou mas não precisa de passagem nem hospedagem
     return { text: 'Confirmado', color: 'orange' };
   };
 
