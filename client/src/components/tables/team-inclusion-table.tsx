@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -196,6 +197,40 @@ export default function TeamInclusionTable() {
     if (window.confirm('Tem certeza que deseja cancelar a escalação? Esta ação não pode ser desfeita.')) {
       cancelEscalationMutation.mutate(inclusionId);
     }
+  };
+
+  // Mutation para atualizar status (apenas admin/gestão)
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string, newStatus: string }) => {
+      const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, {
+        status: newStatus,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Status atualizado com sucesso",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusChange = (inclusionId: string, newStatus: string) => {
+    updateStatusMutation.mutate({ id: inclusionId, newStatus });
+  };
+
+  // Verificar se é admin ou gestão (production_area)
+  const canEditStatus = (user: any) => {
+    if (!user) return false;
+    return user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'production_area';
   };
 
   // Ações em lote
@@ -579,7 +614,27 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <StatusBadge status={inclusion.status} />
+                      {canEditStatus(user) && inclusion.status !== 'cancelado' ? (
+                        <Select
+                          value={inclusion.status}
+                          onValueChange={(newStatus) => handleStatusChange(inclusion.id, newStatus)}
+                        >
+                          <SelectTrigger className="w-36 h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="planejado">Planejado</SelectItem>
+                            <SelectItem value="confirmado">Confirmado</SelectItem>
+                            <SelectItem value="reaberto">Reaberto</SelectItem>
+                            <SelectItem value="passagem">Passagem</SelectItem>
+                            <SelectItem value="hospedagem">Hospedagem</SelectItem>
+                            <SelectItem value="aprovacao">Aprovação</SelectItem>
+                            <SelectItem value="aprovado">Aprovado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <StatusBadge status={inclusion.status} />
+                      )}
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
