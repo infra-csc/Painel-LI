@@ -957,10 +957,10 @@ export default function GridTeamInclusionForm() {
           eventId,
           functionId: range.functionId, // já é o ID original correto
           userId: originalFunction?.userId || user?.id, // usa userId da função original
-          scheduleStartDate: range.startDate,
-          scheduleEndDate: range.endDate,
-          dailyRates: dailyRatesCount, // número de dias trabalhados
-          dailyValue: dailyRatesCount * 5000, // valor total (dias * valor unitário de R$50)
+          scheduleStartDate: functionRow?.dataVooIda || range.startDate, // DATA DA PASSAGEM DE IDA
+          scheduleEndDate: functionRow?.dataVooRetorno || range.endDate, // DATA DA PASSAGEM DE VOLTA
+          dailyRates: range.dailyRate, // número de dias trabalhados (já calculado corretamente no processGrid)
+          dailyValue: range.dailyRate * 5000, // valor total (dias * valor unitário de R$50)
           needsTicket: functionRow?.needsTicket || false,
           needsAccommodation: functionRow?.needsAccommodation || false,
           status: "planejado", // Status para aparecer na escalação
