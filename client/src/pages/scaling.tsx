@@ -1255,7 +1255,9 @@ export default function Scaling() {
                       <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                         {selectedInclusion.needsTicket 
                           ? "ℹ️ Você pode alterar o colaborador até a passagem ser comprada"
-                          : "ℹ️ Você pode alterar o colaborador até a hospedagem ser reservada"
+                          : selectedInclusion.needsAccommodation
+                            ? "ℹ️ Você pode alterar o colaborador até a hospedagem ser reservada"
+                            : "ℹ️ Você pode alterar o colaborador (escalação confirmada)"
                         }
                       </div>
                     )}
