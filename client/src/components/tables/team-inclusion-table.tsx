@@ -79,6 +79,71 @@ export default function TeamInclusionTable() {
     return accommodations?.some(a => a.teamInclusionId === inclusionId);
   };
 
+  const getTicket = (inclusionId: string) => {
+    return tickets?.find(t => t.teamInclusionId === inclusionId);
+  };
+
+  const getAccommodation = (inclusionId: string) => {
+    return accommodations?.find(a => a.teamInclusionId === inclusionId);
+  };
+
+  // Função para determinar o status correto a exibir
+  const getDisplayStatus = (inclusion: TeamInclusion) => {
+    // 1. Se cancelado, mostrar cancelado
+    if (inclusion.status === 'cancelado') {
+      return { text: 'Cancelado', color: 'gray' };
+    }
+
+    // 2. Se não confirmou ainda, mostrar "Aguardando Escalação"
+    if (inclusion.status !== 'confirmado') {
+      return { text: 'Aguardando Escalação', color: 'red' };
+    }
+
+    // 3. Se confirmou, verificar o que foi comprado
+    const ticket = getTicket(inclusion.id);
+    const accommodation = getAccommodation(inclusion.id);
+    
+    // Verifica se a passagem foi COMPRADA (tem purchaseDate)
+    const hasTicketPurchased = !!ticket && !!ticket.purchaseDate;
+    
+    // Verifica se a hospedagem foi COMPRADA (tem reservationNumber)
+    const hasAccommodationPurchased = !!accommodation && 
+      !!accommodation.reservationNumber && 
+      accommodation.reservationNumber.trim() !== '';
+
+    // 4. Se tem passagem E hospedagem compradas
+    if (hasTicketPurchased && hasAccommodationPurchased) {
+      return { text: 'Passagem e Hospedagem Compradas', color: 'green' };
+    }
+
+    // 5. Se tem apenas passagem comprada (e ainda aguarda hospedagem)
+    if (hasTicketPurchased && inclusion.needsAccommodation && !hasAccommodationPurchased) {
+      return { text: 'Aguardando Hospedagem', color: 'yellow' };
+    }
+
+    // 6. Se tem apenas passagem comprada (e não precisa de hospedagem)
+    if (hasTicketPurchased) {
+      return { text: 'Passagem Comprada', color: 'green' };
+    }
+
+    // 7. Se tem apenas hospedagem comprada
+    if (hasAccommodationPurchased) {
+      return { text: 'Hospedagem Comprada', color: 'green' };
+    }
+
+    // 8. Se confirmou mas ainda não comprou nada - verificar o que está aguardando
+    if (inclusion.needsTicket) {
+      return { text: 'Aguardando Passagem', color: 'yellow' };
+    }
+
+    if (inclusion.needsAccommodation) {
+      return { text: 'Aguardando Hospedagem', color: 'yellow' };
+    }
+
+    // 9. Se confirmou mas não precisa de passagem nem hospedagem - está escalado
+    return { text: 'Escalado', color: 'green' };
+  };
+
   const getEventName = (eventId: string) => {
     return events?.find(e => e.id === eventId)?.name || "Evento não encontrado";
   };
@@ -623,7 +688,22 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <StatusBadge status={inclusion.status} />
+                      {(() => {
+                        const displayStatus = getDisplayStatus(inclusion);
+                        const colorMap = {
+                          gray: 'status-cancelado',
+                          red: 'status-planejado',
+                          yellow: 'status-passagem',
+                          green: 'status-aprovado',
+                        };
+                        const statusClass = colorMap[displayStatus.color as keyof typeof colorMap] || 'status-planejado';
+                        
+                        return (
+                          <span className={`status-badge ${statusClass}`} data-testid={`status-${inclusion.id}`}>
+                            {displayStatus.text}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
