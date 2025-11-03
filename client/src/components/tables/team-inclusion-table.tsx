@@ -688,6 +688,7 @@ export default function TeamInclusionTable() {
               
               const data = {
                 functionId: formData.get('functionId') as string,
+                status: formData.get('status') as string,
                 dailyRates: dailyRates,
                 needsTicket: formData.get('needsTicket') === 'true',
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
@@ -715,6 +716,23 @@ export default function TeamInclusionTable() {
                     </select>
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Status *</label>
+                    <select
+                      name="status"
+                      defaultValue={editingInclusion.status}
+                      className="w-full p-2 border rounded"
+                      required
+                    >
+                      <option value="incluido">Incluído</option>
+                      <option value="reaberto">Reaberto</option>
+                      <option value="confirmado">Confirmado</option>
+                      <option value="passagem_comprada">Passagem Comprada</option>
+                      <option value="hospedagem_comprada">Hospedagem Comprada</option>
+                      <option value="hospedagem_passagem_comprada">Hospedagem e Passagem Comprada</option>
+                      <option value="cancelado">Cancelado</option>
+                    </select>
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Data Início *</label>
