@@ -478,7 +478,7 @@ export default function Scaling() {
         'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
         'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
         'Data Voo Ida': inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A',
-        'Horário Sugerido Ida': inclusion.flightDepartureSuggestedTime || 'N/A',
+        'Horário Sugerido Ida': inclusion.flightArrivalSuggestedTime || 'N/A',
         'Data Voo Volta': inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A',
         'Horário Sugerido Volta': inclusion.flightReturnSuggestedTime || 'N/A',
         'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
@@ -752,9 +752,9 @@ export default function Scaling() {
     // Se as observações estão vazias, usa os campos específicos da inclusão
     if (inclusion) {
       return {
-        ida: inclusion.flightDepartureSuggestedTime || 'Não informado',
-        retorno: 'Não informado', // Campo retorno não existe nos campos específicos
-        chegada: 'Não informado', // Campo chegada não existe nos campos específicos  
+        ida: inclusion.flightDepartureDate || 'Não informado',
+        retorno: inclusion.flightReturnDate || 'Não informado',
+        chegada: inclusion.flightArrivalSuggestedTime || 'Não informado',
         horario: inclusion.flightReturnSuggestedTime || 'Não informado'
       };
     }
