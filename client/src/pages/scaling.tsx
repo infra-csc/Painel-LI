@@ -1054,11 +1054,6 @@ export default function Scaling() {
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
-                            {isAdmin && (
-                              <th className="px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Ações
-                              </th>
-                            )}
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -1141,33 +1136,6 @@ export default function Scaling() {
                                   })()}
                                 </div>
                               </td>
-                              {isAdmin && (
-                                <td className="px-3 py-4">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={(e) => handleEditDates(e, inclusion)}
-                                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                      title="Editar datas"
-                                      data-testid={`button-edit-dates-${inclusion.id}`}
-                                    >
-                                      <Calendar className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={(e) => handleCancelEscalation(e, inclusion)}
-                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                      title="Cancelar escalação"
-                                      data-testid={`button-cancel-${inclusion.id}`}
-                                      disabled={inclusion.status === 'cancelado'}
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -1200,11 +1168,6 @@ export default function Scaling() {
                             <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                               Escalação
                             </th>
-                            {isAdmin && (
-                              <th className="px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Ações
-                              </th>
-                            )}
                           </tr>
                         </thead>
                         <tbody className="bg-card divide-y divide-border">
@@ -1287,33 +1250,6 @@ export default function Scaling() {
                                   })()}
                                 </div>
                               </td>
-                              {isAdmin && (
-                                <td className="px-3 py-4">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={(e) => handleEditDates(e, inclusion)}
-                                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                      title="Editar datas"
-                                      data-testid={`button-edit-dates-${inclusion.id}`}
-                                    >
-                                      <Calendar className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={(e) => handleCancelEscalation(e, inclusion)}
-                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                      title="Cancelar escalação"
-                                      data-testid={`button-cancel-${inclusion.id}`}
-                                      disabled={inclusion.status === 'cancelado'}
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              )}
                             </tr>
                           ))}
                         </tbody>
