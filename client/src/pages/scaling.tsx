@@ -283,6 +283,15 @@ export default function Scaling() {
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
     if (!hasRole) return false;
     
+    // NOVA REGRA: Se status é "confirmado", bloqueia edição de colaborador
+    // A menos que seja mudado para "reaberto" pela gestão
+    if (inclusion.status === 'confirmado') {
+      return false; // Bloqueado - escalação confirmada
+    }
+    
+    // Se status é "reaberto", permite edição (gestão liberou)
+    // Continua com as outras verificações...
+    
     // If needs ticket, block after ticket purchase (passagem vem primeiro no fluxo)
     // Mesmo que também precise de hospedagem, o bloqueio acontece na compra da passagem
     if (inclusion.needsTicket) {
@@ -1196,6 +1205,15 @@ export default function Scaling() {
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
                     {isEscalationConfirmed(selectedInclusion) && (() => {
+                      // Verificar se está bloqueado por status confirmado
+                      if (selectedInclusion.status === 'confirmado') {
+                        return (
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                            🔒 Escalação confirmada - Para editar, altere o status para "Reaberto" na tela de inclusões
+                          </div>
+                        );
+                      }
+                      
                       const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
                       const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.reservationNumber !== null && a.reservationNumber !== '');
                       
