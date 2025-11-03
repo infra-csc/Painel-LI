@@ -956,7 +956,109 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamInclusion(id: string, inclusionData: Partial<InsertTeamInclusion>): Promise<TeamInclusion> {
+    // Buscar dados antes da atualização para comparação
+    const [oldInclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    if (!oldInclusion) throw new Error("Team inclusion not found");
+    
+    // Atualizar a inclusão
     const [inclusion] = await db.update(teamInclusions).set(inclusionData).where(eq(teamInclusions.id, id)).returning();
+    
+    // Buscar nome do usuário se disponível
+    let userName = "Sistema";
+    if (inclusionData.updatedBy) {
+      const [user] = await db.select().from(users).where(eq(users.id, inclusionData.updatedBy));
+      if (user) userName = user.name;
+    }
+    
+    // Criar logs para mudanças significativas
+    const logsToCreate: InsertTeamInclusionLog[] = [];
+    
+    // Status change
+    if (inclusionData.status && inclusionData.status !== oldInclusion.status) {
+      const statusLabels: Record<string, string> = {
+        'planejado': 'Planejado',
+        'confirmado': 'Confirmado',
+        'reaberto': 'Reaberto',
+        'aprovado': 'Aprovado',
+        'cancelado': 'Cancelado'
+      };
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'status_changed',
+        details: `Status alterado de "${statusLabels[oldInclusion.status] || oldInclusion.status}" para "${statusLabels[inclusionData.status] || inclusionData.status}"`,
+        previousValue: oldInclusion.status,
+        newValue: inclusionData.status,
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+    
+    // Collaborator change
+    if (inclusionData.collaboratorId !== undefined && inclusionData.collaboratorId !== oldInclusion.collaboratorId) {
+      const oldCollabName = oldInclusion.collaboratorId ? 
+        (await db.select().from(collaborators).where(eq(collaborators.id, oldInclusion.collaboratorId)))[0]?.fullName || 'Desconhecido' 
+        : 'Nenhum';
+      const newCollabName = inclusionData.collaboratorId ? 
+        (await db.select().from(collaborators).where(eq(collaborators.id, inclusionData.collaboratorId)))[0]?.fullName || 'Desconhecido' 
+        : 'Nenhum';
+      
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'collaborator_changed',
+        details: `Colaborador alterado de "${oldCollabName}" para "${newCollabName}"`,
+        previousValue: oldCollabName,
+        newValue: newCollabName,
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+    
+    // Work dates change
+    if ((inclusionData.scheduleStartDate && inclusionData.scheduleStartDate !== oldInclusion.scheduleStartDate) ||
+        (inclusionData.scheduleEndDate && inclusionData.scheduleEndDate !== oldInclusion.scheduleEndDate)) {
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'dates_changed',
+        details: `Período de trabalho alterado`,
+        previousValue: `${oldInclusion.scheduleStartDate || 'N/A'} a ${oldInclusion.scheduleEndDate || 'N/A'}`,
+        newValue: `${inclusionData.scheduleStartDate || oldInclusion.scheduleStartDate || 'N/A'} a ${inclusionData.scheduleEndDate || oldInclusion.scheduleEndDate || 'N/A'}`,
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+    
+    // Travel dates change
+    if ((inclusionData.flightDepartureDate && inclusionData.flightDepartureDate !== oldInclusion.flightDepartureDate) ||
+        (inclusionData.flightReturnDate && inclusionData.flightReturnDate !== oldInclusion.flightReturnDate)) {
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'travel_dates_changed',
+        details: `Datas de viagem alteradas`,
+        previousValue: `${oldInclusion.flightDepartureDate || 'N/A'} a ${oldInclusion.flightReturnDate || 'N/A'}`,
+        newValue: `${inclusionData.flightDepartureDate || oldInclusion.flightDepartureDate || 'N/A'} a ${inclusionData.flightReturnDate || oldInclusion.flightReturnDate || 'N/A'}`,
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+    
+    // Observations change
+    if (inclusionData.observations !== undefined && inclusionData.observations !== oldInclusion.observations) {
+      logsToCreate.push({
+        teamInclusionId: id,
+        action: 'observations_changed',
+        details: `Observações atualizadas`,
+        previousValue: oldInclusion.observations || '',
+        newValue: inclusionData.observations || '',
+        userId: inclusionData.updatedBy || 'system',
+        userName
+      });
+    }
+    
+    // Salvar todos os logs
+    if (logsToCreate.length > 0) {
+      await db.insert(teamInclusionLogs).values(logsToCreate);
+    }
+    
     return inclusion;
   }
 
