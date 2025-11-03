@@ -1297,11 +1297,7 @@ export default function Scaling() {
                   {selectedTicket ? (
                     <>
                       {/* Informações Gerais da Compra */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div>
-                          <Label className="text-xs text-green-600 dark:text-green-300 font-medium">💰 Valor</Label>
-                          <p className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency((selectedTicket.value || 0) / 100)}</p>
-                        </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
                           <Label className="text-xs text-green-600 dark:text-green-300 font-medium">📅 Data da Compra</Label>
                           <p className="font-medium">{selectedTicket.purchaseDate ? formatDate(selectedTicket.purchaseDate) : "-"}</p>
