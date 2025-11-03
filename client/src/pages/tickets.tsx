@@ -1132,16 +1132,16 @@ export default function Tickets() {
                         </td>
                         <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
-                            const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined);
+                            const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
                             return (
                               <div className="text-xs text-blue-700 dark:text-blue-300">
                                 <div className="mb-1">
-                                  <span className="font-medium">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' ? travelInfo.ida : "N/A")}
-                                  {travelInfo.chegada !== 'Não definido' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
+                                  <span className="font-medium">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
+                                  {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' ? travelInfo.retorno : "N/A")}
-                                  {travelInfo.horario !== 'Não definido' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
+                                  <span className="font-medium">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
+                                  {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
                                 </div>
                               </div>
                             );
