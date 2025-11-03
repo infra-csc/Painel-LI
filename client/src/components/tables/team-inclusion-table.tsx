@@ -630,27 +630,7 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      {canEditStatus(user) && inclusion.status !== 'cancelado' ? (
-                        <Select
-                          value={inclusion.status}
-                          onValueChange={(newStatus) => handleStatusChange(inclusion.id, newStatus)}
-                        >
-                          <SelectTrigger className="w-36 h-7 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="planejado">Planejado</SelectItem>
-                            <SelectItem value="confirmado">Confirmado</SelectItem>
-                            <SelectItem value="reaberto">Reaberto</SelectItem>
-                            <SelectItem value="passagem">Passagem</SelectItem>
-                            <SelectItem value="hospedagem">Hospedagem</SelectItem>
-                            <SelectItem value="aprovacao">Aprovação</SelectItem>
-                            <SelectItem value="aprovado">Aprovado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <StatusBadge status={inclusion.status} />
-                      )}
+                      <StatusBadge status={inclusion.status} />
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
