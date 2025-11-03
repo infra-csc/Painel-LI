@@ -500,6 +500,37 @@ export default function Scaling() {
           }).join(' | ')
         : 'N/A';
 
+      // Extrair informações de viagem do campo observações (dados antigos)
+      let dataVooIda = inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A';
+      let horarioSugeridoIda = inclusion.flightArrivalSuggestedTime || 'N/A';
+      let dataVooVolta = inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A';
+      let horarioSugeridoVolta = inclusion.flightReturnSuggestedTime || 'N/A';
+      let observacoesLimpas = inclusion.observations || '';
+
+      // Se as observações contêm dados de viagem no formato antigo, extrair
+      if (observacoesLimpas && observacoesLimpas.includes('Ida:') && observacoesLimpas.includes('Chegada:')) {
+        const idaMatch = observacoesLimpas.match(/Ida:\s*([^|]+)/);
+        const chegadaMatch = observacoesLimpas.match(/Chegada:\s*([^|]+)/);
+        const retornoMatch = observacoesLimpas.match(/Retorno:\s*([^|]+)/);
+        const horarioMatch = observacoesLimpas.match(/Horário:\s*([^|]+)/);
+
+        if (idaMatch && idaMatch[1].trim()) {
+          dataVooIda = idaMatch[1].trim();
+        }
+        if (chegadaMatch && chegadaMatch[1].trim()) {
+          horarioSugeridoIda = chegadaMatch[1].trim();
+        }
+        if (retornoMatch && retornoMatch[1].trim()) {
+          dataVooVolta = retornoMatch[1].trim();
+        }
+        if (horarioMatch && horarioMatch[1].trim()) {
+          horarioSugeridoVolta = horarioMatch[1].trim();
+        }
+
+        // Limpar as observações (remover dados de viagem)
+        observacoesLimpas = '';
+      }
+
       return {
         'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
         'Evento': event?.name || 'N/A',
@@ -518,10 +549,10 @@ export default function Scaling() {
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
         'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
         'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
-        'Data Voo Ida': inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A',
-        'Horário Sugerido Ida': inclusion.flightArrivalSuggestedTime || 'N/A',
-        'Data Voo Volta': inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A',
-        'Horário Sugerido Volta': inclusion.flightReturnSuggestedTime || 'N/A',
+        'Data Voo Ida': dataVooIda,
+        'Horário Sugerido Ida': horarioSugeridoIda,
+        'Data Voo Volta': dataVooVolta,
+        'Horário Sugerido Volta': horarioSugeridoVolta,
         'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
         'Diárias Planejadas': inclusion.dailyRates ?? 0,
         'Diárias Reais': inclusion.actualDailyRates ?? 'N/A',
@@ -530,7 +561,7 @@ export default function Scaling() {
         'Status': confirmationStatus,
         'Fase Atual': inclusion.phase || 'N/A',
         'Registro Emergencial': inclusion.emergencyRecord ? 'Sim' : 'Não',
-        'Observações': inclusion.observations || '',
+        'Observações': observacoesLimpas,
         'Observações Reais': inclusion.actualObservations || '',
         'Comentários': commentsText
       };
