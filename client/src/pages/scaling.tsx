@@ -138,6 +138,16 @@ export default function Scaling() {
     queryKey: ["/api/tickets"],
   });
 
+  // Query para buscar todos os comentários para a exportação
+  const { data: allComments } = useQuery<Comment[]>({
+    queryKey: ["/api/all-comments"],
+    queryFn: async () => {
+      const response = await fetch('/api/all-comments');
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+
   // Definir selectedTicket no nível do componente
   const selectedTicket = useMemo(() => (
     selectedInclusion && tickets ? tickets.find(t => t.teamInclusionId === selectedInclusion.id) : undefined
@@ -479,6 +489,17 @@ export default function Scaling() {
       const dailyValueInReais = (inclusion.dailyValue || 0) / 100;
       const totalValue = dailyValueInReais * (inclusion.dailyRates || 0);
 
+      // Buscar comentários desta inclusão
+      const inclusionComments = allComments?.filter(c => c.teamInclusionId === inclusion.id) || [];
+      const commentsText = inclusionComments.length > 0
+        ? inclusionComments.map(c => {
+            const commentUser = users?.find(u => u.id === c.userId);
+            const userName = commentUser?.name || 'Usuário';
+            const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '';
+            return `[${date} - ${userName}] ${c.content}`;
+          }).join(' | ')
+        : 'N/A';
+
       return {
         'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
         'Evento': event?.name || 'N/A',
@@ -497,12 +518,10 @@ export default function Scaling() {
         'Período Real - Início': inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : 'N/A',
         'Período Real - Fim': inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : 'N/A',
         'Precisa Passagem': inclusion.needsTicket ? 'Sim' : 'Não',
-        'Data e Horário Ida': inclusion.flightDepartureDate 
-          ? `${formatDate(inclusion.flightDepartureDate)}${inclusion.flightArrivalSuggestedTime ? ' - ' + inclusion.flightArrivalSuggestedTime : ''}`
-          : 'N/A',
-        'Data e Horário Volta': inclusion.flightReturnDate 
-          ? `${formatDate(inclusion.flightReturnDate)}${inclusion.flightReturnSuggestedTime ? ' - ' + inclusion.flightReturnSuggestedTime : ''}`
-          : 'N/A',
+        'Data Voo Ida': inclusion.flightDepartureDate ? formatDate(inclusion.flightDepartureDate) : 'N/A',
+        'Horário Sugerido Ida': inclusion.flightArrivalSuggestedTime || 'N/A',
+        'Data Voo Volta': inclusion.flightReturnDate ? formatDate(inclusion.flightReturnDate) : 'N/A',
+        'Horário Sugerido Volta': inclusion.flightReturnSuggestedTime || 'N/A',
         'Precisa Hospedagem': inclusion.needsAccommodation ? 'Sim' : 'Não',
         'Diárias Planejadas': inclusion.dailyRates ?? 0,
         'Diárias Reais': inclusion.actualDailyRates ?? 'N/A',
@@ -512,7 +531,8 @@ export default function Scaling() {
         'Fase Atual': inclusion.phase || 'N/A',
         'Registro Emergencial': inclusion.emergencyRecord ? 'Sim' : 'Não',
         'Observações': inclusion.observations || '',
-        'Observações Reais': inclusion.actualObservations || ''
+        'Observações Reais': inclusion.actualObservations || '',
+        'Comentários': commentsText
       };
     });
 
@@ -538,8 +558,10 @@ export default function Scaling() {
       { wch: 18 },  // Período Real - Início
       { wch: 18 },  // Período Real - Fim
       { wch: 15 },  // Precisa Passagem
-      { wch: 25 },  // Data e Horário Ida
-      { wch: 25 },  // Data e Horário Volta
+      { wch: 15 },  // Data Voo Ida
+      { wch: 18 },  // Horário Sugerido Ida
+      { wch: 15 },  // Data Voo Volta
+      { wch: 18 },  // Horário Sugerido Volta
       { wch: 18 },  // Precisa Hospedagem
       { wch: 18 },  // Diárias Planejadas
       { wch: 15 },  // Diárias Reais
@@ -549,7 +571,8 @@ export default function Scaling() {
       { wch: 15 },  // Fase Atual
       { wch: 20 },  // Registro Emergencial
       { wch: 40 },  // Observações
-      { wch: 40 }   // Observações Reais
+      { wch: 40 },  // Observações Reais
+      { wch: 60 }   // Comentários
     ];
     ws['!cols'] = colWidths;
 
