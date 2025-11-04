@@ -756,6 +756,25 @@ export default function Scaling() {
     return `${day}/${month}/${year}`;
   };
 
+  // Função para obter o período de trabalho baseado nas workDays
+  const getWorkPeriod = (inclusion: TeamInclusion) => {
+    if (inclusion.workDays && inclusion.workDays.length > 0) {
+      // Ordena as datas para garantir ordem cronológica
+      const sortedDays = [...inclusion.workDays].sort();
+      const firstDay = sortedDays[0];
+      const lastDay = sortedDays[sortedDays.length - 1];
+      return {
+        start: formatDate(firstDay),
+        end: formatDate(lastDay)
+      };
+    }
+    // Fallback para as datas de agendamento se não houver workDays
+    return {
+      start: formatDate(inclusion.scheduleStartDate),
+      end: formatDate(inclusion.scheduleEndDate)
+    };
+  };
+
   // Função específica para formatar datas nas sugestões de viagem com dia da semana
   const formatSuggestionDate = (dateStr: string | null | undefined) => {
     if (!dateStr || dateStr === 'N/A' || dateStr === 'Não definido' || dateStr === 'Não informado') {
@@ -1033,7 +1052,7 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
+                                  {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
                                 </div>
                                 <div className="text-xs text-muted-foreground font-medium">
                                   {inclusion.dailyRates} diárias
@@ -1147,7 +1166,7 @@ export default function Scaling() {
                               </td>
                               <td className="px-3 py-4">
                                 <div className="text-sm text-foreground">
-                                  {formatDate(inclusion.scheduleStartDate)} a {formatDate(inclusion.scheduleEndDate)}
+                                  {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
                                 </div>
                                 <div className="text-xs text-muted-foreground font-medium">
                                   {inclusion.dailyRates} diárias
