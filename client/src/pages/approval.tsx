@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
-import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -236,7 +235,6 @@ export default function Approval() {
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <NavigationTabs activeTab="approval" />
-          <WorkflowIndicator currentPhase="aprovacao" />
           <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
             <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
             <div className="space-y-3">
@@ -255,7 +253,6 @@ export default function Approval() {
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <NavigationTabs activeTab="approval" />
-        <WorkflowIndicator currentPhase="aprovacao" />
         
         <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">

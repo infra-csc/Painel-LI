@@ -133,6 +133,12 @@ export default function TeamInclusionTable() {
     return inclusion.status !== 'cancelado';
   };
 
+  const canDeleteInclusion = (inclusion: TeamInclusion) => {
+    // Só pode excluir antes da confirmação (não pode ter comprado nada)
+    const blockedStatuses = ['confirmado', 'passagem_comprada', 'hospedagem_comprada', 'hospedagem_passagem_comprada'];
+    return !blockedStatuses.includes(inclusion.status);
+  };
+
   const deleteTeamInclusionMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
@@ -225,14 +231,34 @@ export default function TeamInclusionTable() {
       return;
     }
 
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedRows.size} inclusão(ões) selecionada(s)?`)) {
+    // Filtrar apenas as inclusões que podem ser excluídas
+    const deletableIds = Array.from(selectedRows).filter(id => {
+      const inclusion = teamInclusions?.find(i => i.id === id);
+      return inclusion && canDeleteInclusion(inclusion);
+    });
+
+    if (deletableIds.length === 0) {
+      toast({
+        title: "Não é possível excluir",
+        description: "Nenhuma das inclusões selecionadas pode ser excluída (já foram confirmadas ou compradas).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const blockedCount = selectedRows.size - deletableIds.length;
+    const confirmMessage = blockedCount > 0
+      ? `${deletableIds.length} de ${selectedRows.size} inclusões podem ser excluídas. ${blockedCount} não podem ser excluídas (confirmadas/compradas). Deseja continuar?`
+      : `Tem certeza que deseja excluir ${deletableIds.length} inclusão(ões) selecionada(s)?`;
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     let successCount = 0;
     let errorCount = 0;
 
-    for (const id of Array.from(selectedRows)) {
+    for (const id of deletableIds) {
       try {
         const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
         if (response.ok) {
@@ -307,9 +333,9 @@ export default function TeamInclusionTable() {
       if (filters.status !== "all" && inclusion.status !== filters.status) return false;
       if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
       if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
+      // Busca exata por ID (número de inclusão)
       if (filters.searchId && !(
-        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
-        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
+        inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId
       )) return false;
       return true;
     }) || [];
@@ -603,17 +629,21 @@ export default function TeamInclusionTable() {
                         {hasPermission(user, 'canEditScreen1') && (
                           <>
                             {isReadOnly(inclusion) ? (
-                              // Para cancelados ou comprados, permitir apenas exclusão
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDelete(inclusion.id)}
-                                className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                data-testid={`button-delete-${inclusion.id}`}
-                                title="Excluir registro"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              // Para cancelados ou comprados, só mostrar botão de excluir se permitido
+                              <>
+                                {canDeleteInclusion(inclusion) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDelete(inclusion.id)}
+                                    className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
+                                    data-testid={`button-delete-${inclusion.id}`}
+                                    title="Excluir registro"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </>
                             ) : (
                               // Para status editáveis, mostrar botões de editar, excluir e cancelar
                               <>
@@ -626,15 +656,17 @@ export default function TeamInclusionTable() {
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDelete(inclusion.id)}
-                                  className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
-                                  data-testid={`button-delete-${inclusion.id}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {canDeleteInclusion(inclusion) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDelete(inclusion.id)}
+                                    className="text-red-600 hover:text-red-900 h-8 w-8 p-0 shrink-0"
+                                    data-testid={`button-delete-${inclusion.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 {canCancelEscalation(inclusion) && (
                                   <Button
                                     size="sm"

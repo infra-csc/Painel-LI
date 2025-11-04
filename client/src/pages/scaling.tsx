@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
-import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
@@ -349,9 +348,9 @@ export default function Scaling() {
   const scalingInclusions = useMemo(() => {
     const filtered = filteredTeamInclusions?.filter(
       inclusion => {
+        // Busca exata por ID (número de inclusão)
         const idMatch = !filters.searchId || 
-          (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
-          inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase());
+          (inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId);
         
         // Apply universal filters
         if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -860,7 +859,6 @@ export default function Scaling() {
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <NavigationTabs activeTab="scaling" />
-          <WorkflowIndicator currentPhase="escalacao" />
           <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
             <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
             <div className="space-y-3">
@@ -879,7 +877,6 @@ export default function Scaling() {
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <NavigationTabs activeTab="scaling" />
-        <WorkflowIndicator currentPhase="escalacao" />
         
         <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">

@@ -1,6 +1,5 @@
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
-import WorkflowIndicator from "@/components/layout/workflow-indicator";
 import GridTeamInclusionForm from "@/components/forms/grid-team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import { useAuth } from "@/hooks/use-auth";
@@ -117,7 +116,6 @@ export default function TeamInclusion() {
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <NavigationTabs activeTab="team-inclusion" />
-        <WorkflowIndicator currentPhase="inclusao" />
         
         {/* Botão para criar evento - apenas para usuários com permissão de edição */}
         {canEdit(user as any, 'team_inclusion') && (
