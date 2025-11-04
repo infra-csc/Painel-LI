@@ -257,15 +257,19 @@ export default function Tickets() {
     return { ida: 'Não informado', retorno: 'Não informado', chegada: 'Não informado', horario: 'Não informado' };
   };
 
-  // Filter inclusions that need tickets - show all that need tickets (pending or processed)
+  // Filter inclusions that need tickets - now independent of accommodation and collaborator
   const ticketInclusions = teamInclusions?.filter(
     inclusion => {
-      // Show all inclusions that need tickets and have collaborators assigned
-      // This includes both "passagem" (pending) and "hospedagem"+ (processed)
-      const needsTicketMatch = inclusion.needsTicket && inclusion.collaboratorId && 
-        (inclusion.status === "aguardando_passagem" ||
+      // Show all inclusions that need tickets (with or without collaborators)
+      // This allows ticket purchase before name assignment
+      const needsTicketMatch = inclusion.needsTicket && 
+        (inclusion.status === "confirmado" ||
+         inclusion.status === "reaberto" ||
+         inclusion.status === "escalado" ||
+         inclusion.status === "aguardando_passagem" ||
          inclusion.status === "passagem" || 
          inclusion.status === "hospedagem" || 
+         inclusion.status === "hospedagem_comprada" ||
          inclusion.status === "aprovado" || 
          inclusion.status === "passagem_comprada" ||
          inclusion.status === "hospedagem_passagem_comprada" ||
@@ -307,7 +311,13 @@ export default function Tickets() {
       // collaborators with same document but different IDs
       const normalizedDoc = normalizeDocument(collaborator?.officialDocument);
       const collaboratorBusinessId = normalizedDoc || inc.collaboratorId || '';
-      return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId || ''}`;
+      
+      // If no collaborator, use inclusion ID to keep each unnamed inclusion separate
+      if (!collaboratorBusinessId) {
+        return `${inc.eventId}|${inc.functionId}|unassigned-${inc.id}`;
+      }
+      
+      return `${inc.eventId}|${inc.functionId}|${collaboratorBusinessId}`;
     };
     
     const statusPriority: Record<string, number> = {
@@ -528,26 +538,20 @@ export default function Tickets() {
             ticketObservations: quickData.ticketObservations || null
           });
 
-          // Atualizar team inclusion status baseado em passagem E hospedagem
+          // Atualizar team inclusion status - passagem agora é independente de hospedagem
           const needsAccommodation = inclusion.needsAccommodation;
+          const accommodation = accommodations?.find(acc => acc.teamInclusionId === inclusion.id);
+          const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+          
           let newStatus = "passagem_comprada";
           let newPhase = "passagem";
           
-          if (needsAccommodation) {
-            // Verificar se hospedagem já foi comprada
-            const accommodation = accommodations?.find(acc => acc.teamInclusionId === inclusion.id);
-            const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
-            
-            if (accommodationPurchased) {
-              // Ambos comprados
-              newStatus = "hospedagem_passagem_comprada";
-              newPhase = "hospedagem";
-            } else {
-              // Passagem comprada, aguardando hospedagem
-              newStatus = "hospedagem";
-              newPhase = "hospedagem";
-            }
+          // Se precisa hospedagem E hospedagem já foi comprada, marcar como ambos comprados
+          if (needsAccommodation && accommodationPurchased) {
+            newStatus = "hospedagem_passagem_comprada";
+            newPhase = "hospedagem";
           }
+          // Senão, apenas marcar passagem como comprada (independente se precisa ou não de hospedagem)
           
           await updateTeamInclusionMutation.mutateAsync({
             id: inclusion.id,
@@ -2138,26 +2142,20 @@ export default function Tickets() {
                                         ticketObservations: data.ticketObservations || null
                                       });
 
-                                      // Atualizar team inclusion status baseado em passagem E hospedagem (só quando criar novo)
+                                      // Atualizar team inclusion status - passagem agora é independente de hospedagem
                                       const needsAccommodation = selectedInclusion.needsAccommodation;
+                                      const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
+                                      const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
+                                      
                                       let newStatus = "passagem_comprada";
                                       let newPhase = "passagem";
                                       
-                                      if (needsAccommodation) {
-                                        // Verificar se hospedagem já foi comprada
-                                        const accommodation = accommodations?.find(acc => acc.teamInclusionId === selectedInclusion.id);
-                                        const accommodationPurchased = accommodation && (accommodation.reservationNumber || accommodation.hotelName);
-                                        
-                                        if (accommodationPurchased) {
-                                          // Ambos comprados
-                                          newStatus = "hospedagem_passagem_comprada";
-                                          newPhase = "hospedagem";
-                                        } else {
-                                          // Passagem comprada, aguardando hospedagem
-                                          newStatus = "hospedagem";
-                                          newPhase = "hospedagem";
-                                        }
+                                      // Se precisa hospedagem E hospedagem já foi comprada, marcar como ambos comprados
+                                      if (needsAccommodation && accommodationPurchased) {
+                                        newStatus = "hospedagem_passagem_comprada";
+                                        newPhase = "hospedagem";
                                       }
+                                      // Senão, apenas marcar passagem como comprada (independente se precisa ou não de hospedagem)
                                       
                                       await updateTeamInclusionMutation.mutateAsync({
                                         id: selectedInclusion.id,

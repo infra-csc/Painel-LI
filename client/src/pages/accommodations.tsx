@@ -767,7 +767,7 @@ export default function Accommodations() {
     queryKey: ["/api/users"],
   });
 
-  // Filtrar team inclusions que precisam de hospedagem E estão no status correto
+  // Filtrar team inclusions que precisam de hospedagem (independente de passagem ou nome)
   const teamInclusionsWithAccommodation = useMemo(() => {
     if (!teamInclusions) return [];
     
@@ -775,10 +775,18 @@ export default function Accommodations() {
       // Deve precisar de hospedagem
       if (inclusion.needsAccommodation !== true) return false;
       
-      // Deve estar no status "hospedagem" (aguardando hospedagem), "hospedagem_comprada" (já registrada) ou "hospedagem_passagem_comprada" (ambos comprados)
-      const correctStatus = inclusion.status === "hospedagem" || inclusion.status === "hospedagem_comprada" || inclusion.status === "hospedagem_passagem_comprada";
+      // Não pode estar cancelado
+      if (inclusion.status === "cancelado") return false;
       
-      return correctStatus;
+      // Aceita qualquer status confirmado ou superior (permite hospedagem sem passagem e sem nome)
+      const validStatuses = [
+        "confirmado", "reaberto", "escalado",
+        "aguardando_passagem", "passagem", "passagem_comprada",
+        "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
+        "aprovado"
+      ];
+      
+      return validStatuses.includes(inclusion.status);
     });
     return filtered;
   }, [teamInclusions]);
@@ -856,27 +864,21 @@ export default function Accommodations() {
       // 1. Criar accommodation
       const accommodation = await apiRequest("POST", "/api/accommodations", accommodationData);
       
-      // 2. Atualizar status do teamInclusion baseado em passagem E hospedagem
+      // 2. Atualizar status do teamInclusion - hospedagem agora é independente de passagem
       const inclusion = teamInclusions?.find(inc => inc.id === accommodationData.teamInclusionId);
       const needsTicket = inclusion?.needsTicket;
+      const ticket = tickets?.find(t => t.teamInclusionId === accommodationData.teamInclusionId);
+      const ticketPurchased = ticket && (ticket.purchaseDate || ticket.actualDepartureDate);
+      
       let newStatus = "hospedagem_comprada";
       let newPhase = "hospedagem";
       
-      if (needsTicket) {
-        // Verificar se passagem já foi comprada
-        const ticket = tickets?.find(t => t.teamInclusionId === accommodationData.teamInclusionId);
-        const ticketPurchased = ticket && (ticket.purchaseDate || ticket.actualDepartureDate);
-        
-        if (ticketPurchased) {
-          // Ambos comprados
-          newStatus = "hospedagem_passagem_comprada";
-          newPhase = "hospedagem";
-        } else {
-          // Hospedagem comprada, aguardando passagem
-          newStatus = "passagem";
-          newPhase = "passagem";
-        }
+      // Se precisa de passagem E passagem já foi comprada, marcar como ambos comprados
+      if (needsTicket && ticketPurchased) {
+        newStatus = "hospedagem_passagem_comprada";
+        newPhase = "hospedagem";
       }
+      // Senão, apenas marcar hospedagem como comprada (independente se precisa ou não de passagem)
       
       await apiRequest("PATCH", `/api/team-inclusions/${accommodationData.teamInclusionId}`, {
         status: newStatus,
