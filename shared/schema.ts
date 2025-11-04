@@ -107,6 +107,7 @@ export const teamInclusions = pgTable("team_inclusions", {
   needsTicket: boolean("needs_ticket").default(false),
   needsAccommodation: boolean("needs_accommodation").default(false),
   dailyRates: integer("daily_rates").notNull(), // quantidade de diárias planejadas
+  workDays: date("work_days").array(), // dias específicos de trabalho (quando não consecutivos)
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
   actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
   observations: text("observations"),
