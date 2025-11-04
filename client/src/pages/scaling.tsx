@@ -752,7 +752,9 @@ export default function Scaling() {
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "N/A";
-    const [year, month, day] = dateStr.split('-');
+    // Remove timestamp se houver (ex: "2025-11-06T00:00:00.000Z" -> "2025-11-06")
+    const cleanDate = dateStr.split('T')[0];
+    const [year, month, day] = cleanDate.split('-');
     return `${day}/${month}/${year}`;
   };
 
