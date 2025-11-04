@@ -1356,7 +1356,7 @@ export default function Scaling() {
                       </div>
                       <div className="grid grid-cols-7 gap-2">
                         {allDays.map((day, index) => {
-                          const isWorkDay = true;
+                          const isWorkDay = index < selectedInclusion.dailyRates;
                           const dayFormatted = format(day, 'dd/MM', { locale: ptBR });
                           const weekday = format(day, 'EEE', { locale: ptBR });
                           
