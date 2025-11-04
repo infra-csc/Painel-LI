@@ -85,6 +85,7 @@ interface ProcessedRange {
   dailyRatePerDay: number; // Quantas diárias por dia (para observação correta)
   startDate: string;
   endDate: string;
+  workDays: string[]; // dias específicos de trabalho
   travelInfo: {
     dataVooIda: string;
     horarioChegadaSugerido: string;
@@ -870,6 +871,7 @@ export default function GridTeamInclusionForm() {
             dailyRatePerDay: 1, // 1 diária por dia por pessoa
             startDate: personStartDate,
             endDate: personEndDate,
+            workDays: sortedWorkingDates, // dias específicos de trabalho
             travelInfo: {
               dataVooIda: row.dataVooIda,
               horarioChegadaSugerido: row.horarioChegadaSugerido,
@@ -960,6 +962,7 @@ export default function GridTeamInclusionForm() {
           scheduleStartDate: functionRow?.dataVooIda || range.startDate, // DATA DA PASSAGEM DE IDA
           scheduleEndDate: functionRow?.dataVooRetorno || range.endDate, // DATA DA PASSAGEM DE VOLTA
           dailyRates: range.dailyRate, // número de dias trabalhados (já calculado corretamente no processGrid)
+          workDays: range.workDays, // dias específicos de trabalho
           dailyValue: range.dailyRate * 5000, // valor total (dias * valor unitário de R$50)
           needsTicket: functionRow?.needsTicket || false,
           needsAccommodation: functionRow?.needsAccommodation || false,
