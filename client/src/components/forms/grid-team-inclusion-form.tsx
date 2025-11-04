@@ -959,8 +959,8 @@ export default function GridTeamInclusionForm() {
           eventId,
           functionId: range.functionId, // já é o ID original correto
           userId: originalFunction?.userId || user?.id, // usa userId da função original
-          scheduleStartDate: functionRow?.dataVooIda || range.startDate, // DATA DA PASSAGEM DE IDA
-          scheduleEndDate: functionRow?.dataVooRetorno || range.endDate, // DATA DA PASSAGEM DE VOLTA
+          scheduleStartDate: range.startDate, // PERÍODO DE TRABALHO (primeiro dia de trabalho)
+          scheduleEndDate: range.endDate, // PERÍODO DE TRABALHO (último dia de trabalho)
           dailyRates: range.dailyRate, // número de dias trabalhados (já calculado corretamente no processGrid)
           workDays: range.workDays, // dias específicos de trabalho
           dailyValue: range.dailyRate * 5000, // valor total (dias * valor unitário de R$50)
@@ -969,7 +969,7 @@ export default function GridTeamInclusionForm() {
           status: "planejado", // Status para aparecer na escalação
           phase: "inclusao", // Fase obrigatória
           rowOrder: rowOrder, // SALVAR POSIÇÃO DA LINHA NA PLANILHA
-          // Salvar horários sugeridos nos campos específicos
+          // Salvar datas e horários de voo nos campos específicos
           flightDepartureDate: functionRow?.dataVooIda || null,
           flightArrivalSuggestedTime: functionRow?.horarioChegadaSugerido || null,
           flightReturnDate: functionRow?.dataVooRetorno || null,
