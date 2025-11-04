@@ -1358,20 +1358,8 @@ export default function Scaling() {
                         {allDays.map((day, index) => {
                           // Se tem workDays salvos, usar eles. Senão, usar lógica antiga (primeiros N dias)
                           const dayString = format(day, 'yyyy-MM-dd');
-                          
-                          // Debug para verificar o formato
-                          if (index === 0) {
-                            console.log('🔍 DEBUG workDays RAW:', selectedInclusion.workDays);
-                            console.log('🔍 DEBUG workDays TYPE:', typeof selectedInclusion.workDays);
-                            console.log('🔍 DEBUG workDays LENGTH:', selectedInclusion.workDays?.length);
-                            console.log('🔍 DEBUG dayString formato:', dayString);
-                            if (selectedInclusion.workDays && selectedInclusion.workDays.length > 0) {
-                              console.log('🔍 DEBUG primeiro workDay:', selectedInclusion.workDays[0], 'TYPE:', typeof selectedInclusion.workDays[0]);
-                            }
-                          }
-                          
                           const isWorkDay = selectedInclusion.workDays && selectedInclusion.workDays.length > 0
-                            ? selectedInclusion.workDays.includes(dayString)
+                            ? selectedInclusion.workDays.some(wd => wd.startsWith(dayString))
                             : index < selectedInclusion.dailyRates;
                           const dayFormatted = format(day, 'dd/MM', { locale: ptBR });
                           const weekday = format(day, 'EEE', { locale: ptBR });
