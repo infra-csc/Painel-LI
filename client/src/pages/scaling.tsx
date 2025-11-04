@@ -1360,9 +1360,14 @@ export default function Scaling() {
                           const dayString = format(day, 'yyyy-MM-dd');
                           
                           // Debug para verificar o formato
-                          if (index === 0 && selectedInclusion.workDays) {
-                            console.log('🔍 DEBUG workDays:', selectedInclusion.workDays);
-                            console.log('🔍 DEBUG dayString exemplo:', dayString);
+                          if (index === 0) {
+                            console.log('🔍 DEBUG workDays RAW:', selectedInclusion.workDays);
+                            console.log('🔍 DEBUG workDays TYPE:', typeof selectedInclusion.workDays);
+                            console.log('🔍 DEBUG workDays LENGTH:', selectedInclusion.workDays?.length);
+                            console.log('🔍 DEBUG dayString formato:', dayString);
+                            if (selectedInclusion.workDays && selectedInclusion.workDays.length > 0) {
+                              console.log('🔍 DEBUG primeiro workDay:', selectedInclusion.workDays[0], 'TYPE:', typeof selectedInclusion.workDays[0]);
+                            }
                           }
                           
                           const isWorkDay = selectedInclusion.workDays && selectedInclusion.workDays.length > 0
