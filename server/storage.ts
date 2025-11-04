@@ -70,7 +70,7 @@ export interface IStorage {
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
   updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
-  deleteTeamInclusion(id: string): Promise<void>;
+  deleteTeamInclusion(id: string, userId?: string): Promise<void>;
   
   // Tickets
   getTickets(): Promise<Ticket[]>;
@@ -477,7 +477,7 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async deleteTeamInclusion(id: string): Promise<void> {
+  async deleteTeamInclusion(id: string, userId?: string): Promise<void> {
     if (!this.teamInclusions.has(id)) {
       throw new Error("Team inclusion not found");
     }
@@ -1070,7 +1070,47 @@ export class DatabaseStorage implements IStorage {
     return inclusion;
   }
 
-  async deleteTeamInclusion(id: string): Promise<void> {
+  async deleteTeamInclusion(id: string, userId?: string): Promise<void> {
+    // Buscar dados da inclusão antes de excluir para registrar no log
+    const [inclusion] = await db.select().from(teamInclusions).where(eq(teamInclusions.id, id));
+    if (!inclusion) {
+      throw new Error("Team inclusion not found");
+    }
+
+    // Buscar nome do evento e função para o log
+    const [event] = await db.select().from(events).where(eq(events.id, inclusion.eventId));
+    const [func] = await db.select().from(functions).where(eq(functions.id, inclusion.functionId));
+    
+    // Buscar nome do colaborador se houver
+    let collaboratorName = "Não escalado";
+    if (inclusion.collaboratorId) {
+      const [collaborator] = await db.select().from(collaborators).where(eq(collaborators.id, inclusion.collaboratorId));
+      if (collaborator) {
+        collaboratorName = collaborator.fullName;
+      }
+    }
+
+    // Buscar nome do usuário que está excluindo
+    let userName = "Sistema";
+    if (userId) {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (user) userName = user.name;
+    }
+
+    // Registrar log de exclusão
+    const details = `Inclusão #${inclusion.inclusionNumber || 'N/A'} excluída - Evento: ${event?.name || 'N/A'}, Função: ${func?.name || 'N/A'}, Colaborador: ${collaboratorName}, Status: ${inclusion.status}`;
+    
+    await db.insert(teamInclusionLogs).values({
+      teamInclusionId: id,
+      action: 'deleted',
+      details,
+      previousValue: JSON.stringify(inclusion), // Salvar dados completos da inclusão
+      newValue: null,
+      userId: userId || 'system',
+      userName
+    });
+
+    // Excluir a inclusão
     await db.delete(teamInclusions).where(eq(teamInclusions.id, id));
   }
 

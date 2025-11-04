@@ -199,8 +199,8 @@ export const comments = pgTable("comments", {
 // Team Inclusion Logs table - audit trail for escalation changes
 export const teamInclusionLogs = pgTable("team_inclusion_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id, { onDelete: 'cascade' }),
-  action: text("action").notNull(), // created, collaborator_changed, status_changed, dates_changed, confirmed, reopened, etc
+  teamInclusionId: varchar("team_inclusion_id").notNull(), // Sem cascade para manter histórico de exclusões
+  action: text("action").notNull(), // created, collaborator_changed, status_changed, dates_changed, confirmed, reopened, deleted, etc
   details: text("details").notNull(), // human-readable description of what changed
   previousValue: text("previous_value"), // previous value for the field that changed
   newValue: text("new_value"), // new value for the field that changed
