@@ -134,8 +134,8 @@ export default function TeamInclusionTable() {
   };
 
   const canDeleteInclusion = (inclusion: TeamInclusion) => {
-    // Só pode excluir antes da confirmação (não pode ter comprado nada)
-    const blockedStatuses = ['confirmado', 'passagem_comprada', 'hospedagem_comprada', 'hospedagem_passagem_comprada'];
+    // Só pode excluir antes da escalação (não pode ter comprado nada)
+    const blockedStatuses = ['escalado', 'passagem_comprada', 'hospedagem_comprada', 'hospedagem_passagem_comprada'];
     return !blockedStatuses.includes(inclusion.status);
   };
 
@@ -758,7 +758,7 @@ export default function TeamInclusionTable() {
                     >
                       <option value="incluido">Incluído</option>
                       <option value="reaberto">Reaberto</option>
-                      <option value="confirmado">Confirmado</option>
+                      <option value="escalado">Escalado</option>
                       <option value="passagem_comprada">Passagem Comprada</option>
                       <option value="hospedagem_comprada">Hospedagem Comprada</option>
                       <option value="hospedagem_passagem_comprada">Hospedagem e Passagem Comprada</option>

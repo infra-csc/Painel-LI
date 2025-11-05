@@ -214,7 +214,6 @@ export default function Scaling() {
   // Helper function to determine if escalation is completed
   const isEscalated = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "confirmado" ||  // Novo: escalação confirmada
       inclusion.status === "escalado" || 
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
@@ -228,7 +227,6 @@ export default function Scaling() {
   // Helper function to determine if escalation is confirmed (após confirmar escalação)
   const isEscalationConfirmed = (inclusion: TeamInclusion) => {
     return inclusion.collaboratorId && (
-      inclusion.status === "confirmado" ||  // Novo: escalação confirmada
       inclusion.status === "escalado" ||
       inclusion.status === "passagem" || 
       inclusion.status === "passagem_comprada" ||
@@ -300,9 +298,9 @@ export default function Scaling() {
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
     if (!hasRole) return false;
     
-    // NOVA REGRA: Se status é "confirmado", bloqueia edição de colaborador
+    // NOVA REGRA: Se status é "escalado", bloqueia edição de colaborador
     // A menos que seja mudado para "reaberto" pela gestão
-    if (inclusion.status === 'confirmado') {
+    if (inclusion.status === 'escalado') {
       return false; // Bloqueado - escalação confirmada
     }
     
@@ -719,8 +717,8 @@ export default function Scaling() {
         nextPhase = "escalacao";
       }
     } else {
-      // Lógica original: marca como "confirmado" ao confirmar escalação
-      nextStatus = "confirmado";
+      // Marca como "escalado" ao confirmar escalação (removido status "confirmado")
+      nextStatus = "escalado";
       nextPhase = "escalacao";
       
       // Check if this inclusion needs ticket or accommodation
@@ -1314,8 +1312,8 @@ export default function Scaling() {
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
                     {isEscalationConfirmed(selectedInclusion) && (() => {
-                      // Verificar se está bloqueado por status confirmado
-                      if (selectedInclusion.status === 'confirmado') {
+                      // Verificar se está bloqueado por status escalado
+                      if (selectedInclusion.status === 'escalado') {
                         return (
                           <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                             Escalação confirmada: para alterações nesse momento entre em contato com o time de Viagens

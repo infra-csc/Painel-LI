@@ -778,9 +778,9 @@ export default function Accommodations() {
       // Não pode estar cancelado
       if (inclusion.status === "cancelado") return false;
       
-      // Aceita qualquer status confirmado ou superior (permite hospedagem sem passagem e sem nome)
+      // Aceita qualquer status escalado ou superior (permite hospedagem sem passagem e sem nome)
       const validStatuses = [
-        "confirmado", "reaberto", "escalado",
+        "reaberto", "escalado",
         "aguardando_passagem", "passagem", "passagem_comprada",
         "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
         "aprovado"

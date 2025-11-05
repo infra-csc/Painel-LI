@@ -32,7 +32,7 @@ SELECT
 FROM team_inclusions ti
 INNER JOIN tickets t ON t.team_inclusion_id = ti.id
 WHERE t.purchase_date IS NOT NULL  -- Passagem foi comprada
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')  -- Status não reflete a compra
+  AND ti.status IN ('escalado', 'reaberto')  -- Status não reflete a compra (removido 'confirmado')
 ORDER BY t.purchase_date DESC;
 
 
@@ -65,7 +65,7 @@ SET
 FROM tickets t
 WHERE t.team_inclusion_id = ti.id
   AND t.purchase_date IS NOT NULL  -- Passagem foi comprada
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto');  -- Status não reflete a compra
+  AND ti.status IN ('escalado', 'reaberto');  -- Status não reflete a compra (removido 'confirmado')
 
 
 -- ============================================================================
@@ -84,7 +84,7 @@ FROM team_inclusions ti
 INNER JOIN accommodations a ON a.team_inclusion_id = ti.id
 WHERE a.reservation_number IS NOT NULL 
   AND a.reservation_number != ''
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')
+  AND ti.status IN ('escalado', 'reaberto')
   AND NOT EXISTS (
     SELECT 1 FROM tickets t 
     WHERE t.team_inclusion_id = ti.id 
@@ -107,7 +107,7 @@ FROM accommodations a
 WHERE a.team_inclusion_id = ti.id
   AND a.reservation_number IS NOT NULL 
   AND a.reservation_number != ''
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')
+  AND ti.status IN ('escalado', 'reaberto')  -- Removido 'confirmado' pois não existe mais
   AND NOT EXISTS (
     SELECT 1 FROM tickets t 
     WHERE t.team_inclusion_id = ti.id 
@@ -147,7 +147,7 @@ SELECT
 FROM team_inclusions ti
 INNER JOIN tickets t ON t.team_inclusion_id = ti.id
 WHERE t.purchase_date IS NOT NULL
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')
+  AND ti.status IN ('escalado', 'reaberto')  -- Removido 'confirmado' pois não existe mais
 
 UNION ALL
 
@@ -158,7 +158,7 @@ FROM team_inclusions ti
 INNER JOIN accommodations a ON a.team_inclusion_id = ti.id
 WHERE a.reservation_number IS NOT NULL 
   AND a.reservation_number != ''
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')
+  AND ti.status IN ('escalado', 'reaberto')
   AND NOT EXISTS (
     SELECT 1 FROM tickets t 
     WHERE t.team_inclusion_id = ti.id 

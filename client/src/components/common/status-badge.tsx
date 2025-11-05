@@ -7,10 +7,10 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     switch (status) {
       case "planejado":
         return "status-planejado"; // Vermelho - ainda não iniciado
-      case "confirmado":
-        return "status-confirmado"; // Laranja - escalação confirmada e bloqueada
       case "reaberto":
         return "status-reaberto"; // Azul claro - gestão liberou para editar
+      case "escalado":
+        return "status-escalado"; // Laranja - escalação confirmada
       case "escalacao":
         return "status-escalacao"; // Amarelo - em andamento
       case "passagem":
@@ -38,12 +38,12 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     switch (status) {
       case "planejado":
         return "Aguardando Escalação";
-      case "confirmado":
-        return "Confirmado";
       case "reaberto":
         return "Reaberto";
-      case "escalacao":
+      case "escalado":
         return "Escalado";
+      case "escalacao":
+        return "Em Escalação";
       case "passagem":
         return "Aguardando Passagem";
       case "hospedagem":

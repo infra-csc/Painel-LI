@@ -19,7 +19,7 @@ LEFT JOIN events e ON e.id = ti.event_id
 LEFT JOIN functions f ON f.id = ti.function_id
 LEFT JOIN tickets t ON t.team_inclusion_id = ti.id
 WHERE c.full_name ILIKE '%NOME_DO_COLABORADOR%'  -- Busca parcial, case insensitive
-  AND ti.status = 'confirmado'
+  AND ti.status = 'escalado'  -- Status antigo que pode estar incorreto
 ORDER BY ti.created_at DESC;
 
 
@@ -40,7 +40,7 @@ LEFT JOIN events e ON e.id = ti.event_id
 LEFT JOIN functions f ON f.id = ti.function_id
 LEFT JOIN tickets t ON t.team_inclusion_id = ti.id
 WHERE e.name ILIKE '%NOME_DO_EVENTO%'
-  AND ti.status = 'confirmado'
+  AND ti.status = 'escalado'  -- Status antigo que pode estar incorreto
   AND t.purchase_date IS NOT NULL  -- Tem passagem comprada
 ORDER BY ti.created_at DESC;
 
@@ -62,7 +62,7 @@ LEFT JOIN events e ON e.id = ti.event_id
 LEFT JOIN functions f ON f.id = ti.function_id
 LEFT JOIN tickets t ON t.team_inclusion_id = ti.id
 WHERE f.name ILIKE '%NOME_DA_FUNCAO%'
-  AND ti.status = 'confirmado'
+  AND ti.status = 'escalado'  -- Status antigo que pode estar incorreto
   AND t.purchase_date IS NOT NULL
 ORDER BY ti.created_at DESC;
 
@@ -92,7 +92,7 @@ LEFT JOIN collaborators c ON c.id = ti.collaborator_id
 LEFT JOIN events e ON e.id = ti.event_id
 LEFT JOIN functions f ON f.id = ti.function_id
 WHERE t.purchase_date IS NOT NULL  -- Tem passagem comprada
-  AND ti.status IN ('confirmado', 'escalado', 'reaberto')  -- Status está errado
+  AND ti.status IN ('escalado', 'reaberto')  -- Status está errado (removido 'confirmado' pois não existe mais)
 ORDER BY t.purchase_date DESC;
 
 

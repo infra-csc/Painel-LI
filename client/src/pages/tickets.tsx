@@ -263,8 +263,7 @@ export default function Tickets() {
       // Show all inclusions that need tickets (with or without collaborators)
       // This allows ticket purchase before name assignment
       const needsTicketMatch = inclusion.needsTicket && 
-        (inclusion.status === "confirmado" ||
-         inclusion.status === "reaberto" ||
+        (inclusion.status === "reaberto" ||
          inclusion.status === "escalado" ||
          inclusion.status === "aguardando_passagem" ||
          inclusion.status === "passagem" || 
