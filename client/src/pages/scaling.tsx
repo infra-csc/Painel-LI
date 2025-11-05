@@ -693,20 +693,46 @@ export default function Scaling() {
       return;
     }
 
-    // Determine next status and phase based on workflow requirements
-    // Novo: Sempre marca como "confirmado" ao confirmar escalação (bloqueia edição de colaborador)
-    let nextStatus = "confirmado";
-    let nextPhase = "escalacao";
+    // CRÍTICO: Preservar status de passagem/hospedagem já compradas
+    // Se a pessoa já tem passagem ou hospedagem comprada, NÃO sobrescrever o status
+    const currentStatus = selectedInclusion.status;
+    const hasTicketOrAccommodationPurchased = [
+      "passagem_comprada",
+      "hospedagem_comprada", 
+      "hospedagem_passagem_comprada"
+    ].includes(currentStatus);
     
-    // Check if this inclusion needs ticket or accommodation
-    if (selectedInclusion.needsTicket) {
-      nextPhase = "passagem";
-    } else if (selectedInclusion.needsAccommodation) {
-      nextPhase = "hospedagem";
+    let nextStatus: string;
+    let nextPhase: string;
+    
+    if (hasTicketOrAccommodationPurchased) {
+      // Preservar status atual se já tem compra registrada
+      nextStatus = currentStatus;
+      // Determinar phase baseado no status
+      if (currentStatus === "passagem_comprada") {
+        nextPhase = "passagem";
+      } else if (currentStatus === "hospedagem_comprada") {
+        nextPhase = "hospedagem";
+      } else if (currentStatus === "hospedagem_passagem_comprada") {
+        nextPhase = "hospedagem";
+      } else {
+        nextPhase = "escalacao";
+      }
     } else {
-      // If no ticket or accommodation needed, mark as approved
-      nextStatus = "aprovado";
-      nextPhase = "aprovado";
+      // Lógica original: marca como "confirmado" ao confirmar escalação
+      nextStatus = "confirmado";
+      nextPhase = "escalacao";
+      
+      // Check if this inclusion needs ticket or accommodation
+      if (selectedInclusion.needsTicket) {
+        nextPhase = "passagem";
+      } else if (selectedInclusion.needsAccommodation) {
+        nextPhase = "hospedagem";
+      } else {
+        // If no ticket or accommodation needed, mark as approved
+        nextStatus = "aprovado";
+        nextPhase = "aprovado";
+      }
     }
 
     const updateData: any = {
