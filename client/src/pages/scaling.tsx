@@ -717,19 +717,20 @@ export default function Scaling() {
         nextPhase = "escalacao";
       }
     } else {
-      // Marca como "escalado" ao confirmar escalação (removido status "confirmado")
-      nextStatus = "escalado";
-      nextPhase = "escalacao";
-      
-      // Check if this inclusion needs ticket or accommodation
+      // Determinar status baseado nas necessidades de passagem/hospedagem
       if (selectedInclusion.needsTicket) {
+        // Precisa de passagem - vai para workflow de passagem
+        nextStatus = "aguardando_passagem";
         nextPhase = "passagem";
       } else if (selectedInclusion.needsAccommodation) {
+        // Precisa de hospedagem (sem passagem) - vai para workflow de hospedagem
+        nextStatus = "aguardando_hospedagem";
         nextPhase = "hospedagem";
       } else {
-        // If no ticket or accommodation needed, mark as approved
-        nextStatus = "aprovado";
-        nextPhase = "aprovado";
+        // NÃO precisa de passagem E NÃO precisa de hospedagem
+        // Status "escalado" só é usado quando não precisa de nada mais
+        nextStatus = "escalado";
+        nextPhase = "escalacao";
       }
     }
 

@@ -266,6 +266,7 @@ export default function Tickets() {
         (inclusion.status === "reaberto" ||
          inclusion.status === "escalado" ||
          inclusion.status === "aguardando_passagem" ||
+         inclusion.status === "aguardando_hospedagem" ||
          inclusion.status === "passagem" || 
          inclusion.status === "hospedagem" || 
          inclusion.status === "hospedagem_comprada" ||

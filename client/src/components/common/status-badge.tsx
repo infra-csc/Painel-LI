@@ -13,8 +13,12 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "status-escalado"; // Laranja - escalação confirmada
       case "escalacao":
         return "status-escalacao"; // Amarelo - em andamento
+      case "aguardando_passagem":
+        return "status-aguardando_passagem"; // Amarelo - aguardando compra de passagem
       case "passagem":
         return "status-passagem"; // Amarelo - em andamento
+      case "aguardando_hospedagem":
+        return "status-aguardando_hospedagem"; // Azul - aguardando reserva de hospedagem
       case "hospedagem":
         return "status-hospedagem"; // Azul - aguardando hospedagem
       case "passagem_comprada":
@@ -44,10 +48,14 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
         return "Escalado";
       case "escalacao":
         return "Em Escalação";
-      case "passagem":
+      case "aguardando_passagem":
         return "Aguardando Passagem";
-      case "hospedagem":
+      case "passagem":
+        return "Processando Passagem";
+      case "aguardando_hospedagem":
         return "Aguardando Hospedagem";
+      case "hospedagem":
+        return "Processando Hospedagem";
       case "passagem_comprada":
         return "Passagem Comprada";
       case "hospedagem_comprada":

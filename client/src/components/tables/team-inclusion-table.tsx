@@ -759,6 +759,8 @@ export default function TeamInclusionTable() {
                       <option value="incluido">Incluído</option>
                       <option value="reaberto">Reaberto</option>
                       <option value="escalado">Escalado</option>
+                      <option value="aguardando_passagem">Aguardando Passagem</option>
+                      <option value="aguardando_hospedagem">Aguardando Hospedagem</option>
                       <option value="passagem_comprada">Passagem Comprada</option>
                       <option value="hospedagem_comprada">Hospedagem Comprada</option>
                       <option value="hospedagem_passagem_comprada">Hospedagem e Passagem Comprada</option>

@@ -781,7 +781,8 @@ export default function Accommodations() {
       // Aceita qualquer status escalado ou superior (permite hospedagem sem passagem e sem nome)
       const validStatuses = [
         "reaberto", "escalado",
-        "aguardando_passagem", "passagem", "passagem_comprada",
+        "aguardando_passagem", "aguardando_hospedagem", 
+        "passagem", "passagem_comprada",
         "hospedagem", "hospedagem_comprada", "hospedagem_passagem_comprada",
         "aprovado"
       ];
