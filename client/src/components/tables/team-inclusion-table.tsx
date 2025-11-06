@@ -731,6 +731,10 @@ export default function TeamInclusionTable() {
                 flightArrivalSuggestedTime: formData.get('chegada') as string || null,
                 flightReturnDate: formData.get('retorno') as string || null,
                 flightReturnSuggestedTime: formData.get('horarioRetorno') as string || null,
+                // PRESERVAR CAMPOS ESSENCIAIS que não aparecem no formulário
+                collaboratorId: editingInclusion.collaboratorId,
+                eventId: editingInclusion.eventId,
+                area: editingInclusion.area,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
