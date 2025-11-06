@@ -433,16 +433,20 @@ export default function Scaling() {
       const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (updatedInclusion) => {
       toast({
         title: "Sucesso",
         description: "Escalação atualizada com sucesso",
       });
+      // CRITICAL: Update selectedInclusion with fresh data from backend
+      // This ensures subsequent operations (like confirm escalation) use updated data
+      if (selectedInclusion && updatedInclusion.id === selectedInclusion.id) {
+        setSelectedInclusion(updatedInclusion);
+      }
       // Force refetch to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
       queryClient.refetchQueries({ queryKey: ["/api/team-inclusions"] });
       setShowModal(false);
-      setSelectedInclusion(null);
     },
     onError: () => {
       toast({
