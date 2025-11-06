@@ -1113,8 +1113,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      console.log("📝 [EDIT DEBUG] PATCH request received for inclusion ID:", id);
+      console.log("📝 [EDIT DEBUG] Request body:", JSON.stringify(req.body, null, 2));
+      
       // Get userId from request body (frontend sends it)
       const userId = req.body._userId || req.session?.userId;
+      console.log("📝 [EDIT DEBUG] User ID:", userId);
       
       if (!userId) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -1188,6 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       console.log("🔧 Updates to apply:", updates);
       const inclusion = await storage.updateTeamInclusion(id, updates);
+      console.log("✅ [EDIT DEBUG] Team inclusion updated successfully:", inclusion.id, "- New status:", inclusion.status);
       res.json(inclusion);
     } catch (error) {
       console.error("❌ Error updating team inclusion:", error);
