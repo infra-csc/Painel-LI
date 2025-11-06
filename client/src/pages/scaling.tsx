@@ -687,6 +687,17 @@ export default function Scaling() {
 
   const handleConfirmEscalation = () => {
     if (!selectedInclusion) return;
+    
+    console.log("🔍 [CONFIRM DEBUG] Starting confirmation process");
+    console.log("🔍 [CONFIRM DEBUG] selectedInclusion:", {
+      id: selectedInclusion.id,
+      status: selectedInclusion.status,
+      needsTicket: selectedInclusion.needsTicket,
+      needsAccommodation: selectedInclusion.needsAccommodation,
+      collaboratorId: selectedInclusion.collaboratorId
+    });
+    console.log("🔍 [CONFIRM DEBUG] modalData.collaboratorId:", modalData.collaboratorId);
+    
     if (!canConfirmEscalation(selectedInclusion)) {
       toast({
         title: "Erro",
@@ -748,17 +759,23 @@ export default function Scaling() {
       }
     }
 
+    console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
+    console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);
+
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
       status: nextStatus,
-      phase: nextPhase
+      phase: nextPhase,
+      _userId: user?.id // Add userId for backend authentication
     };
     
     // Só incluir dailyValue se foi especificamente editado
     if (modalData.dailyValue && modalData.dailyValue > 0) {
       updateData.dailyValue = Math.round(modalData.dailyValue * 100); // Store in cents
     }
+    
+    console.log("🔍 [CONFIRM DEBUG] Update data being sent:", updateData);
     
     updateTeamInclusionMutation.mutate({
       id: selectedInclusion.id,
