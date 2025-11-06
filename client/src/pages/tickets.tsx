@@ -226,25 +226,11 @@ export default function Tickets() {
     }).format(value);
   };
 
-  // Função para extrair dados de passagem das observações ou dos campos específicos
+  // Função para extrair dados de passagem dos campos específicos (prioridade) ou das observações (legado)
   const extractTravelInfoFromObservations = (observations: string | undefined, inclusion?: any) => {
-    // Primeiro tenta extrair das observações
-    if (observations && observations.trim()) {
-      const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
-      const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
-      
-      return {
-        ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
-        retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
-        chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
-        horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
-      };
-    }
-    
-    // Se as observações estão vazias, usa os campos específicos da inclusão
-    if (inclusion) {
+    // PRIORIDADE: Usar campos específicos da inclusão (novos dados)
+    if (inclusion && (inclusion.flightDepartureDate || inclusion.flightArrivalSuggestedTime || 
+        inclusion.flightReturnDate || inclusion.flightReturnSuggestedTime)) {
       return {
         ida: inclusion.flightDepartureDate || 'Não informado',
         retorno: inclusion.flightReturnDate || 'Não informado',
@@ -253,7 +239,24 @@ export default function Tickets() {
       };
     }
     
-    // Fallback se não tem nem observações nem inclusão
+    // FALLBACK: Tentar extrair das observações (compatibilidade com dados antigos)
+    if (observations && observations.trim()) {
+      const idaMatch = observations.match(/Ida:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const retornoMatch = observations.match(/Retorno:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const chegadaMatch = observations.match(/Chegada:\s*([^|]*?)(?:\s*\||\s*$)/);
+      const horarioMatch = observations.match(/Horário:\s*([^|]*?)(?:\s*\||\s*$)/);
+      
+      if (idaMatch || retornoMatch || chegadaMatch || horarioMatch) {
+        return {
+          ida: (idaMatch && idaMatch[1].trim()) ? idaMatch[1].trim() : 'Não definido',
+          retorno: (retornoMatch && retornoMatch[1].trim()) ? retornoMatch[1].trim() : 'Não definido', 
+          chegada: (chegadaMatch && chegadaMatch[1].trim()) ? chegadaMatch[1].trim() : 'Não definido',
+          horario: (horarioMatch && horarioMatch[1].trim()) ? horarioMatch[1].trim() : 'Não definido'
+        };
+      }
+    }
+    
+    // Se não tem nenhum dado
     return { ida: 'Não informado', retorno: 'Não informado', chegada: 'Não informado', horario: 'Não informado' };
   };
 
