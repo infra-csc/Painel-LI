@@ -528,6 +528,16 @@ export default function Scaling() {
         observacoesLimpas = '';
       }
 
+      // Extrair apenas CPF do colaborador
+      let cpfColaborador = 'N/A';
+      if (collaborator) {
+        if (collaborator.documentType === 'cpf') {
+          cpfColaborador = collaborator.officialDocument;
+        } else if (collaborator.secondaryDocumentType === 'cpf') {
+          cpfColaborador = collaborator.secondaryDocument || 'N/A';
+        }
+      }
+
       return {
         'ID': `#${inclusion.inclusionNumber || 'N/A'}`,
         'Evento': event?.name || 'N/A',
@@ -537,7 +547,7 @@ export default function Scaling() {
         'Função': func?.name || 'N/A',
         'Área': inclusion.area || 'N/A',
         'Colaborador': collaborator?.fullName || 'Não escalado',
-        'Documento Colaborador': collaborator?.officialDocument || 'N/A',
+        'CPF Colaborador': cpfColaborador,
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',
         'Cidade Colaborador': collaborator?.city || 'N/A',
