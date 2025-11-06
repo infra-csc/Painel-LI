@@ -726,6 +726,11 @@ export default function TeamInclusionTable() {
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
+                // Sugestões de viagem
+                flightDepartureDate: formData.get('ida') as string || null,
+                flightArrivalSuggestedTime: formData.get('chegada') as string || null,
+                flightReturnDate: formData.get('retorno') as string || null,
+                flightReturnSuggestedTime: formData.get('horarioRetorno') as string || null,
               };
               updateTeamInclusionMutation.mutate({ id: editingInclusion.id, data });
             }}>
