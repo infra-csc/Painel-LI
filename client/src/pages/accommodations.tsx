@@ -778,8 +778,14 @@ export default function Accommodations() {
       // Não pode estar cancelado
       if (inclusion.status === "cancelado") return false;
       
-      // Aceita qualquer status escalado ou superior (permite hospedagem sem passagem e sem nome)
-      const validStatuses = [
+      // Se tem colaborador escalado, aparece INDEPENDENTE do status (workflow flexível)
+      if (inclusion.collaboratorId) {
+        // OK - Colaborador já foi atribuído, pode registrar hospedagem
+        return true;
+      }
+      
+      // Se NÃO tem colaborador, só mostra se estiver nos status específicos
+      const validStatusesWithoutCollaborator = [
         "reaberto", "escalado",
         "aguardando_passagem", "aguardando_hospedagem", 
         "passagem", "passagem_comprada",
@@ -787,7 +793,7 @@ export default function Accommodations() {
         "aprovado"
       ];
       
-      return validStatuses.includes(inclusion.status);
+      return validStatusesWithoutCollaborator.includes(inclusion.status);
     });
     return filtered;
   }, [teamInclusions]);

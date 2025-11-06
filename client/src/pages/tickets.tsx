@@ -265,20 +265,28 @@ export default function Tickets() {
     inclusion => {
       // Show all inclusions that need tickets (with or without collaborators)
       // This allows ticket purchase before name assignment
-      const needsTicketMatch = inclusion.needsTicket && 
-        (inclusion.status === "reaberto" ||
-         inclusion.status === "escalado" ||
-         inclusion.status === "aguardando_passagem" ||
-         inclusion.status === "aguardando_hospedagem" ||
-         inclusion.status === "passagem" || 
-         inclusion.status === "hospedagem" || 
-         inclusion.status === "hospedagem_comprada" ||
-         inclusion.status === "aprovado" || 
-         inclusion.status === "passagem_comprada" ||
-         inclusion.status === "hospedagem_passagem_comprada" ||
-         inclusion.status === "cancelado");
       
-      if (!needsTicketMatch) return false;
+      // Se NÃO precisa de passagem, não mostra
+      if (!inclusion.needsTicket) return false;
+      
+      // Se está cancelado, não mostra (a menos que o filtro esteja explicitamente em "cancelado")
+      if (inclusion.status === "cancelado" && filters.inclusionStatus !== "cancelado") return false;
+      
+      // Se tem colaborador escalado, aparece INDEPENDENTE do status (workflow flexível)
+      if (inclusion.collaboratorId) {
+        // OK - Colaborador já foi atribuído, pode comprar passagem
+      } else {
+        // Se NÃO tem colaborador, só mostra se estiver nos status específicos
+        const validStatusesWithoutCollaborator = [
+          "reaberto", "escalado",
+          "aguardando_passagem", "aguardando_hospedagem",
+          "passagem", "hospedagem", "hospedagem_comprada",
+          "aprovado", "passagem_comprada", "hospedagem_passagem_comprada"
+        ];
+        if (!validStatusesWithoutCollaborator.includes(inclusion.status)) {
+          return false;
+        }
+      }
       
       // Apply simple filters (event, function, collaborator, and search ID)
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
