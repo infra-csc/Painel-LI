@@ -719,48 +719,10 @@ export default function Scaling() {
       return;
     }
 
-    // CRÍTICO: Preservar status de passagem/hospedagem já compradas
-    // Se a pessoa já tem passagem ou hospedagem comprada, NÃO sobrescrever o status
-    const currentStatus = selectedInclusion.status;
-    const hasTicketOrAccommodationPurchased = [
-      "passagem_comprada",
-      "hospedagem_comprada", 
-      "hospedagem_passagem_comprada"
-    ].includes(currentStatus);
-    
-    let nextStatus: string;
-    let nextPhase: string;
-    
-    if (hasTicketOrAccommodationPurchased) {
-      // Preservar status atual se já tem compra registrada
-      nextStatus = currentStatus;
-      // Determinar phase baseado no status
-      if (currentStatus === "passagem_comprada") {
-        nextPhase = "passagem";
-      } else if (currentStatus === "hospedagem_comprada") {
-        nextPhase = "hospedagem";
-      } else if (currentStatus === "hospedagem_passagem_comprada") {
-        nextPhase = "hospedagem";
-      } else {
-        nextPhase = "escalacao";
-      }
-    } else {
-      // Determinar status baseado nas necessidades de passagem/hospedagem
-      if (selectedInclusion.needsTicket) {
-        // Precisa de passagem - vai para workflow de passagem
-        nextStatus = "aguardando_passagem";
-        nextPhase = "passagem";
-      } else if (selectedInclusion.needsAccommodation) {
-        // Precisa de hospedagem (sem passagem) - vai para workflow de hospedagem
-        nextStatus = "aguardando_hospedagem";
-        nextPhase = "hospedagem";
-      } else {
-        // NÃO precisa de passagem E NÃO precisa de hospedagem
-        // Status "escalado" só é usado quando não precisa de nada mais
-        nextStatus = "escalado";
-        nextPhase = "escalacao";
-      }
-    }
+    // Na tela de Escalação, confirmar SEMPRE muda para "escalado"
+    // As outras telas (Passagens/Hospedagem) controlam seus próprios workflows
+    const nextStatus = "escalado";
+    const nextPhase = "escalacao";
 
     console.log("🔍 [CONFIRM DEBUG] Calculated next status:", nextStatus);
     console.log("🔍 [CONFIRM DEBUG] Calculated next phase:", nextPhase);
