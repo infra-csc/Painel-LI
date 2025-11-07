@@ -49,8 +49,10 @@ export default function EventCombobox({
           className="w-full justify-between"
           data-testid={testId}
         >
-          {value === "all" ? "Todos os Eventos" : 
-           selectedEvent ? selectedEvent.name : placeholder}
+          <span className="truncate mr-2">
+            {value === "all" ? "Todos os Eventos" : 
+             selectedEvent ? selectedEvent.name : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

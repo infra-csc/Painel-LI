@@ -52,8 +52,10 @@ export default function CollaboratorCombobox({
           className="w-full justify-between"
           data-testid={testId}
         >
-          {value === "all" ? "Todos os Colaboradores" : 
-           selectedCollaborator ? selectedCollaborator.fullName : placeholder}
+          <span className="truncate mr-2">
+            {value === "all" ? "Todos os Colaboradores" : 
+             selectedCollaborator ? selectedCollaborator.fullName : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
