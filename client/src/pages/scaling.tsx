@@ -672,6 +672,9 @@ export default function Scaling() {
     const updateData: any = {
       collaboratorId: modalData.collaboratorId,
       observations: modalData.observations,
+      // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
+      needsTicket: selectedInclusion.needsTicket,
+      needsAccommodation: selectedInclusion.needsAccommodation,
     };
     
     // Só incluir dailyValue se foi especificamente editado
@@ -767,6 +770,9 @@ export default function Scaling() {
       observations: modalData.observations,
       status: nextStatus,
       phase: nextPhase,
+      // CRÍTICO: Preservar campos de necessidade de passagem/hospedagem
+      needsTicket: selectedInclusion.needsTicket,
+      needsAccommodation: selectedInclusion.needsAccommodation,
       _userId: user?.id // Add userId for backend authentication
     };
     
