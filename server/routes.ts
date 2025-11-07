@@ -1152,6 +1152,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("🔧 PATCH team-inclusion:", id, req.body);
+      
+      // 🔍 DETAILED LOGGING FOR ESCALATION CONFIRMATION
+      if (req.body.status || req.body.phase) {
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Escalation confirmation detected!");
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current inclusion status:", currentInclusion.status);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current inclusion phase:", currentInclusion.phase);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current needsTicket:", currentInclusion.needsTicket);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Current needsAccommodation:", currentInclusion.needsAccommodation);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received new status:", req.body.status);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received new phase:", req.body.phase);
+        console.log("🔍 [CONFIRM DEBUG - BACKEND] Received collaboratorId:", req.body.collaboratorId);
+      }
+      
       // Remove _userId from body (it's only for auth)
       const { _userId, ...bodyData } = req.body;
       
