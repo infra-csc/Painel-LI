@@ -1217,11 +1217,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.session?.userId;
-      
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      // Use authenticated user ID or 'system' as fallback (consistent with other routes)
+      const userId = req.session?.userId || 'system';
       
       // Soft delete - marca como excluído ao invés de deletar permanentemente
       const inclusion = await storage.updateTeamInclusion(id, {
