@@ -120,6 +120,8 @@ export const teamInclusions = pgTable("team_inclusions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id), // quem fez a última alteração
+  deletedAt: timestamp("deleted_at"), // soft delete - quando foi excluído
+  deletedBy: varchar("deleted_by").references(() => users.id), // quem excluiu
 });
 
 // Tickets table

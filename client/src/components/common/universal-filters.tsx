@@ -15,6 +15,7 @@ interface UniversalFiltersProps {
     status?: string;
     escalationStatus: string;
     searchId: string;
+    showDeleted?: boolean;
   };
   onFiltersChange: (filters: any) => void;
   hideStatusFilter?: boolean;
@@ -51,7 +52,8 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       functionId: [], 
       collaboratorId: "all",
       escalationStatus: "all",
-      searchId: ""
+      searchId: "",
+      showDeleted: false
     };
     
     if (!hideStatusFilter) {
@@ -164,6 +166,20 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               <SelectItem value="cancelado">Cancelados</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex-1 min-w-48 flex items-center gap-2 pt-6">
+          <input
+            type="checkbox"
+            id="show-deleted"
+            checked={filters.showDeleted || false}
+            onChange={(e) => onFiltersChange({ ...filters, showDeleted: e.target.checked })}
+            className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
+            data-testid="checkbox-show-deleted"
+          />
+          <label htmlFor="show-deleted" className="text-sm font-medium text-foreground cursor-pointer select-none">
+            Mostrar Excluídos
+          </label>
         </div>
 
         <div className="flex items-end">

@@ -33,6 +33,7 @@ export default function Scaling() {
     escalationStatus: string;
     ticketStatus: string;
     searchId: string;
+    showDeleted: boolean;
   }>({
     eventId: "all",
     functionId: [],
@@ -40,6 +41,7 @@ export default function Scaling() {
     escalationStatus: "all",
     ticketStatus: "all", // all, purchased, not-purchased
     searchId: "",
+    showDeleted: false,
   });
   
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -76,7 +78,16 @@ export default function Scaling() {
   };
 
   const { data: teamInclusions, isLoading } = useQuery<TeamInclusion[]>({
-    queryKey: ["/api/team-inclusions"],
+    queryKey: ["/api/team-inclusions", filters.showDeleted],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters.showDeleted) {
+        params.append('includeDeleted', 'true');
+      }
+      const response = await fetch(`/api/team-inclusions?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch team inclusions');
+      return response.json();
+    },
   });
 
   const { data: events } = useQuery<Event[]>({

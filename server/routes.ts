@@ -1055,9 +1055,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Team Inclusions routes
   app.get("/api/team-inclusions", async (req, res) => {
     try {
-      const { eventId } = req.query;
+      const { eventId, includeDeleted } = req.query;
       
-      let inclusions = await storage.getTeamInclusions();
+      let inclusions = await storage.getTeamInclusions(includeDeleted === 'true');
       
       // Filtrar por eventId se fornecido
       if (eventId && eventId !== 'all') {
@@ -1217,10 +1217,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/team-inclusions/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = (req.session as any)?.userId;
-      await storage.deleteTeamInclusion(id, userId);
-      res.json({ message: "Inclusão removida com sucesso" });
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      // Soft delete - marca como excluído ao invés de deletar permanentemente
+      const inclusion = await storage.updateTeamInclusion(id, {
+        deletedAt: new Date(),
+        deletedBy: userId,
+      });
+      
+      res.json({ message: "Inclusão removida com sucesso", inclusion });
     } catch (error) {
+      console.error("Error deleting team inclusion:", error);
       res.status(500).json({ message: "Erro ao remover inclusão" });
     }
   });

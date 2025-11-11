@@ -17,7 +17,7 @@ import {
   type FunctionManager, type InsertFunctionManager,
   type TeamInclusionLog, type InsertTeamInclusionLog
 } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -66,7 +66,7 @@ export interface IStorage {
   updateCollaborator(id: string, collaborator: Partial<InsertCollaborator>): Promise<Collaborator>;
   
   // Team Inclusions
-  getTeamInclusions(): Promise<TeamInclusion[]>;
+  getTeamInclusions(includeDeleted?: boolean): Promise<TeamInclusion[]>;
   getTeamInclusion(id: string): Promise<TeamInclusion | undefined>;
   createTeamInclusion(inclusion: InsertTeamInclusion): Promise<TeamInclusion>;
   updateTeamInclusion(id: string, inclusion: Partial<InsertTeamInclusion>): Promise<TeamInclusion>;
@@ -423,8 +423,12 @@ export class MemStorage implements IStorage {
   }
 
   // Team Inclusions
-  async getTeamInclusions(): Promise<TeamInclusion[]> {
-    return Array.from(this.teamInclusions.values());
+  async getTeamInclusions(includeDeleted: boolean = false): Promise<TeamInclusion[]> {
+    const allInclusions = Array.from(this.teamInclusions.values());
+    if (!includeDeleted) {
+      return allInclusions.filter(inclusion => !inclusion.deletedAt);
+    }
+    return allInclusions;
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
@@ -904,8 +908,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Team Inclusions
-  async getTeamInclusions(): Promise<TeamInclusion[]> {
-    return await db
+  async getTeamInclusions(includeDeleted: boolean = false): Promise<TeamInclusion[]> {
+    const query = db
       .select({
         id: teamInclusions.id,
         inclusionNumber: teamInclusions.inclusionNumber,
@@ -918,6 +922,7 @@ export class DatabaseStorage implements IStorage {
         actualStartDate: teamInclusions.actualStartDate,
         actualEndDate: teamInclusions.actualEndDate,
         flightDepartureDate: teamInclusions.flightDepartureDate,
+        flightDepartureSuggestedTime: teamInclusions.flightDepartureSuggestedTime,
         flightArrivalSuggestedTime: teamInclusions.flightArrivalSuggestedTime,
         flightReturnDate: teamInclusions.flightReturnDate,
         flightReturnSuggestedTime: teamInclusions.flightReturnSuggestedTime,
@@ -937,6 +942,8 @@ export class DatabaseStorage implements IStorage {
         createdAt: teamInclusions.createdAt,
         updatedAt: teamInclusions.updatedAt,
         updatedBy: teamInclusions.updatedBy,
+        deletedAt: teamInclusions.deletedAt,
+        deletedBy: teamInclusions.deletedBy,
         functionName: functions.name,
         eventName: events.name,
         rowOrder: teamInclusions.rowOrder,
@@ -944,6 +951,13 @@ export class DatabaseStorage implements IStorage {
       .from(teamInclusions)
       .leftJoin(functions, eq(teamInclusions.functionId, functions.id))
       .leftJoin(events, eq(teamInclusions.eventId, events.id));
+
+    // Se não incluir deletados, filtra apenas os não excluídos
+    if (!includeDeleted) {
+      return await query.where(isNull(teamInclusions.deletedAt));
+    }
+    
+    return await query;
   }
 
   async getTeamInclusion(id: string): Promise<TeamInclusion | undefined> {
