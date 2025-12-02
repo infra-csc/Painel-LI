@@ -32,6 +32,16 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, insertAccommodationSchema } from "@shared/schema";
 
+// Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
+const getDisplayStatus = (inclusion: TeamInclusion) => {
+  if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
+    // Se está escalado mas precisa de passagem ou hospedagem, mostrar "Aguardando Passagem" ou similar
+    if (inclusion.needsTicket) return "aguardando_passagem";
+    if (inclusion.needsAccommodation) return "aguardando_hospedagem";
+  }
+  return inclusion.status;
+};
+
 // Schema de validação estendido
 const accommodationFormSchema = z.object({
   teamInclusionId: z.string(),
@@ -253,7 +263,7 @@ export default function Accommodations() {
               </Badge>
               <Badge variant="outline">{event?.name}</Badge>
               <Badge variant="outline">{func?.name}</Badge>
-              <StatusBadge status={selectedInclusion.status} />
+              <StatusBadge status={getDisplayStatus(selectedInclusion)} />
             </div>
             
             {/* Dados do Colaborador */}

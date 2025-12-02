@@ -15,6 +15,15 @@ import SimpleFilters from "@/components/common/simple-filters";
 import { Calculator, Save, DollarSign, Plus, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
+// Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
+const getDisplayStatus = (inclusion: TeamInclusion) => {
+  if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
+    if (inclusion.needsTicket) return "aguardando_passagem";
+    if (inclusion.needsAccommodation) return "aguardando_hospedagem";
+  }
+  return inclusion.status;
+};
+
 // Calculate daily rates based on date range
 const calculateDailyRates = (startDate: string, endDate: string): number => {
   if (!startDate || !endDate) return 0;
@@ -501,7 +510,7 @@ export default function Closure() {
                             Colaborador: {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </p>
                         </div>
-                        <StatusBadge status={inclusion.status} />
+                        <StatusBadge status={getDisplayStatus(inclusion)} />
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

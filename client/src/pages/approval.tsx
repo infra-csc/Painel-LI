@@ -12,6 +12,15 @@ import StatusBadge from "@/components/common/status-badge";
 import { CheckCircle, XCircle, FileCheck, Filter, Search, Copy } from "lucide-react";
 import type { TeamInclusion, Event, Function, Collaborator, Financial, Ticket } from "@shared/schema";
 
+// Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
+const getDisplayStatus = (inclusion: TeamInclusion) => {
+  if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
+    if (inclusion.needsTicket) return "aguardando_passagem";
+    if (inclusion.needsAccommodation) return "aguardando_hospedagem";
+  }
+  return inclusion.status;
+};
+
 export default function Approval() {
   const [selectedInclusions, setSelectedInclusions] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
@@ -672,7 +681,7 @@ export default function Approval() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={inclusion.status} />
+                          <StatusBadge status={getDisplayStatus(inclusion)} />
                         </td>
                       </tr>
                     );
