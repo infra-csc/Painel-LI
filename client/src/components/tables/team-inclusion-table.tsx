@@ -15,6 +15,15 @@ import SortableHeader, { type SortConfig, type SortField } from "@/components/co
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
+// Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
+const getDisplayStatus = (inclusion: TeamInclusion) => {
+  if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
+    if (inclusion.needsTicket) return "aguardando_passagem";
+    if (inclusion.needsAccommodation) return "aguardando_hospedagem";
+  }
+  return inclusion.status;
+};
+
 export default function TeamInclusionTable() {
   const [selectedInclusion, setSelectedInclusion] = useState<string | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -601,7 +610,7 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <StatusBadge status={inclusion.status} />
+                      <StatusBadge status={getDisplayStatus(inclusion)} />
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
