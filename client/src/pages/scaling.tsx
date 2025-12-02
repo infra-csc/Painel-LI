@@ -302,39 +302,37 @@ export default function Scaling() {
   };
 
   // Check if user can edit collaborator (admin or function_area, only until ticket/accommodation is purchased)
+  // Regras:
+  // - Se needsTicket = true (com ou sem hospedagem) → bloqueia após passagem comprada
+  // - Se needsTicket = false E needsAccommodation = true → bloqueia após hospedagem comprada
+  // - Se não precisa de nenhum → sempre pode editar
   const canEditCollaborator = (inclusion: TeamInclusion) => {
     if (!user) return false;
     
-    // Check if user is admin or function_area
+    // Check if user is admin or function_area or manages the function
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
-    if (!hasRole) return false;
+    const isManager = canManageFunction(inclusion.functionId);
+    if (!hasRole && !isManager) return false;
     
-    // NOVA REGRA: Se status é "escalado", bloqueia edição de colaborador
-    // A menos que seja mudado para "reaberto" pela gestão
-    if (inclusion.status === 'escalado') {
-      return false; // Bloqueado - escalação confirmada
-    }
-    
-    // Se status é "reaberto", permite edição (gestão liberou)
-    // Continua com as outras verificações...
-    
-    // If needs ticket, block after ticket purchase (passagem vem primeiro no fluxo)
-    // Mesmo que também precise de hospedagem, o bloqueio acontece na compra da passagem
+    // Se precisa de passagem (com ou sem hospedagem) → bloqueia após passagem comprada
     if (inclusion.needsTicket) {
       const ticketPurchased = tickets?.some(t => 
         t.teamInclusionId === inclusion.id && t.purchaseDate !== null
       );
       if (ticketPurchased) return false;
+      return true; // Passagem não comprada ainda, pode editar
     }
     
-    // If doesn't need ticket, block after accommodation has reservation number (indicates purchase)
-    if (!inclusion.needsTicket) {
+    // Se NÃO precisa de passagem MAS precisa de hospedagem → bloqueia após hospedagem comprada
+    if (inclusion.needsAccommodation) {
       const accommodationPurchased = accommodations?.some(a => 
         a.teamInclusionId === inclusion.id && a.reservationNumber !== null && a.reservationNumber !== ''
       );
       if (accommodationPurchased) return false;
+      return true; // Hospedagem não comprada ainda, pode editar
     }
     
+    // Se não precisa de passagem nem hospedagem → sempre pode editar
     return true;
   };
 
@@ -1319,39 +1317,38 @@ export default function Scaling() {
                 <Label htmlFor="collaborator" className="text-sm font-medium">
                   Colaborador *
                 </Label>
-                {isEscalationConfirmed(selectedInclusion) && !canEditCollaborator(selectedInclusion) ? (
-                  // Colaborador fixo quando já escalado E não pode editar (passagem/hospedagem comprada ou sem permissão)
+                {!canEditCollaborator(selectedInclusion) ? (
+                  // Colaborador fixo quando não pode editar (passagem/hospedagem comprada ou sem permissão)
                   <div className="mt-2 px-3 py-2 bg-muted rounded-md border">
                     <div className="text-sm font-medium">
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
-                    {isEscalationConfirmed(selectedInclusion) && (() => {
-                      // Verificar se está bloqueado por status escalado
-                      if (selectedInclusion.status === 'escalado') {
-                        return (
-                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                            Escalação confirmada: para alterações nesse momento entre em contato com o time de Viagens
-                          </div>
-                        );
-                      }
-                      
+                    {(() => {
                       const ticketPurchased = tickets?.some(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
                       const accommodationPurchased = accommodations?.some(a => a.teamInclusionId === selectedInclusion.id && a.reservationNumber !== null && a.reservationNumber !== '');
                       
+                      // Se precisa de passagem e foi comprada
                       if (selectedInclusion.needsTicket && ticketPurchased) {
                         return (
                           <div className="text-xs text-muted-foreground mt-1">
                             ⚠️ Não é possível alterar - passagem já comprada
                           </div>
                         );
-                      } else if (!selectedInclusion.needsTicket && accommodationPurchased) {
+                      }
+                      // Se não precisa de passagem mas precisa de hospedagem e foi reservada
+                      if (!selectedInclusion.needsTicket && selectedInclusion.needsAccommodation && accommodationPurchased) {
                         return (
                           <div className="text-xs text-muted-foreground mt-1">
                             ⚠️ Não é possível alterar - hospedagem já reservada
                           </div>
                         );
                       }
-                      return null;
+                      // Sem permissão
+                      return (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          ⚠️ Você não tem permissão para alterar o colaborador
+                        </div>
+                      );
                     })()}
                   </div>
                 ) : (
