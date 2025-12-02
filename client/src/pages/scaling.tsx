@@ -307,19 +307,40 @@ export default function Scaling() {
   // - Se needsTicket = false E needsAccommodation = true → bloqueia após hospedagem comprada
   // - Se não precisa de nenhum → sempre pode editar
   const canEditCollaborator = (inclusion: TeamInclusion) => {
-    if (!user) return false;
+    if (!user) {
+      if (inclusion.inclusionNumber === 161) console.log("🔴 ID 161 - No user");
+      return false;
+    }
     
     // Check if user is admin or function_area or manages the function
     const hasRole = user.role === 'admin' || user.role === 'administrator' || user.role === 'administrador' || user.role === 'function_area';
     const isManager = canManageFunction(inclusion.functionId);
-    if (!hasRole && !isManager) return false;
+    if (inclusion.inclusionNumber === 161) {
+      console.log("🔍 ID 161 DEBUG:", {
+        hasRole,
+        isManager,
+        userRole: user.role,
+        needsTicket: inclusion.needsTicket,
+        needsAccommodation: inclusion.needsAccommodation
+      });
+    }
+    if (!hasRole && !isManager) {
+      if (inclusion.inclusionNumber === 161) console.log("🔴 ID 161 - No permission");
+      return false;
+    }
     
     // Se precisa de passagem (com ou sem hospedagem) → bloqueia após passagem comprada
     if (inclusion.needsTicket) {
       const ticketPurchased = tickets?.some(t => 
         t.teamInclusionId === inclusion.id && t.purchaseDate !== null
       );
-      if (ticketPurchased) return false;
+      if (inclusion.inclusionNumber === 161) {
+        console.log("🔍 ID 161 - Ticket check:", { ticketPurchased, hasTickets: tickets?.length });
+      }
+      if (ticketPurchased) {
+        if (inclusion.inclusionNumber === 161) console.log("🔴 ID 161 - Ticket purchased");
+        return false;
+      }
       return true; // Passagem não comprada ainda, pode editar
     }
     
@@ -328,11 +349,18 @@ export default function Scaling() {
       const accommodationPurchased = accommodations?.some(a => 
         a.teamInclusionId === inclusion.id && a.reservationNumber !== null && a.reservationNumber !== ''
       );
-      if (accommodationPurchased) return false;
+      if (inclusion.inclusionNumber === 161) {
+        console.log("🔍 ID 161 - Accommodation check:", { accommodationPurchased, hasAccommodations: accommodations?.length });
+      }
+      if (accommodationPurchased) {
+        if (inclusion.inclusionNumber === 161) console.log("🔴 ID 161 - Accommodation purchased");
+        return false;
+      }
       return true; // Hospedagem não comprada ainda, pode editar
     }
     
     // Se não precisa de passagem nem hospedagem → sempre pode editar
+    if (inclusion.inclusionNumber === 161) console.log("✅ ID 161 - Can edit (no ticket/accommodation needed)");
     return true;
   };
 
