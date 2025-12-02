@@ -314,25 +314,28 @@ export default function Scaling() {
     const isManager = canManageFunction(inclusion.functionId);
     if (!hasRole && !isManager) return false;
     
-    // Se precisa de passagem (com ou sem hospedagem) → bloqueia após passagem comprada
-    if (inclusion.needsTicket) {
+    // BLOQUEIA SOMENTE SE HÁ COMPRA EFETIVA:
+    // 1. Se precisa de passagem E passagem foi comprada → bloqueia
+    if (inclusion.needsTicket === true) {
       const ticketPurchased = tickets?.some(t => 
         t.teamInclusionId === inclusion.id && t.purchaseDate !== null
       );
       if (ticketPurchased) return false;
-      return true; // Passagem não comprada ainda, pode editar
+      // Passagem não comprada ou não há info de compra → permite editar
+      return true;
     }
     
-    // Se NÃO precisa de passagem MAS precisa de hospedagem → bloqueia após hospedagem comprada
-    if (inclusion.needsAccommodation) {
+    // 2. Se NÃO precisa de passagem MAS precisa de hospedagem E hospedagem foi reservada → bloqueia
+    if (inclusion.needsTicket === false && inclusion.needsAccommodation === true) {
       const accommodationPurchased = accommodations?.some(a => 
         a.teamInclusionId === inclusion.id && a.reservationNumber !== null && a.reservationNumber !== ''
       );
       if (accommodationPurchased) return false;
-      return true; // Hospedagem não comprada ainda, pode editar
+      // Hospedagem não reservada ou não há info de reserva → permite editar
+      return true;
     }
     
-    // Se não precisa de passagem nem hospedagem → sempre pode editar
+    // 3. Em qualquer outro caso (indefinido, sem necessidade, etc) → permite editar
     return true;
   };
 
