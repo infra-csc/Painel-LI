@@ -4,7 +4,6 @@ import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, E
 import Header from "@/components/layout/header";
 import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
-import StatusBadge from "@/components/common/status-badge";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import CommentsModal from "@/components/modals/comments-modal";
@@ -1190,27 +1189,20 @@ export default function Tickets() {
                         <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="flex flex-col gap-1">
                             {(() => {
-                              if (inclusion.status === "cancelado") {
-                                // For cancelled inclusions, show the ticket-specific status
-                                if (ticket) {
-                                  // Had a ticket, so show "Comprada"
-                                  return (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      Comprada
-                                    </span>
-                                  );
-                                } else {
-                                  // No ticket, so show "Aguardando Passagem"
-                                  return <StatusBadge status="passagem" />;
-                                }
-                              } else if (ticket) {
+                              if (ticket) {
+                                // Tem ticket = Comprada
                                 return (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    Comprada
+                                    Passagem Comprada
                                   </span>
                                 );
                               } else {
-                                return <StatusBadge status={inclusion.status} />;
+                                // Sem ticket = Pendente
+                                return (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Pendente
+                                  </span>
+                                );
                               }
                             })()}
                             {inclusion.status === "cancelado" && (
