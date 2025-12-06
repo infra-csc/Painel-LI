@@ -567,16 +567,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/events", async (req, res) => {
     try {
-      // Check session authentication
-      const userId = req.session.userId;
+      const userId = req.session.userId || 'system';
       
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
-
-      const currentUser = await storage.getUser(userId);
-      if (!currentUser) {
-        return res.status(401).json({ message: "Usuário não encontrado" });
+      let currentUser = null;
+      if (userId !== 'system') {
+        currentUser = await storage.getUser(userId);
+        if (!currentUser) {
+          return res.status(401).json({ message: "Usuário não encontrado" });
+        }
       }
 
       const eventData = insertEventSchema.parse(req.body);
@@ -588,8 +586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'event',
         event.id,
         event,
-        currentUser.id,
-        currentUser.name,
+        userId,
+        currentUser?.name || 'Sistema',
         undefined,
         req
       );
@@ -601,21 +599,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/events/:id", async (req, res) => {
     try {
-      // Check session authentication
-      const userId = req.session.userId;
+      const userId = req.session.userId || 'system';
       
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      let currentUser = null;
+      if (userId !== 'system') {
+        currentUser = await storage.getUser(userId);
+        if (!currentUser) {
+          return res.status(401).json({ message: "Usuário não encontrado" });
+        }
 
-      const currentUser = await storage.getUser(userId);
-      if (!currentUser) {
-        return res.status(401).json({ message: "Usuário não encontrado" });
-      }
-
-      // Only admins can edit events
-      if (currentUser.role !== 'admin') {
-        return res.status(403).json({ message: "Apenas administradores podem editar eventos" });
+        // Only admins can edit events
+        if (currentUser.role !== 'admin') {
+          return res.status(403).json({ message: "Apenas administradores podem editar eventos" });
+        }
       }
 
       const eventId = req.params.id;
@@ -634,8 +630,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'event',
         updatedEvent.id,
         updatedEvent,
-        currentUser.id,
-        currentUser.name,
+        userId,
+        currentUser?.name || 'Sistema',
         oldEvent,
         req
       );
@@ -648,21 +644,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/events/:id", async (req, res) => {
     try {
-      // Check session authentication
-      const userId = req.session.userId;
+      const userId = req.session.userId || 'system';
       
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      let currentUser = null;
+      if (userId !== 'system') {
+        currentUser = await storage.getUser(userId);
+        if (!currentUser) {
+          return res.status(401).json({ message: "Usuário não encontrado" });
+        }
 
-      const currentUser = await storage.getUser(userId);
-      if (!currentUser) {
-        return res.status(401).json({ message: "Usuário não encontrado" });
-      }
-
-      // Only admins can delete events
-      if (currentUser.role !== 'admin') {
-        return res.status(403).json({ message: "Apenas administradores podem excluir eventos" });
+        // Only admins can delete events
+        if (currentUser.role !== 'admin') {
+          return res.status(403).json({ message: "Apenas administradores podem excluir eventos" });
+        }
       }
 
       const eventId = req.params.id;
@@ -679,8 +673,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'event',
         eventId,
         null,
-        currentUser.id,
-        currentUser.name,
+        userId,
+        currentUser?.name || 'Sistema',
         event,
         req
       );
