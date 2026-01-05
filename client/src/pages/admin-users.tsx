@@ -264,40 +264,7 @@ export default function AdminUsers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {/* Edit button for all users */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingUser(user)}
-                          className="text-blue-600 hover:text-blue-900"
-                          data-testid={`button-edit-${user.id}`}
-                          title="Editar Usuário"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleResetPassword(user.id)}
-                          className="text-amber-600 hover:text-amber-900"
-                          data-testid={`button-reset-pwd-${user.id}`}
-                          title="Resetar Senha"
-                        >
-                          <Key className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => toggleActiveMutation.mutate(user.id)}
-                          className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
-                          data-testid={`button-toggle-active-${user.id}`}
-                          title={user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
-                        >
-                          {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                        </Button>
-
+                        {/* Pending users: only approve/reject */}
                         {user.status === 'pending' && (
                           <>
                             <Button
@@ -307,6 +274,7 @@ export default function AdminUsers() {
                               className="text-green-600 hover:text-green-900"
                               data-testid={`button-approve-${user.id}`}
                               disabled={approveUserMutation.isPending}
+                              title="Aprovar Usuário"
                             >
                               <CheckCircle className="w-4 h-4" />
                             </Button>
@@ -317,8 +285,62 @@ export default function AdminUsers() {
                               className="text-red-600 hover:text-red-900"
                               data-testid={`button-reject-${user.id}`}
                               disabled={approveUserMutation.isPending}
+                              title="Rejeitar Usuário"
                             >
                               <XCircle className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+
+                        {/* Rejected users: only reactivate (approve) */}
+                        {user.status === 'rejected' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleApproveUser(user.id, 'approved')}
+                            className="text-green-600 hover:text-green-900"
+                            data-testid={`button-reactivate-${user.id}`}
+                            disabled={approveUserMutation.isPending}
+                            title="Reativar Usuário"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </Button>
+                        )}
+
+                        {/* Approved users: all options */}
+                        {user.status === 'approved' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setEditingUser(user)}
+                              className="text-blue-600 hover:text-blue-900"
+                              data-testid={`button-edit-${user.id}`}
+                              title="Editar Usuário"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleResetPassword(user.id)}
+                              className="text-amber-600 hover:text-amber-900"
+                              data-testid={`button-reset-pwd-${user.id}`}
+                              title="Resetar Senha"
+                            >
+                              <Key className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleActiveMutation.mutate(user.id)}
+                              className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
+                              data-testid={`button-toggle-active-${user.id}`}
+                              title={user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
+                            >
+                              {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                             </Button>
                           </>
                         )}
