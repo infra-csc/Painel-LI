@@ -374,16 +374,24 @@ export default function AdminUsers() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         {/* Edit button for all users */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingUser(user)}
-                          className="text-blue-600 hover:text-blue-900"
-                          data-testid={`button-edit-${user.id}`}
-                          title="Editar Usuário"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingUser(user)}
+                                className="text-gray-600 hover:text-gray-900"
+                                data-testid={`button-edit-${user.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar Usuário</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
 
                         {/* Pending users: approve/reject */}
                         {user.status === 'pending' && (
