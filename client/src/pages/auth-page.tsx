@@ -84,34 +84,17 @@ export default function AuthPage() {
   const handleLogin = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.mustChangePassword) {
-          toast({
-            title: "Troca de senha obrigatória",
-            description: "O administrador resetou sua senha. Por favor, defina uma nova senha.",
-          });
-          // Redirect to a password change flow or open a modal
-          // For now, let's just log them in but keep the flag
-          setLocation("/");
-        } else {
-          toast({
-            title: "Login realizado com sucesso",
-            description: "Bem-vindo ao sistema de Logística Interna",
-          });
-          setLocation("/");
-        }
+      const success = await login(data.email, data.password);
+      if (success) {
+        toast({
+          title: "Login realizado com sucesso",
+          description: "Bem-vindo ao sistema de Logística Interna",
+        });
+        setLocation("/");
       } else {
-        const error = await response.json();
         toast({
           title: "Erro no login",
-          description: error.message || "Credenciais inválidas",
+          description: "Credenciais inválidas ou conta não aprovada",
           variant: "destructive",
         });
       }
