@@ -168,19 +168,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[Login] Session saved - SessionID:', req.sessionID, 'UserID:', req.session.userId);
       
       // Log successful login
-      await createAuditLog(
-        'login',
-        'user',
-        user.id,
-        user,
-        user.id,
-        user.name,
-        undefined,
-        req
-      );
+      try {
+        await createAuditLog(
+          'login',
+          'user',
+          user.id,
+          user,
+          user.id,
+          user.name,
+          undefined,
+          req
+        );
+      } catch (auditError) {
+        console.error('[Login] Audit log failed:', auditError);
+        // Don't fail login if audit log fails
+      }
       
       res.json({ user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[Login] Error:', error);
       res.status(500).json({ message: "Erro interno do servidor" });
     }
   });

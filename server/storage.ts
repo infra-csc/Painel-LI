@@ -710,8 +710,13 @@ export class DatabaseStorage implements IStorage {
   // Removed getUserByUsername since username field is removed
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    try {
+      const [user] = await db.select().from(users).where(eq(users.email, email));
+      return user;
+    } catch (error) {
+      console.error('[Storage] Error in getUserByEmail:', error);
+      throw error;
+    }
   }
 
   async getUserByResetToken(token: string): Promise<User | undefined> {
