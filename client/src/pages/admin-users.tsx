@@ -431,16 +431,24 @@ export default function AdminUsers() {
                         {/* Approved users: reset password and toggle active */}
                         {user.status === 'approved' && (
                           <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleResetPassword(user.id)}
-                              className="text-amber-600 hover:text-amber-900"
-                              data-testid={`button-reset-pwd-${user.id}`}
-                              title="Resetar Senha"
-                            >
-                              <Key className="w-4 h-4" />
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleResetPassword(user.id)}
+                                    className="text-blue-600 hover:text-blue-900"
+                                    data-testid={`button-reset-pwd-${user.id}`}
+                                  >
+                                    <Key className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Resetar Senha</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
 
                             <TooltipProvider>
                               <Tooltip>
@@ -449,7 +457,7 @@ export default function AdminUsers() {
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => toggleActiveMutation.mutate(user.id)}
-                                    className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900 ring-2 ring-green-500"}
+                                    className={user.isActive !== false ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900 ring-2 ring-green-500"}
                                     data-testid={`button-toggle-active-${user.id}`}
                                   >
                                     {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
