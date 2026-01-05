@@ -264,7 +264,19 @@ export default function AdminUsers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {/* Pending users: only approve/reject */}
+                        {/* Edit button for all users */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingUser(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                          data-testid={`button-edit-${user.id}`}
+                          title="Editar Usuário"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+
+                        {/* Pending users: approve/reject */}
                         {user.status === 'pending' && (
                           <>
                             <Button
@@ -292,7 +304,7 @@ export default function AdminUsers() {
                           </>
                         )}
 
-                        {/* Rejected users: only reactivate (approve) */}
+                        {/* Rejected users: reactivate */}
                         {user.status === 'rejected' && (
                           <Button
                             size="sm"
@@ -307,20 +319,9 @@ export default function AdminUsers() {
                           </Button>
                         )}
 
-                        {/* Approved users: all options */}
+                        {/* Approved users: reset password and toggle active */}
                         {user.status === 'approved' && (
                           <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setEditingUser(user)}
-                              className="text-blue-600 hover:text-blue-900"
-                              data-testid={`button-edit-${user.id}`}
-                              title="Editar Usuário"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-
                             <Button
                               size="sm"
                               variant="ghost"
