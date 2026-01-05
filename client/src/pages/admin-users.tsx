@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Eye, Edit, UserCheck, UserMinus, Key } from "lucide-react";
+import { CheckCircle, XCircle, Edit, UserCheck, UserMinus, Key, Search, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,11 +14,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import UserEditModal from "@/components/modals/user-edit-modal";
 import type { User } from "@shared/schema";
 
 export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -104,11 +112,25 @@ export default function AdminUsers() {
     }
   };
 
-  // Filter users based on status
-  const filteredUsers = users.filter(user => {
-    if (statusFilter === "all") return true;
-    return user.status === statusFilter;
-  });
+  // Filter and sort users
+  const filteredUsers = users
+    .filter(user => {
+      // Status filter
+      if (statusFilter !== "all" && user.status !== statusFilter) return false;
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return user.name.toLowerCase().includes(query) || 
+               user.email.toLowerCase().includes(query);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // Pending first, then by date (newest first)
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (a.status !== 'pending' && b.status === 'pending') return 1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
 
   const getStatusBadge = (status: string, isActive: boolean | null) => {
     const variants = {
@@ -152,6 +174,16 @@ export default function AdminUsers() {
         
         {/* Filters */}
         <div className="flex gap-4 mb-4">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por nome ou e-mail..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-users"
+            />
+          </div>
           <div className="w-48">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger data-testid="select-status-filter">
@@ -231,10 +263,27 @@ export default function AdminUsers() {
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={user.id} 
+                    className={`hover:bg-gray-50 ${user.isActive === false ? 'bg-gray-50 opacity-60' : ''}`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900" data-testid={`text-user-name-${user.id}`}>
-                        {user.name}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-900" data-testid={`text-user-name-${user.id}`}>
+                          {user.name}
+                        </div>
+                        {user.mustChangePassword && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <AlertCircle className="h-4 w-4 text-amber-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Troca de senha pendente</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
                       {user.area && (
                         <div className="text-sm text-gray-500">{user.area}</div>
