@@ -153,6 +153,31 @@ export default function AdminUsers() {
     );
   };
 
+  const getRoleBadge = (role: string) => {
+    const config = {
+      admin: { bg: "bg-purple-100 text-purple-800", label: "Administrador" },
+      production: { bg: "bg-blue-100 text-blue-800", label: "Produção" },
+      function_area: { bg: "bg-teal-100 text-teal-800", label: "Área de Função" },
+      purchasing: { bg: "bg-orange-100 text-orange-800", label: "Compras" },
+      financial: { bg: "bg-emerald-100 text-emerald-800", label: "Financeiro" },
+    };
+    const roleConfig = config[role as keyof typeof config] || { bg: "bg-gray-100 text-gray-800", label: role };
+    return <Badge className={roleConfig.bg}>{roleConfig.label}</Badge>;
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", 
+      "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-red-500"
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -200,25 +225,37 @@ export default function AdminUsers() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Summary Cards - Clickable */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+          <div 
+            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' : 'bg-white border-gray-200'}`}
+            onClick={() => setStatusFilter('all')}
+          >
             <div className="text-sm font-medium text-gray-600">Total</div>
             <div className="text-2xl font-bold text-gray-900">{users.length}</div>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 shadow-sm">
+          <div 
+            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-yellow-300' : ''} bg-yellow-50 border-yellow-200`}
+            onClick={() => setStatusFilter('pending')}
+          >
             <div className="text-sm font-medium text-yellow-600">Pendentes</div>
             <div className="text-2xl font-bold text-yellow-900">
               {users.filter(u => u.status === 'pending').length}
             </div>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg border border-green-200 shadow-sm">
+          <div 
+            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'approved' ? 'ring-2 ring-green-300' : ''} bg-green-50 border-green-200`}
+            onClick={() => setStatusFilter('approved')}
+          >
             <div className="text-sm font-medium text-green-600">Aprovados</div>
             <div className="text-2xl font-bold text-gray-900">
               {users.filter(u => u.status === 'approved' && u.isActive !== false).length}
             </div>
           </div>
-          <div className="bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm">
+          <div 
+            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'rejected' ? 'ring-2 ring-red-300' : ''} bg-red-50 border-red-200`}
+            onClick={() => setStatusFilter('rejected')}
+          >
             <div className="text-sm font-medium text-red-600">Inativos/Rejeitados</div>
             <div className="text-2xl font-bold text-red-900">
               {users.filter(u => u.status === 'rejected' || u.isActive === false).length}
@@ -269,26 +306,33 @@ export default function AdminUsers() {
                     className={`hover:bg-gray-50 ${user.isActive === false ? 'bg-gray-100' : ''}`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium text-gray-900" data-testid={`text-user-name-${user.id}`}>
-                          {user.name}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-full ${getAvatarColor(user.name)} flex items-center justify-center text-white text-sm font-medium`}>
+                          {getInitials(user.name)}
                         </div>
-                        {user.mustChangePassword && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <AlertCircle className="h-4 w-4 text-amber-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Senha foi resetada pelo admin. Usuário deve trocar no próximo login.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-gray-900" data-testid={`text-user-name-${user.id}`}>
+                              {user.name}
+                            </div>
+                            {user.mustChangePassword && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Senha foi resetada pelo admin. Usuário deve trocar no próximo login.</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                          {user.area && (
+                            <div className="text-xs text-gray-500">{user.area}</div>
+                          )}
+                        </div>
                       </div>
-                      {user.area && (
-                        <div className="text-sm text-gray-500">{user.area}</div>
-                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900" data-testid={`text-user-email-${user.id}`}>
@@ -296,13 +340,7 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 capitalize">
-                        {user.role === 'admin' ? 'Administrador' :
-                         user.role === 'production' ? 'Produção' :
-                         user.role === 'function_area' ? 'Área de Função' :
-                         user.role === 'purchasing' ? 'Compras' :
-                         user.role === 'financial' ? 'Financeiro' : user.role}
-                      </div>
+                      {getRoleBadge(user.role)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(user.status, user.isActive)}
