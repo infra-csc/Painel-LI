@@ -158,6 +158,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
       req.session.user = { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined };
       
+      if (user.mustChangePassword) {
+        return res.json({ 
+          mustChangePassword: true, 
+          user: { ...user, password: undefined, resetToken: undefined, resetTokenExpiry: undefined } 
+        });
+      }
+      
       console.log('[Login] Session saved - SessionID:', req.sessionID, 'UserID:', req.session.userId);
       
       // Log successful login
@@ -598,7 +605,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await storage.updateUser(userId, { password: hashedPassword });
+      await storage.updateUser(userId, { 
+        password: hashedPassword,
+        mustChangePassword: true 
+      });
       
       await createAuditLog(
         'update',

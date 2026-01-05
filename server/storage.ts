@@ -139,6 +139,7 @@ export class MemStorage implements IStorage {
       resetTokenExpiry: null,
       status: "approved",
       isActive: true,
+      mustChangePassword: false,
       createdAt: new Date(),
     };
     this.users.set(demoUser.id, demoUser);
@@ -155,6 +156,7 @@ export class MemStorage implements IStorage {
       resetTokenExpiry: null,
       status: "approved",
       isActive: true,
+      mustChangePassword: false,
       createdAt: new Date(),
     };
     this.users.set(purchasingUser.id, purchasingUser);
@@ -189,7 +191,8 @@ export class MemStorage implements IStorage {
       resetToken: null,
       resetTokenExpiry: null,
       status: insertUser.status || 'pending',
-      isActive: true
+      isActive: true,
+      mustChangePassword: false
     };
     this.users.set(id, user);
     return user;

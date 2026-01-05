@@ -60,7 +60,8 @@ export default function AdminUsers() {
   };
 
   // Only allow admin access
-  if (!user || user.role !== "admin") {
+  const isAdmin = user?.role === 'admin' || user?.role === 'administrador' || user?.role === 'administrator';
+  if (!user || !isAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -109,16 +110,16 @@ export default function AdminUsers() {
     return user.status === statusFilter;
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isActive: boolean | null) => {
     const variants = {
       pending: "bg-yellow-100 text-yellow-800",
-      approved: "bg-green-100 text-green-800", 
+      approved: isActive === false ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800", 
       rejected: "bg-red-100 text-red-800",
     };
     
     const labels = {
       pending: "Pendente",
-      approved: "Aprovado",
+      approved: isActive === false ? "Inativo" : "Ativo",
       rejected: "Rejeitado",
     };
 
@@ -180,14 +181,14 @@ export default function AdminUsers() {
           </div>
           <div className="bg-green-50 p-4 rounded-lg border border-green-200 shadow-sm">
             <div className="text-sm font-medium text-green-600">Aprovados</div>
-            <div className="text-2xl font-bold text-green-900">
-              {users.filter(u => u.status === 'approved').length}
+            <div className="text-2xl font-bold text-gray-900">
+              {users.filter(u => u.status === 'approved' && u.isActive !== false).length}
             </div>
           </div>
           <div className="bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm">
-            <div className="text-sm font-medium text-red-600">Rejeitados</div>
+            <div className="text-sm font-medium text-red-600">Inativos/Rejeitados</div>
             <div className="text-2xl font-bold text-red-900">
-              {users.filter(u => u.status === 'rejected').length}
+              {users.filter(u => u.status === 'rejected' || u.isActive === false).length}
             </div>
           </div>
         </div>
@@ -254,7 +255,7 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(user.status)}
+                      {getStatusBadge(user.status, user.isActive)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
@@ -290,14 +291,13 @@ export default function AdminUsers() {
                           size="sm"
                           variant="ghost"
                           onClick={() => toggleActiveMutation.mutate(user.id)}
-                          className={user.isActive ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
+                          className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
                           data-testid={`button-toggle-active-${user.id}`}
-                          title={user.isActive ? "Desativar Usuário" : "Reativar Usuário"}
+                          title={user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
                         >
-                          {user.isActive ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                         </Button>
 
-                        
                         {user.status === 'pending' && (
                           <>
                             <Button

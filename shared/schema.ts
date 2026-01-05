@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   resetTokenExpiry: timestamp("reset_token_expiry"), // expiry for reset token
   status: text("status").notNull().default("pending"), // pending, approved, rejected
   isActive: boolean("is_active").default(true), // account status
+  mustChangePassword: boolean("must_change_password").default(false), // force password change
   createdAt: timestamp("created_at").defaultNow(),
 });
 
