@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Edit, UserCheck, UserMinus, Key, Search, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle, Edit, UserCheck, UserMinus, Key, Search, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -199,7 +199,7 @@ export default function AdminUsers() {
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Gerenciamento de Usuários</h1>
         
         {/* Filters */}
-        <div className="flex gap-4 mb-4">
+        <div className="flex gap-4 mb-4 items-center">
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -209,6 +209,14 @@ export default function AdminUsers() {
               className="pl-10"
               data-testid="input-search-users"
             />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="w-48">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -222,6 +230,19 @@ export default function AdminUsers() {
                 <SelectItem value="rejected">Rejeitados</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          {(searchQuery || statusFilter !== 'all') && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Limpar filtros
+            </Button>
+          )}
+          <div className="text-sm text-gray-500 ml-auto">
+            {filteredUsers.length} de {users.length} usuários
           </div>
         </div>
 
