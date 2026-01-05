@@ -53,8 +53,9 @@ export default function AdminUsers() {
     onSuccess: () => {
       toast({
         title: "Sucesso",
-        description: "Senha resetada com sucesso",
+        description: "Senha resetada com sucesso. O usuário precisará trocar a senha no próximo login.",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
   });
 
@@ -265,7 +266,7 @@ export default function AdminUsers() {
                 filteredUsers.map((user) => (
                   <tr 
                     key={user.id} 
-                    className={`hover:bg-gray-50 ${user.isActive === false ? 'bg-gray-50 opacity-60' : ''}`}
+                    className={`hover:bg-gray-50 ${user.isActive === false ? 'bg-gray-100' : ''}`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -384,13 +385,13 @@ export default function AdminUsers() {
 
                             <Button
                               size="sm"
-                              variant="ghost"
+                              variant={user.isActive === false ? "default" : "ghost"}
                               onClick={() => toggleActiveMutation.mutate(user.id)}
-                              className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
+                              className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "bg-green-600 hover:bg-green-700 text-white"}
                               data-testid={`button-toggle-active-${user.id}`}
                               title={user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
                             >
-                              {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                              {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <><UserCheck className="w-4 h-4 mr-1" /> Reativar</>}
                             </Button>
                           </>
                         )}
