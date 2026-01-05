@@ -545,6 +545,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Toggle user active status (Reactivação)
+  app.patch("/api/users/:id/toggle-active", async (req, res) => {
+    try {
+      const adminId = req.session.userId;
+      if (!adminId) return res.status(401).json({ message: "Não autenticado" });
+      
+      const admin = await storage.getUser(adminId);
+      const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
+      if (!isAdmin) return res.status(403).json({ message: "Acesso negado" });
+
+      const userId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
+
+      const updatedUser = await storage.updateUser(userId, { isActive: !user.isActive });
+      
+      await createAuditLog(
+        'update',
+        'user',
+        userId,
+        updatedUser,
+        adminId,
+        admin.name,
+        user,
+        req
+      );
+
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao alterar status do usuário" });
+    }
+  });
+
+  // Admin: Reset user password
+  app.post("/api/users/:id/reset-password", async (req, res) => {
+    try {
+      const adminId = req.session.userId;
+      if (!adminId) return res.status(401).json({ message: "Não autenticado" });
+      
+      const admin = await storage.getUser(adminId);
+      const isAdmin = admin && (admin.role === 'administrador' || admin.role === 'admin' || admin.role === 'administrator');
+      if (!isAdmin) return res.status(403).json({ message: "Acesso negado" });
+
+      const userId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
+
+      const { newPassword } = req.body;
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "Nova senha deve ter pelo menos 6 caracteres" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(userId, { password: hashedPassword });
+      
+      await createAuditLog(
+        'update',
+        'user',
+        userId,
+        { ...user, password: '[CHANGED]' },
+        adminId,
+        admin.name,
+        user,
+        req
+      );
+
+      res.json({ message: "Senha resetada com sucesso" });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao resetar senha" });
+    }
+  });
+
   // Events routes
   app.get("/api/events", async (req, res) => {
     try {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Eye, Edit } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Edit, UserCheck, UserMinus, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,42 @@ export default function AdminUsers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("PATCH", `/api/users/${userId}/toggle-active`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Status da conta atualizado",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string, newPassword: string }) => {
+      const response = await apiRequest("POST", `/api/users/${userId}/reset-password`, { newPassword });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Senha resetada com sucesso",
+      });
+    },
+  });
+
+  const handleResetPassword = (userId: string) => {
+    const newPassword = window.prompt("Digite a nova senha (mínimo 6 caracteres):");
+    if (newPassword && newPassword.length >= 6) {
+      resetPasswordMutation.mutate({ userId, newPassword });
+    } else if (newPassword) {
+      toast({ title: "Erro", description: "Senha muito curta", variant: "destructive" });
+    }
+  };
 
   // Only allow admin access
   if (!user || user.role !== "admin") {
@@ -234,9 +270,33 @@ export default function AdminUsers() {
                           onClick={() => setEditingUser(user)}
                           className="text-blue-600 hover:text-blue-900"
                           data-testid={`button-edit-${user.id}`}
+                          title="Editar Usuário"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleResetPassword(user.id)}
+                          className="text-amber-600 hover:text-amber-900"
+                          data-testid={`button-reset-pwd-${user.id}`}
+                          title="Resetar Senha"
+                        >
+                          <Key className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleActiveMutation.mutate(user.id)}
+                          className={user.isActive ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900"}
+                          data-testid={`button-toggle-active-${user.id}`}
+                          title={user.isActive ? "Desativar Usuário" : "Reativar Usuário"}
+                        >
+                          {user.isActive ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                        </Button>
+
                         
                         {user.status === 'pending' && (
                           <>
