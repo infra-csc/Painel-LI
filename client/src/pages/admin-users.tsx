@@ -198,9 +198,9 @@ export default function AdminUsers() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Gerenciamento de Usuários</h1>
         
-        {/* Filters */}
+        {/* Search */}
         <div className="flex gap-4 mb-4 items-center">
-          <div className="relative flex-1 max-w-xs">
+          <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Buscar por nome ou e-mail..."
@@ -217,19 +217,6 @@ export default function AdminUsers() {
                 <X className="h-4 w-4" />
               </button>
             )}
-          </div>
-          <div className="w-48">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger data-testid="select-status-filter">
-                <SelectValue placeholder="Filtrar por status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendentes</SelectItem>
-                <SelectItem value="approved">Aprovados</SelectItem>
-                <SelectItem value="rejected">Rejeitados</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           {(searchQuery || statusFilter !== 'all') && (
             <Button 
