@@ -280,7 +280,7 @@ export default function AdminUsers() {
                                 <AlertCircle className="h-4 w-4 text-amber-500" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>Troca de senha pendente</p>
+                                <p>Senha foi resetada pelo admin. Usuário deve trocar no próximo login.</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -383,16 +383,24 @@ export default function AdminUsers() {
                               <Key className="w-4 h-4" />
                             </Button>
 
-                            <Button
-                              size="sm"
-                              variant={user.isActive === false ? "default" : "ghost"}
-                              onClick={() => toggleActiveMutation.mutate(user.id)}
-                              className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "bg-green-600 hover:bg-green-700 text-white"}
-                              data-testid={`button-toggle-active-${user.id}`}
-                              title={user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
-                            >
-                              {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <><UserCheck className="w-4 h-4 mr-1" /> Reativar</>}
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => toggleActiveMutation.mutate(user.id)}
+                                    className={user.isActive !== false ? "text-orange-600 hover:text-orange-900" : "text-green-600 hover:text-green-900 ring-2 ring-green-500"}
+                                    data-testid={`button-toggle-active-${user.id}`}
+                                  >
+                                    {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </>
                         )}
                       </div>
