@@ -1245,9 +1245,9 @@ export default function GridTeamInclusionForm() {
                             </div>
                           </th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-36">Horário Chegada Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r font-medium min-w-[120px]">Horário Chegada Sugerido</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-36">Horário Partida Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r font-medium min-w-[120px]">Horário Partida Sugerido</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
                               <div className="text-xs">
@@ -1304,12 +1304,12 @@ export default function GridTeamInclusionForm() {
                                 className="h-7 text-center text-xs"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r">
+                            <td className="px-2 py-2 border-r min-w-[120px]">
                               <Input 
                                 value={row.horarioChegadaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioChegadaSugerido', e.target.value)}
                                 placeholder="Ex: 14h30"
-                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black"
+                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black w-full"
                                 maxLength={15}
                               />
                             </td>
@@ -1321,12 +1321,12 @@ export default function GridTeamInclusionForm() {
                                 className="h-7 text-center text-xs"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r">
+                            <td className="px-2 py-2 border-r min-w-[120px]">
                               <Input 
                                 value={row.horarioPartidaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioPartidaSugerido', e.target.value)}
                                 placeholder="Ex: 18h00"
-                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black"
+                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black w-full"
                                 maxLength={15}
                               />
                             </td>
