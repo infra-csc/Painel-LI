@@ -1245,9 +1245,9 @@ export default function GridTeamInclusionForm() {
                             </div>
                           </th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-28">Horário Chegada Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-36">Horário Chegada Sugerido</th>
                           <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-28">Horário Partida Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r font-medium w-36">Horário Partida Sugerido</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
                               <div className="text-xs">
