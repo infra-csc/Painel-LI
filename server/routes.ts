@@ -572,7 +572,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
 
-      const updatedUser = await storage.updateUser(userId, { isActive: !user.isActive });
+      const newIsActive = !user.isActive;
+      const updatedUser = await storage.updateUser(userId, { isActive: newIsActive });
+      
+      // Se o usuário foi desativado, remove-o dos responsáveis de todas as funções
+      if (!newIsActive) {
+        await storage.removeUserFromAllFunctions(userId);
+      }
       
       await createAuditLog(
         'update',

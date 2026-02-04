@@ -56,6 +56,7 @@ export interface IStorage {
   getFunctionManagers(functionId: string): Promise<FunctionManager[]>;
   addManagerToFunction(functionManager: InsertFunctionManager): Promise<FunctionManager>;
   removeManagerFromFunction(functionId: string, userId: string): Promise<void>;
+  removeUserFromAllFunctions(userId: string): Promise<void>;
   getUserManagedFunctions(userId: string): Promise<Function[]>;
   isUserFunctionManager(functionId: string, userId: string): Promise<boolean>;
   
@@ -373,6 +374,14 @@ export class MemStorage implements IStorage {
       if (fm.functionId === functionId && fm.userId === userId) {
         this.functionManagers.delete(id);
         break;
+      }
+    }
+  }
+
+  async removeUserFromAllFunctions(userId: string): Promise<void> {
+    for (const [id, fm] of Array.from(this.functionManagers.entries())) {
+      if (fm.userId === userId) {
+        this.functionManagers.delete(id);
       }
     }
   }
@@ -865,6 +874,10 @@ export class DatabaseStorage implements IStorage {
   async removeManagerFromFunction(functionId: string, userId: string): Promise<void> {
     await db.delete(functionManagers)
       .where(and(eq(functionManagers.functionId, functionId), eq(functionManagers.userId, userId)));
+  }
+
+  async removeUserFromAllFunctions(userId: string): Promise<void> {
+    await db.delete(functionManagers).where(eq(functionManagers.userId, userId));
   }
 
   async getUserManagedFunctions(userId: string): Promise<Function[]> {
