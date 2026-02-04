@@ -478,7 +478,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {events?.map((event) => (
+                            {events?.filter(e => e.status !== 'excluido').map((event) => (
                               <SelectItem key={event.id} value={event.id}>
                                 {event.name}
                               </SelectItem>
