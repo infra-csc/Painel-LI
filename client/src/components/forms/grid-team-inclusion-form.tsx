@@ -1618,8 +1618,14 @@ export default function GridTeamInclusionForm() {
             </div>
 
             <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
-              <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                <strong>Formato de Checkboxes:</strong> Use "Sim", "S", "1", "x" ou "true" para marcar. Qualquer outro valor = desmarcado.
+              <p className="text-xs text-yellow-800 dark:text-yellow-200 mb-1">
+                <strong>Passagem e Hospedagem:</strong>
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                ✓ Para marcar: <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">sim</span>, <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">s</span>, <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">1</span>, <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">x</span> ou <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">true</span>
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                ✗ Para desmarcar: <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">não</span>, <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">n</span>, <span className="font-mono bg-yellow-100 dark:bg-yellow-900 px-1 rounded">0</span> ou deixe vazio
               </p>
             </div>
 
