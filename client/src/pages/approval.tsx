@@ -326,7 +326,7 @@ export default function Approval() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os eventos</SelectItem>
-                      {events?.filter(e => e.status !== 'excluido').map(event => (
+                      {events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído').map(event => (
                         <SelectItem key={event.id} value={event.id}>
                           {event.name}
                         </SelectItem>

@@ -89,7 +89,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             Evento
           </label>
           <EventCombobox
-            events={events?.filter(e => e.status !== 'excluido')}
+            events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
             value={filters.eventId}
             onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
             placeholder="Selecionar evento"
