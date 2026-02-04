@@ -1047,7 +1047,7 @@ export default function GridTeamInclusionForm() {
                         <CommandList>
                           <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
                           <CommandGroup>
-                            {events?.map((event) => (
+                            {events?.filter(e => e.status !== 'excluido').map((event) => (
                               <CommandItem
                                 key={event.id}
                                 value={event.name}

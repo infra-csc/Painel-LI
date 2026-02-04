@@ -65,7 +65,7 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
             Evento
           </label>
           <EventCombobox
-            events={events}
+            events={events?.filter(e => e.status !== 'excluido')}
             value={filters.eventId}
             onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
             placeholder="Selecionar evento"
