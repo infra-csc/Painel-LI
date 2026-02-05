@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calculator, DollarSign, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Settings2 } from "lucide-react";
-import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetPlanned } from "@shared/schema";
+import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function BudgetPlannedPage() {
@@ -20,7 +20,7 @@ export default function BudgetPlannedPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const { data: functionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
+  const { data: functionValues, isLoading: isLoadingFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
   
   const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId],
@@ -33,94 +33,14 @@ export default function BudgetPlannedPage() {
     enabled: !!selectedEventId,
   });
 
-  const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
-    queryKey: ["/api/budget-planned", selectedEventId],
-    queryFn: async () => {
-      const url = selectedEventId ? `/api/budget-planned?eventId=${selectedEventId}` : "/api/budget-planned";
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch budget planned");
-      return res.json();
-    },
-    enabled: !!selectedEventId,
-  });
-
-  const generateDefaultsMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/function-values/generate-defaults", {});
-      return res.json();
-    },
-    onSuccess: (data) => {
-      toast({ title: "Sucesso", description: `${data.created} valores padrão criados` });
-      qc.invalidateQueries({ queryKey: ["/api/function-values"] });
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao gerar valores padrão", variant: "destructive" });
-    },
-  });
-
-  const generateBudgetMutation = useMutation({
-    mutationFn: async () => {
-      if (!teamInclusions || !functionValues) throw new Error("Dados não carregados");
-      
-      const created = [];
-      for (const inclusion of teamInclusions) {
-        const existing = budgetPlanned?.find(
-          bp => bp.eventId === inclusion.eventId && 
-                bp.collaboratorId === inclusion.collaboratorId &&
-                bp.functionId === inclusion.functionId
-        );
-        
-        if (!existing) {
-          const fv = functionValues.find(v => v.functionId === inclusion.functionId);
-          const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
-          const collabType = collab?.type || "freela";
-          
-          const dailyQty = inclusion.dailyRates || 0;
-          const dailyValue = fv?.dailyValue || 25000;
-          const costAssistance = fv?.costAssistance || 7000;
-          const mobility = fv?.mobility || 2500;
-          
-          let weekdayLunch = 0, weekdayDinner = 0, weekendLunch = 0, weekendDinner = 0;
-          if (collabType === "freela") {
-            weekdayLunch = (fv?.weekdayLunch || 3500) * dailyQty;
-            weekdayDinner = (fv?.weekdayDinner || 4000) * dailyQty;
-          }
-          weekendLunch = (fv?.weekendLunch || 4000) * Math.ceil(dailyQty / 5);
-          weekendDinner = (fv?.weekendDinner || 4500) * Math.ceil(dailyQty / 5);
-          
-          const totalValue = (dailyQty * dailyValue) + costAssistance + weekdayLunch + weekdayDinner + weekendLunch + weekendDinner + mobility;
-          
-          const res = await apiRequest("POST", "/api/budget-planned", {
-            eventId: inclusion.eventId,
-            collaboratorId: inclusion.collaboratorId,
-            functionId: inclusion.functionId,
-            collaboratorType: collabType,
-            dailyQuantity: dailyQty,
-            dailyValue: dailyValue,
-            costAssistance: costAssistance,
-            weekdayLunch: weekdayLunch,
-            weekdayDinner: weekdayDinner,
-            weekendLunch: weekendLunch,
-            weekendDinner: weekendDinner,
-            mobility: mobility,
-            transport: 0,
-            totalValue: totalValue,
-            observations: `Gerado automaticamente da escalação #${inclusion.inclusionNumber}`,
-            createdBy: user?.id,
-          });
-          created.push(await res.json());
-        }
-      }
-      return { created: created.length };
-    },
-    onSuccess: (data) => {
-      toast({ title: "Sucesso", description: `${data.created} itens de orçamento criados` });
-      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao gerar orçamento", variant: "destructive" });
-    },
-  });
+  // Gerar valores padrão automaticamente se não existirem
+  useEffect(() => {
+    if (functionValues && functionValues.length === 0 && functions && functions.length > 0) {
+      apiRequest("POST", "/api/function-values/generate-defaults", {})
+        .then(() => qc.invalidateQueries({ queryKey: ["/api/function-values"] }))
+        .catch(() => {});
+    }
+  }, [functionValues, functions, qc]);
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -142,40 +62,57 @@ export default function BudgetPlannedPage() {
   };
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
-  
-  const totalPlanned = useMemo(() => {
-    return budgetPlanned?.reduce((sum, bp) => sum + bp.totalValue, 0) || 0;
-  }, [budgetPlanned]);
 
-  const inclusionsWithBudget = useMemo(() => {
-    if (!teamInclusions) return [];
-    return teamInclusions.map(inc => {
-      const budget = budgetPlanned?.find(
-        bp => bp.eventId === inc.eventId && 
-              bp.collaboratorId === inc.collaboratorId &&
-              bp.functionId === inc.functionId
-      );
-      return { inclusion: inc, budget };
+  // Calcular orçamento automaticamente baseado nas escalações
+  const calculatedBudgets = useMemo(() => {
+    if (!teamInclusions || !functionValues) return [];
+    
+    return teamInclusions.map(inclusion => {
+      const fv = getFunctionValue(inclusion.functionId);
+      const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
+      
+      const qtdDiarias = inclusion.dailyRates || 0;
+      const valorDiaria = fv?.dailyValue || 25000;
+      const subtotalDiarias = qtdDiarias * valorDiaria;
+      
+      const mobilidade = fv?.mobility || 2500;
+      const almocoSemana = (fv?.weekdayLunch || 3500) * qtdDiarias;
+      const jantarSemana = (fv?.weekdayDinner || 4000) * qtdDiarias;
+      const almocoFds = (fv?.weekendLunch || 4000) * Math.ceil(qtdDiarias / 5);
+      const jantarFds = (fv?.weekendDinner || 4500) * Math.ceil(qtdDiarias / 5);
+      
+      const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
+      const totalFinal = subtotalDiarias + ajudaCusto;
+      
+      return {
+        inclusion,
+        collaborator: collab,
+        functionValue: fv,
+        qtdDiarias,
+        valorDiaria,
+        subtotalDiarias,
+        mobilidade,
+        almocoSemana,
+        jantarSemana,
+        almocoFds,
+        jantarFds,
+        ajudaCusto,
+        totalFinal,
+      };
     });
-  }, [teamInclusions, budgetPlanned]);
+  }, [teamInclusions, functionValues, collaborators]);
 
-  const hasAllBudgets = inclusionsWithBudget.every(item => item.budget);
+  const totalGeral = useMemo(() => {
+    return calculatedBudgets.reduce((sum, b) => sum + b.totalFinal, 0);
+  }, [calculatedBudgets]);
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Baseado nas escalações da inclusão de equipe</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Calculado automaticamente das escalações</p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => generateDefaultsMutation.mutate()}
-          disabled={generateDefaultsMutation.isPending}
-        >
-          <Settings2 className="w-4 h-4 mr-2" />
-          Configurar Valores Padrão
-        </Button>
       </div>
 
       <Card>
@@ -188,7 +125,7 @@ export default function BudgetPlannedPage() {
         <CardContent>
           <Select value={selectedEventId} onValueChange={setSelectedEventId}>
             <SelectTrigger className="w-full md:w-96">
-              <SelectValue placeholder="Escolha um evento para ver as escalações" />
+              <SelectValue placeholder="Escolha um evento para ver o orçamento" />
             </SelectTrigger>
             <SelectContent>
               {events?.map(event => (
@@ -224,45 +161,24 @@ export default function BudgetPlannedPage() {
                 <div className="flex items-center gap-6">
                   <div className="text-center">
                     <div className="text-sm text-gray-500">Escalações</div>
-                    <div className="text-2xl font-bold text-blue-600">{teamInclusions?.length || 0}</div>
+                    <div className="text-2xl font-bold text-blue-600">{calculatedBudgets.length}</div>
                   </div>
                   <Separator orientation="vertical" className="h-12" />
                   <div className="text-center">
                     <div className="text-sm text-gray-500">Total Planejado</div>
-                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalPlanned)}</div>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {!hasAllBudgets && teamInclusions && teamInclusions.length > 0 && (
-            <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <RefreshCw className="w-5 h-5 text-orange-600" />
-                  <span className="text-orange-800 dark:text-orange-200">
-                    Existem {inclusionsWithBudget.filter(i => !i.budget).length} escalações sem orçamento calculado
-                  </span>
-                </div>
-                <Button 
-                  onClick={() => generateBudgetMutation.mutate()}
-                  disabled={generateBudgetMutation.isPending}
-                  className="bg-orange-600 hover:bg-orange-700"
-                >
-                  <Calculator className="w-4 h-4 mr-2" />
-                  Gerar Orçamento Automático
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {isLoadingInclusions ? (
+          {isLoadingInclusions || isLoadingFunctionValues ? (
             <div className="text-center py-12">
               <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-              <p className="mt-2 text-gray-500">Carregando escalações...</p>
+              <p className="mt-2 text-gray-500">Calculando orçamento...</p>
             </div>
-          ) : teamInclusions && teamInclusions.length === 0 ? (
+          ) : calculatedBudgets.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="p-12 text-center">
                 <Users className="w-12 h-12 mx-auto text-gray-300" />
@@ -272,101 +188,76 @@ export default function BudgetPlannedPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {inclusionsWithBudget.map(({ inclusion, budget }) => {
-                const fv = getFunctionValue(inclusion.functionId);
-                const dailyValue = fv?.dailyValue || 25000;
-                const estimatedTotal = budget?.totalValue || ((inclusion.dailyRates || 0) * dailyValue + (fv?.costAssistance || 0));
-                
-                return (
-                  <Card 
-                    key={inclusion.id} 
-                    className={`transition-all hover:shadow-md ${budget ? 'border-green-200 bg-green-50/50 dark:bg-green-950/30' : 'border-gray-200'}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-base font-semibold">
-                            {getCollaboratorName(inclusion.collaboratorId)}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-1 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {getFunctionName(inclusion.functionId)}
-                            </Badge>
-                          </CardDescription>
-                        </div>
-                        {budget && (
-                          <CheckCircle2 className="w-5 h-5 text-green-600" />
-                        )}
+              {calculatedBudgets.map((budget) => (
+                <Card 
+                  key={budget.inclusion.id} 
+                  className="transition-all hover:shadow-md border-gray-200"
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base font-semibold">
+                          {getCollaboratorName(budget.inclusion.collaboratorId)}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-1 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {getFunctionName(budget.inclusion.functionId)}
+                          </Badge>
+                        </CardDescription>
                       </div>
-                    </CardHeader>
-                    <CardContent className="pt-2">
-                      {(() => {
-                        const qtdDiarias = budget?.dailyQuantity || inclusion.dailyRates || 0;
-                        const valorDiaria = budget?.dailyValue || dailyValue;
-                        const subtotalDiarias = qtdDiarias * valorDiaria;
-                        
-                        const mobilidade = budget?.mobility || fv?.mobility || 0;
-                        const almocoSemana = budget?.weekdayLunch || fv?.weekdayLunch || 0;
-                        const jantarSemana = budget?.weekdayDinner || fv?.weekdayDinner || 0;
-                        const almocoFds = budget?.weekendLunch || fv?.weekendLunch || 0;
-                        const jantarFds = budget?.weekendDinner || fv?.weekendDinner || 0;
-                        
-                        const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
-                        const totalFinal = subtotalDiarias + ajudaCusto;
-                        
-                        return (
-                          <div className="space-y-1.5 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Qtd Diárias:</span>
-                              <span className="font-medium">{qtdDiarias}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Valor Diária:</span>
-                              <span className="font-medium">{formatCurrency(valorDiaria)}</span>
-                            </div>
-                            <div className="flex justify-between bg-blue-50 dark:bg-blue-950 p-1.5 rounded">
-                              <span className="text-blue-700 dark:text-blue-300">Subtotal Diárias:</span>
-                              <span className="font-medium text-blue-700 dark:text-blue-300">{formatCurrency(subtotalDiarias)}</span>
-                            </div>
-                            <Separator className="my-1" />
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Mobilidade:</span>
-                              <span className="font-medium">{formatCurrency(mobilidade)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Almoço Semana:</span>
-                              <span className="font-medium">{formatCurrency(almocoSemana)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Jantar Semana:</span>
-                              <span className="font-medium">{formatCurrency(jantarSemana)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Almoço FDS:</span>
-                              <span className="font-medium">{formatCurrency(almocoFds)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Jantar FDS:</span>
-                              <span className="font-medium">{formatCurrency(jantarFds)}</span>
-                            </div>
-                            <div className="flex justify-between bg-orange-50 dark:bg-orange-950 p-1.5 rounded">
-                              <span className="text-orange-700 dark:text-orange-300">Ajuda de Custo:</span>
-                              <span className="font-medium text-orange-700 dark:text-orange-300">{formatCurrency(ajudaCusto)}</span>
-                            </div>
-                            <Separator className="my-1" />
-                            <div className="flex justify-between items-center bg-green-100 dark:bg-green-900 p-2 rounded">
-                              <span className="text-green-800 dark:text-green-200 font-bold">TOTAL:</span>
-                              <span className="text-lg font-bold text-green-700 dark:text-green-300">
-                                {formatCurrency(totalFinal)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Qtd Diárias:</span>
+                        <span className="font-medium">{budget.qtdDiarias}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Valor Diária:</span>
+                        <span className="font-medium">{formatCurrency(budget.valorDiaria)}</span>
+                      </div>
+                      <div className="flex justify-between bg-blue-50 dark:bg-blue-950 p-1.5 rounded">
+                        <span className="text-blue-700 dark:text-blue-300">Subtotal Diárias:</span>
+                        <span className="font-medium text-blue-700 dark:text-blue-300">{formatCurrency(budget.subtotalDiarias)}</span>
+                      </div>
+                      <Separator className="my-1" />
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Mobilidade:</span>
+                        <span className="font-medium">{formatCurrency(budget.mobilidade)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Almoço Semana:</span>
+                        <span className="font-medium">{formatCurrency(budget.almocoSemana)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Jantar Semana:</span>
+                        <span className="font-medium">{formatCurrency(budget.jantarSemana)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Almoço FDS:</span>
+                        <span className="font-medium">{formatCurrency(budget.almocoFds)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Jantar FDS:</span>
+                        <span className="font-medium">{formatCurrency(budget.jantarFds)}</span>
+                      </div>
+                      <div className="flex justify-between bg-orange-50 dark:bg-orange-950 p-1.5 rounded">
+                        <span className="text-orange-700 dark:text-orange-300">Ajuda de Custo:</span>
+                        <span className="font-medium text-orange-700 dark:text-orange-300">{formatCurrency(budget.ajudaCusto)}</span>
+                      </div>
+                      <Separator className="my-1" />
+                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900 p-2 rounded">
+                        <span className="text-green-800 dark:text-green-200 font-bold">TOTAL:</span>
+                        <span className="text-lg font-bold text-green-700 dark:text-green-300">
+                          {formatCurrency(budget.totalFinal)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </>
@@ -377,7 +268,7 @@ export default function BudgetPlannedPage() {
           <CardContent className="p-12 text-center">
             <Calendar className="w-12 h-12 mx-auto text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Selecione um evento</h3>
-            <p className="mt-2 text-gray-500">Escolha um evento acima para ver as escalações e calcular o orçamento</p>
+            <p className="mt-2 text-gray-500">Escolha um evento acima para ver o orçamento calculado automaticamente</p>
           </CardContent>
         </Card>
       )}
