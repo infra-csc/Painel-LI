@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Edit } from "lucide-react";
+import { Calculator, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Edit, Send, CheckCheck } from "lucide-react";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -29,11 +29,12 @@ export default function BudgetPlannedPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
+  const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const canEdit = user?.role === "administrador" || user?.role === "rh";
+  const canEdit = user?.role === "admin" || user?.role === "production";
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -164,6 +165,79 @@ export default function BudgetPlannedPage() {
     toast({ title: "Sucesso", description: "Valores atualizados" });
   };
 
+  const sendToActualMutation = useMutation({
+    mutationFn: async (budget: typeof calculatedBudgets[0]) => {
+      const res = await apiRequest("POST", "/api/budget-actual", {
+        eventId: budget.inclusion.eventId,
+        collaboratorId: budget.inclusion.collaboratorId,
+        functionId: budget.inclusion.functionId,
+        collaboratorType: budget.collaborator?.type || "freela",
+        dailyQuantity: budget.qtdDiarias,
+        dailyValue: budget.valorDiaria,
+        costAssistance: 0,
+        weekdayLunch: budget.almocoSemana,
+        weekdayDinner: budget.jantarSemana,
+        weekendLunch: budget.almocoFds,
+        weekendDinner: budget.jantarFds,
+        mobility: budget.mobilidade,
+        transport: 0,
+        totalValue: budget.totalFinal,
+        paymentStatus: "pendente",
+        observations: "Enviado do planejado",
+        createdBy: user?.id,
+      });
+      return { id: budget.inclusion.id, result: await res.json() };
+    },
+    onSuccess: (data) => {
+      setSentToActual(prev => new Set([...prev, data.id]));
+      toast({ title: "Sucesso", description: "Enviado para o Realizado" });
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
+    },
+  });
+
+  const sendAllToActualMutation = useMutation({
+    mutationFn: async () => {
+      const toSend = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id));
+      const results = [];
+      for (const budget of toSend) {
+        const res = await apiRequest("POST", "/api/budget-actual", {
+          eventId: budget.inclusion.eventId,
+          collaboratorId: budget.inclusion.collaboratorId,
+          functionId: budget.inclusion.functionId,
+          collaboratorType: budget.collaborator?.type || "freela",
+          dailyQuantity: budget.qtdDiarias,
+          dailyValue: budget.valorDiaria,
+          costAssistance: 0,
+          weekdayLunch: budget.almocoSemana,
+          weekdayDinner: budget.jantarSemana,
+          weekendLunch: budget.almocoFds,
+          weekendDinner: budget.jantarFds,
+          mobility: budget.mobilidade,
+          transport: 0,
+          totalValue: budget.totalFinal,
+          paymentStatus: "pendente",
+          observations: "Enviado do planejado (lote)",
+          createdBy: user?.id,
+        });
+        results.push({ id: budget.inclusion.id, result: await res.json() });
+      }
+      return results;
+    },
+    onSuccess: (data) => {
+      setSentToActual(prev => new Set([...prev, ...data.map(d => d.id)]));
+      toast({ title: "Sucesso", description: `${data.length} itens enviados para o Realizado` });
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
+    },
+  });
+
+  const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id)).length;
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -226,6 +300,19 @@ export default function BudgetPlannedPage() {
                     <div className="text-sm text-gray-500">Total Planejado</div>
                     <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
                   </div>
+                  {pendingCount > 0 && (
+                    <>
+                      <Separator orientation="vertical" className="h-12" />
+                      <Button 
+                        onClick={() => sendAllToActualMutation.mutate()}
+                        disabled={sendAllToActualMutation.isPending}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar Todos ({pendingCount})
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -269,12 +356,25 @@ export default function BudgetPlannedPage() {
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-1">
-                        {canEdit && (
+                        {canEdit && !sentToActual.has(budget.inclusion.id) && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(budget)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                         )}
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        {sentToActual.has(budget.inclusion.id) ? (
+                          <CheckCheck className="w-5 h-5 text-purple-600" title="Enviado para Realizado" />
+                        ) : (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-purple-600 hover:text-purple-800"
+                            onClick={() => sendToActualMutation.mutate(budget)}
+                            disabled={sendToActualMutation.isPending}
+                            title="Enviar para Realizado"
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
