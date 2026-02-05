@@ -444,31 +444,47 @@ export default function BudgetPlannedPage() {
                       </div>
                     </div>
                     
-                    {/* Corpo do Card - Compacto */}
-                    <div className="p-3 space-y-2 text-xs">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Diárias:</span>
+                    {/* Corpo do Card */}
+                    <div className="p-3 space-y-3 text-sm">
+                      {/* Diárias */}
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div>
+                          <span className="text-gray-500">Diárias: </span>
                           <span className="font-medium">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
                         </div>
-                        <div className="flex justify-between text-blue-600 font-medium">
-                          <span>Subtotal:</span>
-                          <span>{formatCurrency(budget.subtotalDiarias)}</span>
+                        <span className="font-bold text-blue-600">{formatCurrency(budget.subtotalDiarias)}</span>
+                      </div>
+                      
+                      {/* Ajuda de Custo - Organizado */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Mobilidade</span>
+                          <span>{formatCurrency(budget.mobilidade)}</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-x-4 text-xs bg-gray-50 dark:bg-gray-700/50 rounded p-2">
+                          <div className="space-y-1">
+                            <div className="font-medium text-gray-600 dark:text-gray-400 text-center">Semana</div>
+                            <div className="flex justify-between"><span className="text-gray-500">Almoço</span><span>{formatCurrency(budget.almocoSemana)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">Jantar</span><span>{formatCurrency(budget.jantarSemana)}</span></div>
+                          </div>
+                          <div className="space-y-1 border-l pl-4">
+                            <div className="font-medium text-gray-600 dark:text-gray-400 text-center">Fim de Semana</div>
+                            <div className="flex justify-between"><span className="text-gray-500">Almoço</span><span>{formatCurrency(budget.almocoFds)}</span></div>
+                            <div className="flex justify-between"><span className="text-gray-500">Jantar</span><span>{formatCurrency(budget.jantarFds)}</span></div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between pt-1 border-t text-orange-600 font-medium">
+                          <span>Ajuda de Custo</span>
+                          <span>{formatCurrency(budget.ajudaCusto)}</span>
                         </div>
                       </div>
                       
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded p-2 grid grid-cols-2 gap-1">
-                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade:</span><span>{formatCurrency(budget.mobilidade)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Alm. Sem:</span><span>{formatCurrency(budget.almocoSemana)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Jan. Sem:</span><span>{formatCurrency(budget.jantarSemana)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Alm. FDS:</span><span>{formatCurrency(budget.almocoFds)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Jan. FDS:</span><span>{formatCurrency(budget.jantarFds)}</span></div>
-                        <div className="flex justify-between text-orange-600 font-medium"><span>Ajuda:</span><span>{formatCurrency(budget.ajudaCusto)}</span></div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded font-bold">
-                        <span className="text-green-800 dark:text-green-300">TOTAL</span>
-                        <span className="text-green-700 dark:text-green-300 text-sm">{formatCurrency(budget.totalFinal)}</span>
+                      {/* Total */}
+                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded">
+                        <span className="font-bold text-green-800 dark:text-green-300">TOTAL</span>
+                        <span className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
                   </div>
