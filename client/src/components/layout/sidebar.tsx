@@ -139,12 +139,11 @@ export default function Sidebar() {
 
       {isCollapsed && (
         <button
-          className="hidden lg:flex fixed top-4 left-4 z-50 px-3 py-2 bg-blue-600 rounded-lg shadow-lg items-center gap-2 hover:bg-blue-700 transition-colors"
+          className="hidden lg:flex fixed top-4 left-4 z-50 p-3 bg-blue-600 rounded-full shadow-lg items-center justify-center hover:bg-blue-700 transition-all hover:scale-105"
           onClick={toggleCollapsed}
           title="Expandir menu"
         >
-          <Menu className="w-5 h-5 text-white" />
-          <span className="text-white text-sm font-medium">Menu</span>
+          <ChevronRight className="w-5 h-5 text-white" />
         </button>
       )}
 
@@ -154,25 +153,22 @@ export default function Sidebar() {
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         isCollapsed && "lg:-translate-x-full"
       )}>
-        <div className="p-5 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
-              <img 
-                src={norteLogo} 
-                alt="Norte Logo" 
-                className="w-40 object-cover object-top"
-                style={{ clipPath: 'inset(0 0 25% 0)' }}
-              />
-            </div>
-            <button
-              className="hidden lg:flex p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              onClick={toggleCollapsed}
-              title="Recolher menu"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
+        <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-2">
+          <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
+            <img 
+              src={norteLogo} 
+              alt="Norte Logo" 
+              className="w-40 object-cover object-top"
+              style={{ clipPath: 'inset(0 0 25% 0)' }}
+            />
           </div>
-          <p className="hidden lg:block text-xs text-gray-400 text-center mt-2">Clique na seta para esconder o menu</p>
+          <button
+            className="hidden lg:flex p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all hover:scale-105"
+            onClick={toggleCollapsed}
+            title="Recolher menu"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4">
