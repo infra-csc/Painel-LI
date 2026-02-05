@@ -44,15 +44,10 @@ interface CalculatedBudget {
   hasOverride: boolean;
 }
 
-const FUNCTION_COLORS: Record<string, string> = {
-  "coordenador": "border-l-4 border-l-purple-500",
-  "supervisor": "border-l-4 border-l-blue-500",
-  "técnico": "border-l-4 border-l-emerald-500",
-  "tecnico": "border-l-4 border-l-emerald-500",
-  "auxiliar": "border-l-4 border-l-amber-500",
-  "produtor": "border-l-4 border-l-rose-500",
-  "diretor": "border-l-4 border-l-fuchsia-500",
-  "default": "border-l-4 border-l-slate-500",
+const CARD_BORDER_COLORS = {
+  default: "border-l-4 border-l-blue-500",
+  selected: "border-l-4 border-l-green-500",
+  sent: "border-l-4 border-l-green-500",
 };
 
 export default function BudgetPlannedPage() {
@@ -272,10 +267,11 @@ export default function BudgetPlannedPage() {
   }, [calculatedBudgets, searchTerm, filterFunction, filterType, sortBy]);
 
   // Obter cor da função
-  const getFunctionColor = (functionId: string | null) => {
-    if (!functionId) return FUNCTION_COLORS.default;
-    const fname = getFunctionName(functionId).toLowerCase();
-    return FUNCTION_COLORS[fname] || FUNCTION_COLORS.default;
+  const getCardBorderColor = (inclusionId: string) => {
+    if (selectedCards.has(inclusionId) || sentToActual.has(inclusionId)) {
+      return CARD_BORDER_COLORS.selected;
+    }
+    return CARD_BORDER_COLORS.default;
   };
 
   const startInlineEdit = (id: string, field: string, value: number) => {
@@ -644,14 +640,14 @@ export default function BudgetPlannedPage() {
                 {filteredBudgets.map((budget) => (
                   <div 
                     key={budget.inclusion.id} 
-                    className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all ${getFunctionColor(budget.inclusion.functionId)} ${
+                    className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all ${getCardBorderColor(budget.inclusion.id)} ${
                       selectedCards.has(budget.inclusion.id) 
-                        ? 'ring-2 ring-purple-500 border-purple-400' 
+                        ? 'ring-2 ring-green-500' 
                         : sentToActual.has(budget.inclusion.id)
-                          ? 'border-green-300 bg-green-50/50 dark:bg-green-950/20'
+                          ? 'bg-green-50/50 dark:bg-green-950/20'
                           : budget.hasOverride 
-                            ? 'border-yellow-300 bg-yellow-50/30' 
-                            : 'border-gray-200'
+                            ? 'bg-yellow-50/30' 
+                            : ''
                     }`}
                   >
                     {/* Cabeçalho do Card */}
