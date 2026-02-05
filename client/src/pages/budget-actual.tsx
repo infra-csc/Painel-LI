@@ -25,11 +25,12 @@ export default function BudgetActualPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
-  const { data: budgetActual, isLoading } = useQuery<BudgetActual[]>({
+  const { data: budgetActual, isLoading, error: budgetActualError } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
       const url = selectedEventId ? `/api/budget-actual?eventId=${selectedEventId}` : "/api/budget-actual";
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget actual");
       return res.json();
     },
   });
@@ -37,7 +38,8 @@ export default function BudgetActualPage() {
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const url = selectedEventId ? `/api/budget-planned?eventId=${selectedEventId}` : "/api/budget-planned";
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget planned");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -290,6 +292,12 @@ export default function BudgetActualPage() {
 
       {isLoading ? (
         <div className="text-center py-8">Carregando...</div>
+      ) : budgetActualError ? (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950">
+          <CardContent className="p-6 text-center text-red-600">
+            Erro ao carregar dados. Por favor, tente novamente.
+          </CardContent>
+        </Card>
       ) : (
         groupedByEvent.map(({ event, items, total }) => (
           <Card key={event.id}>

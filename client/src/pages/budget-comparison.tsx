@@ -25,11 +25,12 @@ export default function BudgetComparisonPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   
-  const { data: comparison, isLoading: isLoadingComparison } = useQuery<BudgetComparison | null>({
+  const { data: comparison, isLoading: isLoadingComparison, error: comparisonError } = useQuery<BudgetComparison | null>({
     queryKey: ["/api/budget-comparison", selectedEventId],
     queryFn: async () => {
       if (!selectedEventId) return null;
-      const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`);
+      const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget comparison");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -38,7 +39,8 @@ export default function BudgetComparisonPage() {
   const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
-      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`);
+      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget planned");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -47,7 +49,8 @@ export default function BudgetComparisonPage() {
   const { data: budgetActual } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
-      const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`);
+      const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget actual");
       return res.json();
     },
     enabled: !!selectedEventId,

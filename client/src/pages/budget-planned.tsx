@@ -26,11 +26,12 @@ export default function BudgetPlannedPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
-  const { data: budgetPlanned, isLoading } = useQuery<BudgetPlanned[]>({
+  const { data: budgetPlanned, isLoading, error: budgetPlannedError } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const url = selectedEventId ? `/api/budget-planned?eventId=${selectedEventId}` : "/api/budget-planned";
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget planned");
       return res.json();
     },
   });
@@ -271,6 +272,12 @@ export default function BudgetPlannedPage() {
 
       {isLoading ? (
         <div className="text-center py-8">Carregando...</div>
+      ) : budgetPlannedError ? (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950">
+          <CardContent className="p-6 text-center text-red-600">
+            Erro ao carregar dados. Por favor, tente novamente.
+          </CardContent>
+        </Card>
       ) : (
         groupedByEvent.map(({ event, items, total }) => (
           <Card key={event.id}>
