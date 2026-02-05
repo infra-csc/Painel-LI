@@ -306,6 +306,12 @@ export default function BudgetPlannedPage() {
     const budget = calculatedBudgets.find(b => b.inclusion.id === id);
     if (!budget) return;
 
+    const originalValue = (budget as any)[field];
+    if (value === originalValue) {
+      setInlineEdit(null);
+      return;
+    }
+
     const currentOverride = budgetOverrides[id] || {
       inclusionId: id,
       qtdDiarias: budget.qtdDiarias,
@@ -886,9 +892,12 @@ export default function BudgetPlannedPage() {
                       </div>
                       
                       {/* Total */}
-                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded">
-                        <span className="font-bold text-green-800 dark:text-green-300">TOTAL</span>
-                        <span className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(budget.totalFinal)}</span>
+                      <div 
+                        className="flex justify-between items-center p-2 rounded"
+                        style={{ background: `linear-gradient(to right, ${getFunctionColor(budget.inclusion.functionId)}20, transparent)` }}
+                      >
+                        <span className="font-bold text-gray-800 dark:text-gray-200">TOTAL</span>
+                        <span className="font-bold text-lg text-gray-900 dark:text-gray-100">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
                   </div>
