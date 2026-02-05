@@ -5,17 +5,35 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, DollarSign, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Settings2 } from "lucide-react";
+import { Calculator, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Edit } from "lucide-react";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
+interface BudgetEdit {
+  inclusionId: string;
+  qtdDiarias: number;
+  valorDiaria: number;
+  mobilidade: number;
+  almocoSemana: number;
+  jantarSemana: number;
+  almocoFds: number;
+  jantarFds: number;
+}
+
 export default function BudgetPlannedPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
+  const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  const canEdit = user?.role === "administrador" || user?.role === "rh";
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -63,23 +81,39 @@ export default function BudgetPlannedPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
-  // Calcular orçamento automaticamente baseado nas escalações
+  // Filtrar apenas escalações CONFIRMADAS
+  const confirmedInclusions = useMemo(() => {
+    if (!teamInclusions) return [];
+    return teamInclusions.filter(inc => 
+      inc.status === "confirmado" || 
+      inc.status === "escalacao" || 
+      inc.status === "passagem" ||
+      inc.status === "passagem_comprada" ||
+      inc.status === "hospedagem" ||
+      inc.status === "hospedagem_comprada" ||
+      inc.status === "hospedagem_passagem_comprada" ||
+      inc.status === "aprovado"
+    );
+  }, [teamInclusions]);
+
+  // Calcular orçamento automaticamente baseado nas escalações confirmadas
   const calculatedBudgets = useMemo(() => {
-    if (!teamInclusions || !functionValues) return [];
+    if (!confirmedInclusions || !functionValues) return [];
     
-    return teamInclusions.map(inclusion => {
+    return confirmedInclusions.map(inclusion => {
       const fv = getFunctionValue(inclusion.functionId);
       const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
+      const override = budgetOverrides[inclusion.id];
       
-      const qtdDiarias = inclusion.dailyRates || 0;
-      const valorDiaria = fv?.dailyValue || 25000;
+      const qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
+      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? 25000;
       const subtotalDiarias = qtdDiarias * valorDiaria;
       
-      const mobilidade = fv?.mobility || 2500;
-      const almocoSemana = (fv?.weekdayLunch || 3500) * qtdDiarias;
-      const jantarSemana = (fv?.weekdayDinner || 4000) * qtdDiarias;
-      const almocoFds = (fv?.weekendLunch || 4000) * Math.ceil(qtdDiarias / 5);
-      const jantarFds = (fv?.weekendDinner || 4500) * Math.ceil(qtdDiarias / 5);
+      const mobilidade = override?.mobilidade ?? fv?.mobility ?? 2500;
+      const almocoSemana = override?.almocoSemana ?? ((fv?.weekdayLunch || 3500) * qtdDiarias);
+      const jantarSemana = override?.jantarSemana ?? ((fv?.weekdayDinner || 4000) * qtdDiarias);
+      const almocoFds = override?.almocoFds ?? ((fv?.weekendLunch || 4000) * Math.ceil(qtdDiarias / 5));
+      const jantarFds = override?.jantarFds ?? ((fv?.weekendDinner || 4500) * Math.ceil(qtdDiarias / 5));
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -98,20 +132,44 @@ export default function BudgetPlannedPage() {
         jantarFds,
         ajudaCusto,
         totalFinal,
+        hasOverride: !!override,
       };
     });
-  }, [teamInclusions, functionValues, collaborators]);
+  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides]);
 
   const totalGeral = useMemo(() => {
     return calculatedBudgets.reduce((sum, b) => sum + b.totalFinal, 0);
   }, [calculatedBudgets]);
+
+  const openEditModal = (budget: typeof calculatedBudgets[0]) => {
+    setEditingBudget({
+      inclusionId: budget.inclusion.id,
+      qtdDiarias: budget.qtdDiarias,
+      valorDiaria: budget.valorDiaria,
+      mobilidade: budget.mobilidade,
+      almocoSemana: budget.almocoSemana,
+      jantarSemana: budget.jantarSemana,
+      almocoFds: budget.almocoFds,
+      jantarFds: budget.jantarFds,
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editingBudget) return;
+    setBudgetOverrides(prev => ({
+      ...prev,
+      [editingBudget.inclusionId]: editingBudget,
+    }));
+    setEditingBudget(null);
+    toast({ title: "Sucesso", description: "Valores atualizados" });
+  };
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Calculado automaticamente das escalações</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Escalações confirmadas - cálculo automático</p>
         </div>
       </div>
 
@@ -160,7 +218,7 @@ export default function BudgetPlannedPage() {
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-center">
-                    <div className="text-sm text-gray-500">Escalações</div>
+                    <div className="text-sm text-gray-500">Confirmados</div>
                     <div className="text-2xl font-bold text-blue-600">{calculatedBudgets.length}</div>
                   </div>
                   <Separator orientation="vertical" className="h-12" />
@@ -182,8 +240,8 @@ export default function BudgetPlannedPage() {
             <Card className="border-dashed">
               <CardContent className="p-12 text-center">
                 <Users className="w-12 h-12 mx-auto text-gray-300" />
-                <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Nenhuma escalação encontrada</h3>
-                <p className="mt-2 text-gray-500">Adicione colaboradores na tela de Inclusão de Equipe primeiro</p>
+                <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Nenhuma escalação confirmada</h3>
+                <p className="mt-2 text-gray-500">Apenas escalações com status "confirmado" aparecem aqui</p>
               </CardContent>
             </Card>
           ) : (
@@ -191,7 +249,7 @@ export default function BudgetPlannedPage() {
               {calculatedBudgets.map((budget) => (
                 <Card 
                   key={budget.inclusion.id} 
-                  className="transition-all hover:shadow-md border-gray-200"
+                  className={`transition-all hover:shadow-md ${budget.hasOverride ? 'border-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/30' : 'border-gray-200'}`}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
@@ -203,9 +261,21 @@ export default function BudgetPlannedPage() {
                           <Badge variant="outline" className="text-xs">
                             {getFunctionName(budget.inclusion.functionId)}
                           </Badge>
+                          {budget.hasOverride && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-200 text-yellow-800">
+                              Editado
+                            </Badge>
+                          )}
                         </CardDescription>
                       </div>
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <div className="flex items-center gap-1">
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(budget)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-2">
@@ -268,10 +338,100 @@ export default function BudgetPlannedPage() {
           <CardContent className="p-12 text-center">
             <Calendar className="w-12 h-12 mx-auto text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Selecione um evento</h3>
-            <p className="mt-2 text-gray-500">Escolha um evento acima para ver o orçamento calculado automaticamente</p>
+            <p className="mt-2 text-gray-500">Escolha um evento acima para ver o orçamento das escalações confirmadas</p>
           </CardContent>
         </Card>
       )}
+
+      {/* Modal de Edição */}
+      <Dialog open={!!editingBudget} onOpenChange={() => setEditingBudget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Valores do Planejado</DialogTitle>
+          </DialogHeader>
+          
+          {editingBudget && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Qtd Diárias</Label>
+                  <Input 
+                    type="number" 
+                    value={editingBudget.qtdDiarias} 
+                    onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor Diária (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={editingBudget.valorDiaria / 100} 
+                    onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Mobilidade (R$)</Label>
+                <Input 
+                  type="number" 
+                  step="0.01"
+                  value={editingBudget.mobilidade / 100} 
+                  onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Almoço Semana (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={editingBudget.almocoSemana / 100} 
+                    onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Jantar Semana (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={editingBudget.jantarSemana / 100} 
+                    onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Almoço FDS (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={editingBudget.almocoFds / 100} 
+                    onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Jantar FDS (R$)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={editingBudget.jantarFds / 100} 
+                    onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingBudget(null)}>Cancelar</Button>
+            <Button onClick={saveEdit}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
