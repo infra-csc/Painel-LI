@@ -2,8 +2,6 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import DashboardSummary from "@/components/common/dashboard-summary";
 
 export default function Dashboard() {
@@ -37,13 +35,5 @@ export default function Dashboard() {
     }
   }, [setLocation, user]);
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="team-inclusion" />
-        <DashboardSummary />
-      </div>
-    </div>
-  );
+  return <DashboardSummary />;
 }

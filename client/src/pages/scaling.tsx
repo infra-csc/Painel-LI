@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
@@ -342,14 +340,9 @@ export default function Scaling() {
   // Check if user can access this screen
   if (!canView(user, 'scaling')) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
   }
@@ -915,30 +908,20 @@ export default function Scaling() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="scaling" />
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-12 bg-muted rounded"></div>
-              ))}
-            </div>
-          </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+        <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-12 bg-muted rounded"></div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="scaling" />
-        
-        <div className="bg-card rounded-lg shadow-sm border border-border">
+    <>
+      <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
             <h2 className="text-2xl font-bold text-foreground">Escalação - Visualização</h2>
             <p className="text-muted-foreground mt-1">
@@ -1263,7 +1246,6 @@ export default function Scaling() {
             );
           })()}
         </div>
-      </div>
 
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -2034,6 +2016,6 @@ export default function Scaling() {
         />
       )}
 
-    </div>
+    </>
   );
 }

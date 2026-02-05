@@ -4,8 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
@@ -1008,28 +1006,18 @@ export default function Accommodations() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-            <div className="h-64 bg-muted rounded"></div>
-          </div>
-        </div>
+      <div className="animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+        <div className="h-64 bg-muted rounded"></div>
       </div>
     );
   }
 
   if (!canView(user, "accommodations")) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
   }
@@ -1037,11 +1025,8 @@ export default function Accommodations() {
   const canEditField = canEditScreen(user, "accommodations");
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="accommodations" />
-        <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
+    <>
+      <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -1519,7 +1504,6 @@ export default function Accommodations() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Modal de Hospedagem */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -1534,7 +1518,7 @@ export default function Accommodations() {
           teamInclusionId={selectedInclusion.id}
         />
       )}
-    </div>
+    </>
   );
 }
 

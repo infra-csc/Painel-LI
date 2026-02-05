@@ -14,8 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Settings, Plus, Edit, Trash2, User, Users, UserCheck, X } from "lucide-react";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import type { Function, User as UserType, FunctionUser, FunctionManager } from "@shared/schema";
@@ -157,13 +155,8 @@ export default function Functions() {
 
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="functions" />
-
-        <div className="space-y-6">
-          <Card className="border-border">
+    <div className="space-y-6">
+      <Card className="border-border">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -277,8 +270,6 @@ export default function Functions() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
     </div>
   );
 }

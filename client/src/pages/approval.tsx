@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -240,30 +238,19 @@ export default function Approval() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="approval" />
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-16 bg-muted rounded"></div>
-              ))}
-            </div>
-          </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+        <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 bg-muted rounded"></div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="approval" />
-        
-        <div className="bg-card rounded-lg shadow-sm border border-border">
+    <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -692,7 +679,5 @@ export default function Approval() {
             </div>
           )}
         </div>
-      </div>
-    </div>
   );
 }

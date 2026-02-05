@@ -3,8 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -36,16 +34,11 @@ export default function UserRegistration() {
   // Check if user is admin
   if (!hasPermission(user, 'canAccessScreen0')) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">
-              Apenas administradores podem acessar o cadastro de usuários.
-            </p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">
+          Apenas administradores podem acessar o cadastro de usuários.
+        </p>
       </div>
     );
   }
@@ -97,12 +90,7 @@ export default function UserRegistration() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="user-registration" />
-
-        <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-2xl mx-auto">
           <CardHeader className="text-center">
             <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-primary/10">
               <UserPlus className="w-6 h-6 text-primary" />
@@ -238,7 +226,5 @@ export default function UserRegistration() {
             </Form>
           </CardContent>
         </Card>
-      </div>
-    </div>
   );
 }

@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -189,30 +187,20 @@ export default function CollaboratorManagement() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="collaborators" />
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-12 bg-muted rounded"></div>
-              ))}
-            </div>
-          </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+        <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-12 bg-muted rounded"></div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="collaborators" />
-        
-        <div className="bg-card rounded-lg shadow-sm border border-border">
+    <>
+      <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex justify-between items-start">
               <div>
@@ -422,7 +410,6 @@ export default function CollaboratorManagement() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Modal de Detalhes */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
@@ -661,6 +648,6 @@ export default function CollaboratorManagement() {
         collaborator={selectedCollaborator}
         isEdit={true}
       />
-    </div>
+    </>
   );
 }

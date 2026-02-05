@@ -8,8 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Plus, Edit, Trash2, Search, X } from "lucide-react";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import EventModal from "@/components/modals/event-modal";
 import type { Event } from "@shared/schema";
 import { format } from "date-fns";
@@ -188,13 +186,9 @@ export default function Events() {
   const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="events" />
-
-        <div className="space-y-6">
-          <Card className="border-border">
+    <>
+      <div className="space-y-6">
+        <Card className="border-border">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -358,14 +352,12 @@ export default function Events() {
               )}
             </CardContent>
           </Card>
-        </div>
       </div>
-
       <EventModal 
         open={isModalOpen} 
         onClose={handleCloseModal} 
         event={editingEvent}
       />
-    </div>
+    </>
   );
 }

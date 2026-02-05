@@ -1,7 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { Search, Eye, Calendar, User, Settings, ChevronDown, ChevronRight, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,14 +52,9 @@ export default function SystemLogsPage() {
   // Check if user can access this screen (admin only)
   if (!hasPermission(user, 'canAccessScreen6')) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar os logs do sistema. Apenas administradores podem acessar esta funcionalidade.</p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar os logs do sistema. Apenas administradores podem acessar esta funcionalidade.</p>
       </div>
     );
   }
@@ -206,12 +199,8 @@ export default function SystemLogsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <NavigationTabs activeTab="consultation" />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Card className="mb-6">
+    <>
+      <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -511,7 +500,6 @@ export default function SystemLogsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </>
   );
 }

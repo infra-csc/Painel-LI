@@ -1,8 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import SimpleFilters from "@/components/common/simple-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import AttachmentUpload from "@/components/ui/attachment-upload";
@@ -606,39 +604,25 @@ export default function Tickets() {
   // Check if user can access this screen
   if (!canView(user, 'tickets')) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-            <div className="h-64 bg-muted rounded"></div>
-          </div>
-        </div>
+      <div className="animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+        <div className="h-64 bg-muted rounded"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="tickets" />
-        
-        <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
+    <>
+      <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -2209,7 +2193,6 @@ export default function Tickets() {
           onClose={() => setShowCommentsModal(false)}
           teamInclusionId={selectedInclusion?.id || ""}
         />
-      </div>
-    </div>
+    </>
   );
 }

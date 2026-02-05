@@ -1,5 +1,3 @@
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import GridTeamInclusionForm from "@/components/forms/grid-team-inclusion-form";
 import TeamInclusionTable from "@/components/tables/team-inclusion-table";
 import { useAuth } from "@/hooks/use-auth";
@@ -99,173 +97,162 @@ export default function TeamInclusion() {
   // Check if user can access this screen
   if (!canView(user as any, 'team_inclusion')) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
-          </div>
-        </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
+        <p className="text-muted-foreground">Você não tem permissão para acessar esta tela.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="team-inclusion" />
-        
-        {/* Botão para criar evento - apenas para usuários com permissão de edição */}
-        {canEdit(user as any, 'team_inclusion') && (
-          <div className="mb-6">
-            <Button 
-              onClick={() => setShowEventModal(true)}
-              className="gap-2"
-              data-testid="button-create-event"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Criar Novo Evento
-            </Button>
-          </div>
-        )}
-        
-        <div className="space-y-6">
-          <GridTeamInclusionForm />
-          <TeamInclusionTable />
+    <>
+      {/* Botão para criar evento - apenas para usuários com permissão de edição */}
+      {canEdit(user as any, 'team_inclusion') && (
+        <div className="mb-6">
+          <Button 
+            onClick={() => setShowEventModal(true)}
+            className="gap-2"
+            data-testid="button-create-event"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Criar Novo Evento
+          </Button>
         </div>
-
-        {/* Modal para criar evento */}
-        <Dialog open={showEventModal} onOpenChange={setShowEventModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Criar Novo Evento
-              </DialogTitle>
-            </DialogHeader>
-            
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do Evento</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Ex: Festival de Inverno 2024" 
-                          {...field}
-                          data-testid="input-event-name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        Cidade
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Ex: São Paulo - SP" 
-                          {...field}
-                          data-testid="input-event-city"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="startDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Data de Início</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="date" 
-                            {...field}
-                            data-testid="input-event-start-date"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="endDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Data de Fim</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="date" 
-                            {...field}
-                            data-testid="input-event-end-date"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="observations"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observações (Opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Informações adicionais sobre o evento..."
-                          {...field}
-                          data-testid="textarea-event-observations"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowEventModal(false)}
-                    data-testid="button-cancel-event"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createEventMutation.isPending}
-                    data-testid="button-save-event"
-                  >
-                    {createEventMutation.isPending ? "Criando..." : "Criar Evento"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-        
+      )}
+      
+      <div className="space-y-6">
+        <GridTeamInclusionForm />
+        <TeamInclusionTable />
       </div>
-    </div>
+
+      {/* Modal para criar evento */}
+      <Dialog open={showEventModal} onOpenChange={setShowEventModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Criar Novo Evento
+            </DialogTitle>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome do Evento</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Ex: Festival de Inverno 2024" 
+                        {...field}
+                        data-testid="input-event-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4" />
+                      Cidade
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Ex: São Paulo - SP" 
+                        {...field}
+                        data-testid="input-event-city"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Início</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          {...field}
+                          data-testid="input-event-start-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Fim</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          {...field}
+                          data-testid="input-event-end-date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="observations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações (Opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Informações adicionais sobre o evento..."
+                        {...field}
+                        data-testid="textarea-event-observations"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEventModal(false)}
+                  data-testid="button-cancel-event"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createEventMutation.isPending}
+                  data-testid="button-save-event"
+                >
+                  {createEventMutation.isPending ? "Criando..." : "Criar Evento"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -1,7 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Header from "@/components/layout/header";
-import NavigationTabs from "@/components/layout/navigation-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -385,30 +383,20 @@ export default function Closure() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <NavigationTabs activeTab="closure" />
-          <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-muted rounded"></div>
-              ))}
-            </div>
-          </div>
+      <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
+        <div className="h-8 bg-muted rounded mb-4 w-1/3"></div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded"></div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <NavigationTabs activeTab="closure" />
-        
-        <div className="bg-card rounded-lg shadow-sm border border-border">
+    <>
+      <div className="bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 py-4 border-b border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -703,6 +691,6 @@ export default function Closure() {
         functionName="Emergência"
         isEmergency={true}
       />
-    </div>
+    </>
   );
 }
