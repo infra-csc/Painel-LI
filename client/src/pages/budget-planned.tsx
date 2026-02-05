@@ -67,6 +67,7 @@ export default function BudgetPlannedPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
+  const [inlineEdit, setInlineEdit] = useState<{id: string, field: string, value: number} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -275,6 +276,64 @@ export default function BudgetPlannedPage() {
     if (!functionId) return FUNCTION_COLORS.default;
     const fname = getFunctionName(functionId).toLowerCase();
     return FUNCTION_COLORS[fname] || FUNCTION_COLORS.default;
+  };
+
+  const startInlineEdit = (id: string, field: string, value: number) => {
+    if (!canEdit || sentToActual.has(id)) return;
+    setInlineEdit({ id, field, value });
+  };
+
+  const saveInlineEdit = () => {
+    if (!inlineEdit) return;
+    const { id, field, value } = inlineEdit;
+    
+    if (value < 0) {
+      setInlineEdit(null);
+      return;
+    }
+    
+    const budget = calculatedBudgets.find(b => b.inclusion.id === id);
+    if (!budget) return;
+
+    const currentOverride = budgetOverrides[id] || {
+      inclusionId: id,
+      qtdDiarias: budget.qtdDiarias,
+      valorDiaria: budget.valorDiaria,
+      mobilidade: budget.mobilidade,
+      almocoSemana: budget.almocoSemana,
+      jantarSemana: budget.jantarSemana,
+      almocoFds: budget.almocoFds,
+      jantarFds: budget.jantarFds,
+    };
+
+    setBudgetOverrides(prev => ({
+      ...prev,
+      [id]: { ...currentOverride, [field]: value }
+    }));
+
+    setInlineEdit(null);
+    toast({ title: "Valor atualizado", description: "O valor foi alterado com sucesso." });
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEdit(null);
+  };
+
+  const handleInlineKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveInlineEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+      cancelInlineEdit();
+    }
+  };
+
+  const handleInlineBlur = () => {
+    if (inlineEdit) {
+      saveInlineEdit();
+    }
   };
 
   const openEditModal = (budget: typeof calculatedBudgets[0]) => {
@@ -635,7 +694,46 @@ export default function BudgetPlannedPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5 text-blue-500" />
                           <span className="text-gray-500">Diárias: </span>
-                          <span className="font-medium">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                          {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'qtdDiarias' ? (
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-12 px-1 py-0.5 border rounded text-center text-sm"
+                              value={inlineEdit.value}
+                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, parseInt(e.target.value) || 0)})}
+                              onBlur={handleInlineBlur}
+                              onKeyDown={handleInlineKeyDown}
+                              autoFocus
+                            />
+                          ) : (
+                            <span 
+                              className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 rounded' : ''}`}
+                              onClick={() => startInlineEdit(budget.inclusion.id, 'qtdDiarias', budget.qtdDiarias)}
+                            >
+                              {budget.qtdDiarias}
+                            </span>
+                          )}
+                          <span className="text-gray-400">x</span>
+                          {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'valorDiaria' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-20 px-1 py-0.5 border rounded text-center text-sm"
+                              value={(inlineEdit.value / 100).toFixed(2)}
+                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, Math.round(parseFloat(e.target.value) * 100) || 0)})}
+                              onBlur={handleInlineBlur}
+                              onKeyDown={handleInlineKeyDown}
+                              autoFocus
+                            />
+                          ) : (
+                            <span 
+                              className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 rounded' : ''}`}
+                              onClick={() => startInlineEdit(budget.inclusion.id, 'valorDiaria', budget.valorDiaria)}
+                            >
+                              {formatCurrency(budget.valorDiaria)}
+                            </span>
+                          )}
                         </div>
                         <span className="font-bold text-blue-600">{formatCurrency(budget.subtotalDiarias)}</span>
                       </div>
@@ -647,7 +745,26 @@ export default function BudgetPlannedPage() {
                             <Car className="w-3.5 h-3.5 text-gray-400" />
                             <span className="text-gray-500">Mobilidade</span>
                           </div>
-                          <span>{formatCurrency(budget.mobilidade)}</span>
+                          {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'mobilidade' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-20 px-1 py-0.5 border rounded text-right text-sm"
+                              value={(inlineEdit.value / 100).toFixed(2)}
+                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, Math.round(parseFloat(e.target.value) * 100) || 0)})}
+                              onBlur={handleInlineBlur}
+                              onKeyDown={handleInlineKeyDown}
+                              autoFocus
+                            />
+                          ) : (
+                            <span 
+                              className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 rounded' : ''}`}
+                              onClick={() => startInlineEdit(budget.inclusion.id, 'mobilidade', budget.mobilidade)}
+                            >
+                              {formatCurrency(budget.mobilidade)}
+                            </span>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-x-4 text-xs bg-gray-50 dark:bg-gray-700/50 rounded p-2">
@@ -658,11 +775,47 @@ export default function BudgetPlannedPage() {
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
-                              <span>{formatCurrency(budget.almocoSemana)}</span>
+                              {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoSemana' ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-16 px-1 py-0.5 border rounded text-right text-xs"
+                                  value={(inlineEdit.value / 100).toFixed(2)}
+                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  onBlur={handleInlineBlur}
+                                  onKeyDown={handleInlineKeyDown}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span 
+                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
+                                  onClick={() => startInlineEdit(budget.inclusion.id, 'almocoSemana', budget.almocoSemana)}
+                                >
+                                  {formatCurrency(budget.almocoSemana)}
+                                </span>
+                              )}
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
-                              <span>{formatCurrency(budget.jantarSemana)}</span>
+                              {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarSemana' ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-16 px-1 py-0.5 border rounded text-right text-xs"
+                                  value={(inlineEdit.value / 100).toFixed(2)}
+                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  onBlur={handleInlineBlur}
+                                  onKeyDown={handleInlineKeyDown}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span 
+                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
+                                  onClick={() => startInlineEdit(budget.inclusion.id, 'jantarSemana', budget.jantarSemana)}
+                                >
+                                  {formatCurrency(budget.jantarSemana)}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="space-y-1.5 border-l pl-4">
@@ -672,11 +825,47 @@ export default function BudgetPlannedPage() {
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
-                              <span>{formatCurrency(budget.almocoFds)}</span>
+                              {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoFds' ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-16 px-1 py-0.5 border rounded text-right text-xs"
+                                  value={(inlineEdit.value / 100).toFixed(2)}
+                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  onBlur={handleInlineBlur}
+                                  onKeyDown={handleInlineKeyDown}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span 
+                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
+                                  onClick={() => startInlineEdit(budget.inclusion.id, 'almocoFds', budget.almocoFds)}
+                                >
+                                  {formatCurrency(budget.almocoFds)}
+                                </span>
+                              )}
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
-                              <span>{formatCurrency(budget.jantarFds)}</span>
+                              {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarFds' ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-16 px-1 py-0.5 border rounded text-right text-xs"
+                                  value={(inlineEdit.value / 100).toFixed(2)}
+                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  onBlur={handleInlineBlur}
+                                  onKeyDown={handleInlineKeyDown}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span 
+                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
+                                  onClick={() => startInlineEdit(budget.inclusion.id, 'jantarFds', budget.jantarFds)}
+                                >
+                                  {formatCurrency(budget.jantarFds)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
