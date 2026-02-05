@@ -416,8 +416,17 @@ export default function BudgetPlannedPage() {
                           <CheckCheck className="w-4 h-4 text-green-600" />
                         )}
                         <div>
-                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                            {getCollaboratorName(budget.inclusion.collaboratorId)}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                              {getCollaboratorName(budget.inclusion.collaboratorId)}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              budget.collaborator?.type === 'casa' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              {budget.collaborator?.type === 'casa' ? 'CASA' : 'FREELA'}
+                            </span>
                           </div>
                           <div className="text-xs text-gray-500">{getFunctionName(budget.inclusion.functionId)}</div>
                         </div>
