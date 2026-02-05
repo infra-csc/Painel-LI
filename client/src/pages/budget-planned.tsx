@@ -683,7 +683,7 @@ export default function BudgetPlannedPage() {
                           <span className="w-2 h-2 rounded-full bg-yellow-500" title="Valores personalizados" />
                         )}
                         {canEdit && !sentToActual.has(budget.inclusion.id) && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditModal(budget)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditModal(budget)}>
                             <Edit className="w-3 h-3" />
                           </Button>
                         )}
