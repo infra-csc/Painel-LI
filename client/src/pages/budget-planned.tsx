@@ -199,10 +199,12 @@ export default function BudgetPlannedPage() {
   // Estatísticas de resumo
   const stats = useMemo(() => {
     const total = calculatedBudgets.length;
-    const totalCasa = calculatedBudgets.filter(b => b.collaborator?.type === 'casa').length;
-    const totalFreela = calculatedBudgets.filter(b => b.collaborator?.type === 'freela' || !b.collaborator?.type).length;
-    const valorCasa = calculatedBudgets.filter(b => b.collaborator?.type === 'casa').reduce((sum, b) => sum + b.totalFinal, 0);
-    const valorFreela = calculatedBudgets.filter(b => b.collaborator?.type === 'freela' || !b.collaborator?.type).reduce((sum, b) => sum + b.totalFinal, 0);
+    const isCasa = (type?: string) => type === 'casa' || type === 'local';
+    const isFreela = (type?: string) => type === 'freela' || !type;
+    const totalCasa = calculatedBudgets.filter(b => isCasa(b.collaborator?.type)).length;
+    const totalFreela = calculatedBudgets.filter(b => isFreela(b.collaborator?.type)).length;
+    const valorCasa = calculatedBudgets.filter(b => isCasa(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
+    const valorFreela = calculatedBudgets.filter(b => isFreela(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
     const media = total > 0 ? totalGeral / total : 0;
     const enviados = calculatedBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
     const progressoEnvio = total > 0 ? (enviados / total) * 100 : 0;
