@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -84,6 +84,7 @@ export const collaborators = pgTable("collaborators", {
   approvalNotes: text("approval_notes"), // observações do administrador
   approvedBy: varchar("approved_by").references(() => users.id), // quem aprovou/rejeitou
   approvedAt: timestamp("approved_at"), // quando foi aprovado/rejeitado
+  isCoordinator: boolean("is_coordinator").default(false), // flag para indicar se é coordenador
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -230,6 +231,96 @@ export const systemLogs = pgTable("system_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Valores por função (valores automáticos para cálculo)
+export const functionValues = pgTable("function_values", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
+  dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
+  costAssistance: integer("cost_assistance").notNull().default(0), // ajuda de custo em centavos
+  weekdayLunch: integer("weekday_lunch").notNull().default(0), // almoço semana em centavos
+  weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
+  weekendLunch: integer("weekend_lunch").notNull().default(0), // almoço fds em centavos
+  weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
+  mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
+  transport: integer("transport").notNull().default(0), // translado em centavos
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Planejado - orçamento previsto do evento
+export const budgetPlanned = pgTable("budget_planned", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  functionId: varchar("function_id").references(() => functions.id),
+  collaboratorType: text("collaborator_type"), // casa, freela - para cálculo de dias
+  dailyQuantity: integer("daily_quantity").notNull().default(0), // quantidade de diárias
+  dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
+  costAssistance: integer("cost_assistance").notNull().default(0), // ajuda de custo em centavos
+  weekdayLunch: integer("weekday_lunch").notNull().default(0), // almoço semana em centavos
+  weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
+  weekendLunch: integer("weekend_lunch").notNull().default(0), // almoço fds em centavos
+  weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
+  mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
+  transport: integer("transport").notNull().default(0), // translado em centavos
+  totalValue: integer("total_value").notNull().default(0), // total em centavos (calculado)
+  observations: text("observations"), // observações
+  status: text("status").notNull().default("pendente"), // pendente, aprovado_rh, rejeitado_rh
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+// Realizado - o que realmente aconteceu
+export const budgetActual = pgTable("budget_actual", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  plannedId: varchar("planned_id").references(() => budgetPlanned.id), // referência ao planejado original (pode ser null se adicionado direto)
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").references(() => collaborators.id),
+  functionId: varchar("function_id").references(() => functions.id),
+  collaboratorType: text("collaborator_type"), // casa, freela
+  dailyQuantity: integer("daily_quantity").notNull().default(0), // quantidade de diárias
+  dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
+  costAssistance: integer("cost_assistance").notNull().default(0), // ajuda de custo em centavos
+  weekdayLunch: integer("weekday_lunch").notNull().default(0), // almoço semana em centavos
+  weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
+  weekendLunch: integer("weekend_lunch").notNull().default(0), // almoço fds em centavos
+  weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
+  mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
+  transport: integer("transport").notNull().default(0), // translado em centavos
+  totalValue: integer("total_value").notNull().default(0), // total em centavos (calculado)
+  changeReason: text("change_reason"), // motivo da alteração (obrigatório se diferente do planejado)
+  paymentStatus: text("payment_status").notNull().default("pendente"), // pendente, confirmado, pago
+  observations: text("observations"), // observações
+  attachmentIds: text("attachment_ids").array(), // comprovantes/anexos
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+// Comparativo e aprovação do RH
+export const budgetComparison = pgTable("budget_comparison", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  totalPlanned: integer("total_planned").notNull().default(0), // total planejado em centavos
+  totalActual: integer("total_actual").notNull().default(0), // total realizado em centavos
+  variance: integer("variance").notNull().default(0), // diferença (positivo = economia, negativo = acima)
+  variancePercent: text("variance_percent"), // percentual de variação
+  status: text("status").notNull().default("pendente"), // pendente, aprovado, rejeitado, devolvido
+  approvalObservation: text("approval_observation"), // observação do RH ao aprovar/rejeitar
+  rejectionReason: text("rejection_reason"), // motivo da recusa
+  returnReason: text("return_reason"), // motivo da devolução (dados incorretos)
+  changesLog: text("changes_log"), // JSON com histórico de mudanças do planejado para realizado
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -330,6 +421,30 @@ export const insertFunctionManagerSchema = createInsertSchema(functionManagers).
   createdAt: true,
 });
 
+export const insertFunctionValuesSchema = createInsertSchema(functionValues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBudgetPlannedSchema = createInsertSchema(budgetPlanned).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBudgetActualSchema = createInsertSchema(budgetActual).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBudgetComparisonSchema = createInsertSchema(budgetComparison).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -369,3 +484,15 @@ export type InsertFunctionUser = z.infer<typeof insertFunctionUserSchema>;
 
 export type FunctionManager = typeof functionManagers.$inferSelect;
 export type InsertFunctionManager = z.infer<typeof insertFunctionManagerSchema>;
+
+export type FunctionValue = typeof functionValues.$inferSelect;
+export type InsertFunctionValue = z.infer<typeof insertFunctionValuesSchema>;
+
+export type BudgetPlanned = typeof budgetPlanned.$inferSelect;
+export type InsertBudgetPlanned = z.infer<typeof insertBudgetPlannedSchema>;
+
+export type BudgetActual = typeof budgetActual.$inferSelect;
+export type InsertBudgetActual = z.infer<typeof insertBudgetActualSchema>;
+
+export type BudgetComparison = typeof budgetComparison.$inferSelect;
+export type InsertBudgetComparison = z.infer<typeof insertBudgetComparisonSchema>;
