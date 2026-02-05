@@ -13,19 +13,23 @@ import {
   Calendar,
   LogOut,
   Menu,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useSidebar } from "@/contexts/sidebar-context";
 import norteLogo from "@assets/image_1770316785096.png";
 
 export default function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const { isCollapsed, toggleCollapsed } = useSidebar();
 
   const allTabs = [
     {
@@ -133,13 +137,24 @@ export default function Sidebar() {
         />
       )}
 
+      {isCollapsed && (
+        <button
+          className="hidden lg:flex fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md border items-center justify-center hover:bg-gray-50"
+          onClick={toggleCollapsed}
+          title="Expandir menu"
+        >
+          <ChevronRight className="w-5 h-5 text-gray-600" />
+        </button>
+      )}
+
       <aside className={cn(
-        "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-transform duration-300 flex flex-col",
+        "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-all duration-300 flex flex-col",
         "w-64",
-        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        isCollapsed && "lg:-translate-x-full"
       )}>
-        <div className="p-5 border-b border-gray-200 bg-white">
-          <div className="h-12 overflow-hidden flex items-center justify-center">
+        <div className="p-5 border-b border-gray-200 bg-white flex items-center justify-between">
+          <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
             <img 
               src={norteLogo} 
               alt="Norte Logo" 
@@ -147,6 +162,13 @@ export default function Sidebar() {
               style={{ clipPath: 'inset(0 0 25% 0)' }}
             />
           </div>
+          <button
+            className="hidden lg:flex p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+            onClick={toggleCollapsed}
+            title="Recolher menu"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4">

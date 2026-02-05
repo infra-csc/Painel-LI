@@ -1,14 +1,21 @@
 import Sidebar from "./sidebar";
+import { useSidebar } from "@/contexts/sidebar-context";
+import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
+  const { isCollapsed } = useSidebar();
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen">
+      <main className={cn(
+        "min-h-screen transition-all duration-300",
+        isCollapsed ? "lg:ml-0" : "lg:ml-64"
+      )}>
         <div className="p-6 lg:p-8">
           {children}
         </div>
