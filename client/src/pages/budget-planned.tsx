@@ -300,26 +300,41 @@ export default function BudgetPlannedPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-2">
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-1.5 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Diárias:</span>
-                          <span className="font-medium">{inclusion.dailyRates || 0}</span>
+                          <span className="text-gray-500">Qtd Diárias:</span>
+                          <span className="font-medium">{budget?.dailyQuantity || inclusion.dailyRates || 0}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Valor/dia:</span>
-                          <span className="font-medium">{formatCurrency(dailyValue)}</span>
+                          <span className="text-gray-500">Valor Diária:</span>
+                          <span className="font-medium">{formatCurrency(budget?.dailyValue || dailyValue)}</span>
                         </div>
-                        {fv && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Ajuda de custo:</span>
-                            <span className="font-medium">{formatCurrency(fv.costAssistance)}</span>
-                          </div>
-                        )}
-                        <Separator className="my-2" />
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Ajuda de Custo:</span>
+                          <span className="font-medium">{formatCurrency(budget?.costAssistance || fv?.costAssistance || 0)}</span>
+                        </div>
+                        <Separator className="my-1" />
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Almoço Semana:</span>
+                          <span className="font-medium">{formatCurrency(budget?.weekdayLunch || fv?.weekdayLunch || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Jantar Semana:</span>
+                          <span className="font-medium">{formatCurrency(budget?.weekdayDinner || fv?.weekdayDinner || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Almoço FDS:</span>
+                          <span className="font-medium">{formatCurrency(budget?.weekendLunch || fv?.weekendLunch || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Jantar FDS:</span>
+                          <span className="font-medium">{formatCurrency(budget?.weekendDinner || fv?.weekendDinner || 0)}</span>
+                        </div>
+                        <Separator className="my-1" />
+                        <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded">
                           <span className="text-gray-700 dark:text-gray-300 font-medium">Total:</span>
                           <span className="text-lg font-bold text-green-600">
-                            {formatCurrency(estimatedTotal)}
+                            {formatCurrency(budget?.totalValue || estimatedTotal)}
                           </span>
                         </div>
                       </div>
