@@ -678,7 +678,7 @@ export default function BudgetPlannedPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         {budget.hasOverride && (
-                          <Badge className="text-xs bg-yellow-100 text-yellow-700 border-yellow-300">Editado</Badge>
+                          <span className="w-2 h-2 rounded-full bg-yellow-500" title="Valores personalizados" />
                         )}
                         {canEdit && !sentToActual.has(budget.inclusion.id) && (
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditModal(budget)}>
