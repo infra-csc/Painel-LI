@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs,
+  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -15,7 +15,11 @@ import {
   type SystemLog, type InsertSystemLog,
   type FunctionUser, type InsertFunctionUser,
   type FunctionManager, type InsertFunctionManager,
-  type TeamInclusionLog, type InsertTeamInclusionLog
+  type TeamInclusionLog, type InsertTeamInclusionLog,
+  type FunctionValue, type InsertFunctionValue,
+  type BudgetPlanned, type InsertBudgetPlanned,
+  type BudgetActual, type InsertBudgetActual,
+  type BudgetComparison, type InsertBudgetComparison
 } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
@@ -103,6 +107,34 @@ export interface IStorage {
   // Team Inclusion Logs
   getTeamInclusionLogs(teamInclusionId: string): Promise<TeamInclusionLog[]>;
   createTeamInclusionLog(log: InsertTeamInclusionLog): Promise<TeamInclusionLog>;
+  
+  // Function Values (valores automáticos por função)
+  getFunctionValues(functionId: string): Promise<FunctionValue | undefined>;
+  getAllFunctionValues(): Promise<FunctionValue[]>;
+  createFunctionValue(value: InsertFunctionValue): Promise<FunctionValue>;
+  updateFunctionValue(id: string, value: Partial<InsertFunctionValue>): Promise<FunctionValue>;
+  
+  // Budget Planned (Planejado)
+  getBudgetPlanned(eventId: string): Promise<BudgetPlanned[]>;
+  getBudgetPlannedById(id: string): Promise<BudgetPlanned | undefined>;
+  getAllBudgetPlanned(): Promise<BudgetPlanned[]>;
+  createBudgetPlanned(planned: InsertBudgetPlanned): Promise<BudgetPlanned>;
+  updateBudgetPlanned(id: string, planned: Partial<InsertBudgetPlanned>): Promise<BudgetPlanned>;
+  deleteBudgetPlanned(id: string): Promise<void>;
+  
+  // Budget Actual (Realizado)
+  getBudgetActual(eventId: string): Promise<BudgetActual[]>;
+  getBudgetActualById(id: string): Promise<BudgetActual | undefined>;
+  getAllBudgetActual(): Promise<BudgetActual[]>;
+  createBudgetActual(actual: InsertBudgetActual): Promise<BudgetActual>;
+  updateBudgetActual(id: string, actual: Partial<InsertBudgetActual>): Promise<BudgetActual>;
+  deleteBudgetActual(id: string): Promise<void>;
+  
+  // Budget Comparison (Comparativo)
+  getBudgetComparison(eventId: string): Promise<BudgetComparison | undefined>;
+  getAllBudgetComparisons(): Promise<BudgetComparison[]>;
+  createBudgetComparison(comparison: InsertBudgetComparison): Promise<BudgetComparison>;
+  updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison>;
 }
 
 export class MemStorage implements IStorage {
@@ -702,6 +734,34 @@ export class MemStorage implements IStorage {
     };
     return logEntry;
   }
+
+  // Function Values - stub implementations
+  async getFunctionValues(functionId: string): Promise<FunctionValue | undefined> { return undefined; }
+  async getAllFunctionValues(): Promise<FunctionValue[]> { return []; }
+  async createFunctionValue(value: InsertFunctionValue): Promise<FunctionValue> { throw new Error("Not implemented"); }
+  async updateFunctionValue(id: string, value: Partial<InsertFunctionValue>): Promise<FunctionValue> { throw new Error("Not implemented"); }
+
+  // Budget Planned - stub implementations
+  async getBudgetPlanned(eventId: string): Promise<BudgetPlanned[]> { return []; }
+  async getBudgetPlannedById(id: string): Promise<BudgetPlanned | undefined> { return undefined; }
+  async getAllBudgetPlanned(): Promise<BudgetPlanned[]> { return []; }
+  async createBudgetPlanned(planned: InsertBudgetPlanned): Promise<BudgetPlanned> { throw new Error("Not implemented"); }
+  async updateBudgetPlanned(id: string, planned: Partial<InsertBudgetPlanned>): Promise<BudgetPlanned> { throw new Error("Not implemented"); }
+  async deleteBudgetPlanned(id: string): Promise<void> {}
+
+  // Budget Actual - stub implementations
+  async getBudgetActual(eventId: string): Promise<BudgetActual[]> { return []; }
+  async getBudgetActualById(id: string): Promise<BudgetActual | undefined> { return undefined; }
+  async getAllBudgetActual(): Promise<BudgetActual[]> { return []; }
+  async createBudgetActual(actual: InsertBudgetActual): Promise<BudgetActual> { throw new Error("Not implemented"); }
+  async updateBudgetActual(id: string, actual: Partial<InsertBudgetActual>): Promise<BudgetActual> { throw new Error("Not implemented"); }
+  async deleteBudgetActual(id: string): Promise<void> {}
+
+  // Budget Comparison - stub implementations
+  async getBudgetComparison(eventId: string): Promise<BudgetComparison | undefined> { return undefined; }
+  async getAllBudgetComparisons(): Promise<BudgetComparison[]> { return []; }
+  async createBudgetComparison(comparison: InsertBudgetComparison): Promise<BudgetComparison> { throw new Error("Not implemented"); }
+  async updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison> { throw new Error("Not implemented"); }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1297,6 +1357,102 @@ export class DatabaseStorage implements IStorage {
   async createTeamInclusionLog(logData: InsertTeamInclusionLog): Promise<TeamInclusionLog> {
     const [log] = await db.insert(teamInclusionLogs).values(logData).returning();
     return log;
+  }
+
+  // Function Values
+  async getFunctionValues(functionId: string): Promise<FunctionValue | undefined> {
+    const [value] = await db.select().from(functionValues).where(eq(functionValues.functionId, functionId));
+    return value;
+  }
+
+  async getAllFunctionValues(): Promise<FunctionValue[]> {
+    return await db.select().from(functionValues);
+  }
+
+  async createFunctionValue(value: InsertFunctionValue): Promise<FunctionValue> {
+    const [created] = await db.insert(functionValues).values(value).returning();
+    return created;
+  }
+
+  async updateFunctionValue(id: string, value: Partial<InsertFunctionValue>): Promise<FunctionValue> {
+    const [updated] = await db.update(functionValues).set({ ...value, updatedAt: new Date() }).where(eq(functionValues.id, id)).returning();
+    return updated;
+  }
+
+  // Budget Planned
+  async getBudgetPlanned(eventId: string): Promise<BudgetPlanned[]> {
+    return await db.select().from(budgetPlanned).where(eq(budgetPlanned.eventId, eventId));
+  }
+
+  async getBudgetPlannedById(id: string): Promise<BudgetPlanned | undefined> {
+    const [planned] = await db.select().from(budgetPlanned).where(eq(budgetPlanned.id, id));
+    return planned;
+  }
+
+  async getAllBudgetPlanned(): Promise<BudgetPlanned[]> {
+    return await db.select().from(budgetPlanned);
+  }
+
+  async createBudgetPlanned(planned: InsertBudgetPlanned): Promise<BudgetPlanned> {
+    const [created] = await db.insert(budgetPlanned).values(planned).returning();
+    return created;
+  }
+
+  async updateBudgetPlanned(id: string, planned: Partial<InsertBudgetPlanned>): Promise<BudgetPlanned> {
+    const [updated] = await db.update(budgetPlanned).set({ ...planned, updatedAt: new Date() }).where(eq(budgetPlanned.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBudgetPlanned(id: string): Promise<void> {
+    await db.delete(budgetPlanned).where(eq(budgetPlanned.id, id));
+  }
+
+  // Budget Actual
+  async getBudgetActual(eventId: string): Promise<BudgetActual[]> {
+    return await db.select().from(budgetActual).where(eq(budgetActual.eventId, eventId));
+  }
+
+  async getBudgetActualById(id: string): Promise<BudgetActual | undefined> {
+    const [actual] = await db.select().from(budgetActual).where(eq(budgetActual.id, id));
+    return actual;
+  }
+
+  async getAllBudgetActual(): Promise<BudgetActual[]> {
+    return await db.select().from(budgetActual);
+  }
+
+  async createBudgetActual(actual: InsertBudgetActual): Promise<BudgetActual> {
+    const [created] = await db.insert(budgetActual).values(actual).returning();
+    return created;
+  }
+
+  async updateBudgetActual(id: string, actual: Partial<InsertBudgetActual>): Promise<BudgetActual> {
+    const [updated] = await db.update(budgetActual).set({ ...actual, updatedAt: new Date() }).where(eq(budgetActual.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBudgetActual(id: string): Promise<void> {
+    await db.delete(budgetActual).where(eq(budgetActual.id, id));
+  }
+
+  // Budget Comparison
+  async getBudgetComparison(eventId: string): Promise<BudgetComparison | undefined> {
+    const [comparison] = await db.select().from(budgetComparison).where(eq(budgetComparison.eventId, eventId));
+    return comparison;
+  }
+
+  async getAllBudgetComparisons(): Promise<BudgetComparison[]> {
+    return await db.select().from(budgetComparison);
+  }
+
+  async createBudgetComparison(comparison: InsertBudgetComparison): Promise<BudgetComparison> {
+    const [created] = await db.insert(budgetComparison).values(comparison).returning();
+    return created;
+  }
+
+  async updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison> {
+    const [updated] = await db.update(budgetComparison).set({ ...comparison, updatedAt: new Date() }).where(eq(budgetComparison.id, id)).returning();
+    return updated;
   }
 }
 

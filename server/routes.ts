@@ -13,7 +13,11 @@ import {
   insertFinancialSchema,
   insertCommentSchema,
   insertUserSchema,
-  publicUserRegistrationSchema
+  publicUserRegistrationSchema,
+  insertFunctionValuesSchema,
+  insertBudgetPlannedSchema,
+  insertBudgetActualSchema,
+  insertBudgetComparisonSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -1809,6 +1813,356 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching system logs:", error);
       res.status(500).json({ message: "Erro ao buscar logs do sistema" });
+    }
+  });
+
+  // ================ BUDGET ROUTES ================
+
+  // Function Values (valores automáticos por função)
+  app.get("/api/function-values", async (req, res) => {
+    try {
+      const values = await storage.getAllFunctionValues();
+      res.json(values);
+    } catch (error) {
+      console.error("Error fetching function values:", error);
+      res.status(500).json({ message: "Erro ao buscar valores das funções" });
+    }
+  });
+
+  app.get("/api/function-values/:functionId", async (req, res) => {
+    try {
+      const value = await storage.getFunctionValues(req.params.functionId);
+      res.json(value || null);
+    } catch (error) {
+      console.error("Error fetching function value:", error);
+      res.status(500).json({ message: "Erro ao buscar valor da função" });
+    }
+  });
+
+  app.post("/api/function-values", async (req, res) => {
+    try {
+      const data = insertFunctionValuesSchema.parse(req.body);
+      const value = await storage.createFunctionValue(data);
+      res.status(201).json(value);
+    } catch (error) {
+      console.error("Error creating function value:", error);
+      res.status(400).json({ message: "Erro ao criar valor da função" });
+    }
+  });
+
+  app.patch("/api/function-values/:id", async (req, res) => {
+    try {
+      const value = await storage.updateFunctionValue(req.params.id, req.body);
+      res.json(value);
+    } catch (error) {
+      console.error("Error updating function value:", error);
+      res.status(400).json({ message: "Erro ao atualizar valor da função" });
+    }
+  });
+
+  // Budget Planned (Planejado)
+  app.get("/api/budget-planned", async (req, res) => {
+    try {
+      const { eventId } = req.query;
+      if (eventId) {
+        const planned = await storage.getBudgetPlanned(eventId as string);
+        res.json(planned);
+      } else {
+        const all = await storage.getAllBudgetPlanned();
+        res.json(all);
+      }
+    } catch (error) {
+      console.error("Error fetching budget planned:", error);
+      res.status(500).json({ message: "Erro ao buscar planejamento" });
+    }
+  });
+
+  app.get("/api/budget-planned/:id", async (req, res) => {
+    try {
+      const planned = await storage.getBudgetPlannedById(req.params.id);
+      if (!planned) {
+        return res.status(404).json({ message: "Planejamento não encontrado" });
+      }
+      res.json(planned);
+    } catch (error) {
+      console.error("Error fetching budget planned:", error);
+      res.status(500).json({ message: "Erro ao buscar planejamento" });
+    }
+  });
+
+  app.post("/api/budget-planned", async (req, res) => {
+    try {
+      const data = insertBudgetPlannedSchema.parse(req.body);
+      const planned = await storage.createBudgetPlanned(data);
+      res.status(201).json(planned);
+    } catch (error) {
+      console.error("Error creating budget planned:", error);
+      res.status(400).json({ message: "Erro ao criar planejamento" });
+    }
+  });
+
+  app.patch("/api/budget-planned/:id", async (req, res) => {
+    try {
+      const planned = await storage.updateBudgetPlanned(req.params.id, req.body);
+      res.json(planned);
+    } catch (error) {
+      console.error("Error updating budget planned:", error);
+      res.status(400).json({ message: "Erro ao atualizar planejamento" });
+    }
+  });
+
+  app.delete("/api/budget-planned/:id", async (req, res) => {
+    try {
+      await storage.deleteBudgetPlanned(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting budget planned:", error);
+      res.status(500).json({ message: "Erro ao excluir planejamento" });
+    }
+  });
+
+  // Budget Actual (Realizado)
+  app.get("/api/budget-actual", async (req, res) => {
+    try {
+      const { eventId } = req.query;
+      if (eventId) {
+        const actual = await storage.getBudgetActual(eventId as string);
+        res.json(actual);
+      } else {
+        const all = await storage.getAllBudgetActual();
+        res.json(all);
+      }
+    } catch (error) {
+      console.error("Error fetching budget actual:", error);
+      res.status(500).json({ message: "Erro ao buscar realizado" });
+    }
+  });
+
+  app.get("/api/budget-actual/:id", async (req, res) => {
+    try {
+      const actual = await storage.getBudgetActualById(req.params.id);
+      if (!actual) {
+        return res.status(404).json({ message: "Realizado não encontrado" });
+      }
+      res.json(actual);
+    } catch (error) {
+      console.error("Error fetching budget actual:", error);
+      res.status(500).json({ message: "Erro ao buscar realizado" });
+    }
+  });
+
+  app.post("/api/budget-actual", async (req, res) => {
+    try {
+      const data = insertBudgetActualSchema.parse(req.body);
+      const actual = await storage.createBudgetActual(data);
+      res.status(201).json(actual);
+    } catch (error) {
+      console.error("Error creating budget actual:", error);
+      res.status(400).json({ message: "Erro ao criar realizado" });
+    }
+  });
+
+  app.post("/api/budget-actual/duplicate-from-planned/:eventId", async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const planned = await storage.getBudgetPlanned(eventId);
+      
+      const duplicated = await Promise.all(
+        planned.map(async (p) => {
+          const actualData = {
+            plannedId: p.id,
+            eventId: p.eventId,
+            collaboratorId: p.collaboratorId,
+            functionId: p.functionId,
+            collaboratorType: p.collaboratorType,
+            dailyQuantity: p.dailyQuantity,
+            dailyValue: p.dailyValue,
+            costAssistance: p.costAssistance,
+            weekdayLunch: p.weekdayLunch,
+            weekdayDinner: p.weekdayDinner,
+            weekendLunch: p.weekendLunch,
+            weekendDinner: p.weekendDinner,
+            mobility: p.mobility,
+            transport: p.transport,
+            totalValue: p.totalValue,
+            observations: p.observations,
+            createdBy: req.body.userId,
+          };
+          return await storage.createBudgetActual(actualData);
+        })
+      );
+      
+      res.status(201).json(duplicated);
+    } catch (error) {
+      console.error("Error duplicating from planned:", error);
+      res.status(400).json({ message: "Erro ao duplicar do planejado" });
+    }
+  });
+
+  app.patch("/api/budget-actual/:id", async (req, res) => {
+    try {
+      const actual = await storage.updateBudgetActual(req.params.id, req.body);
+      res.json(actual);
+    } catch (error) {
+      console.error("Error updating budget actual:", error);
+      res.status(400).json({ message: "Erro ao atualizar realizado" });
+    }
+  });
+
+  app.delete("/api/budget-actual/:id", async (req, res) => {
+    try {
+      await storage.deleteBudgetActual(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting budget actual:", error);
+      res.status(500).json({ message: "Erro ao excluir realizado" });
+    }
+  });
+
+  // Budget Comparison (Comparativo)
+  app.get("/api/budget-comparison", async (req, res) => {
+    try {
+      const { eventId } = req.query;
+      if (eventId) {
+        const comparison = await storage.getBudgetComparison(eventId as string);
+        res.json(comparison || null);
+      } else {
+        const all = await storage.getAllBudgetComparisons();
+        res.json(all);
+      }
+    } catch (error) {
+      console.error("Error fetching budget comparison:", error);
+      res.status(500).json({ message: "Erro ao buscar comparativo" });
+    }
+  });
+
+  app.post("/api/budget-comparison", async (req, res) => {
+    try {
+      const data = insertBudgetComparisonSchema.parse(req.body);
+      const comparison = await storage.createBudgetComparison(data);
+      res.status(201).json(comparison);
+    } catch (error) {
+      console.error("Error creating budget comparison:", error);
+      res.status(400).json({ message: "Erro ao criar comparativo" });
+    }
+  });
+
+  app.post("/api/budget-comparison/calculate/:eventId", async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      
+      // Get planned and actual data
+      const planned = await storage.getBudgetPlanned(eventId);
+      const actual = await storage.getBudgetActual(eventId);
+      
+      // Calculate totals
+      const totalPlanned = planned.reduce((sum, p) => sum + (p.totalValue || 0), 0);
+      const totalActual = actual.reduce((sum, a) => sum + (a.totalValue || 0), 0);
+      const variance = totalPlanned - totalActual;
+      const variancePercent = totalPlanned > 0 
+        ? ((variance / totalPlanned) * 100).toFixed(2) + '%'
+        : '0%';
+      
+      // Generate changes log
+      const changesLog = actual
+        .filter(a => a.plannedId)
+        .map(a => {
+          const p = planned.find(pl => pl.id === a.plannedId);
+          if (!p) return null;
+          
+          const changes: string[] = [];
+          if (a.dailyQuantity !== p.dailyQuantity) changes.push(`Diárias: ${p.dailyQuantity} → ${a.dailyQuantity}`);
+          if (a.dailyValue !== p.dailyValue) changes.push(`Valor diária: ${p.dailyValue} → ${a.dailyValue}`);
+          if (a.totalValue !== p.totalValue) changes.push(`Total: ${p.totalValue} → ${a.totalValue}`);
+          
+          return changes.length > 0 ? { collaboratorId: a.collaboratorId, changes, reason: a.changeReason } : null;
+        })
+        .filter(Boolean);
+      
+      // Check if comparison exists
+      let comparison = await storage.getBudgetComparison(eventId);
+      
+      if (comparison) {
+        comparison = await storage.updateBudgetComparison(comparison.id, {
+          totalPlanned,
+          totalActual,
+          variance,
+          variancePercent,
+          changesLog: JSON.stringify(changesLog),
+        });
+      } else {
+        comparison = await storage.createBudgetComparison({
+          eventId,
+          totalPlanned,
+          totalActual,
+          variance,
+          variancePercent,
+          changesLog: JSON.stringify(changesLog),
+          status: 'pendente',
+        });
+      }
+      
+      res.json(comparison);
+    } catch (error) {
+      console.error("Error calculating budget comparison:", error);
+      res.status(400).json({ message: "Erro ao calcular comparativo" });
+    }
+  });
+
+  app.patch("/api/budget-comparison/:id", async (req, res) => {
+    try {
+      const comparison = await storage.updateBudgetComparison(req.params.id, req.body);
+      res.json(comparison);
+    } catch (error) {
+      console.error("Error updating budget comparison:", error);
+      res.status(400).json({ message: "Erro ao atualizar comparativo" });
+    }
+  });
+
+  app.post("/api/budget-comparison/:id/approve", async (req, res) => {
+    try {
+      const { approvedBy, approvalObservation } = req.body;
+      const comparison = await storage.updateBudgetComparison(req.params.id, {
+        status: 'aprovado',
+        approvedBy,
+        approvalObservation,
+        approvedAt: new Date(),
+      });
+      res.json(comparison);
+    } catch (error) {
+      console.error("Error approving budget comparison:", error);
+      res.status(400).json({ message: "Erro ao aprovar comparativo" });
+    }
+  });
+
+  app.post("/api/budget-comparison/:id/reject", async (req, res) => {
+    try {
+      const { approvedBy, rejectionReason } = req.body;
+      const comparison = await storage.updateBudgetComparison(req.params.id, {
+        status: 'rejeitado',
+        approvedBy,
+        rejectionReason,
+        approvedAt: new Date(),
+      });
+      res.json(comparison);
+    } catch (error) {
+      console.error("Error rejecting budget comparison:", error);
+      res.status(400).json({ message: "Erro ao rejeitar comparativo" });
+    }
+  });
+
+  app.post("/api/budget-comparison/:id/return", async (req, res) => {
+    try {
+      const { approvedBy, returnReason } = req.body;
+      const comparison = await storage.updateBudgetComparison(req.params.id, {
+        status: 'devolvido',
+        approvedBy,
+        returnReason,
+      });
+      res.json(comparison);
+    } catch (error) {
+      console.error("Error returning budget comparison:", error);
+      res.status(400).json({ message: "Erro ao devolver comparativo" });
     }
   });
 
