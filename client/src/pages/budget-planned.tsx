@@ -892,9 +892,9 @@ export default function BudgetPlannedPage() {
                       </div>
                       
                       {/* Total */}
-                      <div className="flex justify-between items-center p-2 rounded bg-green-700 dark:bg-green-800">
-                        <span className="font-bold text-white">TOTAL</span>
-                        <span className="font-bold text-lg text-white">{formatCurrency(budget.totalFinal)}</span>
+                      <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                        <span className="font-bold text-gray-800 dark:text-gray-200">TOTAL</span>
+                        <span className="font-bold text-lg text-green-700 dark:text-green-400">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
                   </div>
