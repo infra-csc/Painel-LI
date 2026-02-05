@@ -21,6 +21,9 @@ import CollaboratorManagement from "@/pages/collaborator-management";
 import AuthPage from "@/pages/auth-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
 import UserRegistration from "@/pages/user-registration";
+import BudgetPlanned from "@/pages/budget-planned";
+import BudgetActual from "@/pages/budget-actual";
+import BudgetComparison from "@/pages/budget-comparison";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -100,6 +103,21 @@ function Router() {
             <Route path="/collaborators">
               <ProtectedRoute permission="canAccessCollaborators">
                 <CollaboratorManagement />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/budget-planned">
+              <ProtectedRoute permission="canAccessScreen0">
+                <BudgetPlanned />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/budget-actual">
+              <ProtectedRoute permission="canAccessScreen0">
+                <BudgetActual />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/budget-comparison">
+              <ProtectedRoute permission="canAccessScreen5">
+                <BudgetComparison />
               </ProtectedRoute>
             </Route>
             <Route component={NotFound} />

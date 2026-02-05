@@ -20,7 +20,10 @@ import {
   Maximize2,
   Sun,
   Moon,
-  Focus
+  Focus,
+  Calculator,
+  ClipboardCheck,
+  BarChart3
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -43,6 +46,9 @@ const iconColors: Record<string, string> = {
   "consultation": "text-indigo-500",
   "admin-users": "text-slate-500",
   "collaborators": "text-teal-500",
+  "budget-planned": "text-blue-600",
+  "budget-actual": "text-purple-600",
+  "budget-comparison": "text-green-600",
 };
 
 const menuGroups = [
@@ -53,6 +59,10 @@ const menuGroups = [
   {
     title: "Operacional",
     items: ["team-inclusion", "scaling", "tickets", "accommodations"]
+  },
+  {
+    title: "Financeiro",
+    items: ["budget-planned", "budget-actual", "budget-comparison"]
   },
   {
     title: "Gestão",
@@ -144,6 +154,27 @@ export default function Sidebar() {
       label: "Colaboradores",
       icon: UserCog,
       permission: "canAccessCollaborators" as const,
+    },
+    {
+      id: "budget-planned",
+      path: "/budget-planned",
+      label: "Planejado",
+      icon: Calculator,
+      permission: "canAccessScreen0" as const,
+    },
+    {
+      id: "budget-actual",
+      path: "/budget-actual",
+      label: "Realizado",
+      icon: ClipboardCheck,
+      permission: "canAccessScreen0" as const,
+    },
+    {
+      id: "budget-comparison",
+      path: "/budget-comparison",
+      label: "Comparativo",
+      icon: BarChart3,
+      permission: "canAccessScreen5" as const,
     },
   ];
 
