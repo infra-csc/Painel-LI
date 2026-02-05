@@ -98,7 +98,7 @@ export default function Sidebar() {
     {
       id: "admin-users",
       path: "/admin-users",
-      label: "Gerenciamento de Usuários",
+      label: "Usuários",
       icon: Settings,
       permission: "canAccessAdminUsers" as const,
     },
