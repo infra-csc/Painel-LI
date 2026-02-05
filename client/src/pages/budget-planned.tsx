@@ -8,9 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Edit, Send, CheckCheck } from "lucide-react";
+import { Calculator, Users, Calendar, MapPin, RefreshCw, Edit, Send, CheckCheck } from "lucide-react";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -30,11 +31,33 @@ export default function BudgetPlannedPage() {
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
   const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
 
   const canEdit = user?.role === "admin" || user?.role === "production";
+
+  const toggleCardSelection = (id: string) => {
+    setSelectedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllCards = () => {
+    const pending = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id));
+    setSelectedCards(new Set(pending.map(b => b.inclusion.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedCards(new Set());
+  };
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -198,9 +221,11 @@ export default function BudgetPlannedPage() {
     },
   });
 
-  const sendAllToActualMutation = useMutation({
+  const sendSelectedToActualMutation = useMutation({
     mutationFn: async () => {
-      const toSend = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id));
+      const toSend = calculatedBudgets.filter(b => 
+        selectedCards.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id)
+      );
       const results = [];
       for (const budget of toSend) {
         const res = await apiRequest("POST", "/api/budget-actual", {
@@ -228,6 +253,7 @@ export default function BudgetPlannedPage() {
     },
     onSuccess: (data) => {
       setSentToActual(prev => new Set([...prev, ...data.map(d => d.id)]));
+      setSelectedCards(new Set());
       toast({ title: "Sucesso", description: `${data.length} itens enviados para o Realizado` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
     },
@@ -303,14 +329,25 @@ export default function BudgetPlannedPage() {
                   {pendingCount > 0 && (
                     <>
                       <Separator orientation="vertical" className="h-12" />
-                      <Button 
-                        onClick={() => sendAllToActualMutation.mutate()}
-                        disabled={sendAllToActualMutation.isPending}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        <Send className="w-4 h-4 mr-2" />
-                        Enviar Todos ({pendingCount})
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={selectedCards.size > 0 ? clearSelection : selectAllCards}
+                        >
+                          {selectedCards.size > 0 ? "Limpar" : "Selecionar Todos"}
+                        </Button>
+                        {selectedCards.size > 0 && (
+                          <Button 
+                            onClick={() => sendSelectedToActualMutation.mutate()}
+                            disabled={sendSelectedToActualMutation.isPending}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Enviar Selecionados ({selectedCards.size})
+                          </Button>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -336,24 +373,39 @@ export default function BudgetPlannedPage() {
               {calculatedBudgets.map((budget) => (
                 <Card 
                   key={budget.inclusion.id} 
-                  className={`transition-all hover:shadow-md ${budget.hasOverride ? 'border-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/30' : 'border-gray-200'}`}
+                  className={`transition-all hover:shadow-md ${
+                    selectedCards.has(budget.inclusion.id) 
+                      ? 'border-purple-400 ring-2 ring-purple-200' 
+                      : budget.hasOverride 
+                        ? 'border-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/30' 
+                        : 'border-gray-200'
+                  }`}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-base font-semibold">
-                          {getCollaboratorName(budget.inclusion.collaboratorId)}
-                        </CardTitle>
-                        <CardDescription className="flex items-center gap-1 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {getFunctionName(budget.inclusion.functionId)}
-                          </Badge>
-                          {budget.hasOverride && (
-                            <Badge variant="secondary" className="text-xs bg-yellow-200 text-yellow-800">
-                              Editado
+                      <div className="flex items-start gap-3">
+                        {!sentToActual.has(budget.inclusion.id) && (
+                          <Checkbox 
+                            checked={selectedCards.has(budget.inclusion.id)}
+                            onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
+                            className="mt-1"
+                          />
+                        )}
+                        <div>
+                          <CardTitle className="text-base font-semibold">
+                            {getCollaboratorName(budget.inclusion.collaboratorId)}
+                          </CardTitle>
+                          <CardDescription className="flex items-center gap-1 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {getFunctionName(budget.inclusion.functionId)}
+                            </Badge>
+                            {budget.hasOverride && (
+                              <Badge variant="secondary" className="text-xs bg-yellow-200 text-yellow-800">
+                                Editado
                             </Badge>
                           )}
                         </CardDescription>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         {canEdit && !sentToActual.has(budget.inclusion.id) && (
