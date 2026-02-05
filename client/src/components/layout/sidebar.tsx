@@ -138,13 +138,13 @@ export default function Sidebar() {
         "w-64",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        <div className="p-4 border-b border-gray-200">
-          <div className="h-14 overflow-hidden flex items-start justify-center">
+        <div className="p-5 border-b border-gray-200 bg-white">
+          <div className="h-12 overflow-hidden flex items-center justify-center">
             <img 
               src={norteLogo} 
               alt="Norte Logo" 
-              className="h-16 w-auto object-cover object-top"
-              style={{ marginTop: '-2px' }}
+              className="w-44 object-cover object-top"
+              style={{ clipPath: 'inset(0 0 25% 0)' }}
             />
           </div>
         </div>
