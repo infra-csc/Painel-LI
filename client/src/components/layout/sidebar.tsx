@@ -139,11 +139,14 @@ export default function Sidebar() {
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         <div className="p-4 border-b border-gray-200">
-          <img 
-            src={norteLogo} 
-            alt="Norte Logo" 
-            className="h-12 w-auto mx-auto"
-          />
+          <div className="h-14 overflow-hidden flex items-start justify-center">
+            <img 
+              src={norteLogo} 
+              alt="Norte Logo" 
+              className="h-16 w-auto object-cover object-top"
+              style={{ marginTop: '-2px' }}
+            />
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4">
