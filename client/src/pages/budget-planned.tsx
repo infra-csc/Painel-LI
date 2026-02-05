@@ -609,7 +609,7 @@ export default function BudgetPlannedPage() {
                           size="sm"
                           onClick={() => setConfirmSendOpen(true)}
                           disabled={sendSelectedToActualMutation.isPending}
-                          className="bg-purple-600 hover:bg-purple-700"
+                          className="bg-green-600 hover:bg-green-700"
                         >
                           <Send className="w-3 h-3 mr-1" />
                           Enviar ({selectedCards.size})
@@ -691,7 +691,7 @@ export default function BudgetPlannedPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-7 w-7 text-purple-600"
+                            className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
                             onClick={() => setConfirmSendSingle(budget)}
                           >
                             <Send className="w-3 h-3" />
@@ -1068,13 +1068,13 @@ export default function BudgetPlannedPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Send className="w-5 h-5 text-purple-600" />
+              <Send className="w-5 h-5 text-green-600" />
               Confirmar Envio
             </DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-gray-600 dark:text-gray-400">
-              Você está prestes a enviar <strong className="text-purple-600">{selectedCards.size} itens</strong> para o Realizado.
+              Você está prestes a enviar <strong className="text-green-600">{selectedCards.size} itens</strong> para o Realizado.
             </p>
             <p className="text-sm text-gray-500 mt-2">
               Esta ação não pode ser desfeita. Os valores serão registrados como orçamento realizado.
@@ -1101,14 +1101,14 @@ export default function BudgetPlannedPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Send className="w-5 h-5 text-purple-600" />
+              <Send className="w-5 h-5 text-green-600" />
               Confirmar Envio
             </DialogTitle>
           </DialogHeader>
           {confirmSendSingle && (
             <div className="py-4">
               <p className="text-gray-600 dark:text-gray-400">
-                Enviar orçamento de <strong className="text-purple-600">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</strong> para o Realizado?
+                Enviar orçamento de <strong className="text-green-600">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</strong> para o Realizado?
               </p>
               <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 <div className="flex justify-between text-sm">
