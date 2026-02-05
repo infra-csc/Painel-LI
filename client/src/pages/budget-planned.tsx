@@ -67,7 +67,7 @@ export default function BudgetPlannedPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
-  const [inlineEdit, setInlineEdit] = useState<{id: string, field: string, value: number} | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{id: string, field: string, value: number, displayValue: string} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -280,12 +280,23 @@ export default function BudgetPlannedPage() {
 
   const startInlineEdit = (id: string, field: string, value: number) => {
     if (!canEdit || sentToActual.has(id)) return;
-    setInlineEdit({ id, field, value });
+    const isCurrency = field !== 'qtdDiarias';
+    const displayValue = isCurrency ? (value / 100).toFixed(2) : String(value);
+    setInlineEdit({ id, field, value, displayValue });
   };
 
   const saveInlineEdit = () => {
     if (!inlineEdit) return;
-    const { id, field, value } = inlineEdit;
+    const { id, field, displayValue } = inlineEdit;
+    
+    const isCurrency = field !== 'qtdDiarias';
+    let value: number;
+    
+    if (isCurrency) {
+      value = Math.max(0, Math.round(parseFloat(displayValue.replace(',', '.')) * 100) || 0);
+    } else {
+      value = Math.max(0, parseInt(displayValue) || 0);
+    }
     
     if (value < 0) {
       setInlineEdit(null);
@@ -696,11 +707,11 @@ export default function BudgetPlannedPage() {
                           <span className="text-gray-500">Diárias: </span>
                           {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'qtdDiarias' ? (
                             <input
-                              type="number"
-                              min="0"
+                              type="text"
+                              inputMode="numeric"
                               className="w-12 px-1 py-0.5 border rounded text-center text-sm"
-                              value={inlineEdit.value}
-                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, parseInt(e.target.value) || 0)})}
+                              value={inlineEdit.displayValue}
+                              onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                               onBlur={handleInlineBlur}
                               onKeyDown={handleInlineKeyDown}
                               autoFocus
@@ -716,12 +727,11 @@ export default function BudgetPlannedPage() {
                           <span className="text-gray-400">x</span>
                           {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'valorDiaria' ? (
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
+                              type="text"
+                              inputMode="decimal"
                               className="w-20 px-1 py-0.5 border rounded text-center text-sm"
-                              value={(inlineEdit.value / 100).toFixed(2)}
-                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, Math.round(parseFloat(e.target.value) * 100) || 0)})}
+                              value={inlineEdit.displayValue}
+                              onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                               onBlur={handleInlineBlur}
                               onKeyDown={handleInlineKeyDown}
                               autoFocus
@@ -747,12 +757,11 @@ export default function BudgetPlannedPage() {
                           </div>
                           {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'mobilidade' ? (
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
+                              type="text"
+                              inputMode="decimal"
                               className="w-20 px-1 py-0.5 border rounded text-right text-sm"
-                              value={(inlineEdit.value / 100).toFixed(2)}
-                              onChange={e => setInlineEdit({...inlineEdit, value: Math.max(0, Math.round(parseFloat(e.target.value) * 100) || 0)})}
+                              value={inlineEdit.displayValue}
+                              onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                               onBlur={handleInlineBlur}
                               onKeyDown={handleInlineKeyDown}
                               autoFocus
@@ -777,11 +786,11 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoSemana' ? (
                                 <input
-                                  type="number"
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   className="w-16 px-1 py-0.5 border rounded text-right text-xs"
-                                  value={(inlineEdit.value / 100).toFixed(2)}
-                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  value={inlineEdit.displayValue}
+                                  onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                                   onBlur={handleInlineBlur}
                                   onKeyDown={handleInlineKeyDown}
                                   autoFocus
@@ -799,11 +808,11 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarSemana' ? (
                                 <input
-                                  type="number"
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   className="w-16 px-1 py-0.5 border rounded text-right text-xs"
-                                  value={(inlineEdit.value / 100).toFixed(2)}
-                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  value={inlineEdit.displayValue}
+                                  onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                                   onBlur={handleInlineBlur}
                                   onKeyDown={handleInlineKeyDown}
                                   autoFocus
@@ -827,11 +836,11 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoFds' ? (
                                 <input
-                                  type="number"
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   className="w-16 px-1 py-0.5 border rounded text-right text-xs"
-                                  value={(inlineEdit.value / 100).toFixed(2)}
-                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  value={inlineEdit.displayValue}
+                                  onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                                   onBlur={handleInlineBlur}
                                   onKeyDown={handleInlineKeyDown}
                                   autoFocus
@@ -849,11 +858,11 @@ export default function BudgetPlannedPage() {
                               <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarFds' ? (
                                 <input
-                                  type="number"
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   className="w-16 px-1 py-0.5 border rounded text-right text-xs"
-                                  value={(inlineEdit.value / 100).toFixed(2)}
-                                  onChange={e => setInlineEdit({...inlineEdit, value: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                                  value={inlineEdit.displayValue}
+                                  onChange={e => setInlineEdit({...inlineEdit, displayValue: e.target.value})}
                                   onBlur={handleInlineBlur}
                                   onKeyDown={handleInlineKeyDown}
                                   autoFocus
