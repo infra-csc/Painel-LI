@@ -3,8 +3,11 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 interface SidebarContextType {
   isCollapsed: boolean;
   isCompact: boolean;
+  isFocusMode: boolean;
   toggleCollapsed: () => void;
   toggleCompact: () => void;
+  enterFocusMode: () => void;
+  exitFocusMode: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
@@ -20,6 +23,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     return saved === "true";
   });
 
+  const [isFocusMode, setIsFocusMode] = useState(false);
+
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", String(isCollapsed));
   }, [isCollapsed]);
@@ -30,9 +35,11 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
   const toggleCollapsed = () => setIsCollapsed(!isCollapsed);
   const toggleCompact = () => setIsCompact(!isCompact);
+  const enterFocusMode = () => setIsFocusMode(true);
+  const exitFocusMode = () => setIsFocusMode(false);
 
   return (
-    <SidebarContext.Provider value={{ isCollapsed, isCompact, toggleCollapsed, toggleCompact }}>
+    <SidebarContext.Provider value={{ isCollapsed, isCompact, isFocusMode, toggleCollapsed, toggleCompact, enterFocusMode, exitFocusMode }}>
       {children}
     </SidebarContext.Provider>
   );

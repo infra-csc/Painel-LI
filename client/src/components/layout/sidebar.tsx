@@ -19,7 +19,8 @@ import {
   Minimize2,
   Maximize2,
   Sun,
-  Moon
+  Moon,
+  Focus
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -63,7 +64,7 @@ export default function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const { isCollapsed, isCompact, toggleCollapsed, toggleCompact } = useSidebar();
+  const { isCollapsed, isCompact, isFocusMode, toggleCollapsed, toggleCompact, enterFocusMode } = useSidebar();
   const { theme, toggleTheme } = useTheme();
 
   const allTabs = [
@@ -190,7 +191,7 @@ export default function Sidebar() {
         "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 transition-all duration-300 flex flex-col shadow-lg",
         isCompact ? "w-20" : "w-64",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-        isCollapsed && "lg:-translate-x-full"
+        (isCollapsed || isFocusMode) && "lg:-translate-x-full"
       )}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center gap-2">
           {!isCompact && (
@@ -289,6 +290,13 @@ export default function Sidebar() {
             >
               {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
               {!isCompact && <span>Compactar</span>}
+            </button>
+            <button
+              onClick={enterFocusMode}
+              className="flex items-center justify-center p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200"
+              title="Modo foco (esconde a barra lateral)"
+            >
+              <Focus className="w-4 h-4" />
             </button>
             <button
               onClick={toggleTheme}
