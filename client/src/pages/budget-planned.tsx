@@ -26,12 +26,31 @@ interface BudgetEdit {
   jantarFds: number;
 }
 
+interface CalculatedBudget {
+  inclusion: TeamInclusion;
+  collaborator?: Collaborator;
+  functionValue?: FunctionValue | null;
+  qtdDiarias: number;
+  valorDiaria: number;
+  subtotalDiarias: number;
+  mobilidade: number;
+  almocoSemana: number;
+  jantarSemana: number;
+  almocoFds: number;
+  jantarFds: number;
+  ajudaCusto: number;
+  totalFinal: number;
+  hasOverride: boolean;
+}
+
 export default function BudgetPlannedPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
   const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [confirmSendSingle, setConfirmSendSingle] = useState<CalculatedBudget | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -339,7 +358,7 @@ export default function BudgetPlannedPage() {
                         </Button>
                         {selectedCards.size > 0 && (
                           <Button 
-                            onClick={() => sendSelectedToActualMutation.mutate()}
+                            onClick={() => setConfirmSendOpen(true)}
                             disabled={sendSelectedToActualMutation.isPending}
                             className="bg-purple-600 hover:bg-purple-700"
                           >
@@ -420,7 +439,7 @@ export default function BudgetPlannedPage() {
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-purple-600 hover:text-purple-800"
-                            onClick={() => sendToActualMutation.mutate(budget)}
+                            onClick={() => setConfirmSendSingle(budget)}
                             disabled={sendToActualMutation.isPending}
                             title="Enviar para Realizado"
                           >
@@ -495,92 +514,203 @@ export default function BudgetPlannedPage() {
         </Card>
       )}
 
-      {/* Modal de Edição */}
+      {/* Modal de Edição - Melhorado */}
       <Dialog open={!!editingBudget} onOpenChange={() => setEditingBudget(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Valores do Planejado</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Editar Valores do Orçamento</DialogTitle>
           </DialogHeader>
           
           {editingBudget && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Qtd Diárias</Label>
-                  <Input 
-                    type="number" 
-                    value={editingBudget.qtdDiarias} 
-                    onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
-                  />
+            <div className="space-y-6 py-4">
+              {/* Diárias */}
+              <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-3">Diárias</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-sm text-gray-600">Quantidade</Label>
+                    <Input 
+                      type="number" 
+                      className="text-lg font-medium"
+                      value={editingBudget.qtdDiarias} 
+                      onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm text-gray-600">Valor Unitário (R$)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      className="text-lg font-medium"
+                      value={(editingBudget.valorDiaria / 100).toFixed(2)} 
+                      onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Valor Diária (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={editingBudget.valorDiaria / 100} 
-                    onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                  />
+                <div className="mt-2 text-right text-sm text-blue-700 dark:text-blue-300">
+                  Subtotal: {formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Mobilidade (R$)</Label>
-                <Input 
-                  type="number" 
-                  step="0.01"
-                  value={editingBudget.mobilidade / 100} 
-                  onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Almoço Semana (R$)</Label>
+              {/* Mobilidade */}
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Mobilidade</h4>
+                <div className="space-y-1">
+                  <Label className="text-sm text-gray-600">Valor Total (R$)</Label>
                   <Input 
                     type="number" 
                     step="0.01"
-                    value={editingBudget.almocoSemana / 100} 
-                    onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Jantar Semana (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={editingBudget.jantarSemana / 100} 
-                    onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                    className="text-lg font-medium max-w-xs"
+                    value={(editingBudget.mobilidade / 100).toFixed(2)} 
+                    onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Almoço FDS (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={editingBudget.almocoFds / 100} 
-                    onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                  />
+              {/* Alimentação */}
+              <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-4">
+                <h4 className="font-semibold text-orange-800 dark:text-orange-200 mb-3">Alimentação</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Dias de Semana</div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Almoço (R$)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        value={(editingBudget.almocoSemana / 100).toFixed(2)} 
+                        onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Jantar (R$)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        value={(editingBudget.jantarSemana / 100).toFixed(2)} 
+                        onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Fim de Semana</div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Almoço (R$)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        value={(editingBudget.almocoFds / 100).toFixed(2)} 
+                        onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Jantar (R$)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        value={(editingBudget.jantarFds / 100).toFixed(2)} 
+                        onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Jantar FDS (R$)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={editingBudget.jantarFds / 100} 
-                    onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                  />
+              </div>
+
+              {/* Total Estimado */}
+              <div className="bg-green-100 dark:bg-green-900 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-green-800 dark:text-green-200">Total Estimado:</span>
+                  <span className="text-2xl font-bold text-green-700 dark:text-green-300">
+                    {formatCurrency(
+                      (editingBudget.qtdDiarias * editingBudget.valorDiaria) + 
+                      editingBudget.mobilidade + 
+                      editingBudget.almocoSemana + 
+                      editingBudget.jantarSemana + 
+                      editingBudget.almocoFds + 
+                      editingBudget.jantarFds
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditingBudget(null)}>Cancelar</Button>
-            <Button onClick={saveEdit}>Salvar</Button>
+            <Button onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700">Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação - Envio em Lote */}
+      <Dialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Send className="w-5 h-5 text-purple-600" />
+              Confirmar Envio
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-600 dark:text-gray-400">
+              Você está prestes a enviar <strong className="text-purple-600">{selectedCards.size} itens</strong> para o Realizado.
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Esta ação não pode ser desfeita. Os valores serão registrados como orçamento realizado.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmSendOpen(false)}>Cancelar</Button>
+            <Button 
+              onClick={() => {
+                sendSelectedToActualMutation.mutate();
+                setConfirmSendOpen(false);
+              }}
+              disabled={sendSelectedToActualMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Confirmar Envio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação - Envio Individual */}
+      <Dialog open={!!confirmSendSingle} onOpenChange={() => setConfirmSendSingle(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Send className="w-5 h-5 text-purple-600" />
+              Confirmar Envio
+            </DialogTitle>
+          </DialogHeader>
+          {confirmSendSingle && (
+            <div className="py-4">
+              <p className="text-gray-600 dark:text-gray-400">
+                Enviar orçamento de <strong className="text-purple-600">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</strong> para o Realizado?
+              </p>
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="flex justify-between text-sm">
+                  <span>Total:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(confirmSendSingle.totalFinal)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmSendSingle(null)}>Cancelar</Button>
+            <Button 
+              onClick={() => {
+                if (confirmSendSingle) {
+                  sendToActualMutation.mutate(confirmSendSingle);
+                  setConfirmSendSingle(null);
+                }
+              }}
+              disabled={sendToActualMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Confirmar Envio
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
