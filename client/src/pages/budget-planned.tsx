@@ -284,235 +284,200 @@ export default function BudgetPlannedPage() {
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id)).length;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Escalações confirmadas - cálculo automático</p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header fixo */}
+      <div className="bg-white dark:bg-gray-800 border-b shadow-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <Calculator className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
+                <p className="text-xs text-gray-500">Cálculo automático das escalações confirmadas</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+                <SelectTrigger className="w-64 bg-white dark:bg-gray-700">
+                  <SelectValue placeholder="Selecione o evento..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {events?.map(event => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            Selecione o Evento
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="w-full md:w-96">
-              <SelectValue placeholder="Escolha um evento para ver o orçamento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{event.name}</span>
-                    <span className="text-xs text-gray-500">- {event.location}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      {selectedEventId && selectedEvent && (
-        <>
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-6">
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {!selectedEventId ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6 mb-4">
+              <Calendar className="w-12 h-12 text-gray-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Selecione um Evento</h2>
+            <p className="text-gray-500 mt-2 text-center max-w-md">
+              Escolha um evento no seletor acima para visualizar o orçamento planejado das escalações confirmadas.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Resumo do Evento */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-4 mb-6">
               <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="bg-blue-600 text-white p-3 rounded-lg">
-                    <Calculator className="w-6 h-6" />
-                  </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-5 h-5 text-gray-400" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{selectedEvent.name}</h2>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <MapPin className="w-4 h-4" />
-                      {selectedEvent.location}
-                    </div>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">{selectedEvent?.name}</span>
+                    <span className="text-gray-500 ml-2 text-sm">{selectedEvent?.location}</span>
                   </div>
                 </div>
+                
                 <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <div className="text-sm text-gray-500">Confirmados</div>
+                  <div className="text-center px-4 border-r">
                     <div className="text-2xl font-bold text-blue-600">{calculatedBudgets.length}</div>
+                    <div className="text-xs text-gray-500 uppercase">Confirmados</div>
                   </div>
-                  <Separator orientation="vertical" className="h-12" />
-                  <div className="text-center">
-                    <div className="text-sm text-gray-500">Total Planejado</div>
+                  <div className="text-center px-4">
                     <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
+                    <div className="text-xs text-gray-500 uppercase">Total</div>
                   </div>
+                  
                   {pendingCount > 0 && (
-                    <>
-                      <Separator orientation="vertical" className="h-12" />
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pl-4 border-l">
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={selectedCards.size > 0 ? clearSelection : selectAllCards}
+                      >
+                        {selectedCards.size > 0 ? "Limpar" : "Selecionar Todos"}
+                      </Button>
+                      {selectedCards.size > 0 && (
                         <Button 
-                          variant="outline"
                           size="sm"
-                          onClick={selectedCards.size > 0 ? clearSelection : selectAllCards}
+                          onClick={() => setConfirmSendOpen(true)}
+                          disabled={sendSelectedToActualMutation.isPending}
+                          className="bg-purple-600 hover:bg-purple-700"
                         >
-                          {selectedCards.size > 0 ? "Limpar" : "Selecionar Todos"}
+                          <Send className="w-3 h-3 mr-1" />
+                          Enviar ({selectedCards.size})
                         </Button>
-                        {selectedCards.size > 0 && (
-                          <Button 
-                            onClick={() => setConfirmSendOpen(true)}
-                            disabled={sendSelectedToActualMutation.isPending}
-                            className="bg-purple-600 hover:bg-purple-700"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            Enviar Selecionados ({selectedCards.size})
-                          </Button>
-                        )}
-                      </div>
-                    </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {isLoadingInclusions || isLoadingFunctionValues ? (
-            <div className="text-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-              <p className="mt-2 text-gray-500">Calculando orçamento...</p>
             </div>
-          ) : calculatedBudgets.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="p-12 text-center">
-                <Users className="w-12 h-12 mx-auto text-gray-300" />
-                <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Nenhuma escalação confirmada</h3>
-                <p className="mt-2 text-gray-500">Apenas escalações com status "confirmado" aparecem aqui</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {calculatedBudgets.map((budget) => (
-                <Card 
-                  key={budget.inclusion.id} 
-                  className={`transition-all hover:shadow-md ${
-                    selectedCards.has(budget.inclusion.id) 
-                      ? 'border-purple-400 ring-2 ring-purple-200' 
-                      : budget.hasOverride 
-                        ? 'border-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/30' 
-                        : 'border-gray-200'
-                  }`}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
+
+            {/* Conteúdo */}
+            {isLoadingInclusions || isLoadingFunctionValues ? (
+              <div className="flex items-center justify-center py-20">
+                <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : calculatedBudgets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Users className="w-16 h-16 text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Nenhuma escalação confirmada</h3>
+                <p className="text-gray-500 mt-1">Apenas escalações com status confirmado aparecem aqui</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {calculatedBudgets.map((budget) => (
+                  <div 
+                    key={budget.inclusion.id} 
+                    className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm hover:shadow-md transition-all ${
+                      selectedCards.has(budget.inclusion.id) 
+                        ? 'ring-2 ring-purple-500 border-purple-400' 
+                        : sentToActual.has(budget.inclusion.id)
+                          ? 'border-green-300 bg-green-50/50 dark:bg-green-950/20'
+                          : budget.hasOverride 
+                            ? 'border-yellow-300 bg-yellow-50/30' 
+                            : 'border-gray-200'
+                    }`}
+                  >
+                    {/* Cabeçalho do Card */}
+                    <div className="flex items-center justify-between p-3 border-b bg-gray-50 dark:bg-gray-700/50 rounded-t-lg">
+                      <div className="flex items-center gap-2">
                         {!sentToActual.has(budget.inclusion.id) && (
                           <Checkbox 
                             checked={selectedCards.has(budget.inclusion.id)}
                             onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
-                            className="mt-1"
                           />
                         )}
+                        {sentToActual.has(budget.inclusion.id) && (
+                          <CheckCheck className="w-4 h-4 text-green-600" />
+                        )}
                         <div>
-                          <CardTitle className="text-base font-semibold">
+                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
                             {getCollaboratorName(budget.inclusion.collaboratorId)}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-1 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {getFunctionName(budget.inclusion.functionId)}
-                            </Badge>
-                            {budget.hasOverride && (
-                              <Badge variant="secondary" className="text-xs bg-yellow-200 text-yellow-800">
-                                Editado
-                            </Badge>
-                          )}
-                        </CardDescription>
+                          </div>
+                          <div className="text-xs text-gray-500">{getFunctionName(budget.inclusion.functionId)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
+                        {budget.hasOverride && (
+                          <Badge className="text-xs bg-yellow-100 text-yellow-700 border-yellow-300">Editado</Badge>
+                        )}
                         {canEdit && !sentToActual.has(budget.inclusion.id) && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(budget)}>
-                            <Edit className="w-4 h-4" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditModal(budget)}>
+                            <Edit className="w-3 h-3" />
                           </Button>
                         )}
-                        {sentToActual.has(budget.inclusion.id) ? (
-                          <CheckCheck className="w-5 h-5 text-purple-600" title="Enviado para Realizado" />
-                        ) : (
+                        {!sentToActual.has(budget.inclusion.id) && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-purple-600 hover:text-purple-800"
+                            className="h-7 w-7 text-purple-600"
                             onClick={() => setConfirmSendSingle(budget)}
-                            disabled={sendToActualMutation.isPending}
-                            title="Enviar para Realizado"
                           >
-                            <Send className="w-4 h-4" />
+                            <Send className="w-3 h-3" />
                           </Button>
                         )}
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Qtd Diárias:</span>
-                        <span className="font-medium">{budget.qtdDiarias}</span>
+                    
+                    {/* Corpo do Card - Compacto */}
+                    <div className="p-3 space-y-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Diárias:</span>
+                          <span className="font-medium">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                        </div>
+                        <div className="flex justify-between text-blue-600 font-medium">
+                          <span>Subtotal:</span>
+                          <span>{formatCurrency(budget.subtotalDiarias)}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Valor Diária:</span>
-                        <span className="font-medium">{formatCurrency(budget.valorDiaria)}</span>
+                      
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded p-2 grid grid-cols-2 gap-1">
+                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade:</span><span>{formatCurrency(budget.mobilidade)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Alm. Sem:</span><span>{formatCurrency(budget.almocoSemana)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Jan. Sem:</span><span>{formatCurrency(budget.jantarSemana)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Alm. FDS:</span><span>{formatCurrency(budget.almocoFds)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Jan. FDS:</span><span>{formatCurrency(budget.jantarFds)}</span></div>
+                        <div className="flex justify-between text-orange-600 font-medium"><span>Ajuda:</span><span>{formatCurrency(budget.ajudaCusto)}</span></div>
                       </div>
-                      <div className="flex justify-between bg-blue-50 dark:bg-blue-950 p-1.5 rounded">
-                        <span className="text-blue-700 dark:text-blue-300">Subtotal Diárias:</span>
-                        <span className="font-medium text-blue-700 dark:text-blue-300">{formatCurrency(budget.subtotalDiarias)}</span>
-                      </div>
-                      <Separator className="my-1" />
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Mobilidade:</span>
-                        <span className="font-medium">{formatCurrency(budget.mobilidade)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Almoço Semana:</span>
-                        <span className="font-medium">{formatCurrency(budget.almocoSemana)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Jantar Semana:</span>
-                        <span className="font-medium">{formatCurrency(budget.jantarSemana)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Almoço FDS:</span>
-                        <span className="font-medium">{formatCurrency(budget.almocoFds)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Jantar FDS:</span>
-                        <span className="font-medium">{formatCurrency(budget.jantarFds)}</span>
-                      </div>
-                      <div className="flex justify-between bg-orange-50 dark:bg-orange-950 p-1.5 rounded">
-                        <span className="text-orange-700 dark:text-orange-300">Ajuda de Custo:</span>
-                        <span className="font-medium text-orange-700 dark:text-orange-300">{formatCurrency(budget.ajudaCusto)}</span>
-                      </div>
-                      <Separator className="my-1" />
-                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900 p-2 rounded">
-                        <span className="text-green-800 dark:text-green-200 font-bold">TOTAL:</span>
-                        <span className="text-lg font-bold text-green-700 dark:text-green-300">
-                          {formatCurrency(budget.totalFinal)}
-                        </span>
+                      
+                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded font-bold">
+                        <span className="text-green-800 dark:text-green-300">TOTAL</span>
+                        <span className="text-green-700 dark:text-green-300 text-sm">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {!selectedEventId && (
-        <Card className="border-dashed">
-          <CardContent className="p-12 text-center">
-            <Calendar className="w-12 h-12 mx-auto text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Selecione um evento</h3>
-            <p className="mt-2 text-gray-500">Escolha um evento acima para ver o orçamento das escalações confirmadas</p>
-          </CardContent>
-        </Card>
-      )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Modal de Edição - Melhorado */}
       <Dialog open={!!editingBudget} onOpenChange={() => setEditingBudget(null)}>
