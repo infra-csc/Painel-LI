@@ -47,12 +47,12 @@ interface CalculatedBudget {
 const FUNCTION_COLORS: Record<string, string> = {
   "coordenador": "border-l-4 border-l-purple-500",
   "supervisor": "border-l-4 border-l-blue-500",
-  "técnico": "border-l-4 border-l-green-500",
-  "tecnico": "border-l-4 border-l-green-500",
-  "auxiliar": "border-l-4 border-l-orange-500",
-  "produtor": "border-l-4 border-l-red-500",
-  "diretor": "border-l-4 border-l-pink-500",
-  "default": "border-l-4 border-l-gray-400",
+  "técnico": "border-l-4 border-l-emerald-500",
+  "tecnico": "border-l-4 border-l-emerald-500",
+  "auxiliar": "border-l-4 border-l-amber-500",
+  "produtor": "border-l-4 border-l-rose-500",
+  "diretor": "border-l-4 border-l-fuchsia-500",
+  "default": "border-l-4 border-l-slate-500",
 };
 
 export default function BudgetPlannedPage() {
