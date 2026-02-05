@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SidebarProvider } from "@/contexts/sidebar-context";
+import { ThemeProvider } from "@/contexts/theme-context";
 import MainLayout from "@/components/layout/main-layout";
 import Dashboard from "@/pages/dashboard";
 import Events from "@/pages/events";
@@ -117,14 +118,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SidebarProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </SidebarProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SidebarProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </SidebarProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

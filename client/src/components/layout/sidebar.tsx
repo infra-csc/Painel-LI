@@ -17,7 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Sun,
+  Moon
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -25,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
+import { useTheme } from "@/contexts/theme-context";
 import norteLogo from "@assets/image_1770316785096.png";
 
 const iconColors: Record<string, string> = {
@@ -61,6 +64,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const { isCollapsed, isCompact, toggleCollapsed, toggleCompact } = useSidebar();
+  const { theme, toggleTheme } = useTheme();
 
   const allTabs = [
     {
@@ -183,12 +187,12 @@ export default function Sidebar() {
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-all duration-300 flex flex-col shadow-lg",
+        "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 transition-all duration-300 flex flex-col shadow-lg",
         isCompact ? "w-20" : "w-64",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         isCollapsed && "lg:-translate-x-full"
       )}>
-        <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-2">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center gap-2">
           {!isCompact && (
             <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
               <img 
@@ -223,12 +227,12 @@ export default function Sidebar() {
             return (
               <div key={group.title} className={cn(groupIndex > 0 && "mt-4")}>
                 {!isCompact && (
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 mb-2">
                     {group.title}
                   </p>
                 )}
                 {isCompact && groupIndex > 0 && (
-                  <div className="border-t border-gray-200 my-2" />
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
                 )}
                 <ul className="space-y-1">
                   {groupTabs.map((tab) => {
@@ -249,8 +253,8 @@ export default function Sidebar() {
                             className={cn(
                               "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group",
                               isActive 
-                                ? "bg-blue-50 text-blue-700" 
-                                : "text-gray-700 hover:bg-gray-100 hover:translate-x-1",
+                                ? "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300" 
+                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:translate-x-1",
                               isCompact && "justify-center px-2"
                             )}
                             data-testid={`sidebar-${tab.id}`}
@@ -276,15 +280,24 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-gray-200">
-          <button
-            onClick={toggleCompact}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 mb-3 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition-all duration-200"
-            title={isCompact ? "Expandir menu" : "Modo compacto"}
-          >
-            {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
-            {!isCompact && <span>Compactar</span>}
-          </button>
+        <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={toggleCompact}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+              title={isCompact ? "Expandir menu" : "Modo compacto"}
+            >
+              {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
+              {!isCompact && <span>Compactar</span>}
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+              title={theme === "light" ? "Tema escuro" : "Tema claro"}
+            >
+              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
+          </div>
           
           <div className={cn(
             "flex items-center gap-3 mb-3 px-3",
@@ -299,15 +312,15 @@ export default function Sidebar() {
             </div>
             {!isCompact && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user?.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
             )}
           </div>
           <Button
             variant="outline"
             className={cn(
-              "w-full justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200",
+              "w-full justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950 transition-all duration-200",
               !isCompact && "justify-start"
             )}
             onClick={handleLogout}

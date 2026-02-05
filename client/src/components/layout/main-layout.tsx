@@ -10,7 +10,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { isCollapsed, isCompact } = useSidebar();
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar />
       <main className={cn(
         "min-h-screen transition-all duration-300",
