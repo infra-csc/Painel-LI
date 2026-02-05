@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, MapPin, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun } from "lucide-react";
+import { Calculator, Users, Calendar, MapPin, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -43,6 +44,17 @@ interface CalculatedBudget {
   hasOverride: boolean;
 }
 
+const FUNCTION_COLORS: Record<string, string> = {
+  "coordenador": "border-l-4 border-l-purple-500",
+  "supervisor": "border-l-4 border-l-blue-500",
+  "técnico": "border-l-4 border-l-green-500",
+  "tecnico": "border-l-4 border-l-green-500",
+  "auxiliar": "border-l-4 border-l-orange-500",
+  "produtor": "border-l-4 border-l-red-500",
+  "diretor": "border-l-4 border-l-pink-500",
+  "default": "border-l-4 border-l-gray-400",
+};
+
 export default function BudgetPlannedPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
@@ -51,6 +63,10 @@ export default function BudgetPlannedPage() {
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [confirmSendSingle, setConfirmSendSingle] = useState<CalculatedBudget | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterFunction, setFilterFunction] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("name");
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -183,6 +199,83 @@ export default function BudgetPlannedPage() {
   const totalGeral = useMemo(() => {
     return calculatedBudgets.reduce((sum, b) => sum + b.totalFinal, 0);
   }, [calculatedBudgets]);
+
+  // Estatísticas de resumo
+  const stats = useMemo(() => {
+    const total = calculatedBudgets.length;
+    const totalCasa = calculatedBudgets.filter(b => b.collaborator?.type === 'casa').length;
+    const totalFreela = calculatedBudgets.filter(b => b.collaborator?.type === 'freela' || !b.collaborator?.type).length;
+    const valorCasa = calculatedBudgets.filter(b => b.collaborator?.type === 'casa').reduce((sum, b) => sum + b.totalFinal, 0);
+    const valorFreela = calculatedBudgets.filter(b => b.collaborator?.type === 'freela' || !b.collaborator?.type).reduce((sum, b) => sum + b.totalFinal, 0);
+    const media = total > 0 ? totalGeral / total : 0;
+    const enviados = calculatedBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
+    const progressoEnvio = total > 0 ? (enviados / total) * 100 : 0;
+    
+    return { total, totalCasa, totalFreela, valorCasa, valorFreela, media, enviados, progressoEnvio };
+  }, [calculatedBudgets, totalGeral, sentToActual]);
+
+  // Funções únicas para filtro
+  const uniqueFunctions = useMemo(() => {
+    const funcs = new Set<string>();
+    calculatedBudgets.forEach(b => {
+      if (b.inclusion.functionId) {
+        const fname = getFunctionName(b.inclusion.functionId);
+        if (fname !== '-') funcs.add(fname);
+      }
+    });
+    return Array.from(funcs).sort();
+  }, [calculatedBudgets, functions]);
+
+  // Filtrar e ordenar budgets
+  const filteredBudgets = useMemo(() => {
+    let result = [...calculatedBudgets];
+    
+    // Filtro por busca
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(b => 
+        getCollaboratorName(b.inclusion.collaboratorId).toLowerCase().includes(term)
+      );
+    }
+    
+    // Filtro por função
+    if (filterFunction !== 'all') {
+      result = result.filter(b => 
+        getFunctionName(b.inclusion.functionId) === filterFunction
+      );
+    }
+    
+    // Filtro por tipo
+    if (filterType !== 'all') {
+      result = result.filter(b => 
+        (filterType === 'casa' && b.collaborator?.type === 'casa') ||
+        (filterType === 'freela' && (b.collaborator?.type === 'freela' || !b.collaborator?.type))
+      );
+    }
+    
+    // Ordenação
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return getCollaboratorName(a.inclusion.collaboratorId).localeCompare(getCollaboratorName(b.inclusion.collaboratorId));
+        case 'value':
+          return b.totalFinal - a.totalFinal;
+        case 'function':
+          return getFunctionName(a.inclusion.functionId).localeCompare(getFunctionName(b.inclusion.functionId));
+        default:
+          return 0;
+      }
+    });
+    
+    return result;
+  }, [calculatedBudgets, searchTerm, filterFunction, filterType, sortBy]);
+
+  // Obter cor da função
+  const getFunctionColor = (functionId: string | null) => {
+    if (!functionId) return FUNCTION_COLORS.default;
+    const fname = getFunctionName(functionId).toLowerCase();
+    return FUNCTION_COLORS[fname] || FUNCTION_COLORS.default;
+  };
 
   const openEditModal = (budget: typeof calculatedBudgets[0]) => {
     setEditingBudget({
@@ -330,37 +423,116 @@ export default function BudgetPlannedPage() {
           </div>
         ) : (
           <>
-            {/* Resumo do Evento */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-4 mb-6">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">{selectedEvent?.name}</span>
-                    <span className="text-gray-500 ml-2 text-sm">{selectedEvent?.location}</span>
-                  </div>
+            {/* Cards de Resumo */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Total Geral
+                </div>
+                <div className="text-xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                  <Users className="w-3.5 h-3.5" />
+                  Colaboradores
+                </div>
+                <div className="text-xl font-bold text-blue-600">{stats.total}</div>
+                <div className="text-xs text-gray-500">Média: {formatCurrency(stats.media)}</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                  <Home className="w-3.5 h-3.5" />
+                  Casa
+                </div>
+                <div className="text-xl font-bold text-blue-600">{stats.totalCasa}</div>
+                <div className="text-xs text-gray-500">{formatCurrency(stats.valorCasa)}</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Freela
+                </div>
+                <div className="text-xl font-bold text-purple-600">{stats.totalFreela}</div>
+                <div className="text-xs text-gray-500">{formatCurrency(stats.valorFreela)}</div>
+              </div>
+            </div>
+
+            {/* Barra de Progresso de Envio */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Progresso de Envio para Realizado</span>
+                </div>
+                <span className="text-sm font-medium">{stats.enviados} de {stats.total}</span>
+              </div>
+              <Progress value={stats.progressoEnvio} className="h-2" />
+            </div>
+
+            {/* Filtros e Busca */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm mb-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Busca */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input 
+                    placeholder="Buscar por nome..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9"
+                  />
                 </div>
                 
-                <div className="flex items-center gap-6">
-                  <div className="text-center px-4 border-r">
-                    <div className="text-2xl font-bold text-blue-600">{calculatedBudgets.length}</div>
-                    <div className="text-xs text-gray-500 uppercase">Confirmados</div>
-                  </div>
-                  <div className="text-center px-4">
-                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
-                    <div className="text-xs text-gray-500 uppercase">Total</div>
-                  </div>
-                  
-                  {pendingCount > 0 && (
-                    <div className="flex items-center gap-2 pl-4 border-l">
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={selectedCards.size > 0 ? clearSelection : selectAllCards}
-                      >
-                        {selectedCards.size > 0 ? "Limpar" : "Selecionar Todos"}
-                      </Button>
-                      {selectedCards.size > 0 && (
+                {/* Filtro Função */}
+                <Select value={filterFunction} onValueChange={setFilterFunction}>
+                  <SelectTrigger className="w-40 h-9">
+                    <SelectValue placeholder="Função" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Funções</SelectItem>
+                    {uniqueFunctions.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Filtro Tipo */}
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-32 h-9">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="casa">Casa</SelectItem>
+                    <SelectItem value="freela">Freela</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* Ordenação */}
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-36 h-9">
+                    <ArrowUpDown className="w-3.5 h-3.5 mr-1" />
+                    <SelectValue placeholder="Ordenar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Por Nome</SelectItem>
+                    <SelectItem value="value">Por Valor</SelectItem>
+                    <SelectItem value="function">Por Função</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Ações em Lote */}
+                {pendingCount > 0 && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={selectedCards.size > 0 ? clearSelection : selectAllCards}
+                    >
+                      {selectedCards.size > 0 ? "Limpar" : "Selecionar Todos"}
+                    </Button>
+                    {selectedCards.size > 0 && (
                         <Button 
                           size="sm"
                           onClick={() => setConfirmSendOpen(true)}
@@ -371,9 +543,8 @@ export default function BudgetPlannedPage() {
                           Enviar ({selectedCards.size})
                         </Button>
                       )}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -382,18 +553,22 @@ export default function BudgetPlannedPage() {
               <div className="flex items-center justify-center py-20">
                 <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
               </div>
-            ) : calculatedBudgets.length === 0 ? (
+            ) : filteredBudgets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <Users className="w-16 h-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Nenhuma escalação confirmada</h3>
-                <p className="text-gray-500 mt-1">Apenas escalações com status confirmado aparecem aqui</p>
+                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                  {calculatedBudgets.length === 0 ? 'Nenhuma escalação confirmada' : 'Nenhum resultado encontrado'}
+                </h3>
+                <p className="text-gray-500 mt-1">
+                  {calculatedBudgets.length === 0 ? 'Apenas escalações com status confirmado aparecem aqui' : 'Tente ajustar os filtros de busca'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {calculatedBudgets.map((budget) => (
+                {filteredBudgets.map((budget) => (
                   <div 
                     key={budget.inclusion.id} 
-                    className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm hover:shadow-md transition-all ${
+                    className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all ${getFunctionColor(budget.inclusion.functionId)} ${
                       selectedCards.has(budget.inclusion.id) 
                         ? 'ring-2 ring-purple-500 border-purple-400' 
                         : sentToActual.has(budget.inclusion.id)
