@@ -1860,6 +1860,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Gerar valores padrão para funções sem configuração
+  app.post("/api/function-values/generate-defaults", async (req, res) => {
+    try {
+      const functions = await storage.getFunctions();
+      const existingValues = await storage.getAllFunctionValues();
+      const existingFunctionIds = new Set(existingValues.map(v => v.functionId));
+      
+      const defaultValues: Record<string, { dailyValue: number; costAssistance: number; mobility: number }> = {
+        'coordenador': { dailyValue: 50000, costAssistance: 15000, mobility: 5000 },
+        'supervisor': { dailyValue: 40000, costAssistance: 12000, mobility: 4000 },
+        'lider': { dailyValue: 35000, costAssistance: 10000, mobility: 3500 },
+        'tecnico': { dailyValue: 30000, costAssistance: 8000, mobility: 3000 },
+        'operador': { dailyValue: 25000, costAssistance: 7000, mobility: 2500 },
+        'auxiliar': { dailyValue: 20000, costAssistance: 6000, mobility: 2000 },
+        'motorista': { dailyValue: 22000, costAssistance: 8000, mobility: 0 },
+        'default': { dailyValue: 25000, costAssistance: 7000, mobility: 2500 }
+      };
+      
+      const created = [];
+      for (const func of functions) {
+        if (!existingFunctionIds.has(func.id)) {
+          const funcNameLower = func.name.toLowerCase();
+          let values = defaultValues['default'];
+          
+          for (const [key, val] of Object.entries(defaultValues)) {
+            if (funcNameLower.includes(key)) {
+              values = val;
+              break;
+            }
+          }
+          
+          const newValue = await storage.createFunctionValue({
+            functionId: func.id,
+            dailyValue: values.dailyValue,
+            costAssistance: values.costAssistance,
+            weekdayLunch: 3500,
+            weekdayDinner: 4000,
+            weekendLunch: 4000,
+            weekendDinner: 4500,
+            mobility: values.mobility,
+            transport: 0,
+          });
+          created.push(newValue);
+        }
+      }
+      
+      res.json({ created: created.length, values: created });
+    } catch (error) {
+      console.error("Error generating default values:", error);
+      res.status(500).json({ message: "Erro ao gerar valores padrão" });
+    }
+  });
+
   // Budget Planned (Planejado)
   app.get("/api/budget-planned", async (req, res) => {
     try {

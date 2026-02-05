@@ -1,22 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Calculator, Plus, Edit, Trash2, FileText, DollarSign } from "lucide-react";
-import type { Event, Function, Collaborator, BudgetPlanned, FunctionValue } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { Calculator, DollarSign, Users, Calendar, MapPin, RefreshCw, CheckCircle2, Settings2 } from "lucide-react";
+import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetPlanned } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function BudgetPlannedPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<BudgetPlanned | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const { toast } = useToast();
   const { user } = useAuth();
@@ -26,7 +21,19 @@ export default function BudgetPlannedPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
-  const { data: budgetPlanned, isLoading, error: budgetPlannedError } = useQuery<BudgetPlanned[]>({
+  
+  const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions", selectedEventId],
+    queryFn: async () => {
+      const url = selectedEventId ? `/api/team-inclusions?eventId=${selectedEventId}` : "/api/team-inclusions";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch team inclusions");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
     queryFn: async () => {
       const url = selectedEventId ? `/api/budget-planned?eventId=${selectedEventId}` : "/api/budget-planned";
@@ -34,198 +41,94 @@ export default function BudgetPlannedPage() {
       if (!res.ok) throw new Error("Failed to fetch budget planned");
       return res.json();
     },
+    enabled: !!selectedEventId,
   });
 
-  const [formData, setFormData] = useState({
-    eventId: "",
-    collaboratorId: "",
-    functionId: "",
-    collaboratorType: "freela",
-    dailyQuantity: 0,
-    dailyValue: 0,
-    costAssistance: 0,
-    weekdayLunch: 0,
-    weekdayDinner: 0,
-    weekendLunch: 0,
-    weekendDinner: 0,
-    mobility: 0,
-    transport: 0,
-    observations: "",
-  });
-
-  const calculateTotal = () => {
-    const dailyTotal = formData.dailyQuantity * formData.dailyValue;
-    return dailyTotal + formData.costAssistance + formData.weekdayLunch + formData.weekdayDinner + 
-           formData.weekendLunch + formData.weekendDinner + formData.mobility + formData.transport;
-  };
-
-  const applyFunctionValues = (functionId: string) => {
-    const fv = functionValues?.find(v => v.functionId === functionId);
-    if (fv) {
-      setFormData(prev => ({
-        ...prev,
-        functionId,
-        dailyValue: fv.dailyValue,
-        costAssistance: fv.costAssistance,
-        weekdayLunch: fv.weekdayLunch,
-        weekdayDinner: fv.weekdayDinner,
-        weekendLunch: fv.weekendLunch,
-        weekendDinner: fv.weekendDinner,
-        mobility: fv.mobility,
-        transport: fv.transport,
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, functionId }));
-    }
-  };
-
-  const applyCollaboratorType = (collaboratorId: string) => {
-    const collab = collaborators?.find(c => c.id === collaboratorId);
-    if (collab) {
-      setFormData(prev => ({
-        ...prev,
-        collaboratorId,
-        collaboratorType: collab.type,
-      }));
-    }
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/budget-planned", {
-        ...data,
-        totalValue: calculateTotal(),
-        createdBy: user?.id,
-      });
+  const generateDefaultsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/function-values/generate-defaults", {});
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Sucesso", description: "Planejamento criado com sucesso" });
-      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
-      setIsModalOpen(false);
-      resetForm();
+    onSuccess: (data) => {
+      toast({ title: "Sucesso", description: `${data.created} valores padrão criados` });
+      qc.invalidateQueries({ queryKey: ["/api/function-values"] });
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao criar planejamento", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao gerar valores padrão", variant: "destructive" });
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const res = await apiRequest("PATCH", `/api/budget-planned/${id}`, {
-        ...data,
-        totalValue: calculateTotal(),
-        updatedBy: user?.id,
-      });
-      return res.json();
+  const generateBudgetMutation = useMutation({
+    mutationFn: async () => {
+      if (!teamInclusions || !functionValues) throw new Error("Dados não carregados");
+      
+      const created = [];
+      for (const inclusion of teamInclusions) {
+        const existing = budgetPlanned?.find(
+          bp => bp.eventId === inclusion.eventId && 
+                bp.collaboratorId === inclusion.collaboratorId &&
+                bp.functionId === inclusion.functionId
+        );
+        
+        if (!existing) {
+          const fv = functionValues.find(v => v.functionId === inclusion.functionId);
+          const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
+          const collabType = collab?.type || "freela";
+          
+          const dailyQty = inclusion.dailyRates || 0;
+          const dailyValue = fv?.dailyValue || 25000;
+          const costAssistance = fv?.costAssistance || 7000;
+          const mobility = fv?.mobility || 2500;
+          
+          let weekdayLunch = 0, weekdayDinner = 0, weekendLunch = 0, weekendDinner = 0;
+          if (collabType === "freela") {
+            weekdayLunch = (fv?.weekdayLunch || 3500) * dailyQty;
+            weekdayDinner = (fv?.weekdayDinner || 4000) * dailyQty;
+          }
+          weekendLunch = (fv?.weekendLunch || 4000) * Math.ceil(dailyQty / 5);
+          weekendDinner = (fv?.weekendDinner || 4500) * Math.ceil(dailyQty / 5);
+          
+          const totalValue = (dailyQty * dailyValue) + costAssistance + weekdayLunch + weekdayDinner + weekendLunch + weekendDinner + mobility;
+          
+          const res = await apiRequest("POST", "/api/budget-planned", {
+            eventId: inclusion.eventId,
+            collaboratorId: inclusion.collaboratorId,
+            functionId: inclusion.functionId,
+            collaboratorType: collabType,
+            dailyQuantity: dailyQty,
+            dailyValue: dailyValue,
+            costAssistance: costAssistance,
+            weekdayLunch: weekdayLunch,
+            weekdayDinner: weekdayDinner,
+            weekendLunch: weekendLunch,
+            weekendDinner: weekendDinner,
+            mobility: mobility,
+            transport: 0,
+            totalValue: totalValue,
+            observations: `Gerado automaticamente da escalação #${inclusion.inclusionNumber}`,
+            createdBy: user?.id,
+          });
+          created.push(await res.json());
+        }
+      }
+      return { created: created.length };
     },
-    onSuccess: () => {
-      toast({ title: "Sucesso", description: "Planejamento atualizado com sucesso" });
+    onSuccess: (data) => {
+      toast({ title: "Sucesso", description: `${data.created} itens de orçamento criados` });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
-      setIsModalOpen(false);
-      resetForm();
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao atualizar planejamento", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao gerar orçamento", variant: "destructive" });
     },
   });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/budget-planned/${id}`);
-    },
-    onSuccess: () => {
-      toast({ title: "Sucesso", description: "Planejamento excluído com sucesso" });
-      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao excluir planejamento", variant: "destructive" });
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      eventId: selectedEventId || "",
-      collaboratorId: "",
-      functionId: "",
-      collaboratorType: "freela",
-      dailyQuantity: 0,
-      dailyValue: 0,
-      costAssistance: 0,
-      weekdayLunch: 0,
-      weekdayDinner: 0,
-      weekendLunch: 0,
-      weekendDinner: 0,
-      mobility: 0,
-      transport: 0,
-      observations: "",
-    });
-    setEditingItem(null);
-  };
-
-  const openCreateModal = () => {
-    resetForm();
-    setFormData(prev => ({ ...prev, eventId: selectedEventId }));
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (item: BudgetPlanned) => {
-    setEditingItem(item);
-    setFormData({
-      eventId: item.eventId,
-      collaboratorId: item.collaboratorId || "",
-      functionId: item.functionId || "",
-      collaboratorType: item.collaboratorType || "freela",
-      dailyQuantity: item.dailyQuantity,
-      dailyValue: item.dailyValue,
-      costAssistance: item.costAssistance,
-      weekdayLunch: item.weekdayLunch,
-      weekdayDinner: item.weekdayDinner,
-      weekendLunch: item.weekendLunch,
-      weekendDinner: item.weekendDinner,
-      mobility: item.mobility,
-      transport: item.transport,
-      observations: item.observations || "",
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleSubmit = () => {
-    if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
-    }
-  };
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
   };
 
-  const groupedByEvent = useMemo(() => {
-    if (!budgetPlanned || !events) return [];
-    
-    const grouped: Record<string, { event: Event; items: BudgetPlanned[]; total: number }> = {};
-    
-    budgetPlanned.forEach(item => {
-      if (!grouped[item.eventId]) {
-        const event = events.find(e => e.id === item.eventId);
-        if (event) {
-          grouped[item.eventId] = { event, items: [], total: 0 };
-        }
-      }
-      if (grouped[item.eventId]) {
-        grouped[item.eventId].items.push(item);
-        grouped[item.eventId].total += item.totalValue;
-      }
-    });
-    
-    return Object.values(grouped);
-  }, [budgetPlanned, events]);
-
   const getCollaboratorName = (id?: string | null) => {
-    if (!id) return "-";
-    return collaborators?.find(c => c.id === id)?.fullName || "-";
+    if (!id) return "Não definido";
+    return collaborators?.find(c => c.id === id)?.fullName || "Não definido";
   };
 
   const getFunctionName = (id?: string | null) => {
@@ -233,36 +136,67 @@ export default function BudgetPlannedPage() {
     return functions?.find(f => f.id === id)?.name || "-";
   };
 
+  const getFunctionValue = (functionId: string | null) => {
+    if (!functionId) return null;
+    return functionValues?.find(fv => fv.functionId === functionId);
+  };
+
+  const selectedEvent = events?.find(e => e.id === selectedEventId);
+  
+  const totalPlanned = useMemo(() => {
+    return budgetPlanned?.reduce((sum, bp) => sum + bp.totalValue, 0) || 0;
+  }, [budgetPlanned]);
+
+  const inclusionsWithBudget = useMemo(() => {
+    if (!teamInclusions) return [];
+    return teamInclusions.map(inc => {
+      const budget = budgetPlanned?.find(
+        bp => bp.eventId === inc.eventId && 
+              bp.collaboratorId === inc.collaboratorId &&
+              bp.functionId === inc.functionId
+      );
+      return { inclusion: inc, budget };
+    });
+  }, [teamInclusions, budgetPlanned]);
+
+  const hasAllBudgets = inclusionsWithBudget.every(item => item.budget);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Planejado</h1>
-          <p className="text-gray-500 dark:text-gray-400">Orçamento previsto por evento</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Baseado nas escalações da inclusão de equipe</p>
         </div>
-        <Button onClick={openCreateModal} disabled={!selectedEventId}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Planejamento
+        <Button 
+          variant="outline" 
+          onClick={() => generateDefaultsMutation.mutate()}
+          disabled={generateDefaultsMutation.isPending}
+        >
+          <Settings2 className="w-4 h-4 mr-2" />
+          Configurar Valores Padrão
         </Button>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Filtrar por Evento
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            Selecione o Evento
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="w-full md:w-80">
-              <SelectValue placeholder="Selecione um evento" />
+            <SelectTrigger className="w-full md:w-96">
+              <SelectValue placeholder="Escolha um evento para ver as escalações" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os eventos</SelectItem>
               {events?.map(event => (
                 <SelectItem key={event.id} value={event.id}>
-                  {event.name}
+                  <div className="flex items-center gap-2">
+                    <span>{event.name}</span>
+                    <span className="text-xs text-gray-500">- {event.location}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -270,212 +204,143 @@ export default function BudgetPlannedPage() {
         </CardContent>
       </Card>
 
-      {isLoading ? (
-        <div className="text-center py-8">Carregando...</div>
-      ) : budgetPlannedError ? (
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950">
-          <CardContent className="p-6 text-center text-red-600">
-            Erro ao carregar dados. Por favor, tente novamente.
-          </CardContent>
-        </Card>
-      ) : (
-        groupedByEvent.map(({ event, items, total }) => (
-          <Card key={event.id}>
-            <CardHeader className="bg-blue-50 dark:bg-blue-950">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-blue-600" />
-                  {event.name}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(total)}</span>
+      {selectedEventId && selectedEvent && (
+        <>
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-600 text-white p-3 rounded-lg">
+                    <Calculator className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{selectedEvent.name}</h2>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <MapPin className="w-4 h-4" />
+                      {selectedEvent.location}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <div className="text-sm text-gray-500">Escalações</div>
+                    <div className="text-2xl font-bold text-blue-600">{teamInclusions?.length || 0}</div>
+                  </div>
+                  <Separator orientation="vertical" className="h-12" />
+                  <div className="text-center">
+                    <div className="text-sm text-gray-500">Total Planejado</div>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(totalPlanned)}</div>
+                  </div>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Diárias</TableHead>
-                    <TableHead className="text-right">Valor Diária</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell>{getCollaboratorName(item.collaboratorId)}</TableCell>
-                      <TableCell>{getFunctionName(item.functionId)}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs ${item.collaboratorType === 'casa' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {item.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">{item.dailyQuantity}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.dailyValue)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(item.totalValue)}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          item.status === 'aprovado_rh' ? 'bg-green-100 text-green-800' :
-                          item.status === 'rejeitado_rh' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.status === 'aprovado_rh' ? 'Aprovado' : item.status === 'rejeitado_rh' ? 'Rejeitado' : 'Pendente'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => openEditModal(item)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(item.id)}>
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
             </CardContent>
           </Card>
-        ))
+
+          {!hasAllBudgets && teamInclusions && teamInclusions.length > 0 && (
+            <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-orange-600" />
+                  <span className="text-orange-800 dark:text-orange-200">
+                    Existem {inclusionsWithBudget.filter(i => !i.budget).length} escalações sem orçamento calculado
+                  </span>
+                </div>
+                <Button 
+                  onClick={() => generateBudgetMutation.mutate()}
+                  disabled={generateBudgetMutation.isPending}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  <Calculator className="w-4 h-4 mr-2" />
+                  Gerar Orçamento Automático
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {isLoadingInclusions ? (
+            <div className="text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
+              <p className="mt-2 text-gray-500">Carregando escalações...</p>
+            </div>
+          ) : teamInclusions && teamInclusions.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center">
+                <Users className="w-12 h-12 mx-auto text-gray-300" />
+                <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Nenhuma escalação encontrada</h3>
+                <p className="mt-2 text-gray-500">Adicione colaboradores na tela de Inclusão de Equipe primeiro</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {inclusionsWithBudget.map(({ inclusion, budget }) => {
+                const fv = getFunctionValue(inclusion.functionId);
+                const dailyValue = fv?.dailyValue || 25000;
+                const estimatedTotal = budget?.totalValue || ((inclusion.dailyRates || 0) * dailyValue + (fv?.costAssistance || 0));
+                
+                return (
+                  <Card 
+                    key={inclusion.id} 
+                    className={`transition-all hover:shadow-md ${budget ? 'border-green-200 bg-green-50/50 dark:bg-green-950/30' : 'border-gray-200'}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-base font-semibold">
+                            {getCollaboratorName(inclusion.collaboratorId)}
+                          </CardTitle>
+                          <CardDescription className="flex items-center gap-1 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {getFunctionName(inclusion.functionId)}
+                            </Badge>
+                          </CardDescription>
+                        </div>
+                        {budget && (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-2">
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Diárias:</span>
+                          <span className="font-medium">{inclusion.dailyRates || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Valor/dia:</span>
+                          <span className="font-medium">{formatCurrency(dailyValue)}</span>
+                        </div>
+                        {fv && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Ajuda de custo:</span>
+                            <span className="font-medium">{formatCurrency(fv.costAssistance)}</span>
+                          </div>
+                        )}
+                        <Separator className="my-2" />
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 dark:text-gray-300 font-medium">Total:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(estimatedTotal)}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingItem ? "Editar Planejamento" : "Novo Planejamento"}</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Evento</Label>
-              <Select value={formData.eventId} onValueChange={v => setFormData(p => ({ ...p, eventId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {events?.map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Colaborador</Label>
-              <Select value={formData.collaboratorId} onValueChange={applyCollaboratorType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {collaborators?.filter(c => c.status === 'aprovado').map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Função</Label>
-              <Select value={formData.functionId} onValueChange={applyFunctionValues}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione (aplica valores automáticos)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {functions?.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={formData.collaboratorType} onValueChange={v => setFormData(p => ({ ...p, collaboratorType: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="casa">Casa (só fds)</SelectItem>
-                  <SelectItem value="freela">Freela (todos os dias)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Quantidade de Diárias</Label>
-              <Input type="number" value={formData.dailyQuantity} onChange={e => setFormData(p => ({ ...p, dailyQuantity: parseInt(e.target.value) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Valor da Diária (R$)</Label>
-              <Input type="number" step="0.01" value={formData.dailyValue / 100} onChange={e => setFormData(p => ({ ...p, dailyValue: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ajuda de Custo (R$)</Label>
-              <Input type="number" step="0.01" value={formData.costAssistance / 100} onChange={e => setFormData(p => ({ ...p, costAssistance: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Mobilidade (R$)</Label>
-              <Input type="number" step="0.01" value={formData.mobility / 100} onChange={e => setFormData(p => ({ ...p, mobility: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Translado (R$)</Label>
-              <Input type="number" step="0.01" value={formData.transport / 100} onChange={e => setFormData(p => ({ ...p, transport: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Almoço Semana (R$)</Label>
-              <Input type="number" step="0.01" value={formData.weekdayLunch / 100} onChange={e => setFormData(p => ({ ...p, weekdayLunch: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Jantar Semana (R$)</Label>
-              <Input type="number" step="0.01" value={formData.weekdayDinner / 100} onChange={e => setFormData(p => ({ ...p, weekdayDinner: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Almoço FDS (R$)</Label>
-              <Input type="number" step="0.01" value={formData.weekendLunch / 100} onChange={e => setFormData(p => ({ ...p, weekendLunch: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Jantar FDS (R$)</Label>
-              <Input type="number" step="0.01" value={formData.weekendDinner / 100} onChange={e => setFormData(p => ({ ...p, weekendDinner: Math.round(parseFloat(e.target.value) * 100) || 0 }))} />
-            </div>
-
-            <div className="col-span-2 space-y-2">
-              <Label>Observações</Label>
-              <Textarea value={formData.observations} onChange={e => setFormData(p => ({ ...p, observations: e.target.value }))} />
-            </div>
-          </div>
-
-          <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">Total Calculado:</span>
-              <span className="text-xl font-bold text-green-600">{formatCurrency(calculateTotal())}</span>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
-              {editingItem ? "Atualizar" : "Criar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {!selectedEventId && (
+        <Card className="border-dashed">
+          <CardContent className="p-12 text-center">
+            <Calendar className="w-12 h-12 mx-auto text-gray-300" />
+            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Selecione um evento</h3>
+            <p className="mt-2 text-gray-500">Escolha um evento acima para ver as escalações e calcular o orçamento</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
