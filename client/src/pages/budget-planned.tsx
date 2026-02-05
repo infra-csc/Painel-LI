@@ -313,6 +313,10 @@ export default function BudgetPlannedPage() {
                           <span className="text-gray-500">Ajuda de Custo:</span>
                           <span className="font-medium">{formatCurrency(budget?.costAssistance || fv?.costAssistance || 0)}</span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Mobilidade:</span>
+                          <span className="font-medium">{formatCurrency(budget?.mobility || fv?.mobility || 0)}</span>
+                        </div>
                         <Separator className="my-1" />
                         <div className="flex justify-between">
                           <span className="text-gray-500">Almoço Semana:</span>
