@@ -181,7 +181,12 @@ export default function Sidebar() {
                 <li key={tab.id}>
                   <Link href={tab.path}>
                     <button
-                      onClick={() => setIsOpen(false)}
+                      onClick={() => {
+                        setIsOpen(false);
+                        if (isActive) {
+                          toggleCollapsed();
+                        }
+                      }}
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                         isActive 
