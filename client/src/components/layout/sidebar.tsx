@@ -139,7 +139,7 @@ export default function Sidebar() {
 
       {isCollapsed && (
         <button
-          className="hidden lg:flex fixed top-4 left-4 z-50 p-3 bg-blue-600 rounded-full shadow-lg items-center justify-center hover:bg-blue-700 transition-all hover:scale-105"
+          className="hidden lg:flex fixed bottom-6 left-6 z-50 p-3 bg-blue-600 rounded-full shadow-lg items-center justify-center hover:bg-blue-700 transition-all hover:scale-105"
           onClick={toggleCollapsed}
           title="Expandir menu"
         >
