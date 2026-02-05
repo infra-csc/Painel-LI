@@ -497,35 +497,35 @@ export default function BudgetPlannedPage() {
           <>
             {/* Cards de Resumo */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border-l-4 border-l-green-500 border p-4 shadow-sm">
                 <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                  <DollarSign className="w-3.5 h-3.5" />
+                  <DollarSign className="w-4 h-4 text-green-500" />
                   Total Geral
                 </div>
-                <div className="text-xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
+                <div className="text-2xl font-bold text-green-600">{formatCurrency(totalGeral)}</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border-l-4 border-l-blue-500 border p-4 shadow-sm">
                 <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-4 h-4 text-blue-500" />
                   Colaboradores
                 </div>
-                <div className="text-xl font-bold text-blue-600">{stats.total}</div>
+                <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
                 <div className="text-xs text-gray-500">Média: {formatCurrency(stats.media)}</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border-l-4 border-l-indigo-500 border p-4 shadow-sm">
                 <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                  <Home className="w-3.5 h-3.5" />
+                  <Home className="w-4 h-4 text-indigo-500" />
                   Casa
                 </div>
-                <div className="text-xl font-bold text-blue-600">{stats.totalCasa}</div>
+                <div className="text-2xl font-bold text-indigo-600">{stats.totalCasa}</div>
                 <div className="text-xs text-gray-500">{formatCurrency(stats.valorCasa)}</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border-l-4 border-l-orange-500 border p-4 shadow-sm">
                 <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
-                  <UserCheck className="w-3.5 h-3.5" />
+                  <UserCheck className="w-4 h-4 text-orange-500" />
                   Freela
                 </div>
-                <div className="text-xl font-bold text-purple-600">{stats.totalFreela}</div>
+                <div className="text-2xl font-bold text-orange-600">{stats.totalFreela}</div>
                 <div className="text-xs text-gray-500">{formatCurrency(stats.valorFreela)}</div>
               </div>
             </div>
