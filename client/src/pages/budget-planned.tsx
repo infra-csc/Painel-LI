@@ -300,48 +300,69 @@ export default function BudgetPlannedPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-2">
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Qtd Diárias:</span>
-                          <span className="font-medium">{budget?.dailyQuantity || inclusion.dailyRates || 0}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Valor Diária:</span>
-                          <span className="font-medium">{formatCurrency(budget?.dailyValue || dailyValue)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Ajuda de Custo:</span>
-                          <span className="font-medium">{formatCurrency(budget?.costAssistance || fv?.costAssistance || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Mobilidade:</span>
-                          <span className="font-medium">{formatCurrency(budget?.mobility || fv?.mobility || 0)}</span>
-                        </div>
-                        <Separator className="my-1" />
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Almoço Semana:</span>
-                          <span className="font-medium">{formatCurrency(budget?.weekdayLunch || fv?.weekdayLunch || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Jantar Semana:</span>
-                          <span className="font-medium">{formatCurrency(budget?.weekdayDinner || fv?.weekdayDinner || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Almoço FDS:</span>
-                          <span className="font-medium">{formatCurrency(budget?.weekendLunch || fv?.weekendLunch || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Jantar FDS:</span>
-                          <span className="font-medium">{formatCurrency(budget?.weekendDinner || fv?.weekendDinner || 0)}</span>
-                        </div>
-                        <Separator className="my-1" />
-                        <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded">
-                          <span className="text-gray-700 dark:text-gray-300 font-medium">Total:</span>
-                          <span className="text-lg font-bold text-green-600">
-                            {formatCurrency(budget?.totalValue || estimatedTotal)}
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const qtdDiarias = budget?.dailyQuantity || inclusion.dailyRates || 0;
+                        const valorDiaria = budget?.dailyValue || dailyValue;
+                        const subtotalDiarias = qtdDiarias * valorDiaria;
+                        
+                        const mobilidade = budget?.mobility || fv?.mobility || 0;
+                        const almocoSemana = budget?.weekdayLunch || fv?.weekdayLunch || 0;
+                        const jantarSemana = budget?.weekdayDinner || fv?.weekdayDinner || 0;
+                        const almocoFds = budget?.weekendLunch || fv?.weekendLunch || 0;
+                        const jantarFds = budget?.weekendDinner || fv?.weekendDinner || 0;
+                        
+                        const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
+                        const totalFinal = subtotalDiarias + ajudaCusto;
+                        
+                        return (
+                          <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Qtd Diárias:</span>
+                              <span className="font-medium">{qtdDiarias}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Valor Diária:</span>
+                              <span className="font-medium">{formatCurrency(valorDiaria)}</span>
+                            </div>
+                            <div className="flex justify-between bg-blue-50 dark:bg-blue-950 p-1.5 rounded">
+                              <span className="text-blue-700 dark:text-blue-300">Subtotal Diárias:</span>
+                              <span className="font-medium text-blue-700 dark:text-blue-300">{formatCurrency(subtotalDiarias)}</span>
+                            </div>
+                            <Separator className="my-1" />
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Mobilidade:</span>
+                              <span className="font-medium">{formatCurrency(mobilidade)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Almoço Semana:</span>
+                              <span className="font-medium">{formatCurrency(almocoSemana)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Jantar Semana:</span>
+                              <span className="font-medium">{formatCurrency(jantarSemana)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Almoço FDS:</span>
+                              <span className="font-medium">{formatCurrency(almocoFds)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Jantar FDS:</span>
+                              <span className="font-medium">{formatCurrency(jantarFds)}</span>
+                            </div>
+                            <div className="flex justify-between bg-orange-50 dark:bg-orange-950 p-1.5 rounded">
+                              <span className="text-orange-700 dark:text-orange-300">Ajuda de Custo:</span>
+                              <span className="font-medium text-orange-700 dark:text-orange-300">{formatCurrency(ajudaCusto)}</span>
+                            </div>
+                            <Separator className="my-1" />
+                            <div className="flex justify-between items-center bg-green-100 dark:bg-green-900 p-2 rounded">
+                              <span className="text-green-800 dark:text-green-200 font-bold">TOTAL:</span>
+                              <span className="text-lg font-bold text-green-700 dark:text-green-300">
+                                {formatCurrency(totalFinal)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 );
