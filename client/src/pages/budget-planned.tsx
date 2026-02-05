@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, MapPin, RefreshCw, Edit, Send, CheckCheck } from "lucide-react";
+import { Calculator, Users, Calendar, MapPin, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun } from "lucide-react";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -448,7 +448,8 @@ export default function BudgetPlannedPage() {
                     <div className="p-3 space-y-3 text-sm">
                       {/* Diárias */}
                       <div className="flex justify-between items-center pb-2 border-b">
-                        <div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-blue-500" />
                           <span className="text-gray-500">Diárias: </span>
                           <span className="font-medium">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
                         </div>
@@ -457,21 +458,42 @@ export default function BudgetPlannedPage() {
                       
                       {/* Ajuda de Custo - Organizado */}
                       <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Mobilidade</span>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Car className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-gray-500">Mobilidade</span>
+                          </div>
                           <span>{formatCurrency(budget.mobilidade)}</span>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-x-4 text-xs bg-gray-50 dark:bg-gray-700/50 rounded p-2">
-                          <div className="space-y-1">
-                            <div className="font-medium text-gray-600 dark:text-gray-400 text-center">Semana</div>
-                            <div className="flex justify-between"><span className="text-gray-500">Almoço</span><span>{formatCurrency(budget.almocoSemana)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">Jantar</span><span>{formatCurrency(budget.jantarSemana)}</span></div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-center gap-1 font-medium text-gray-600 dark:text-gray-400">
+                              <Coffee className="w-3 h-3" />
+                              <span>Semana</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
+                              <span>{formatCurrency(budget.almocoSemana)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
+                              <span>{formatCurrency(budget.jantarSemana)}</span>
+                            </div>
                           </div>
-                          <div className="space-y-1 border-l pl-4">
-                            <div className="font-medium text-gray-600 dark:text-gray-400 text-center">Fim de Semana</div>
-                            <div className="flex justify-between"><span className="text-gray-500">Almoço</span><span>{formatCurrency(budget.almocoFds)}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-500">Jantar</span><span>{formatCurrency(budget.jantarFds)}</span></div>
+                          <div className="space-y-1.5 border-l pl-4">
+                            <div className="flex items-center justify-center gap-1 font-medium text-gray-600 dark:text-gray-400">
+                              <Utensils className="w-3 h-3" />
+                              <span>Fim de Sem.</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
+                              <span>{formatCurrency(budget.almocoFds)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
+                              <span>{formatCurrency(budget.jantarFds)}</span>
+                            </div>
                           </div>
                         </div>
                         
