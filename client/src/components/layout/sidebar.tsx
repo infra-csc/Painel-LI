@@ -15,7 +15,9 @@ import {
   Menu,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Minimize2,
+  Maximize2
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -25,11 +27,40 @@ import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
 import norteLogo from "@assets/image_1770316785096.png";
 
+const iconColors: Record<string, string> = {
+  "user-registration": "text-emerald-500",
+  "events": "text-purple-500",
+  "functions": "text-orange-500",
+  "team-inclusion": "text-blue-500",
+  "scaling": "text-cyan-500",
+  "tickets": "text-rose-500",
+  "accommodations": "text-amber-500",
+  "approval": "text-green-500",
+  "consultation": "text-indigo-500",
+  "admin-users": "text-slate-500",
+  "collaborators": "text-teal-500",
+};
+
+const menuGroups = [
+  {
+    title: "Cadastros",
+    items: ["user-registration", "events", "functions", "collaborators"]
+  },
+  {
+    title: "Operacional",
+    items: ["team-inclusion", "scaling", "tickets", "accommodations"]
+  },
+  {
+    title: "Gestão",
+    items: ["approval", "consultation", "admin-users"]
+  }
+];
+
 export default function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const { isCollapsed, toggleCollapsed } = useSidebar();
+  const { isCollapsed, isCompact, toggleCollapsed, toggleCompact } = useSidebar();
 
   const allTabs = [
     {
@@ -121,6 +152,10 @@ export default function Sidebar() {
     logout();
   };
 
+  const getTabsForGroup = (groupItems: string[]) => {
+    return tabs.filter(tab => groupItems.includes(tab.id));
+  };
+
   return (
     <>
       <button
@@ -139,7 +174,7 @@ export default function Sidebar() {
 
       {isCollapsed && (
         <button
-          className="hidden lg:flex fixed bottom-6 left-6 z-50 p-3 bg-blue-600 rounded-full shadow-lg items-center justify-center hover:bg-blue-700 transition-all hover:scale-105"
+          className="hidden lg:flex fixed bottom-6 left-6 z-50 p-3 bg-blue-600 rounded-full shadow-lg items-center justify-center hover:bg-blue-700 transition-all duration-200 hover:scale-105"
           onClick={toggleCollapsed}
           title="Expandir menu"
         >
@@ -148,22 +183,31 @@ export default function Sidebar() {
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-all duration-300 flex flex-col",
-        "w-64",
+        "fixed left-0 top-0 h-full bg-white border-r border-gray-200 z-40 transition-all duration-300 flex flex-col shadow-lg",
+        isCompact ? "w-20" : "w-64",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         isCollapsed && "lg:-translate-x-full"
       )}>
         <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-2">
-          <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
-            <img 
-              src={norteLogo} 
-              alt="Norte Logo" 
-              className="w-40 object-cover object-top"
-              style={{ clipPath: 'inset(0 0 25% 0)' }}
-            />
-          </div>
+          {!isCompact && (
+            <div className="h-12 overflow-hidden flex items-center justify-center flex-1">
+              <img 
+                src={norteLogo} 
+                alt="Norte Logo" 
+                className="w-40 object-cover object-top"
+                style={{ clipPath: 'inset(0 0 25% 0)' }}
+              />
+            </div>
+          )}
+          {isCompact && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                N
+              </div>
+            </div>
+          )}
           <button
-            className="hidden lg:flex p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all hover:scale-105"
+            className="hidden lg:flex p-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all duration-200 hover:scale-105"
             onClick={toggleCollapsed}
             title="Recolher menu"
           >
@@ -171,57 +215,106 @@ export default function Sidebar() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-4">
-          <ul className="space-y-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = location === tab.path;
-              
-              return (
-                <li key={tab.id}>
-                  <Link href={tab.path}>
-                    <button
-                      onClick={() => {
-                        setIsOpen(false);
-                        if (isActive) {
-                          toggleCollapsed();
-                        }
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                        isActive 
-                          ? "bg-blue-600 text-white" 
-                          : "text-gray-700 hover:bg-gray-100"
-                      )}
-                      data-testid={`sidebar-${tab.id}`}
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="truncate">{tab.label}</span>
-                    </button>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav className="flex-1 overflow-y-auto p-3">
+          {menuGroups.map((group, groupIndex) => {
+            const groupTabs = getTabsForGroup(group.items);
+            if (groupTabs.length === 0) return null;
+            
+            return (
+              <div key={group.title} className={cn(groupIndex > 0 && "mt-4")}>
+                {!isCompact && (
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">
+                    {group.title}
+                  </p>
+                )}
+                {isCompact && groupIndex > 0 && (
+                  <div className="border-t border-gray-200 my-2" />
+                )}
+                <ul className="space-y-1">
+                  {groupTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = location === tab.path;
+                    const iconColor = iconColors[tab.id] || "text-gray-500";
+                    
+                    return (
+                      <li key={tab.id}>
+                        <Link href={tab.path}>
+                          <button
+                            onClick={() => {
+                              setIsOpen(false);
+                              if (isActive) {
+                                toggleCollapsed();
+                              }
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group",
+                              isActive 
+                                ? "bg-blue-50 text-blue-700" 
+                                : "text-gray-700 hover:bg-gray-100 hover:translate-x-1",
+                              isCompact && "justify-center px-2"
+                            )}
+                            data-testid={`sidebar-${tab.id}`}
+                            title={isCompact ? tab.label : undefined}
+                          >
+                            {isActive && (
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
+                            )}
+                            <Icon className={cn(
+                              "w-5 h-5 flex-shrink-0 transition-all duration-200",
+                              isActive ? "text-blue-600" : iconColor,
+                              "group-hover:scale-110"
+                            )} />
+                            {!isCompact && <span className="truncate">{tab.label}</span>}
+                          </button>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
 
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-3 mb-3 px-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
+        <div className="p-3 border-t border-gray-200">
+          <button
+            onClick={toggleCompact}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 mb-3 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition-all duration-200"
+            title={isCompact ? "Expandir menu" : "Modo compacto"}
+          >
+            {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
+            {!isCompact && <span>Compactar</span>}
+          </button>
+          
+          <div className={cn(
+            "flex items-center gap-3 mb-3 px-3",
+            isCompact && "justify-center px-0"
+          )}>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-medium shadow-md overflow-hidden">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0).toUpperCase() || 'U'
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            </div>
+            {!isCompact && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              </div>
+            )}
           </div>
           <Button
             variant="outline"
-            className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            className={cn(
+              "w-full justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200",
+              !isCompact && "justify-start"
+            )}
             onClick={handleLogout}
+            title={isCompact ? "Sair" : undefined}
           >
             <LogOut className="w-4 h-4" />
-            Sair
+            {!isCompact && "Sair"}
           </Button>
         </div>
       </aside>

@@ -7,14 +7,14 @@ interface MainLayoutProps {
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, isCompact } = useSidebar();
   
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <main className={cn(
         "min-h-screen transition-all duration-300",
-        isCollapsed ? "lg:ml-0" : "lg:ml-64"
+        isCollapsed ? "lg:ml-0" : isCompact ? "lg:ml-20" : "lg:ml-64"
       )}>
         <div className="p-6 lg:p-8">
           {children}
