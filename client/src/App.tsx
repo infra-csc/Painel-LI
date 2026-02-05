@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+import MainLayout from "@/components/layout/main-layout";
 import Dashboard from "@/pages/dashboard";
 import Events from "@/pages/events";
 import Functions from "@/pages/functions";
@@ -41,65 +42,67 @@ function Router() {
       
       {/* Protected routes */}
       {user ? (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/events">
-            <ProtectedRoute permission="canAccessAdminUsers">
-              <Events />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/functions">
-            <ProtectedRoute permission="canAccessScreen0">
-              <Functions />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/team-inclusion">
-            <ProtectedRoute permission="canAccessScreen1">
-              <TeamInclusion />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/scaling">
-            <ProtectedRoute permission="canAccessScreen2">
-              <Scaling />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/tickets">
-            <ProtectedRoute permission="canAccessScreen3">
-              <Tickets />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/accommodations">
-            <ProtectedRoute permission="canAccessScreen3">
-              <Accommodations />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/approval">
-            <ProtectedRoute permission="canAccessScreen5">
-              <Approval />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/consultation">
-            <ProtectedRoute permission="canAccessScreen6">
-              <Consultation />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/user-registration">
-            <ProtectedRoute permission="canAccessScreen0">
-              <UserRegistration />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/admin-users">
-            <ProtectedRoute permission="canAccessAdminUsers">
-              <AdminUsers />
-            </ProtectedRoute>
-          </Route>
-          <Route path="/collaborators">
-            <ProtectedRoute permission="canAccessCollaborators">
-              <CollaboratorManagement />
-            </ProtectedRoute>
-          </Route>
-          <Route component={NotFound} />
-        </>
+        <MainLayout>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/events">
+              <ProtectedRoute permission="canAccessAdminUsers">
+                <Events />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/functions">
+              <ProtectedRoute permission="canAccessScreen0">
+                <Functions />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/team-inclusion">
+              <ProtectedRoute permission="canAccessScreen1">
+                <TeamInclusion />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/scaling">
+              <ProtectedRoute permission="canAccessScreen2">
+                <Scaling />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/tickets">
+              <ProtectedRoute permission="canAccessScreen3">
+                <Tickets />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/accommodations">
+              <ProtectedRoute permission="canAccessScreen3">
+                <Accommodations />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/approval">
+              <ProtectedRoute permission="canAccessScreen5">
+                <Approval />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/consultation">
+              <ProtectedRoute permission="canAccessScreen6">
+                <Consultation />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/user-registration">
+              <ProtectedRoute permission="canAccessScreen0">
+                <UserRegistration />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/admin-users">
+              <ProtectedRoute permission="canAccessAdminUsers">
+                <AdminUsers />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/collaborators">
+              <ProtectedRoute permission="canAccessCollaborators">
+                <CollaboratorManagement />
+              </ProtectedRoute>
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
+        </MainLayout>
       ) : (
         <>
           <Route path="/" component={AuthPage} />
