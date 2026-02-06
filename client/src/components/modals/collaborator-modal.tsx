@@ -299,7 +299,14 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            const errorMessages = Object.values(errors).map(e => e?.message).filter(Boolean).join(', ');
+            toast({
+              title: "Campos obrigatórios",
+              description: errorMessages || "Verifique os campos do formulário",
+              variant: "destructive",
+            });
+          })} className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -405,7 +412,7 @@ export default function CollaboratorModal({ open, onClose, defaultArea, eventNam
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-collaborator-type">
                           <SelectValue placeholder="Selecione o tipo" />
