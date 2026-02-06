@@ -1260,6 +1260,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove _userId from body (it's only for auth)
       const { _userId, ...bodyData } = req.body;
       
+      // Auto-recalculate workDays when schedule dates change
+      const newStartDate = bodyData.scheduleStartDate || currentInclusion.scheduleStartDate;
+      const newEndDate = bodyData.scheduleEndDate || currentInclusion.scheduleEndDate;
+      const datesChanged = (bodyData.scheduleStartDate && bodyData.scheduleStartDate !== currentInclusion.scheduleStartDate) ||
+                           (bodyData.scheduleEndDate && bodyData.scheduleEndDate !== currentInclusion.scheduleEndDate);
+      
+      if (datesChanged && newStartDate && newEndDate) {
+        const start = new Date(newStartDate);
+        const end = new Date(newEndDate);
+        const newWorkDays: string[] = [];
+        const current = new Date(start);
+        while (current <= end) {
+          newWorkDays.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+        bodyData.workDays = newWorkDays;
+        bodyData.dailyRates = newWorkDays.length;
+      }
+      
       // VALIDAÇÃO: Impedir reabertura se já houver passagem/hospedagem comprada
       if (bodyData.status === 'reaberto') {
         // Verificar se tem passagem comprada (se precisa de passagem)

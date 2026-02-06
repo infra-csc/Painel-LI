@@ -1394,10 +1394,7 @@ export default function Scaling() {
                       </div>
                       <div className="grid grid-cols-7 gap-2">
                         {allDays.map((day, index) => {
-                          const dayString = format(day, 'yyyy-MM-dd');
-                          const isWorkDay = selectedInclusion.workDays && selectedInclusion.workDays.length > 0
-                            ? selectedInclusion.workDays.some(wd => wd.startsWith(dayString))
-                            : true;
+                          const isWorkDay = true;
                           const dayFormatted = format(day, 'dd/MM', { locale: ptBR });
                           const weekday = format(day, 'EEE', { locale: ptBR });
                           
