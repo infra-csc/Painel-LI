@@ -787,19 +787,8 @@ export default function Scaling() {
     return `${day}/${month}/${year}`;
   };
 
-  // Função para obter o período de trabalho baseado nas workDays
+  // Função para obter o período de trabalho baseado nas datas de agendamento
   const getWorkPeriod = (inclusion: TeamInclusion) => {
-    if (inclusion.workDays && inclusion.workDays.length > 0) {
-      // Ordena as datas para garantir ordem cronológica
-      const sortedDays = [...inclusion.workDays].sort();
-      const firstDay = sortedDays[0];
-      const lastDay = sortedDays[sortedDays.length - 1];
-      return {
-        start: formatDate(firstDay),
-        end: formatDate(lastDay)
-      };
-    }
-    // Fallback para as datas de agendamento se não houver workDays
     return {
       start: formatDate(inclusion.scheduleStartDate),
       end: formatDate(inclusion.scheduleEndDate)
