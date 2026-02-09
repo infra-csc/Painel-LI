@@ -501,7 +501,7 @@ export default function BudgetActualPage() {
                     </div>
                     {planned && (
                       <Badge className={`text-[10px] h-[18px] px-2 font-normal ${hasDivergence ? 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50' : 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50'}`}>
-                        {hasDivergence ? 'Valores diferentes do planejado' : 'Igual ao planejado'}
+                        {hasDivergence ? 'Difere do planejado' : 'Conforme planejado'}
                       </Badge>
                     )}
                   </div>
