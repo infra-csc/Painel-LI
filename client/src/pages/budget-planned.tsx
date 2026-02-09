@@ -792,12 +792,16 @@ export default function BudgetPlannedPage() {
                     </tr>
                     <tr className="border-b">
                       <td className="px-6 py-3 text-sm text-gray-500">Valor total (R$)</td>
-                      <td colSpan={3} className="py-3 pr-6">
+                      <td className="py-3 pr-4">
                         <Input 
                           type="number" step="0.01" className="w-28 h-10"
                           value={(editingBudget.mobilidade / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
+                      </td>
+                      <td className="py-3 text-sm text-gray-400">por dia</td>
+                      <td className="py-3 pr-6 text-sm font-medium text-gray-600 dark:text-gray-300">
+                        {editingBudget.qtdDiarias > 0 ? formatCurrency(Math.round(editingBudget.mobilidade / editingBudget.qtdDiarias)) : '—'}
                       </td>
                     </tr>
 
@@ -825,35 +829,47 @@ export default function BudgetPlannedPage() {
                     <tr>
                       <td className="px-6 py-3 text-sm text-gray-500">Almoço (R$)</td>
                       <td className="py-3 pr-4">
-                        <Input 
-                          type="number" step="0.01" className="w-28 h-10"
-                          value={(editingBudget.almocoSemana / 100).toFixed(2)} 
-                          onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="number" step="0.01" className="w-28 h-10"
+                            value={(editingBudget.almocoSemana / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">({editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : '—'}/dia)</span>
+                        </div>
                       </td>
                       <td colSpan={2} className="py-3 pr-6">
-                        <Input 
-                          type="number" step="0.01" className="w-28 h-10"
-                          value={(editingBudget.almocoFds / 100).toFixed(2)} 
-                          onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="number" step="0.01" className="w-28 h-10"
+                            value={(editingBudget.almocoFds / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">({editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : '—'}/dia)</span>
+                        </div>
                       </td>
                     </tr>
                     <tr className="border-b">
                       <td className="px-6 py-3 text-sm text-gray-500">Jantar (R$)</td>
                       <td className="py-3 pr-4">
-                        <Input 
-                          type="number" step="0.01" className="w-28 h-10"
-                          value={(editingBudget.jantarSemana / 100).toFixed(2)} 
-                          onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="number" step="0.01" className="w-28 h-10"
+                            value={(editingBudget.jantarSemana / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">({editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : '—'}/dia)</span>
+                        </div>
                       </td>
                       <td colSpan={2} className="py-3 pr-6">
-                        <Input 
-                          type="number" step="0.01" className="w-28 h-10"
-                          value={(editingBudget.jantarFds / 100).toFixed(2)} 
-                          onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="number" step="0.01" className="w-28 h-10"
+                            value={(editingBudget.jantarFds / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">({editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : '—'}/dia)</span>
+                        </div>
                       </td>
                     </tr>
                   </tbody>
