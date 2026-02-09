@@ -621,7 +621,7 @@ export default function BudgetPlannedPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredBudgets.map((budget) => (
                   <div 
                     key={budget.inclusion.id} 
@@ -684,19 +684,32 @@ export default function BudgetPlannedPage() {
                     
                     {/* Corpo do Card */}
                     <div className="p-3 space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Diárias: {budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="text-gray-500">Diárias: {budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                        </div>
                         <span className="font-bold text-blue-600">{formatCurrency(budget.subtotalDiarias)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Mobilidade</span>
+                        <div className="flex items-center gap-2">
+                          <Car className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-gray-500">Mobilidade</span>
+                        </div>
                         <span className="font-medium">{formatCurrency(budget.mobilidade)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Alimentação</span>
+                        <div className="flex items-center gap-2">
+                          <Utensils className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-gray-500">Alimentação</span>
+                        </div>
                         <span className="font-medium">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
                       </div>
-                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded mt-1">
+                      <div className="flex justify-between items-center pt-1 border-t text-orange-600 font-medium">
+                        <span>Ajuda de Custo</span>
+                        <span>{formatCurrency(budget.ajudaCusto)}</span>
+                      </div>
+                      <div className="flex justify-between items-center bg-green-100 dark:bg-green-900/50 p-2 rounded">
                         <span className="font-bold text-green-800 dark:text-green-300">TOTAL</span>
                         <span className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(budget.totalFinal)}</span>
                       </div>
