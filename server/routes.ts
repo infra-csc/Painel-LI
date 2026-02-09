@@ -2071,6 +2071,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/budget-actual/:id/duplicate", async (req, res) => {
+    try {
+      const original = await storage.getBudgetActualById(req.params.id);
+      if (!original) {
+        return res.status(404).json({ message: "Item não encontrado" });
+      }
+      const duplicateData = {
+        plannedId: null,
+        eventId: original.eventId,
+        collaboratorId: original.collaboratorId,
+        functionId: original.functionId,
+        collaboratorType: original.collaboratorType,
+        dailyQuantity: original.dailyQuantity,
+        dailyValue: original.dailyValue,
+        costAssistance: original.costAssistance,
+        weekdayLunch: original.weekdayLunch,
+        weekdayDinner: original.weekdayDinner,
+        weekendLunch: original.weekendLunch,
+        weekendDinner: original.weekendDinner,
+        mobility: original.mobility,
+        transport: original.transport,
+        totalValue: original.totalValue,
+        observations: "Duplicado no Realizado",
+        createdBy: req.body.userId,
+      };
+      const duplicated = await storage.createBudgetActual(duplicateData);
+      res.status(201).json(duplicated);
+    } catch (error) {
+      console.error("Error duplicating budget actual:", error);
+      res.status(400).json({ message: "Erro ao duplicar item" });
+    }
+  });
+
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
       const actual = await storage.updateBudgetActual(req.params.id, req.body);

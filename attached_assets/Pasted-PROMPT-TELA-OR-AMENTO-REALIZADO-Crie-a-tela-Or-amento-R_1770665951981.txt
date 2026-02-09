@@ -1,0 +1,130 @@
+PROMPT – TELA “ORÇAMENTO REALIZADO”
+
+Crie a tela “Orçamento Realizado” de um sistema de gestão financeira de eventos.
+
+Contexto do sistema:
+O Planejado já foi criado anteriormente.
+Nesta tela aparecem somente as escalas que foram enviadas manualmente do Planejado.
+O Realizado serve para registrar o que realmente aconteceu, usando o Planejado apenas como base inicial.
+
+Objetivo da tela:
+Permitir que o usuário ajuste as execuções reais do evento de forma rápida e flexível, mantendo controle de origem e clareza operacional.
+
+Regras fundamentais
+
+Nenhuma execução nasce do zero no Realizado
+
+Apenas escalas enviadas do Planejado aparecem nesta tela
+
+Os valores enviados servem apenas como base e podem ser alterados
+
+A tela não é de comparação nem de aprovação
+
+Estrutura da tela
+1. Header
+
+Título: Orçamento Realizado
+
+Subtítulo: Registro da execução real do evento
+
+Informação contextual do projeto e período
+
+Texto de apoio:
+
+Apenas escalas enviadas do Planejado aparecem aqui
+
+2. Estado vazio
+
+Mensagem clara quando não houver escalas enviadas:
+
+Nenhuma execução disponível
+Envie escalas do Planejado para iniciar o Realizado
+
+Botão de atalho: Ir para Planejado
+
+3. Lista de execuções
+
+Exibir lista de cards de execução
+
+Cada card representa uma execução real
+
+Cada execução deve conter:
+
+Nome do colaborador (editável)
+
+Função
+
+Tipo (Casa / Freela)
+
+Selo de origem:
+
+“Enviado do Planejado”
+
+“Criado no Realizado” (para duplicações)
+
+4. Card de execução
+
+Manter consistência visual com o Planejado
+
+Seções internas:
+
+Diárias
+
+Mobilidade
+
+Alimentação
+
+Todos os campos devem ser editáveis
+
+Mostrar valores do Planejado como referência visual (placeholder ou tooltip)
+
+5. Ações no card
+
+Editar execução
+
+Duplicar escala (cria nova execução no Realizado)
+
+Remover execução
+
+6. Modal de edição
+
+Título: Editar Execução Real
+
+Informar no topo:
+
+Valores preenchidos com base no Planejado
+
+Campos:
+
+Colaborador (editável)
+
+Quantidade de dias
+
+Valores pagos
+
+Total atualizado em tempo real
+
+7. Totais
+
+Rodapé fixo com:
+
+Total realizado acumulado
+
+Quantidade de execuções
+
+Texto informativo:
+
+Valores ainda podem ser alterados antes da revisão
+
+Estilo visual
+
+Interface clean e operacional
+
+Menos ênfase em comparação
+
+Foco em edição rápida e clareza
+
+Cores neutras, com destaque apenas para totais
+
+Resultado esperado:
+Uma tela operacional clara e controlada, onde o usuário registra fielmente a execução do evento a partir do que foi enviado do Planejado, com flexibilidade para refletir a realidade sem perder rastreabilidade.
