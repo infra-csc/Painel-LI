@@ -732,7 +732,7 @@ export default function BudgetPlannedPage() {
           {editingBudget && editingBudgetInfo && (
             <>
               {/* Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-5">
+              <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white px-8 py-5">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-blue-200 text-xs font-medium uppercase tracking-wider mb-1">Editar Orçamento</p>
@@ -807,9 +807,9 @@ export default function BudgetPlannedPage() {
                         onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
                       />
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg px-4 py-2.5 text-right col-span-2">
-                      <div className="text-[10px] uppercase text-slate-400 font-medium tracking-wider">Valor por dia</div>
-                      <div className="text-base font-semibold text-slate-600 dark:text-slate-300">
+                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-lg px-4 py-2.5 text-right col-span-2">
+                      <div className="text-xs text-purple-500 dark:text-purple-400 font-medium">Valor por dia</div>
+                      <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
                         {editingBudget.qtdDiarias > 0 ? formatCurrency(Math.round(editingBudget.mobilidade / editingBudget.qtdDiarias)) : '—'}
                       </div>
                     </div>
@@ -837,7 +837,7 @@ export default function BudgetPlannedPage() {
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Almoço (R$)</label>
-                            <span className="text-[10px] text-slate-400">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
+                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
                           </div>
                           <Input 
                             type="number" step="0.01" className="h-11 text-base"
@@ -848,7 +848,7 @@ export default function BudgetPlannedPage() {
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Jantar (R$)</label>
-                            <span className="text-[10px] text-slate-400">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
+                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
                           </div>
                           <Input 
                             type="number" step="0.01" className="h-11 text-base"
@@ -868,7 +868,7 @@ export default function BudgetPlannedPage() {
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Almoço (R$)</label>
-                            <span className="text-[10px] text-slate-400">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
+                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
                           </div>
                           <Input 
                             type="number" step="0.01" className="h-11 text-base"
@@ -879,7 +879,7 @@ export default function BudgetPlannedPage() {
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Jantar (R$)</label>
-                            <span className="text-[10px] text-slate-400">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
+                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
                           </div>
                           <Input 
                             type="number" step="0.01" className="h-11 text-base"
