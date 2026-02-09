@@ -895,6 +895,10 @@ export default function BudgetPlannedPage() {
                           </div>
                         </div>
                       </div>
+                      <div className="bg-blue-100/50 dark:bg-blue-900/30 rounded-lg px-3 py-2 mt-3 flex items-center justify-between">
+                        <span className="text-[10px] uppercase text-blue-500 font-medium tracking-wider">Subtotal Úteis</span>
+                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.almocoSemana + editingBudget.jantarSemana)}</span>
+                      </div>
                     </div>
 
                     {/* Fins de Semana */}
@@ -961,7 +965,21 @@ export default function BudgetPlannedPage() {
                           </div>
                         </div>
                       </div>
+                      <div className="bg-amber-100/50 dark:bg-amber-900/30 rounded-lg px-3 py-2 mt-3 flex items-center justify-between">
+                        <span className="text-[10px] uppercase text-amber-600 font-medium tracking-wider">Subtotal FDS</span>
+                        <span className="text-sm font-bold text-amber-700 dark:text-amber-300">{formatCurrency(editingBudget.almocoFds + editingBudget.jantarFds)}</span>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-300 dark:border-orange-700 rounded-xl px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Utensils className="w-4 h-4 text-orange-600" />
+                      <span className="text-sm font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wide">Total Alimentação</span>
+                    </div>
+                    <span className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                      {formatCurrency(editingBudget.almocoSemana + editingBudget.jantarSemana + editingBudget.almocoFds + editingBudget.jantarFds)}
+                    </span>
                   </div>
                 </div>
               </div>
