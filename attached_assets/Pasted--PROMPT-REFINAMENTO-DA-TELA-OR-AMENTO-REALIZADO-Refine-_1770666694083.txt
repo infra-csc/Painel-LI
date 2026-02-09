@@ -1,0 +1,99 @@
+🎨 PROMPT – REFINAMENTO DA TELA “ORÇAMENTO REALIZADO”
+
+Refine a tela existente “Orçamento Realizado”, mantendo sua estrutura atual, mas aprimorando hierarquia visual, clareza operacional e leitura rápida.
+
+Contexto:
+Esta tela é usada para registrar a execução real do evento.
+Apenas escalas enviadas manualmente do Planejado aparecem aqui.
+Não é uma tela de aprovação nem comparação.
+
+1. Header
+
+Reduzir a altura do header para priorizar o conteúdo.
+
+Manter título e subtítulo, mas:
+
+Subtítulo com menor contraste visual.
+
+Adicionar badge de status do Realizado:
+
+“Em preenchimento” ou “Pronto para revisão”.
+
+2. Card “Total Realizado”
+
+Reduzir saturação da cor de fundo.
+
+Priorizar o valor total como foco principal.
+
+Exibir métricas secundárias (Casa, Freela, Execuções) com menor peso visual.
+
+Melhorar hierarquia interna, evitando que o card domine visualmente a tela.
+
+3. Filtros e busca
+
+Padronizar altura e largura dos filtros.
+
+Ajustar rótulos para maior clareza:
+
+“Ordenar por: Maior valor”
+
+Corrigir pluralização automática (ex: “1 execução”).
+
+4. Card de execução
+
+Manter layout atual, mas melhorar organização interna.
+
+Separar claramente:
+
+Identidade do colaborador (nome + badges)
+
+Ações (editar, duplicar, excluir) alinhadas no canto direito.
+
+Garantir tooltips em todos os ícones de ação.
+
+5. Corpo do card (valores)
+
+Organizar informações em um grid leve:
+
+Coluna esquerda: tipo de custo
+
+Coluna central: detalhe (ex: “4 × R$ 250”)
+
+Coluna direita: valor final
+
+Manter alinhamento consistente entre itens.
+
+6. Total do card
+
+Tornar o total mais legível com:
+
+Linha divisória clara
+
+Texto “TOTAL” com menor destaque que o valor
+
+Alinhar o valor final com os demais valores do card.
+
+7. Estados visuais
+
+Adicionar indicadores sutis de estado:
+
+“Enviado do Planejado”
+
+“Sem alterações”
+
+“Execução ajustada”
+
+Usar cores discretas e não invasivas.
+
+8. Estilo visual
+
+Reduzir sombras excessivas.
+
+Aumentar espaçamento vertical entre cards.
+
+Usar ícones menores e consistentes.
+
+Aplicar cores apenas onde agregam significado.
+
+Resultado esperado:
+Uma tela de Realizado mais equilibrada visualmente, fácil de escanear, com foco em execução e edição rápida, sem competir com etapas posteriores de aprovação ou comparação.

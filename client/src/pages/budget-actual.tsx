@@ -181,15 +181,20 @@ export default function BudgetActualPage() {
 
   return (
     <div className="space-y-4 pb-24">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <ClipboardCheck className="w-6 h-6 text-purple-600" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
+      {/* Header compacto */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <ClipboardCheck className="w-5 h-5 text-purple-600" />
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 ml-9">
-          Registro da execução real do evento — apenas escalas enviadas do Planejado aparecem aqui
-        </p>
+        {selectedEventId && filteredItems.length > 0 && (
+          <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
+            Em preenchimento
+          </Badge>
+        )}
       </div>
 
       {/* Seletor de Evento */}
@@ -232,43 +237,43 @@ export default function BudgetActualPage() {
         </div>
       ) : (
         <>
-          {/* Banner do Total */}
-          <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl px-6 py-4 text-white shadow-lg">
+          {/* Banner do Total - saturação reduzida */}
+          <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-purple-200 text-xs font-medium uppercase tracking-wider mb-1">Total Realizado</div>
-                <div className="text-3xl font-bold">{formatCurrency(totalRealizado)}</div>
+                <div className="text-purple-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
+                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalRealizado)}</div>
               </div>
-              <div className="flex gap-6 text-sm">
+              <div className="flex gap-5 text-xs">
                 <div className="text-center">
-                  <div className="text-purple-200 text-xs mb-0.5">Casa</div>
-                  <div className="font-semibold">{formatCurrency(totalCasa)}</div>
+                  <div className="text-gray-400 mb-0.5">Casa</div>
+                  <div className="font-semibold text-gray-600 dark:text-gray-300">{formatCurrency(totalCasa)}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-purple-200 text-xs mb-0.5">Freela</div>
-                  <div className="font-semibold">{formatCurrency(totalFreela)}</div>
+                  <div className="text-gray-400 mb-0.5">Freela</div>
+                  <div className="font-semibold text-gray-600 dark:text-gray-300">{formatCurrency(totalFreela)}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-purple-200 text-xs mb-0.5">Execuções</div>
-                  <div className="font-semibold">{filteredItems.length}</div>
+                  <div className="text-gray-400 mb-0.5">Execuções</div>
+                  <div className="font-semibold text-gray-600 dark:text-gray-300">{filteredItems.length}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Filtros */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          {/* Filtros padronizados */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <Input
                 placeholder="Buscar colaborador..."
-                className="pl-10 h-9 text-sm"
+                className="pl-9 h-8 text-xs"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="w-40 h-9 text-sm">
+              <SelectTrigger className="w-40 h-8 text-xs">
                 <SelectValue placeholder="Função" />
               </SelectTrigger>
               <SelectContent>
@@ -279,7 +284,7 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-32 h-9 text-sm">
+              <SelectTrigger className="w-28 h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -289,119 +294,110 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-36 h-9 text-sm">
-                <ArrowUpDown className="w-3.5 h-3.5 mr-1" />
+              <SelectTrigger className="w-40 h-8 text-xs">
+                <ArrowUpDown className="w-3 h-3 mr-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="value">Maior valor</SelectItem>
-                <SelectItem value="name">Nome A-Z</SelectItem>
+                <SelectItem value="value">Ordenar: Maior valor</SelectItem>
+                <SelectItem value="name">Ordenar: Nome A-Z</SelectItem>
               </SelectContent>
             </Select>
-            <div className="text-xs text-gray-400 ml-auto">
-              {filteredItems.length} execuções
+            <div className="text-[11px] text-gray-400 ml-auto">
+              {filteredItems.length} {filteredItems.length === 1 ? 'execução' : 'execuções'}
             </div>
           </div>
 
           {/* Cards de execução */}
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             {filteredItems.map(item => {
               const isCollapsed = collapsedCards.has(item.id);
               const isCasa = item.collaboratorType === 'casa';
               const totalAlimentacao = item.weekdayLunch + item.weekdayDinner + item.weekendLunch + item.weekendDinner;
-              const isFromPlanned = !!item.plannedId;
+              const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
+              const isDuplicated = item.observations?.includes('Duplicado no Realizado');
+
+              const getStatusBadge = () => {
+                if (isFromPlanned) {
+                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-green-50 text-green-600 border border-green-200 hover:bg-green-50">Enviado do Planejado</Badge>;
+                }
+                if (isDuplicated) {
+                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50">Duplicado</Badge>;
+                }
+                return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50">Criado no Realizado</Badge>;
+              };
 
               return (
-                <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm overflow-hidden ${
-                  isCasa ? 'border-l-4 border-l-blue-500 border-gray-200 dark:border-gray-700' : 'border-l-4 border-l-orange-500 border-gray-200 dark:border-gray-700'
+                <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden ${
+                  isCasa ? 'border-l-[3px] border-l-blue-400 border-gray-200 dark:border-gray-700' : 'border-l-[3px] border-l-orange-400 border-gray-200 dark:border-gray-700'
                 }`}>
                   {/* Header do card */}
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                          {getCollaboratorName(item.collaboratorId)}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-medium">
-                            {getFunctionName(item.functionId)}
-                          </Badge>
-                          <Badge className={`text-[10px] h-5 px-1.5 font-medium ${
-                            isCasa
-                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300'
-                              : 'bg-orange-100 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300'
-                          }`}>
-                            {isCasa ? 'Casa' : 'Freela'}
-                          </Badge>
-                          {item.observations?.includes('Enviado do planejado') || isFromPlanned ? (
-                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-green-100 text-green-700 hover:bg-green-100">
-                              Enviado do Planejado
-                            </Badge>
-                          ) : item.observations?.includes('Duplicado no Realizado') ? (
-                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-purple-100 text-purple-700 hover:bg-purple-100">
-                              Duplicado no Realizado
-                            </Badge>
-                          ) : (
-                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-gray-100 text-gray-600 hover:bg-gray-100">
-                              Criado no Realizado
-                            </Badge>
-                          )}
-                        </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                        {getCollaboratorName(item.collaboratorId)}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
+                          {getFunctionName(item.functionId)}
+                        </Badge>
+                        <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${
+                          isCasa
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50'
+                            : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
+                        }`}>
+                          {isCasa ? 'Casa' : 'Freela'}
+                        </Badge>
+                        {getStatusBadge()}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        onClick={() => openEditModal(item)} title="Editar">
+                    <div className="flex items-center gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                        onClick={() => openEditModal(item)} title="Editar execução">
                         <Edit className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                        onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+                        onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar execução"
                         disabled={duplicateMutation.isPending}>
                         <Copy className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => setConfirmDeleteId(item.id)} title="Remover">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        onClick={() => setConfirmDeleteId(item.id)} title="Remover execução">
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
-                        onClick={() => toggleCollapse(item.id)}>
-                        {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-300 hover:text-gray-500"
+                        onClick={() => toggleCollapse(item.id)} title={isCollapsed ? "Expandir" : "Recolher"}>
+                        {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                       </Button>
                     </div>
                   </div>
 
-                  {/* Corpo - colapsável */}
+                  {/* Corpo - grid organizado */}
                   {!isCollapsed && (
-                    <div className="px-4 py-3 space-y-1.5 text-sm">
-                      <div className="flex justify-between items-center py-1.5">
+                    <div className="px-4 pb-2 text-sm">
+                      <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-center">
+                        <Calendar className="w-3 h-3 text-blue-400" />
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-blue-500" />
                           <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                          <span className="text-xs text-gray-400">{item.dailyQuantity} x {formatCurrency(item.dailyValue)}</span>
+                          <span className="text-[11px] text-gray-400">{item.dailyQuantity} × {formatCurrency(item.dailyValue)}</span>
                         </div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(item.dailyQuantity * item.dailyValue)}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1.5">
-                        <div className="flex items-center gap-2">
-                          <Car className="w-3.5 h-3.5 text-purple-500" />
-                          <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                        </div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(item.mobility)}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1.5">
-                        <div className="flex items-center gap-2">
-                          <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                          <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
-                        </div>
-                        <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(totalAlimentacao)}</span>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(item.dailyQuantity * item.dailyValue)}</span>
+
+                        <Car className="w-3 h-3 text-purple-400" />
+                        <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
+                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
+
+                        <Utensils className="w-3 h-3 text-orange-400" />
+                        <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
+                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       </div>
                     </div>
                   )}
 
                   {/* Total - sempre visível */}
-                  <div className="flex justify-between items-center px-4 py-2.5 bg-purple-50 dark:bg-purple-950/30 border-t border-purple-100 dark:border-purple-900">
-                    <span className="font-bold text-purple-800 dark:text-purple-300 text-xs uppercase tracking-wider">Total</span>
-                    <span className="font-bold text-lg text-purple-700 dark:text-purple-300">{formatCurrency(item.totalValue)}</span>
+                  <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700">
+                    <span className="text-gray-400 text-[10px] uppercase tracking-wider font-medium">Total</span>
+                    <span className="font-bold text-base text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
                   </div>
                 </div>
               );
@@ -410,22 +406,22 @@ export default function BudgetActualPage() {
         </>
       )}
 
-      {/* Rodapé fixo com total */}
+      {/* Rodapé fixo */}
       {selectedEventId && filteredItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-6 py-3 z-40">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-2.5 z-40">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div>
-                <div className="text-[10px] uppercase text-gray-500 font-medium tracking-wider">Total Realizado</div>
-                <div className="text-xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalRealizado)}</div>
+                <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider">Total Realizado</div>
+                <div className="text-lg font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(totalRealizado)}</div>
               </div>
-              <div className="h-8 w-px bg-gray-200 dark:bg-gray-700" />
-              <div className="text-xs text-gray-500">
-                <span className="font-medium">{filteredItems.length}</span> execuções
+              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
+              <div className="text-[11px] text-gray-400">
+                {filteredItems.length} {filteredItems.length === 1 ? 'execução' : 'execuções'}
               </div>
             </div>
-            <div className="text-xs text-gray-400">
-              Valores ainda podem ser alterados antes da revisão
+            <div className="text-[11px] text-gray-400">
+              Valores podem ser alterados antes da revisão
             </div>
           </div>
         </div>
