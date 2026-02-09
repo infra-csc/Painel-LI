@@ -810,7 +810,7 @@ export default function BudgetPlannedPage() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-right text-xs text-gray-500 dark:text-gray-400 pr-6">
                     <div className="flex items-center gap-1.5 justify-end">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{editingBudgetInfo.period}</span>
