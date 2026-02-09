@@ -798,20 +798,25 @@ export default function BudgetPlannedPage() {
                     </div>
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Mobilidade</h3>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 items-end">
+                  <div className="grid grid-cols-2 gap-4 items-end">
                     <div>
-                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Valor total (R$)</label>
+                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Total do período (R$)</label>
                       <Input 
                         type="number" step="0.01" className="h-11 text-base"
                         value={(editingBudget.mobilidade / 100).toFixed(2)} 
                         onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
                       />
                     </div>
-                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-lg px-4 py-2.5 text-right col-span-2">
-                      <div className="text-xs text-purple-500 dark:text-purple-400 font-medium">Valor por dia</div>
-                      <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                        {editingBudget.qtdDiarias > 0 ? formatCurrency(Math.round(editingBudget.mobilidade / editingBudget.qtdDiarias)) : '—'}
-                      </div>
+                    <div>
+                      <label className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1.5 block">Valor por dia (R$)</label>
+                      <Input 
+                        type="number" step="0.01" className="h-11 text-base border-purple-200 dark:border-purple-700 focus:ring-purple-500"
+                        value={editingBudget.qtdDiarias > 0 ? ((editingBudget.mobilidade / editingBudget.qtdDiarias) / 100).toFixed(2) : '0.00'}
+                        onChange={e => {
+                          const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                          setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -833,28 +838,54 @@ export default function BudgetPlannedPage() {
                       <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 text-center">
                         Dias Úteis ({editingBudgetInfo.weekdays} dias)
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Almoço (R$)</label>
-                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Almoço</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm"
+                                value={(editingBudget.almocoSemana / 100).toFixed(2)} 
+                                onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                value={editingBudgetInfo.weekdays > 0 ? ((editingBudget.almocoSemana / editingBudgetInfo.weekdays) / 100).toFixed(2) : '0.00'}
+                                onChange={e => {
+                                  const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                                  setEditingBudget({...editingBudget, almocoSemana: perDay * editingBudgetInfo.weekdays});
+                                }}
+                              />
+                            </div>
                           </div>
-                          <Input 
-                            type="number" step="0.01" className="h-11 text-base"
-                            value={(editingBudget.almocoSemana / 100).toFixed(2)} 
-                            onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                          />
                         </div>
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Jantar (R$)</label>
-                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : '—'}/dia</span>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Jantar</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm"
+                                value={(editingBudget.jantarSemana / 100).toFixed(2)} 
+                                onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                value={editingBudgetInfo.weekdays > 0 ? ((editingBudget.jantarSemana / editingBudgetInfo.weekdays) / 100).toFixed(2) : '0.00'}
+                                onChange={e => {
+                                  const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                                  setEditingBudget({...editingBudget, jantarSemana: perDay * editingBudgetInfo.weekdays});
+                                }}
+                              />
+                            </div>
                           </div>
-                          <Input 
-                            type="number" step="0.01" className="h-11 text-base"
-                            value={(editingBudget.jantarSemana / 100).toFixed(2)} 
-                            onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                          />
                         </div>
                       </div>
                     </div>
@@ -864,28 +895,54 @@ export default function BudgetPlannedPage() {
                       <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 text-center">
                         Fins de Semana ({editingBudgetInfo.weekends} dias)
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Almoço (R$)</label>
-                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Almoço</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm"
+                                value={(editingBudget.almocoFds / 100).toFixed(2)} 
+                                onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                value={editingBudgetInfo.weekends > 0 ? ((editingBudget.almocoFds / editingBudgetInfo.weekends) / 100).toFixed(2) : '0.00'}
+                                onChange={e => {
+                                  const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                                  setEditingBudget({...editingBudget, almocoFds: perDay * editingBudgetInfo.weekends});
+                                }}
+                              />
+                            </div>
                           </div>
-                          <Input 
-                            type="number" step="0.01" className="h-11 text-base"
-                            value={(editingBudget.almocoFds / 100).toFixed(2)} 
-                            onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                          />
                         </div>
                         <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Jantar (R$)</label>
-                            <span className="text-xs font-semibold text-orange-500">{editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : '—'}/dia</span>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Jantar</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm"
+                                value={(editingBudget.jantarFds / 100).toFixed(2)} 
+                                onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <Input 
+                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                value={editingBudgetInfo.weekends > 0 ? ((editingBudget.jantarFds / editingBudgetInfo.weekends) / 100).toFixed(2) : '0.00'}
+                                onChange={e => {
+                                  const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                                  setEditingBudget({...editingBudget, jantarFds: perDay * editingBudgetInfo.weekends});
+                                }}
+                              />
+                            </div>
                           </div>
-                          <Input 
-                            type="number" step="0.01" className="h-11 text-base"
-                            value={(editingBudget.jantarFds / 100).toFixed(2)} 
-                            onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                          />
                         </div>
                       </div>
                     </div>
