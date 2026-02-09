@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign } from "lucide-react";
-import type { Event, Function, Collaborator, BudgetActual } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 
@@ -47,6 +47,21 @@ export default function BudgetActualPage() {
     },
     enabled: !!selectedEventId,
   });
+
+  const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
+    queryKey: ["/api/budget-planned", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget planned");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const getPlannedRef = (plannedId?: string | null): BudgetPlanned | undefined => {
+    if (!plannedId || !budgetPlanned) return undefined;
+    return budgetPlanned.find(p => p.id === plannedId);
+  };
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
@@ -352,20 +367,20 @@ export default function BudgetActualPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                         onClick={() => openEditModal(item)} title="Editar execução">
                         <Edit className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
-                        onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar execução"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
+                        onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar escala"
                         disabled={duplicateMutation.isPending}>
                         <Copy className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
                         onClick={() => setConfirmDeleteId(item.id)} title="Remover execução">
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-300 hover:text-gray-500"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
                         onClick={() => toggleCollapse(item.id)} title={isCollapsed ? "Expandir" : "Recolher"}>
                         {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                       </Button>
@@ -440,6 +455,16 @@ export default function BudgetActualPage() {
               editFormData.weekendLunch + editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
+            const planned = getPlannedRef(editingItem.plannedId);
+            const plannedDailySubtotal = planned ? planned.dailyQuantity * planned.dailyValue : 0;
+            const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
+            const plannedTotal = planned ? planned.totalValue : 0;
+
+            const PlannedHint = ({ value, label }: { value: number; label?: string }) => (
+              <span className="text-[10px] text-gray-400 tabular-nums" title="Valor do planejado">
+                {label || 'Planejado'}: {formatCurrency(value)}
+              </span>
+            );
 
             return (
               <>
@@ -469,9 +494,12 @@ export default function BudgetActualPage() {
 
                   {/* Diárias */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Diárias</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Diárias</span>
+                      </div>
+                      {planned && <PlannedHint value={plannedDailySubtotal} label={`Planejado: ${planned.dailyQuantity} × ${formatCurrency(planned.dailyValue)}`} />}
                     </div>
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
@@ -481,6 +509,9 @@ export default function BudgetActualPage() {
                           value={editFormData.dailyQuantity}
                           onChange={e => setEditFormData({...editFormData, dailyQuantity: parseInt(e.target.value) || 0})}
                         />
+                        {planned && planned.dailyQuantity !== editFormData.dailyQuantity && (
+                          <span className="text-[10px] text-gray-400 mt-0.5 block">Planejado: {planned.dailyQuantity}</span>
+                        )}
                       </div>
                       <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">&times;</div>
                       <div className="flex-1">
@@ -490,19 +521,28 @@ export default function BudgetActualPage() {
                           value={(editFormData.dailyValue / 100).toFixed(2)}
                           onChange={e => setEditFormData({...editFormData, dailyValue: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
+                        {planned && planned.dailyValue !== editFormData.dailyValue && (
+                          <span className="text-[10px] text-gray-400 mt-0.5 block">Planejado: {formatCurrency(planned.dailyValue)}</span>
+                        )}
                       </div>
                       <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">=</div>
                       <div className="bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-4 py-2 text-right min-w-[110px]">
                         <div className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.dailyQuantity * editFormData.dailyValue)}</div>
+                        {planned && plannedDailySubtotal !== (editFormData.dailyQuantity * editFormData.dailyValue) && (
+                          <div className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(plannedDailySubtotal)}</div>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Mobilidade */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Car className="w-3.5 h-3.5 text-purple-500" />
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Mobilidade</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Mobilidade</span>
+                      </div>
+                      {planned && <PlannedHint value={planned.mobility} />}
                     </div>
                     <div className="flex items-end gap-4">
                       <div className="flex-1">
@@ -512,6 +552,9 @@ export default function BudgetActualPage() {
                           value={(editFormData.mobility / 100).toFixed(2)}
                           onChange={e => setEditFormData({...editFormData, mobility: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
+                        {planned && planned.mobility !== editFormData.mobility && (
+                          <span className="text-[10px] text-gray-400 mt-0.5 block">Planejado: {formatCurrency(planned.mobility)}</span>
+                        )}
                       </div>
                       <div className="flex-1">
                         <label className="text-[11px] text-gray-400 mb-1 block">Por dia</label>
@@ -529,7 +572,10 @@ export default function BudgetActualPage() {
                         <Utensils className="w-3.5 h-3.5 text-orange-400" />
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Alimentação</span>
                       </div>
-                      <span className="text-xs font-bold text-orange-500 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      <div className="flex items-center gap-2">
+                        {planned && <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(plannedAlimentacao)}</span>}
+                        <span className="text-xs font-bold text-orange-500 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -550,6 +596,9 @@ export default function BudgetActualPage() {
                               value={(editFormData.weekdayLunch / 100).toFixed(2)}
                               onChange={e => setEditFormData({...editFormData, weekdayLunch: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
+                            {planned && planned.weekdayLunch !== editFormData.weekdayLunch && (
+                              <span className="text-[9px] text-gray-400 mt-0.5 block">Plan. {formatCurrency(planned.weekdayLunch)}</span>
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
@@ -561,11 +610,19 @@ export default function BudgetActualPage() {
                               value={(editFormData.weekdayDinner / 100).toFixed(2)}
                               onChange={e => setEditFormData({...editFormData, weekdayDinner: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
+                            {planned && planned.weekdayDinner !== editFormData.weekdayDinner && (
+                              <span className="text-[9px] text-gray-400 mt-0.5 block">Plan. {formatCurrency(planned.weekdayDinner)}</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
                           <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider">Subtotal</span>
-                          <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
+                          <div className="text-right">
+                            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
+                            {planned && (planned.weekdayLunch + planned.weekdayDinner) !== (editFormData.weekdayLunch + editFormData.weekdayDinner) && (
+                              <div className="text-[9px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayLunch + planned.weekdayDinner)}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -586,6 +643,9 @@ export default function BudgetActualPage() {
                               value={(editFormData.weekendLunch / 100).toFixed(2)}
                               onChange={e => setEditFormData({...editFormData, weekendLunch: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
+                            {planned && planned.weekendLunch !== editFormData.weekendLunch && (
+                              <span className="text-[9px] text-gray-400 mt-0.5 block">Plan. {formatCurrency(planned.weekendLunch)}</span>
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
@@ -597,11 +657,19 @@ export default function BudgetActualPage() {
                               value={(editFormData.weekendDinner / 100).toFixed(2)}
                               onChange={e => setEditFormData({...editFormData, weekendDinner: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
+                            {planned && planned.weekendDinner !== editFormData.weekendDinner && (
+                              <span className="text-[9px] text-gray-400 mt-0.5 block">Plan. {formatCurrency(planned.weekendDinner)}</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
                           <span className="text-[9px] text-amber-500 font-medium uppercase tracking-wider">Subtotal</span>
-                          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
+                          <div className="text-right">
+                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
+                            {planned && (planned.weekendLunch + planned.weekendDinner) !== (editFormData.weekendLunch + editFormData.weekendDinner) && (
+                              <div className="text-[9px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendLunch + planned.weekendDinner)}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -613,7 +681,12 @@ export default function BudgetActualPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da execução</div>
-                      <div className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</span>
+                        {planned && plannedTotal !== modalTotal && (
+                          <span className="text-[11px] text-gray-400 tabular-nums">Plan. {formatCurrency(plannedTotal)}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-2.5">
                       <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>

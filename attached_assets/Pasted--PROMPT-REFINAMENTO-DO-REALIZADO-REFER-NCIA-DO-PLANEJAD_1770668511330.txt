@@ -1,0 +1,105 @@
+🎨 PROMPT – REFINAMENTO DO REALIZADO (REFERÊNCIA DO PLANEJADO + AÇÕES VISÍVEIS)
+
+Refine a tela e o modal de edição do Orçamento Realizado, mantendo a estrutura atual, mas aprimorando clareza de referência ao Planejado, percepção de interatividade e confiança operacional.
+
+Contexto:
+O Realizado é criado a partir do Planejado, mas representa a execução real do evento.
+Os valores do Planejado devem servir como base visual de apoio, sem competir com os valores editáveis.
+
+1. Planejado como referência visual (obrigatório)
+
+Manter os valores do Realizado como campos principais e editáveis.
+
+Exibir os valores do Planejado como referência secundária, mesmo após edição.
+
+O Planejado deve aparecer como:
+
+Texto em tom neutro (cinza)
+
+Labels auxiliares (ex: “Planejado: R$ 250”)
+
+Tooltip ou ícone informativo
+
+Nunca substituir ou ocultar o Planejado após o usuário editar os campos.
+
+Aplicação:
+
+Diárias: quantidade, valor unitário e subtotal planejados visíveis como referência
+
+Mobilidade: “Planejado: R$ X” abaixo do total do período
+
+Alimentação: subtotais planejados visíveis por bloco (dias úteis / fins de semana)
+
+2. Comunicação clara de contexto
+
+Manter texto fixo no topo do modal:
+
+Execução real do evento — os valores podem ser diferentes do planejado
+
+Reforçar visualmente que o usuário está editando o Realizado, não o Planejado.
+
+3. Botões de ação (editar, duplicar, remover) — CORREÇÃO CRÍTICA
+Problema atual
+
+Botões em cinza transmitem a sensação de ação desabilitada
+
+Usuários podem interpretar que não são clicáveis
+
+Diretrizes de melhoria
+
+Diferenciar ações ativas de ações desabilitadas
+
+Usar cores e affordances claras para indicar interatividade
+
+Implementação visual recomendada
+
+Editar: azul ou cor primária do sistema
+
+Duplicar: cor neutra ativa (ex: cinza escuro ou roxo suave)
+
+Remover: vermelho ou cor de alerta (com confirmação)
+
+Ícones nunca devem parecer desabilitados quando a ação estiver disponível.
+
+4. Estados e feedback
+
+Hover visível nos botões de ação
+
+Tooltip em todos os ícones:
+
+“Editar execução”
+
+“Duplicar escala”
+
+“Remover execução”
+
+Se a execução estiver bloqueada (ex: após envio para revisão):
+
+Botões realmente desabilitados
+
+Aparência distinta de botões ativos
+
+5. Total da execução
+
+Manter o Total da execução fixo no rodapé do modal.
+
+Valor com destaque, rótulo com menor peso visual.
+
+Atualização em tempo real conforme alterações.
+
+6. Refinamento visual geral
+
+Reduzir uso excessivo de cinza em elementos interativos
+
+Usar cinza apenas para:
+
+Informações secundárias
+
+Valores planejados
+
+Estados realmente desabilitados
+
+Garantir contraste suficiente para ações principais.
+
+Resultado esperado:
+Uma tela de Realizado clara e confiável, onde o usuário entende o que é referência do Planejado, percebe imediatamente quais ações estão disponíveis e consegue editar a execução real com segurança e fluidez.
