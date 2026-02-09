@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -834,13 +834,19 @@ export default function BudgetPlannedPage() {
 
                   <div className="grid grid-cols-2 gap-5">
                     {/* Dias Úteis */}
-                    <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4">
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 text-center">
-                        Dias Úteis ({editingBudgetInfo.weekdays} dias)
+                    <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                      <div className="flex items-center justify-center gap-2 mb-4">
+                        <Briefcase className="w-4 h-4 text-blue-600" />
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                          Dias Úteis ({editingBudgetInfo.weekdays} dias)
+                        </span>
                       </div>
                       <div className="space-y-4">
                         <div>
-                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Almoço</label>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Sun className="w-3.5 h-3.5 text-amber-500" />
+                            <label className="text-xs font-semibold text-amber-700 dark:text-amber-400">Almoço</label>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
@@ -851,9 +857,9 @@ export default function BudgetPlannedPage() {
                               />
                             </div>
                             <div>
-                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <span className="text-[10px] text-amber-500 font-medium block mb-1">Por dia (R$)</span>
                               <Input 
-                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                type="number" step="0.01" className="h-10 text-sm border-amber-200 dark:border-amber-700"
                                 value={editingBudgetInfo.weekdays > 0 ? ((editingBudget.almocoSemana / editingBudgetInfo.weekdays) / 100).toFixed(2) : '0.00'}
                                 onChange={e => {
                                   const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
@@ -864,7 +870,10 @@ export default function BudgetPlannedPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Jantar</label>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                            <label className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">Jantar</label>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
@@ -875,9 +884,9 @@ export default function BudgetPlannedPage() {
                               />
                             </div>
                             <div>
-                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <span className="text-[10px] text-indigo-500 font-medium block mb-1">Por dia (R$)</span>
                               <Input 
-                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                type="number" step="0.01" className="h-10 text-sm border-indigo-200 dark:border-indigo-700"
                                 value={editingBudgetInfo.weekdays > 0 ? ((editingBudget.jantarSemana / editingBudgetInfo.weekdays) / 100).toFixed(2) : '0.00'}
                                 onChange={e => {
                                   const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
@@ -891,13 +900,19 @@ export default function BudgetPlannedPage() {
                     </div>
 
                     {/* Fins de Semana */}
-                    <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4">
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 text-center">
-                        Fins de Semana ({editingBudgetInfo.weekends} dias)
+                    <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                      <div className="flex items-center justify-center gap-2 mb-4">
+                        <Sun className="w-4 h-4 text-amber-600" />
+                        <span className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+                          Fins de Semana ({editingBudgetInfo.weekends} dias)
+                        </span>
                       </div>
                       <div className="space-y-4">
                         <div>
-                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Almoço</label>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Sun className="w-3.5 h-3.5 text-amber-500" />
+                            <label className="text-xs font-semibold text-amber-700 dark:text-amber-400">Almoço</label>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
@@ -908,9 +923,9 @@ export default function BudgetPlannedPage() {
                               />
                             </div>
                             <div>
-                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <span className="text-[10px] text-amber-500 font-medium block mb-1">Por dia (R$)</span>
                               <Input 
-                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                type="number" step="0.01" className="h-10 text-sm border-amber-200 dark:border-amber-700"
                                 value={editingBudgetInfo.weekends > 0 ? ((editingBudget.almocoFds / editingBudgetInfo.weekends) / 100).toFixed(2) : '0.00'}
                                 onChange={e => {
                                   const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
@@ -921,7 +936,10 @@ export default function BudgetPlannedPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Jantar</label>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                            <label className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">Jantar</label>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <span className="text-[10px] text-slate-400 block mb-1">Total (R$)</span>
@@ -932,9 +950,9 @@ export default function BudgetPlannedPage() {
                               />
                             </div>
                             <div>
-                              <span className="text-[10px] text-orange-500 font-medium block mb-1">Por dia (R$)</span>
+                              <span className="text-[10px] text-indigo-500 font-medium block mb-1">Por dia (R$)</span>
                               <Input 
-                                type="number" step="0.01" className="h-10 text-sm border-orange-200 dark:border-orange-700"
+                                type="number" step="0.01" className="h-10 text-sm border-indigo-200 dark:border-indigo-700"
                                 value={editingBudgetInfo.weekends > 0 ? ((editingBudget.jantarFds / editingBudgetInfo.weekends) / 100).toFixed(2) : '0.00'}
                                 onChange={e => {
                                   const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
