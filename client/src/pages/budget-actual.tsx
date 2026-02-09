@@ -301,6 +301,13 @@ export default function BudgetActualPage() {
   const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
   const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
   const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
+  const totalPlanejado = useMemo(() => {
+    return filteredItems.reduce((sum, item) => {
+      const planned = getPlannedRef(item);
+      return sum + (planned ? planned.totalValue : item.totalValue);
+    }, 0);
+  }, [filteredItems, budgetPlanned]);
+  const totalDifference = totalRealizado - totalPlanejado;
 
   const isReadOnly = sentForReview;
 
@@ -371,6 +378,14 @@ export default function BudgetActualPage() {
               <div>
                 <div className="text-purple-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
                 <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalRealizado)}</div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
+                  {totalDifference !== 0 && (
+                    <span className={`text-[11px] tabular-nums font-medium ${totalDifference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                      {totalDifference > 0 ? '+' : '-'} {formatCurrency(Math.abs(totalDifference))}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-5 text-xs">
                 <div className="text-center">
@@ -769,8 +784,8 @@ export default function BudgetActualPage() {
                       </div>
                       {planned && <span className="text-[10px] text-gray-400 tabular-nums">Planejado: {formatCurrency(planned.mobility)}</span>}
                     </div>
-                    <div className="flex items-end gap-4">
-                      <div className="flex-1">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
                         <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Total do período (R$)</label>
                         <CurrencyInput
                           className="h-9 text-sm"
@@ -779,11 +794,16 @@ export default function BudgetActualPage() {
                         />
                         {planned && <PRef value={planned.mobility} />}
                       </div>
-                      <div className="flex-1">
-                        <label className="text-[11px] text-gray-400 mb-1 block">Por dia</label>
+                      <div>
+                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Por dia</label>
                         <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 text-xs text-gray-400 tabular-nums">
                           {editFormData.dailyQuantity > 0 ? formatCurrency(Math.round(editFormData.mobility / editFormData.dailyQuantity)) : 'R$ 0,00'}
                         </div>
+                        {planned && editFormData.dailyQuantity > 0 && (
+                          <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">
+                            Planejado: {formatCurrency(Math.round(planned.mobility / (planned.dailyQuantity || 1)))}/dia
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
