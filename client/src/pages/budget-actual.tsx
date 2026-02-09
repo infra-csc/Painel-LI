@@ -28,6 +28,7 @@ export default function BudgetActualPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("value");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterFunction, setFilterFunction] = useState<string>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -161,6 +162,10 @@ export default function BudgetActualPage() {
       items = items.filter(item => item.collaboratorType === filterType);
     }
 
+    if (filterFunction !== "all") {
+      items = items.filter(item => item.functionId === filterFunction);
+    }
+
     if (sortBy === "value") {
       items.sort((a, b) => b.totalValue - a.totalValue);
     } else if (sortBy === "name") {
@@ -168,7 +173,7 @@ export default function BudgetActualPage() {
     }
 
     return items;
-  }, [budgetActual, selectedEventId, searchTerm, filterType, sortBy, collaborators, functions]);
+  }, [budgetActual, selectedEventId, searchTerm, filterType, filterFunction, sortBy, collaborators, functions]);
 
   const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
   const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
@@ -262,6 +267,17 @@ export default function BudgetActualPage() {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
+            <Select value={filterFunction} onValueChange={setFilterFunction}>
+              <SelectTrigger className="w-40 h-9 text-sm">
+                <SelectValue placeholder="Função" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas funções</SelectItem>
+                {functions?.map(f => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-32 h-9 text-sm">
                 <SelectValue />
