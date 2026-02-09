@@ -732,20 +732,21 @@ export default function BudgetPlannedPage() {
           {editingBudget && editingBudgetInfo && (
             <>
               {/* Header */}
-              <div className="bg-slate-900 text-white px-8 py-5">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold tracking-tight">{editingBudgetInfo.name}</h2>
+                    <p className="text-blue-200 text-xs font-medium uppercase tracking-wider mb-1">Editar Orçamento</p>
+                    <h2 className="text-xl font-bold">{editingBudgetInfo.name}</h2>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-slate-300 text-sm">{editingBudgetInfo.functionName}</span>
-                      <span className="bg-slate-700 text-slate-200 px-2.5 py-0.5 rounded-md text-xs font-medium">{editingBudgetInfo.type}</span>
+                      <span className="text-blue-100 text-sm">{editingBudgetInfo.functionName}</span>
+                      <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-md text-xs font-medium">{editingBudgetInfo.type}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-2 text-slate-400 text-xs">
+                    <div className="flex items-center gap-2 mt-2 text-blue-200 text-xs">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{editingBudgetInfo.period}</span>
-                      <span className="text-slate-500">|</span>
+                      <span className="text-blue-300/50">|</span>
                       <span>{editingBudgetInfo.weekdays} dias úteis</span>
-                      <span className="text-slate-500">|</span>
+                      <span className="text-blue-300/50">|</span>
                       <span>{editingBudgetInfo.weekends} fins de semana</span>
                     </div>
                   </div>
