@@ -211,6 +211,22 @@ export default function BudgetActualPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
+  const eventDayCounts = useMemo(() => {
+    if (!selectedEvent?.startDate || !selectedEvent?.endDate) return { weekdays: 0, weekends: 0 };
+    const start = new Date(selectedEvent.startDate + 'T00:00:00');
+    const end = new Date(selectedEvent.endDate + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return { weekdays: 0, weekends: 0 };
+    let weekdays = 0, weekends = 0;
+    const current = new Date(start);
+    while (current <= end) {
+      const day = current.getDay();
+      if (day === 0 || day === 6) weekends++;
+      else weekdays++;
+      current.setDate(current.getDate() + 1);
+    }
+    return { weekdays, weekends };
+  }, [selectedEvent]);
+
   const toggleSelect = (id: string) => {
     setSelectedCards(prev => {
       const s = new Set(Array.from(prev));
@@ -817,11 +833,6 @@ export default function BudgetActualPage() {
                       <div className="flex items-center gap-2">
                         {planned && <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(plannedAlimentacao)}</span>}
                         <span className="text-xs font-bold text-orange-500 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                        {editFormData.dailyQuantity > 0 && (
-                          <span className="text-[10px] text-gray-400 tabular-nums">
-                            ({formatCurrency(Math.round(totalAlimentacao / editFormData.dailyQuantity))}/dia)
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -842,7 +853,12 @@ export default function BudgetActualPage() {
                               value={editFormData.weekdayLunch}
                               onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                             />
-                            {planned && <PRef value={planned.weekdayLunch} />}
+                            <div className="flex items-center justify-between mt-0.5">
+                              {planned && <PRef value={planned.weekdayLunch} />}
+                              {eventDayCounts.weekdays > 0 && (
+                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayLunch / eventDayCounts.weekdays))}/dia</span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
@@ -854,7 +870,12 @@ export default function BudgetActualPage() {
                               value={editFormData.weekdayDinner}
                               onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                             />
-                            {planned && <PRef value={planned.weekdayDinner} />}
+                            <div className="flex items-center justify-between mt-0.5">
+                              {planned && <PRef value={planned.weekdayDinner} />}
+                              {eventDayCounts.weekdays > 0 && (
+                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayDinner / eventDayCounts.weekdays))}/dia</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
@@ -882,7 +903,12 @@ export default function BudgetActualPage() {
                               value={editFormData.weekendLunch}
                               onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                             />
-                            {planned && <PRef value={planned.weekendLunch} />}
+                            <div className="flex items-center justify-between mt-0.5">
+                              {planned && <PRef value={planned.weekendLunch} />}
+                              {eventDayCounts.weekends > 0 && (
+                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendLunch / eventDayCounts.weekends))}/dia</span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
@@ -894,7 +920,12 @@ export default function BudgetActualPage() {
                               value={editFormData.weekendDinner}
                               onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                             />
-                            {planned && <PRef value={planned.weekendDinner} />}
+                            <div className="flex items-center justify-between mt-0.5">
+                              {planned && <PRef value={planned.weekendDinner} />}
+                              {eventDayCounts.weekends > 0 && (
+                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendDinner / eventDayCounts.weekends))}/dia</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
