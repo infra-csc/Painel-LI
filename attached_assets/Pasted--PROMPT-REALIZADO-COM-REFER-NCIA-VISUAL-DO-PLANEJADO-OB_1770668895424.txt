@@ -1,0 +1,146 @@
+🎨 PROMPT — REALIZADO COM REFERÊNCIA VISUAL DO PLANEJADO (OBRIGATÓRIO)
+
+Ajuste a tela e o modal de edição do Orçamento Realizado para que os valores do Planejado fiquem sempre visíveis como referência, mesmo após o usuário editar os valores do Realizado.
+
+⚠️ Regra obrigatória:
+O Planejado NÃO pode desaparecer quando o usuário altera os campos.
+Placeholders não são suficientes.
+A referência deve ser visível de forma permanente.
+
+1. Estrutura obrigatória do modal
+
+O modal deve apresentar dois níveis de informação:
+
+Realizado → dados principais, editáveis
+
+Planejado → dados secundários, somente leitura
+
+O usuário deve conseguir comparar os dois sem sair da tela.
+
+2. Implementação visual da referência do Planejado
+
+Aplicar uma das soluções abaixo (ou ambas):
+
+Opção A — Referência inline (campo a campo)
+
+Exibir abaixo ou ao lado de cada campo editável:
+
+“Planejado: X”
+
+Usar:
+
+Cor neutra (cinza)
+
+Fonte menor
+
+Ícone ℹ️ opcional
+
+Exemplo:
+
+Quantidade: 4
+Planejado: 3
+
+Valor unitário: R$ 250
+Planejado: R$ 230
+
+Opção B — Box de referência do Planejado
+
+Criar um bloco fixo ou colapsável dentro do modal:
+
+Título: “Valores planejados”
+
+Exibir:
+
+Diárias planejadas
+
+Mobilidade planejada
+
+Alimentação planejada
+
+Total planejado
+
+Este bloco deve:
+
+Permanecer visível durante a edição
+
+Não ser editável
+
+3. Aplicação por seção (obrigatório)
+
+Diárias
+
+Mostrar:
+
+Quantidade planejada
+
+Valor unitário planejado
+
+Subtotal planejado
+
+Mobilidade
+
+Mostrar:
+
+Total planejado do período
+
+Alimentação
+
+Mostrar:
+
+Subtotal planejado de Dias Úteis
+
+Subtotal planejado de Fins de Semana
+
+4. Comunicação clara no topo do modal
+
+Exibir texto fixo e visível:
+
+Execução real do evento
+Os valores planejados abaixo servem apenas como referência
+
+5. Botões de ação (correção obrigatória)
+
+Botões Editar, Duplicar e Remover devem parecer claramente clicáveis.
+
+NÃO usar cinza claro para ações ativas.
+
+Cores recomendadas:
+
+Editar → cor primária
+
+Duplicar → neutro ativo
+
+Remover → vermelho (com confirmação)
+
+Cinza deve ser usado apenas para:
+
+Informações
+
+Referência do Planejado
+
+Estados realmente desabilitados
+
+6. Feedback visual de divergência
+
+Sempre que o Realizado for diferente do Planejado:
+
+Exibir badge ou texto:
+
+Valores diferentes do planejado
+
+Quando for igual:
+
+Exibir:
+
+Igual ao planejado
+
+7. Total da execução
+
+Manter “Total da execução” fixo no rodapé.
+
+Exibir logo abaixo:
+
+“Planejado: R$ X”
+
+Resultado esperado:
+Um modal onde o usuário consegue editar o Realizado com segurança, sempre vendo o Planejado como referência visual permanente, sem transformar a tela em uma tela formal de comparação.
