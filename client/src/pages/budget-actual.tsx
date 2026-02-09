@@ -213,9 +213,10 @@ export default function BudgetActualPage() {
 
   const eventDayCounts = useMemo(() => {
     if (!selectedEvent?.startDate || !selectedEvent?.endDate) return { weekdays: 0, weekends: 0 };
-    const start = new Date(selectedEvent.startDate + 'T00:00:00');
-    const end = new Date(selectedEvent.endDate + 'T00:00:00');
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return { weekdays: 0, weekends: 0 };
+    let start = new Date(selectedEvent.startDate + 'T00:00:00');
+    let end = new Date(selectedEvent.endDate + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return { weekdays: 0, weekends: 0 };
+    if (end < start) { const tmp = start; start = end; end = tmp; }
     let weekdays = 0, weekends = 0;
     const current = new Date(start);
     while (current <= end) {
