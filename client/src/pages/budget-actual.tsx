@@ -753,6 +753,29 @@ export default function BudgetActualPage() {
 
                 <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
 
+                  {selectedEvent && (selectedEvent.startDate || selectedEvent.endDate) && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-[11px] text-gray-500">
+                          {(() => {
+                            const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                            const s = selectedEvent.startDate;
+                            const e = selectedEvent.endDate;
+                            if (s && e) return `${fmt(s)} a ${fmt(e)}`;
+                            if (s) return `Início: ${fmt(s)}`;
+                            return `Fim: ${fmt(e!)}`;
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                        {eventDayCounts.weekdays > 0 && <span>{eventDayCounts.weekdays} {eventDayCounts.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
+                        {eventDayCounts.weekends > 0 && <span>{eventDayCounts.weekends} {eventDayCounts.weekends === 1 ? 'fim de semana' : 'fins de semana'}</span>}
+                        <span className="font-medium text-gray-500">{eventDayCounts.weekdays + eventDayCounts.weekends} dias</span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
