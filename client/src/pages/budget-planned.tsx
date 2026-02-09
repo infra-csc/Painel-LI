@@ -369,33 +369,46 @@ export default function BudgetPlannedPage() {
     toast({ title: "Sucesso", description: "Valores atualizados" });
   };
 
+  const savePlannedAndSendToActual = async (budget: typeof calculatedBudgets[0], obsLabel: string) => {
+    const plannedData = {
+      eventId: budget.inclusion.eventId,
+      collaboratorId: budget.inclusion.collaboratorId,
+      functionId: budget.inclusion.functionId,
+      collaboratorType: budget.collaborator?.type || "freela",
+      dailyQuantity: budget.qtdDiarias,
+      dailyValue: budget.valorDiaria,
+      costAssistance: 0,
+      weekdayLunch: budget.almocoSemana,
+      weekdayDinner: budget.jantarSemana,
+      weekendLunch: budget.almocoFds,
+      weekendDinner: budget.jantarFds,
+      mobility: budget.mobilidade,
+      transport: 0,
+      totalValue: budget.totalFinal,
+      createdBy: user?.id,
+    };
+
+    const plannedRes = await apiRequest("POST", "/api/budget-planned", plannedData);
+    const savedPlanned = await plannedRes.json();
+
+    const actualRes = await apiRequest("POST", "/api/budget-actual", {
+      ...plannedData,
+      plannedId: savedPlanned.id,
+      paymentStatus: "pendente",
+      observations: obsLabel,
+    });
+    return { id: budget.inclusion.id, result: await actualRes.json() };
+  };
+
   const sendToActualMutation = useMutation({
     mutationFn: async (budget: typeof calculatedBudgets[0]) => {
-      const res = await apiRequest("POST", "/api/budget-actual", {
-        eventId: budget.inclusion.eventId,
-        collaboratorId: budget.inclusion.collaboratorId,
-        functionId: budget.inclusion.functionId,
-        collaboratorType: budget.collaborator?.type || "freela",
-        dailyQuantity: budget.qtdDiarias,
-        dailyValue: budget.valorDiaria,
-        costAssistance: 0,
-        weekdayLunch: budget.almocoSemana,
-        weekdayDinner: budget.jantarSemana,
-        weekendLunch: budget.almocoFds,
-        weekendDinner: budget.jantarFds,
-        mobility: budget.mobilidade,
-        transport: 0,
-        totalValue: budget.totalFinal,
-        paymentStatus: "pendente",
-        observations: "Enviado do planejado",
-        createdBy: user?.id,
-      });
-      return { id: budget.inclusion.id, result: await res.json() };
+      return savePlannedAndSendToActual(budget, "Enviado do planejado");
     },
     onSuccess: (data) => {
       setSentToActual(prev => new Set([...prev, data.id]));
       toast({ title: "Sucesso", description: "Enviado para o Realizado" });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
     onError: () => {
       toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
@@ -409,26 +422,8 @@ export default function BudgetPlannedPage() {
       );
       const results = [];
       for (const budget of toSend) {
-        const res = await apiRequest("POST", "/api/budget-actual", {
-          eventId: budget.inclusion.eventId,
-          collaboratorId: budget.inclusion.collaboratorId,
-          functionId: budget.inclusion.functionId,
-          collaboratorType: budget.collaborator?.type || "freela",
-          dailyQuantity: budget.qtdDiarias,
-          dailyValue: budget.valorDiaria,
-          costAssistance: 0,
-          weekdayLunch: budget.almocoSemana,
-          weekdayDinner: budget.jantarSemana,
-          weekendLunch: budget.almocoFds,
-          weekendDinner: budget.jantarFds,
-          mobility: budget.mobilidade,
-          transport: 0,
-          totalValue: budget.totalFinal,
-          paymentStatus: "pendente",
-          observations: "Enviado do planejado (lote)",
-          createdBy: user?.id,
-        });
-        results.push({ id: budget.inclusion.id, result: await res.json() });
+        const result = await savePlannedAndSendToActual(budget, "Enviado do planejado (lote)");
+        results.push(result);
       }
       return results;
     },
@@ -437,6 +432,7 @@ export default function BudgetPlannedPage() {
       setSelectedCards(new Set());
       toast({ title: "Sucesso", description: `${data.length} itens enviados para o Realizado` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+      qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
     onError: () => {
       toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
