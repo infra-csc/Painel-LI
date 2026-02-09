@@ -380,11 +380,11 @@ export default function BudgetActualPage() {
                 <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalRealizado)}</div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
-                  {totalDifference !== 0 && (
-                    <span className={`text-[11px] tabular-nums font-medium ${totalDifference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      {totalDifference > 0 ? '+' : '-'} {formatCurrency(Math.abs(totalDifference))}
-                    </span>
-                  )}
+                  <span className={`text-[11px] tabular-nums font-medium ${
+                    totalDifference === 0 ? 'text-emerald-600' : totalDifference > 0 ? 'text-red-500' : 'text-emerald-600'
+                  }`}>
+                    Diferença: {totalDifference === 0 ? 'R$ 0,00' : `${totalDifference > 0 ? '+' : '-'} ${formatCurrency(Math.abs(totalDifference))}`}
+                  </span>
                 </div>
               </div>
               <div className="flex gap-5 text-xs">
