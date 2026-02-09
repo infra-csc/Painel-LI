@@ -86,6 +86,7 @@ export default function BudgetActualPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [sentForReview, setSentForReview] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -209,6 +210,22 @@ export default function BudgetActualPage() {
   };
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
+
+  const toggleSelect = (id: string) => {
+    setSelectedCards(prev => {
+      const s = new Set(Array.from(prev));
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedCards.size === filteredItems.length) {
+      setSelectedCards(new Set());
+    } else {
+      setSelectedCards(new Set(filteredItems.map(i => i.id)));
+    }
+  };
 
   const toggleCollapse = (id: string) => {
     setCollapsedCards(prev => {
@@ -419,6 +436,46 @@ export default function BudgetActualPage() {
             </div>
           </div>
 
+          {!isReadOnly && filteredItems.length > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={selectAll}
+                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  selectedCards.size === filteredItems.length && selectedCards.size > 0
+                    ? 'bg-purple-600 border-purple-600'
+                    : selectedCards.size > 0
+                      ? 'bg-purple-200 border-purple-400'
+                      : 'border-gray-300 dark:border-gray-600'
+                }`}>
+                  {selectedCards.size > 0 && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      {selectedCards.size === filteredItems.length
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                      }
+                    </svg>
+                  )}
+                </div>
+                {selectedCards.size > 0
+                  ? `${selectedCards.size} selecionada${selectedCards.size > 1 ? 's' : ''}`
+                  : 'Selecionar todas'
+                }
+              </button>
+              {selectedCards.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[11px] text-gray-400 hover:text-gray-600"
+                  onClick={() => setSelectedCards(new Set())}
+                >
+                  Limpar
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3.5">
             {filteredItems.map(item => {
               const isCollapsed = collapsedCards.has(item.id);
@@ -427,6 +484,7 @@ export default function BudgetActualPage() {
               const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
               const isDuplicated = item.observations?.includes('Duplicado no Realizado');
               const diverges = hasItemDivergence(item);
+              const isSelected = selectedCards.has(item.id);
 
               const getStatusBadge = () => {
                 if (isFromPlanned) {
@@ -439,31 +497,51 @@ export default function BudgetActualPage() {
               };
 
               return (
-                <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden ${
+                <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden transition-colors ${
+                  isSelected ? 'ring-1 ring-purple-300 border-purple-200 dark:border-purple-700' : ''
+                } ${
                   isCasa ? 'border-l-[3px] border-l-blue-400 border-gray-200 dark:border-gray-700' : 'border-l-[3px] border-l-orange-400 border-gray-200 dark:border-gray-700'
                 }`}>
                   <div className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                          {getCollaboratorName(item.collaboratorId)}
-                        </span>
-                        {diverges && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Difere do planejado" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
-                          {getFunctionName(item.functionId)}
-                        </Badge>
-                        <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${
-                          isCasa
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50'
-                            : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
-                        }`}>
-                          {isCasa ? 'Casa' : 'Freela'}
-                        </Badge>
-                        {getStatusBadge()}
+                    <div className="flex items-center gap-3">
+                      {!isReadOnly && (
+                        <button
+                          onClick={() => toggleSelect(item.id)}
+                          className="flex-shrink-0"
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                            isSelected ? 'bg-purple-600 border-purple-600' : 'border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </button>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                            {getCollaboratorName(item.collaboratorId)}
+                          </span>
+                          {diverges && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Difere do planejado" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
+                            {getFunctionName(item.functionId)}
+                          </Badge>
+                          <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${
+                            isCasa
+                              ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50'
+                              : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
+                          }`}>
+                            {isCasa ? 'Casa' : 'Freela'}
+                          </Badge>
+                          {getStatusBadge()}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5">
@@ -542,10 +620,32 @@ export default function BudgetActualPage() {
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Enviado para revisão
                 </div>
+              ) : selectedCards.size > 0 ? (
+                <>
+                  <div className="text-[11px] text-gray-500">
+                    {selectedCards.size} {selectedCards.size === 1 ? 'execução selecionada' : 'execuções selecionadas'}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      setSentForReview(true);
+                      setSelectedCards(new Set());
+                      toast({
+                        title: "Enviado para revisão",
+                        description: `${selectedCards.size} ${selectedCards.size === 1 ? 'execução enviada' : 'execuções enviadas'} para conferência.`,
+                        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+                      });
+                    }}
+                  >
+                    <Send className="w-3 h-3 mr-1.5" />
+                    Enviar selecionadas
+                  </Button>
+                </>
               ) : (
                 <>
                   <div className="text-[11px] text-gray-400">
-                    Valores podem ser alterados antes da revisão
+                    Selecione execuções ou envie todas para revisão
                   </div>
                   <Button
                     size="sm"
@@ -560,7 +660,7 @@ export default function BudgetActualPage() {
                     }}
                   >
                     <Send className="w-3 h-3 mr-1.5" />
-                    Enviar para revisão
+                    Enviar todas
                   </Button>
                 </>
               )}
@@ -795,8 +895,8 @@ export default function BudgetActualPage() {
                             Planejado: {formatCurrency(plannedTotal)}
                           </div>
                           {hasDivergence && (
-                            <div className="text-[11px] text-gray-500 tabular-nums">
-                              Diferença: {difference > 0 ? '+' : ''}{formatCurrency(Math.abs(difference))}
+                            <div className={`text-[11px] tabular-nums ${difference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              Diferença: {difference > 0 ? '+' : '-'} {formatCurrency(Math.abs(difference))}
                               {difference > 0 ? ' acima' : ' abaixo'}
                             </div>
                           )}
