@@ -58,9 +58,26 @@ export default function BudgetActualPage() {
     enabled: !!selectedEventId,
   });
 
-  const getPlannedRef = (plannedId?: string | null): BudgetPlanned | undefined => {
-    if (!plannedId || !budgetPlanned) return undefined;
-    return budgetPlanned.find(p => p.id === plannedId);
+  const getPlannedRef = (item: BudgetActual): BudgetPlanned | undefined => {
+    if (!budgetPlanned) return undefined;
+    if (item.plannedId) {
+      const byId = budgetPlanned.find(p => p.id === item.plannedId);
+      if (byId) return byId;
+    }
+    if (item.collaboratorId && item.functionId) {
+      return budgetPlanned.find(p =>
+        p.collaboratorId === item.collaboratorId &&
+        p.functionId === item.functionId &&
+        p.eventId === item.eventId
+      );
+    }
+    if (item.collaboratorId) {
+      return budgetPlanned.find(p =>
+        p.collaboratorId === item.collaboratorId &&
+        p.eventId === item.eventId
+      );
+    }
+    return undefined;
   };
 
   const updateMutation = useMutation({
@@ -455,7 +472,7 @@ export default function BudgetActualPage() {
               editFormData.weekendLunch + editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
-            const planned = getPlannedRef(editingItem.plannedId);
+            const planned = getPlannedRef(editingItem);
             const plannedDailySubtotal = planned ? planned.dailyQuantity * planned.dailyValue : 0;
             const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
             const plannedTotal = planned ? planned.totalValue : 0;
