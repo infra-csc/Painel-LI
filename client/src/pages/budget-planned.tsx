@@ -756,72 +756,70 @@ export default function BudgetPlannedPage() {
               {/* Corpo */}
               <div className="max-h-[55vh] overflow-y-auto px-8 py-6 space-y-6 bg-white dark:bg-gray-900">
                 
-                {/* Diárias */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <div className="grid grid-cols-2 gap-5">
+                  {/* Diárias */}
+                  <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Diárias</h3>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Quantidade</label>
+                          <Input 
+                            type="number" className="h-10 text-sm"
+                            value={editingBudget.qtdDiarias} 
+                            onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Valor unitário (R$)</label>
+                          <Input 
+                            type="number" step="0.01" className="h-10 text-sm"
+                            value={(editingBudget.valorDiaria / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                        </div>
+                      </div>
+                      <div className="bg-blue-100/50 dark:bg-blue-900/30 rounded-lg px-3 py-2 text-right">
+                        <span className="text-[10px] uppercase text-blue-500 font-medium tracking-wider mr-2">Subtotal</span>
+                        <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 items-end">
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Quantidade</label>
-                      <Input 
-                        type="number" className="h-11 text-base"
-                        value={editingBudget.qtdDiarias} 
-                        onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
-                      />
+
+                  {/* Mobilidade */}
+                  <div className="bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <Car className="w-4 h-4 text-purple-600" />
+                      <span className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">Mobilidade</span>
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Valor unitário (R$)</label>
-                      <Input 
-                        type="number" step="0.01" className="h-11 text-base"
-                        value={(editingBudget.valorDiaria / 100).toFixed(2)} 
-                        onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                      />
-                    </div>
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg px-4 py-2.5 text-right">
-                      <div className="text-[10px] uppercase text-blue-500 dark:text-blue-400 font-medium tracking-wider">Subtotal</div>
-                      <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Total (R$)</label>
+                          <Input 
+                            type="number" step="0.01" className="h-10 text-sm"
+                            value={(editingBudget.mobilidade / 100).toFixed(2)} 
+                            onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1.5 block">Por dia (R$)</label>
+                          <Input 
+                            type="number" step="0.01" className="h-10 text-sm border-purple-200 dark:border-purple-700"
+                            value={editingBudget.qtdDiarias > 0 ? ((editingBudget.mobilidade / editingBudget.qtdDiarias) / 100).toFixed(2) : '0.00'}
+                            onChange={e => {
+                              const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                              setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="border-t border-slate-100 dark:border-slate-800" />
-
-                {/* Mobilidade */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
-                      <Car className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Mobilidade</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 items-end">
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block">Total do período (R$)</label>
-                      <Input 
-                        type="number" step="0.01" className="h-11 text-base"
-                        value={(editingBudget.mobilidade / 100).toFixed(2)} 
-                        onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1.5 block">Valor por dia (R$)</label>
-                      <Input 
-                        type="number" step="0.01" className="h-11 text-base border-purple-200 dark:border-purple-700 focus:ring-purple-500"
-                        value={editingBudget.qtdDiarias > 0 ? ((editingBudget.mobilidade / editingBudget.qtdDiarias) / 100).toFixed(2) : '0.00'}
-                        onChange={e => {
-                          const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
-                          setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 dark:border-slate-800" />
 
                 {/* Alimentação */}
                 <div>
