@@ -1,0 +1,92 @@
+1. Header / Resumo
+
+Destacar o Total Geral como o elemento visual mais importante da tela (fonte maior e maior largura).
+
+Manter cards secundários para:
+
+Casa (quantidade e valor total)
+
+Freela (quantidade e valor total)
+
+Substituir ou complementar o card “Colaboradores” por métricas mais úteis, como:
+
+Custo médio por colaborador
+
+Custo médio por dia
+
+Tratar o projeto selecionado (ex: “Running Lad – 2021”) como um filtro ativo, com boa visibilidade.
+
+2. Progresso de envio
+
+Exibir barra de progresso com texto claro dentro da barra (ex: “0 de 12 enviados”).
+
+Usar cor neutra quando 0% e evoluir visualmente conforme o progresso.
+
+Associar ações diretas ao progresso (ex: botão “Enviar selecionados”).
+
+3. Filtros e busca
+
+Agrupar busca e filtros em uma única linha organizada:
+
+Buscar por nome
+
+Filtrar por função
+
+Filtrar por tipo (Casa / Freela)
+
+Ordenar por (Nome, Total, etc.)
+
+Substituir botão “Selecionar todos” por um checkbox mestre alinhado à lista.
+
+4. Cards de colaboradores
+
+Estrutura clara e escaneável:
+
+Cabeçalho com:
+
+Nome em destaque
+
+Badge de função e tipo (Casa / Freela)
+
+Checkbox e ações (Editar / Enviar) bem alinhadas
+
+Corpo do card organizado em duas áreas:
+
+Custos recorrentes (Diárias, Mobilidade, Alimentação)
+
+Custos extras (Ajuda de custo) com destaque sutil
+
+Total sempre posicionado no mesmo local, com boa separação visual.
+
+5. Hierarquia e cores
+
+Usar cores com semântica clara:
+
+Verde para totais
+
+Laranja apenas para custos extras
+
+Valores secundários em tons neutros
+
+Evitar excesso de cores saturadas
+
+6. Usabilidade
+
+Permitir ordenação padrão por maior custo
+
+Facilitar comparação rápida entre colaboradores
+
+Possibilidade de colapsar/expandir detalhes do card
+
+7. Estilo visual
+
+Interface clean, moderna e profissional
+
+Espaçamento confortável entre elementos
+
+Bordas suaves e sombras leves
+
+Ícones discretos e consistentes
+
+Resultado esperado:
+Uma tela financeira clara, elegante e eficiente, que permita decisões rápidas, leitura imediata dos custos e fácil gestão dos envios por colaborador.
