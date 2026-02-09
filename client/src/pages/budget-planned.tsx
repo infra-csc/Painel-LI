@@ -724,96 +724,99 @@ export default function BudgetPlannedPage() {
 
       {/* Modal de Edição */}
       <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="w-5 h-5 text-blue-600" />
-              Editar Orçamento
-            </DialogTitle>
+        <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
+          <div className="px-6 py-4 border-b bg-gray-50 dark:bg-gray-800/50 rounded-t-lg">
+            <DialogHeader>
+              <DialogTitle className="text-lg">Editar Orçamento</DialogTitle>
+            </DialogHeader>
             {editingBudgetInfo && (
-              <div className="text-sm text-gray-500 pt-1">
-                <span className="font-medium text-gray-800 dark:text-gray-200">{editingBudgetInfo.name}</span>
-                <span className="mx-1">—</span>
-                {editingBudgetInfo.functionName} — {editingBudgetInfo.type}
-                <div className="text-xs text-gray-400 mt-0.5">
-                  {editingBudgetInfo.period} ({editingBudgetInfo.weekdays} dias úteis, {editingBudgetInfo.weekends} fins de semana)
-                </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">{editingBudgetInfo.name}</span>
+                <span className="text-sm text-gray-500">{editingBudgetInfo.functionName}</span>
+                <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">{editingBudgetInfo.type}</span>
+                <span className="text-xs text-gray-400">{editingBudgetInfo.period} ({editingBudgetInfo.weekdays} dias úteis, {editingBudgetInfo.weekends} fins de semana)</span>
               </div>
             )}
-          </DialogHeader>
+          </div>
           
           {editingBudget && editingBudgetInfo && (
-            <div className="space-y-4">
-              {/* Diárias */}
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium text-sm">Diárias</span>
-                  <span className="text-xs text-gray-400">— quantidade e valor por diária</span>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="grid grid-cols-2 gap-5">
+                {/* Diárias */}
+                <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-200">Diárias</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Quantidade</Label>
+                        <Input 
+                          type="number"
+                          value={editingBudget.qtdDiarias} 
+                          onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Valor unitário (R$)</Label>
+                        <Input 
+                          type="number" step="0.01"
+                          value={(editingBudget.valorDiaria / 100).toFixed(2)} 
+                          onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm text-gray-500">Subtotal: </span>
+                      <span className="font-bold text-lg text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 items-end">
-                  <div>
-                    <Label className="text-xs text-gray-500">Qtd</Label>
-                    <Input 
-                      type="number" className="h-9"
-                      value={editingBudget.qtdDiarias} 
-                      onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
-                    />
+
+                {/* Mobilidade */}
+                <div className="bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Car className="w-5 h-5 text-gray-600" />
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-200">Mobilidade</h3>
                   </div>
                   <div>
-                    <Label className="text-xs text-gray-500">Valor (R$)</Label>
+                    <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Valor total do período (R$)</Label>
                     <Input 
-                      type="number" step="0.01" className="h-9"
-                      value={(editingBudget.valorDiaria / 100).toFixed(2)} 
-                      onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                      type="number" step="0.01"
+                      value={(editingBudget.mobilidade / 100).toFixed(2)} 
+                      onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
                     />
-                  </div>
-                  <div className="text-right pb-1">
-                    <span className="font-bold text-blue-600">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Mobilidade */}
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Car className="w-4 h-4 text-gray-500" />
-                  <span className="font-medium text-sm">Mobilidade</span>
-                  <span className="text-xs text-gray-400">— valor total do período</span>
-                </div>
-                <div className="w-1/2">
-                  <Input 
-                    type="number" step="0.01" className="h-9"
-                    value={(editingBudget.mobilidade / 100).toFixed(2)} 
-                    onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                  />
-                </div>
-              </div>
-
-              {/* Alimentação */}
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Utensils className="w-4 h-4 text-orange-500" />
-                  <span className="font-medium text-sm">Alimentação</span>
-                  <span className="text-xs text-gray-400">— valores totais do período</span>
+              {/* Alimentação - linha inteira */}
+              <div className="mt-5 bg-orange-50/50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Utensils className="w-5 h-5 text-orange-600" />
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-200">Alimentação</h3>
+                  <span className="text-xs text-gray-400 ml-auto">Valores totais do período</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <div className="text-xs font-medium text-center text-gray-500 mb-2">Dias Úteis ({editingBudgetInfo.weekdays}d)</div>
-                    <div className="space-y-2">
+                    <div className="text-sm font-medium text-center text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-lg py-2 mb-3 border">
+                      Dias Úteis ({editingBudgetInfo.weekdays} dias)
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs text-gray-500">Almoço (R$)</Label>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Almoço (R$)</Label>
                         <Input 
-                          type="number" step="0.01" className="h-9"
+                          type="number" step="0.01"
                           value={(editingBudget.almocoSemana / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-gray-500">Jantar (R$)</Label>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Jantar (R$)</Label>
                         <Input 
-                          type="number" step="0.01" className="h-9"
+                          type="number" step="0.01"
                           value={(editingBudget.jantarSemana / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
@@ -821,20 +824,22 @@ export default function BudgetPlannedPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-center text-gray-500 mb-2">Fins de Semana ({editingBudgetInfo.weekends}d)</div>
-                    <div className="space-y-2">
+                    <div className="text-sm font-medium text-center text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-lg py-2 mb-3 border">
+                      Fins de Semana ({editingBudgetInfo.weekends} dias)
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs text-gray-500">Almoço (R$)</Label>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Almoço (R$)</Label>
                         <Input 
-                          type="number" step="0.01" className="h-9"
+                          type="number" step="0.01"
                           value={(editingBudget.almocoFds / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-gray-500">Jantar (R$)</Label>
+                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Jantar (R$)</Label>
                         <Input 
-                          type="number" step="0.01" className="h-9"
+                          type="number" step="0.01"
                           value={(editingBudget.jantarFds / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
@@ -843,16 +848,15 @@ export default function BudgetPlannedPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Total */}
-              <div className="bg-green-100 dark:bg-green-900 rounded-lg p-3 flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-green-800 dark:text-green-200">TOTAL</span>
-                  <div className="text-xs text-green-600 dark:text-green-400">
-                    Diárias + Mobilidade + Alimentação
-                  </div>
-                </div>
-                <span className="text-xl font-bold text-green-700 dark:text-green-300">
+          {/* Footer fixo */}
+          {editingBudget && (
+            <div className="px-6 py-4 border-t bg-gray-50 dark:bg-gray-800/50 rounded-b-lg flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Geral:</span>
+                <span className="text-2xl font-bold text-green-700 dark:text-green-300">
                   {formatCurrency(
                     (editingBudget.qtdDiarias * editingBudget.valorDiaria) + 
                     editingBudget.mobilidade + 
@@ -863,10 +867,9 @@ export default function BudgetPlannedPage() {
                   )}
                 </span>
               </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
-                <Button onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700">Salvar</Button>
+              <div className="flex gap-3">
+                <Button variant="outline" size="lg" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
+                <Button size="lg" onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700 px-8">Salvar</Button>
               </div>
             </div>
           )}
