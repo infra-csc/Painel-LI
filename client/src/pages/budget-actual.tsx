@@ -333,13 +333,19 @@ export default function BudgetActualPage() {
                           }`}>
                             {isCasa ? 'Casa' : 'Freela'}
                           </Badge>
-                          <Badge className={`text-[10px] h-5 px-1.5 font-medium ${
-                            isFromPlanned
-                              ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                              : 'bg-purple-100 text-purple-700 hover:bg-purple-100'
-                          }`}>
-                            {isFromPlanned ? 'Planejado' : 'Duplicado'}
-                          </Badge>
+                          {item.observations?.includes('Enviado do planejado') || isFromPlanned ? (
+                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-green-100 text-green-700 hover:bg-green-100">
+                              Enviado do Planejado
+                            </Badge>
+                          ) : item.observations?.includes('Duplicado no Realizado') ? (
+                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-purple-100 text-purple-700 hover:bg-purple-100">
+                              Duplicado no Realizado
+                            </Badge>
+                          ) : (
+                            <Badge className="text-[10px] h-5 px-1.5 font-medium bg-gray-100 text-gray-600 hover:bg-gray-100">
+                              Criado no Realizado
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
