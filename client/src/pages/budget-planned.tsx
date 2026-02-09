@@ -39,8 +39,14 @@ interface CalculatedBudget {
   jantarSemana: number;
   almocoFds: number;
   jantarFds: number;
+  unitAlmocoSemana: number;
+  unitJantarSemana: number;
+  unitAlmocoFds: number;
+  unitJantarFds: number;
   ajudaCusto: number;
   totalFinal: number;
+  weekdays: number;
+  weekends: number;
   hasOverride: boolean;
 }
 
@@ -193,10 +199,14 @@ export default function BudgetPlannedPage() {
       );
       
       const mobilidade = override?.mobilidade ?? fv?.mobility ?? 2500;
-      const almocoSemana = override?.almocoSemana ?? ((fv?.weekdayLunch || 3500) * weekdays);
-      const jantarSemana = override?.jantarSemana ?? ((fv?.weekdayDinner || 4000) * weekdays);
-      const almocoFds = override?.almocoFds ?? ((fv?.weekendLunch || 4000) * weekends);
-      const jantarFds = override?.jantarFds ?? ((fv?.weekendDinner || 4500) * weekends);
+      const unitAlmocoSemana = fv?.weekdayLunch || 3500;
+      const unitJantarSemana = fv?.weekdayDinner || 4000;
+      const unitAlmocoFds = fv?.weekendLunch || 4000;
+      const unitJantarFds = fv?.weekendDinner || 4500;
+      const almocoSemana = override?.almocoSemana ?? (unitAlmocoSemana * weekdays);
+      const jantarSemana = override?.jantarSemana ?? (unitJantarSemana * weekdays);
+      const almocoFds = override?.almocoFds ?? (unitAlmocoFds * weekends);
+      const jantarFds = override?.jantarFds ?? (unitJantarFds * weekends);
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -213,6 +223,10 @@ export default function BudgetPlannedPage() {
         jantarSemana,
         almocoFds,
         jantarFds,
+        unitAlmocoSemana,
+        unitJantarSemana,
+        unitAlmocoFds,
+        unitJantarFds,
         ajudaCusto,
         totalFinal,
         weekdays,
@@ -814,7 +828,11 @@ export default function BudgetPlannedPage() {
                               <span>Semana ({budget.weekdays}d)</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
+                              <div className="flex items-center gap-1">
+                                <Sun className="w-2.5 h-2.5 text-yellow-500" />
+                                <span className="text-gray-500">Almoço</span>
+                                <span className="text-gray-400 text-[10px]">({formatCurrency(budget.unitAlmocoSemana)}/d)</span>
+                              </div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoSemana' ? (
                                 <input
                                   type="text"
@@ -828,7 +846,7 @@ export default function BudgetPlannedPage() {
                                 />
                               ) : (
                                 <span 
-                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
+                                  className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
                                   onClick={() => startInlineEdit(budget.inclusion.id, 'almocoSemana', budget.almocoSemana)}
                                 >
                                   {formatCurrency(budget.almocoSemana)}
@@ -836,7 +854,11 @@ export default function BudgetPlannedPage() {
                               )}
                             </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
+                              <div className="flex items-center gap-1">
+                                <Moon className="w-2.5 h-2.5 text-indigo-400" />
+                                <span className="text-gray-500">Jantar</span>
+                                <span className="text-gray-400 text-[10px]">({formatCurrency(budget.unitJantarSemana)}/d)</span>
+                              </div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarSemana' ? (
                                 <input
                                   type="text"
@@ -850,7 +872,7 @@ export default function BudgetPlannedPage() {
                                 />
                               ) : (
                                 <span 
-                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
+                                  className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
                                   onClick={() => startInlineEdit(budget.inclusion.id, 'jantarSemana', budget.jantarSemana)}
                                 >
                                   {formatCurrency(budget.jantarSemana)}
@@ -864,7 +886,11 @@ export default function BudgetPlannedPage() {
                               <span>Fds ({budget.weekends}d)</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
+                              <div className="flex items-center gap-1">
+                                <Sun className="w-2.5 h-2.5 text-yellow-500" />
+                                <span className="text-gray-500">Almoço</span>
+                                <span className="text-gray-400 text-[10px]">({formatCurrency(budget.unitAlmocoFds)}/d)</span>
+                              </div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'almocoFds' ? (
                                 <input
                                   type="text"
@@ -878,7 +904,7 @@ export default function BudgetPlannedPage() {
                                 />
                               ) : (
                                 <span 
-                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
+                                  className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 px-0.5 rounded' : ''}`}
                                   onClick={() => startInlineEdit(budget.inclusion.id, 'almocoFds', budget.almocoFds)}
                                 >
                                   {formatCurrency(budget.almocoFds)}
@@ -886,7 +912,11 @@ export default function BudgetPlannedPage() {
                               )}
                             </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1"><Moon className="w-2.5 h-2.5 text-indigo-400" /><span className="text-gray-500">Jantar</span></div>
+                              <div className="flex items-center gap-1">
+                                <Moon className="w-2.5 h-2.5 text-indigo-400" />
+                                <span className="text-gray-500">Jantar</span>
+                                <span className="text-gray-400 text-[10px]">({formatCurrency(budget.unitJantarFds)}/d)</span>
+                              </div>
                               {inlineEdit?.id === budget.inclusion.id && inlineEdit?.field === 'jantarFds' ? (
                                 <input
                                   type="text"
@@ -900,7 +930,7 @@ export default function BudgetPlannedPage() {
                                 />
                               ) : (
                                 <span 
-                                  className={`${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
+                                  className={`font-medium ${canEdit && !sentToActual.has(budget.inclusion.id) ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-0.5 rounded' : ''}`}
                                   onClick={() => startInlineEdit(budget.inclusion.id, 'jantarFds', budget.jantarFds)}
                                 >
                                   {formatCurrency(budget.jantarFds)}
