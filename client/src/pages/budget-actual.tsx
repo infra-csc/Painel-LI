@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,10 +7,66 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
+
+function CurrencyInput({ value, onChange, className, disabled }: {
+  value: number;
+  onChange: (cents: number) => void;
+  className?: string;
+  disabled?: boolean;
+}) {
+  const [display, setDisplay] = useState(() => (value / 100).toFixed(2).replace('.', ','));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setDisplay((value / 100).toFixed(2).replace('.', ','));
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setDisplay(raw);
+    const normalized = raw.replace(',', '.');
+    const parsed = parseFloat(normalized);
+    if (!isNaN(parsed)) {
+      onChange(Math.round(parsed * 100));
+    }
+  };
+
+  const handleBlur = () => {
+    const normalized = display.replace(',', '.');
+    const parsed = parseFloat(normalized);
+    if (!isNaN(parsed)) {
+      const cents = Math.round(parsed * 100);
+      onChange(cents);
+      setDisplay((cents / 100).toFixed(2).replace('.', ','));
+    } else {
+      setDisplay((value / 100).toFixed(2).replace('.', ','));
+    }
+  };
+
+  const handleFocus = () => {
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  return (
+    <Input
+      ref={inputRef}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={display}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      disabled={disabled}
+    />
+  );
+}
 
 export default function BudgetActualPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
@@ -26,10 +82,11 @@ export default function BudgetActualPage() {
   } | null>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<string>("value");
+  const [sortBy, setSortBy] = useState<string>("adjusted");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [sentForReview, setSentForReview] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -80,6 +137,12 @@ export default function BudgetActualPage() {
     return undefined;
   };
 
+  const hasItemDivergence = (item: BudgetActual): boolean => {
+    const planned = getPlannedRef(item);
+    if (!planned) return false;
+    return planned.totalValue !== item.totalValue;
+  };
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, {
@@ -89,7 +152,11 @@ export default function BudgetActualPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Execução atualizada" });
+      toast({
+        title: "Execução atualizada com sucesso",
+        description: "Os valores da execução foram salvos.",
+        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+      });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setEditingItem(null);
       setEditFormData(null);
@@ -198,22 +265,30 @@ export default function BudgetActualPage() {
       items = items.filter(item => item.functionId === filterFunction);
     }
 
-    if (sortBy === "value") {
+    if (sortBy === "adjusted") {
+      items.sort((a, b) => {
+        const aDiverges = hasItemDivergence(a) ? 1 : 0;
+        const bDiverges = hasItemDivergence(b) ? 1 : 0;
+        if (aDiverges !== bDiverges) return bDiverges - aDiverges;
+        return b.totalValue - a.totalValue;
+      });
+    } else if (sortBy === "value") {
       items.sort((a, b) => b.totalValue - a.totalValue);
     } else if (sortBy === "name") {
       items.sort((a, b) => getCollaboratorName(a.collaboratorId).localeCompare(getCollaboratorName(b.collaboratorId)));
     }
 
     return items;
-  }, [budgetActual, selectedEventId, searchTerm, filterType, filterFunction, sortBy, collaborators, functions]);
+  }, [budgetActual, selectedEventId, searchTerm, filterType, filterFunction, sortBy, collaborators, functions, budgetPlanned]);
 
   const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
   const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
   const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
 
+  const isReadOnly = sentForReview;
+
   return (
     <div className="space-y-4 pb-24">
-      {/* Header compacto */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <ClipboardCheck className="w-5 h-5 text-purple-600" />
@@ -223,16 +298,22 @@ export default function BudgetActualPage() {
           </div>
         </div>
         {selectedEventId && filteredItems.length > 0 && (
-          <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
-            Em preenchimento
-          </Badge>
+          sentForReview ? (
+            <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+              <Send className="w-3 h-3 mr-1" />
+              Enviado para revisão
+            </Badge>
+          ) : (
+            <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
+              Em preenchimento
+            </Badge>
+          )
         )}
       </div>
 
-      {/* Seletor de Evento */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block uppercase tracking-wider">Evento</label>
-        <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
+        <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); setSentForReview(false); }}>
           <SelectTrigger className="w-full md:w-96">
             <SelectValue placeholder="Selecione um evento para visualizar" />
           </SelectTrigger>
@@ -253,7 +334,6 @@ export default function BudgetActualPage() {
       ) : isLoading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>
       ) : filteredItems.length === 0 && !searchTerm && filterType === "all" ? (
-        /* Estado vazio */
         <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <ClipboardCheck className="w-16 h-16 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma execução disponível</h3>
@@ -269,7 +349,6 @@ export default function BudgetActualPage() {
         </div>
       ) : (
         <>
-          {/* Banner do Total - saturação reduzida */}
           <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -293,7 +372,6 @@ export default function BudgetActualPage() {
             </div>
           </div>
 
-          {/* Filtros padronizados */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -326,13 +404,14 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectTrigger className="w-44 h-8 text-xs">
                 <ArrowUpDown className="w-3 h-3 mr-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="value">Ordenar: Maior valor</SelectItem>
-                <SelectItem value="name">Ordenar: Nome A-Z</SelectItem>
+                <SelectItem value="adjusted">Ajustadas primeiro</SelectItem>
+                <SelectItem value="value">Maior valor</SelectItem>
+                <SelectItem value="name">Nome A-Z</SelectItem>
               </SelectContent>
             </Select>
             <div className="text-[11px] text-gray-400 ml-auto">
@@ -340,7 +419,6 @@ export default function BudgetActualPage() {
             </div>
           </div>
 
-          {/* Cards de execução */}
           <div className="space-y-3.5">
             {filteredItems.map(item => {
               const isCollapsed = collapsedCards.has(item.id);
@@ -348,6 +426,7 @@ export default function BudgetActualPage() {
               const totalAlimentacao = item.weekdayLunch + item.weekdayDinner + item.weekendLunch + item.weekendDinner;
               const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
               const isDuplicated = item.observations?.includes('Duplicado no Realizado');
+              const diverges = hasItemDivergence(item);
 
               const getStatusBadge = () => {
                 if (isFromPlanned) {
@@ -363,11 +442,15 @@ export default function BudgetActualPage() {
                 <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden ${
                   isCasa ? 'border-l-[3px] border-l-blue-400 border-gray-200 dark:border-gray-700' : 'border-l-[3px] border-l-orange-400 border-gray-200 dark:border-gray-700'
                 }`}>
-                  {/* Header do card */}
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <div>
-                      <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                        {getCollaboratorName(item.collaboratorId)}
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                          {getCollaboratorName(item.collaboratorId)}
+                        </span>
+                        {diverges && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Difere do planejado" />
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
                         <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
@@ -384,19 +467,23 @@ export default function BudgetActualPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                        onClick={() => openEditModal(item)} title="Editar execução">
-                        <Edit className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-                        onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar escala"
-                        disabled={duplicateMutation.isPending}>
-                        <Copy className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => setConfirmDeleteId(item.id)} title="Remover execução">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      {!isReadOnly && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => openEditModal(item)} title="Editar execução">
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
+                            onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar escala"
+                            disabled={duplicateMutation.isPending}>
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => setConfirmDeleteId(item.id)} title="Remover execução">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
                         onClick={() => toggleCollapse(item.id)} title={isCollapsed ? "Expandir" : "Recolher"}>
                         {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
@@ -404,7 +491,6 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
-                  {/* Corpo - grid organizado */}
                   {!isCollapsed && (
                     <div className="px-4 pb-2 text-sm">
                       <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-center">
@@ -426,7 +512,6 @@ export default function BudgetActualPage() {
                     </div>
                   )}
 
-                  {/* Total - sempre visível */}
                   <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700">
                     <span className="text-gray-400 text-[10px] uppercase tracking-wider font-medium">Total</span>
                     <span className="font-bold text-base text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
@@ -438,7 +523,6 @@ export default function BudgetActualPage() {
         </>
       )}
 
-      {/* Rodapé fixo */}
       {selectedEventId && filteredItems.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-2.5 z-40">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -452,14 +536,39 @@ export default function BudgetActualPage() {
                 {filteredItems.length} {filteredItems.length === 1 ? 'execução' : 'execuções'}
               </div>
             </div>
-            <div className="text-[11px] text-gray-400">
-              Valores podem ser alterados antes da revisão
+            <div className="flex items-center gap-3">
+              {isReadOnly ? (
+                <div className="text-[11px] text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Enviado para revisão
+                </div>
+              ) : (
+                <>
+                  <div className="text-[11px] text-gray-400">
+                    Valores podem ser alterados antes da revisão
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      setSentForReview(true);
+                      toast({
+                        title: "Enviado para revisão",
+                        description: "O orçamento realizado foi enviado para conferência.",
+                        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+                      });
+                    }}
+                  >
+                    <Send className="w-3 h-3 mr-1.5" />
+                    Enviar para revisão
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Edição */}
       <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-xl">
           <DialogHeader className="sr-only">
@@ -477,6 +586,7 @@ export default function BudgetActualPage() {
             const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
             const plannedTotal = planned ? planned.totalValue : 0;
             const hasDivergence = planned && plannedTotal !== modalTotal;
+            const difference = modalTotal - plannedTotal;
 
             const PRef = ({ value }: { value: number }) => (
               <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Planejado: {formatCurrency(value)}</span>
@@ -484,7 +594,6 @@ export default function BudgetActualPage() {
 
             return (
               <>
-                {/* Header compacto */}
                 <div className="bg-white dark:bg-gray-800 px-6 py-3.5 border-b border-gray-100 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
@@ -510,10 +619,8 @@ export default function BudgetActualPage() {
                   </p>
                 </div>
 
-                {/* Corpo */}
                 <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
 
-                  {/* Diárias */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -539,10 +646,10 @@ export default function BudgetActualPage() {
                       <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">&times;</div>
                       <div className="flex-1">
                         <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Valor unitário (R$)</label>
-                        <Input
-                          type="number" step="0.01" className="h-9 text-sm"
-                          value={(editFormData.dailyValue / 100).toFixed(2)}
-                          onChange={e => setEditFormData({...editFormData, dailyValue: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                        <CurrencyInput
+                          className="h-9 text-sm"
+                          value={editFormData.dailyValue}
+                          onChange={v => setEditFormData({...editFormData, dailyValue: v})}
                         />
                         {planned && <PRef value={planned.dailyValue} />}
                       </div>
@@ -554,7 +661,6 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
-                  {/* Mobilidade */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -566,10 +672,10 @@ export default function BudgetActualPage() {
                     <div className="flex items-end gap-4">
                       <div className="flex-1">
                         <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Total do período (R$)</label>
-                        <Input
-                          type="number" step="0.01" className="h-9 text-sm"
-                          value={(editFormData.mobility / 100).toFixed(2)}
-                          onChange={e => setEditFormData({...editFormData, mobility: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                        <CurrencyInput
+                          className="h-9 text-sm"
+                          value={editFormData.mobility}
+                          onChange={v => setEditFormData({...editFormData, mobility: v})}
                         />
                         {planned && <PRef value={planned.mobility} />}
                       </div>
@@ -582,7 +688,6 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
-                  {/* Alimentação */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -596,7 +701,6 @@ export default function BudgetActualPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      {/* Dias Úteis */}
                       <div className="bg-blue-50/30 dark:bg-blue-950/10 rounded-lg p-3 border border-blue-100/80 dark:border-blue-900/40">
                         <div className="flex items-center gap-1.5 mb-2.5">
                           <Briefcase className="w-3 h-3 text-blue-400" />
@@ -608,10 +712,10 @@ export default function BudgetActualPage() {
                               <Sun className="w-2.5 h-2.5 text-amber-400" />
                               <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
                             </div>
-                            <Input
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editFormData.weekdayLunch / 100).toFixed(2)}
-                              onChange={e => setEditFormData({...editFormData, weekdayLunch: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                            <CurrencyInput
+                              className="h-8 text-xs"
+                              value={editFormData.weekdayLunch}
+                              onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                             />
                             {planned && <PRef value={planned.weekdayLunch} />}
                           </div>
@@ -620,10 +724,10 @@ export default function BudgetActualPage() {
                               <Moon className="w-2.5 h-2.5 text-indigo-400" />
                               <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
                             </div>
-                            <Input
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editFormData.weekdayDinner / 100).toFixed(2)}
-                              onChange={e => setEditFormData({...editFormData, weekdayDinner: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                            <CurrencyInput
+                              className="h-8 text-xs"
+                              value={editFormData.weekdayDinner}
+                              onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                             />
                             {planned && <PRef value={planned.weekdayDinner} />}
                           </div>
@@ -637,7 +741,6 @@ export default function BudgetActualPage() {
                         </div>
                       </div>
 
-                      {/* Fins de Semana */}
                       <div className="bg-amber-50/30 dark:bg-amber-950/10 rounded-lg p-3 border border-amber-100/80 dark:border-amber-900/40">
                         <div className="flex items-center gap-1.5 mb-2.5">
                           <Sun className="w-3 h-3 text-amber-400" />
@@ -649,10 +752,10 @@ export default function BudgetActualPage() {
                               <Sun className="w-2.5 h-2.5 text-amber-400" />
                               <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
                             </div>
-                            <Input
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editFormData.weekendLunch / 100).toFixed(2)}
-                              onChange={e => setEditFormData({...editFormData, weekendLunch: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                            <CurrencyInput
+                              className="h-8 text-xs"
+                              value={editFormData.weekendLunch}
+                              onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                             />
                             {planned && <PRef value={planned.weekendLunch} />}
                           </div>
@@ -661,10 +764,10 @@ export default function BudgetActualPage() {
                               <Moon className="w-2.5 h-2.5 text-indigo-400" />
                               <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
                             </div>
-                            <Input
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editFormData.weekendDinner / 100).toFixed(2)}
-                              onChange={e => setEditFormData({...editFormData, weekendDinner: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                            <CurrencyInput
+                              className="h-8 text-xs"
+                              value={editFormData.weekendDinner}
+                              onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                             />
                             {planned && <PRef value={planned.weekendDinner} />}
                           </div>
@@ -681,18 +784,29 @@ export default function BudgetActualPage() {
                   </div>
                 </div>
 
-                {/* Footer fixo */}
                 <div className="px-6 py-3.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da execução</div>
                       <div className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
-                      {planned && <div className="text-[11px] text-gray-400 tabular-nums mt-0.5">Planejado: {formatCurrency(plannedTotal)}</div>}
+                      {planned && (
+                        <div className="mt-1 space-y-0.5">
+                          <div className="text-[11px] text-gray-400 tabular-nums">
+                            Planejado: {formatCurrency(plannedTotal)}
+                          </div>
+                          {hasDivergence && (
+                            <div className="text-[11px] text-gray-500 tabular-nums">
+                              Diferença: {difference > 0 ? '+' : ''}{formatCurrency(Math.abs(difference))}
+                              {difference > 0 ? ' acima' : ' abaixo'}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2.5">
                       <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
                       <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-9 px-5 text-sm bg-purple-600 hover:bg-purple-700">
-                        Salvar Alterações
+                        {updateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                       </Button>
                     </div>
                   </div>
@@ -703,7 +817,6 @@ export default function BudgetActualPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Confirmação de Exclusão */}
       <Dialog open={!!confirmDeleteId} onOpenChange={() => setConfirmDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

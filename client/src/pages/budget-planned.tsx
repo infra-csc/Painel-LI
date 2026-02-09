@@ -405,7 +405,7 @@ export default function BudgetPlannedPage() {
       return savePlannedAndSendToActual(budget, "Enviado do planejado");
     },
     onSuccess: (data) => {
-      setSentToActual(prev => new Set([...prev, data.id]));
+      setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
       toast({ title: "Sucesso", description: "Enviado para o Realizado" });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
@@ -428,7 +428,7 @@ export default function BudgetPlannedPage() {
       return results;
     },
     onSuccess: (data) => {
-      setSentToActual(prev => new Set([...prev, ...data.map(d => d.id)]));
+      setSentToActual(prev => { const s = new Set(Array.from(prev)); data.forEach(d => s.add(d.id)); return s; });
       setSelectedCards(new Set());
       toast({ title: "Sucesso", description: `${data.length} itens enviados para o Realizado` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
@@ -1066,7 +1066,7 @@ export default function BudgetPlannedPage() {
             <Button 
               onClick={() => {
                 if (confirmSendSingle) {
-                  sendToActualMutation.mutate(confirmSendSingle);
+                  sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0]);
                   setConfirmSendSingle(null);
                 }
               }}
