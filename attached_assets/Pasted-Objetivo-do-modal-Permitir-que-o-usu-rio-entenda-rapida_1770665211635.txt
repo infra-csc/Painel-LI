@@ -1,0 +1,130 @@
+Objetivo do modal:
+Permitir que o usuário entenda rapidamente:
+
+Quem é o colaborador
+
+O período trabalhado
+
+Como cada valor é calculado
+
+O impacto imediato no total geral
+
+1. Cabeçalho do modal
+
+Manter o nome do colaborador como elemento principal.
+
+Exibir badges visuais para:
+
+Tipo (Casa / Freela)
+
+Função (ex: Produção)
+
+Datas em formato compacto e legível, com hierarquia menor que o nome.
+
+Evitar excesso de altura no header para priorizar o conteúdo editável.
+
+2. Organização por seções
+
+Estruturar o modal em cards/seções bem definidas:
+
+Diárias
+
+Mobilidade
+
+Alimentação
+
+Cada seção deve ter:
+
+Ícone discreto
+
+Título claro
+
+Fundo levemente diferenciado para separação visual
+
+3. Seção “Diárias”
+
+Destacar como a seção mais importante.
+
+Campos organizados horizontalmente:
+
+Quantidade
+
+Valor unitário
+
+Subtotal sempre visível, com:
+
+Fonte maior
+
+Atualização em tempo real
+
+Tornar explícito o cálculo:
+
+“4 × R$ 250 = R$ 1.000”
+
+4. Mobilidade
+
+Priorizar Total (R$) como campo principal.
+
+“Por dia” como valor secundário (somente leitura ou visualmente menos destacado).
+
+Evitar dar o mesmo peso visual a campos que não são decisão principal.
+
+5. Alimentação
+
+Separar claramente:
+
+Dias úteis
+
+Fins de semana
+
+Cada bloco com:
+
+Quantidade de dias
+
+Total
+
+Valor por dia
+
+Usar cores suaves e consistentes (ex: amarelo claro) sem competir com o total geral.
+
+Evitar repetição visual excessiva de rótulos.
+
+6. Total Geral (fixo e sempre visível)
+
+Fixar o Total Geral no rodapé do modal.
+
+Fundo destacado, porém elegante.
+
+Atualização instantânea ao alterar qualquer campo.
+
+Deve ser o segundo elemento mais chamativo da tela (após o nome).
+
+7. Ações
+
+Botão primário: Salvar Alterações
+
+Botão secundário: Cancelar
+
+Desabilitar “Salvar” se não houver alterações.
+
+Opcional: feedback visual de “valores alterados”.
+
+8. Usabilidade e acessibilidade
+
+Labels sempre visíveis (evitar depender apenas de placeholder).
+
+Inputs com largura consistente.
+
+Navegação fluida por teclado.
+
+Evitar scroll excessivo, priorizando agrupamento lógico.
+
+9. Estilo visual
+
+Design clean e profissional.
+
+Bordas suaves e sombras leves.
+
+Ícones discretos e consistentes.
+
+Tipografia clara, com boa hierarquia entre títulos, valores e labels.
