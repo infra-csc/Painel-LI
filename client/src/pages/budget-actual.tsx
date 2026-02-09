@@ -429,7 +429,7 @@ export default function BudgetActualPage() {
 
       {/* Modal de Edição */}
       <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); }}>
-        <DialogContent className="max-w-[700px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Execução Real</DialogTitle>
           </DialogHeader>
@@ -439,81 +439,83 @@ export default function BudgetActualPage() {
               editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
               editFormData.weekendLunch + editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
+            const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
 
             return (
               <>
-                {/* Header */}
-                <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                {/* Header compacto */}
+                <div className="bg-white dark:bg-gray-800 px-6 py-3.5 border-b border-gray-100 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{getCollaboratorName(editingItem.collaboratorId)}</h2>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <Badge variant="secondary" className="text-xs h-5 px-2">{getFunctionName(editingItem.functionId)}</Badge>
-                        <Badge className={`text-xs h-5 px-2 ${editingItem.collaboratorType === 'casa' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' : 'bg-orange-100 text-orange-700 hover:bg-orange-100'}`}>
+                      <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5">{getFunctionName(editingItem.functionId)}</Badge>
+                        <Badge className={`text-[10px] h-[18px] px-1.5 ${editingItem.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
+                        </Badge>
+                        <Badge className={`text-[10px] h-[18px] px-1.5 font-normal ${isFromPlanned ? 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-50' : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+                          {isFromPlanned ? 'Enviado do Planejado' : 'Criado no Realizado'}
                         </Badge>
                       </div>
                     </div>
-                    <div className="text-right pr-6">
-                      <Badge className={`text-xs h-5 px-2 ${editingItem.plannedId ? 'bg-green-100 text-green-700 hover:bg-green-100' : 'bg-purple-100 text-purple-700 hover:bg-purple-100'}`}>
-                        {editingItem.plannedId ? 'Base do Planejado' : 'Criado no Realizado'}
-                      </Badge>
-                    </div>
                   </div>
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Execução real do evento — os valores podem ser diferentes do planejado
+                  </p>
                 </div>
 
                 {/* Corpo */}
-                <div className="max-h-[58vh] overflow-y-auto px-6 py-5 space-y-4 bg-gray-50 dark:bg-gray-900">
+                <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
 
                   {/* Diárias */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Calendar className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Diárias</span>
+                      <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Diárias</span>
                     </div>
-                    <div className="flex items-end gap-4">
+                    <div className="flex items-end gap-3">
                       <div className="flex-1">
-                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Quantidade</label>
+                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Quantidade</label>
                         <Input
-                          type="number" className="h-10 text-sm"
+                          type="number" className="h-9 text-sm"
                           value={editFormData.dailyQuantity}
                           onChange={e => setEditFormData({...editFormData, dailyQuantity: parseInt(e.target.value) || 0})}
                         />
                       </div>
-                      <div className="text-gray-300 dark:text-gray-600 text-lg font-light pb-2">&times;</div>
+                      <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">&times;</div>
                       <div className="flex-1">
-                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Valor unitário (R$)</label>
+                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Valor unitário (R$)</label>
                         <Input
-                          type="number" step="0.01" className="h-10 text-sm"
+                          type="number" step="0.01" className="h-9 text-sm"
                           value={(editFormData.dailyValue / 100).toFixed(2)}
                           onChange={e => setEditFormData({...editFormData, dailyValue: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                       </div>
-                      <div className="text-gray-300 dark:text-gray-600 text-lg font-light pb-2">=</div>
-                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg px-4 py-2 text-right min-w-[120px]">
-                        <div className="text-xl font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editFormData.dailyQuantity * editFormData.dailyValue)}</div>
+                      <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">=</div>
+                      <div className="bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-4 py-2 text-right min-w-[110px]">
+                        <div className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.dailyQuantity * editFormData.dailyValue)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Mobilidade */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Car className="w-4 h-4 text-purple-600" />
-                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Mobilidade</span>
+                      <Car className="w-3.5 h-3.5 text-purple-500" />
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Mobilidade</span>
                     </div>
                     <div className="flex items-end gap-4">
                       <div className="flex-1">
-                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Total do período (R$)</label>
+                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Total do período (R$)</label>
                         <Input
-                          type="number" step="0.01" className="h-10 text-sm"
+                          type="number" step="0.01" className="h-9 text-sm"
                           value={(editFormData.mobility / 100).toFixed(2)}
                           onChange={e => setEditFormData({...editFormData, mobility: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5 block">Por dia (R$)</label>
-                        <div className="h-10 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
+                        <label className="text-[11px] text-gray-400 mb-1 block">Por dia</label>
+                        <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 text-xs text-gray-400 tabular-nums">
                           {editFormData.dailyQuantity > 0 ? formatCurrency(Math.round(editFormData.mobility / editFormData.dailyQuantity)) : 'R$ 0,00'}
                         </div>
                       </div>
@@ -521,27 +523,27 @@ export default function BudgetActualPage() {
                   </div>
 
                   {/* Alimentação */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Utensils className="w-4 h-4 text-orange-500" />
-                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Alimentação</span>
+                        <Utensils className="w-3.5 h-3.5 text-orange-400" />
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Alimentação</span>
                       </div>
-                      <span className="text-sm font-bold text-orange-600">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-xs font-bold text-orange-500 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       {/* Dias Úteis */}
-                      <div className="bg-blue-50/40 dark:bg-blue-950/15 rounded-lg p-3 border border-blue-100 dark:border-blue-900/50">
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <Briefcase className="w-3.5 h-3.5 text-blue-500" />
-                          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Dias Úteis</span>
+                      <div className="bg-blue-50/30 dark:bg-blue-950/10 rounded-lg p-3 border border-blue-100/80 dark:border-blue-900/40">
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <Briefcase className="w-3 h-3 text-blue-400" />
+                          <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-300">Dias Úteis</span>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           <div>
-                            <div className="flex items-center gap-1 mb-1">
-                              <Sun className="w-3 h-3 text-amber-500" />
-                              <label className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Almoço (R$)</label>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <Sun className="w-2.5 h-2.5 text-amber-400" />
+                              <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
                             </div>
                             <Input
                               type="number" step="0.01" className="h-8 text-xs"
@@ -550,9 +552,9 @@ export default function BudgetActualPage() {
                             />
                           </div>
                           <div>
-                            <div className="flex items-center gap-1 mb-1">
-                              <Moon className="w-3 h-3 text-indigo-500" />
-                              <label className="text-[11px] font-medium text-indigo-700 dark:text-indigo-400">Jantar (R$)</label>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <Moon className="w-2.5 h-2.5 text-indigo-400" />
+                              <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
                             </div>
                             <Input
                               type="number" step="0.01" className="h-8 text-xs"
@@ -561,23 +563,23 @@ export default function BudgetActualPage() {
                             />
                           </div>
                         </div>
-                        <div className="mt-2.5 pt-2 border-t border-blue-100 dark:border-blue-800/50 flex items-center justify-between">
-                          <span className="text-[10px] text-blue-500 font-medium uppercase">Subtotal</span>
-                          <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
+                        <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
+                          <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider">Subtotal</span>
+                          <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
                         </div>
                       </div>
 
                       {/* Fins de Semana */}
-                      <div className="bg-amber-50/40 dark:bg-amber-950/15 rounded-lg p-3 border border-amber-100 dark:border-amber-900/50">
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <Sun className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Fins de Semana</span>
+                      <div className="bg-amber-50/30 dark:bg-amber-950/10 rounded-lg p-3 border border-amber-100/80 dark:border-amber-900/40">
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <Sun className="w-3 h-3 text-amber-400" />
+                          <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-300">Fins de Semana</span>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           <div>
-                            <div className="flex items-center gap-1 mb-1">
-                              <Sun className="w-3 h-3 text-amber-500" />
-                              <label className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Almoço (R$)</label>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <Sun className="w-2.5 h-2.5 text-amber-400" />
+                              <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
                             </div>
                             <Input
                               type="number" step="0.01" className="h-8 text-xs"
@@ -586,9 +588,9 @@ export default function BudgetActualPage() {
                             />
                           </div>
                           <div>
-                            <div className="flex items-center gap-1 mb-1">
-                              <Moon className="w-3 h-3 text-indigo-500" />
-                              <label className="text-[11px] font-medium text-indigo-700 dark:text-indigo-400">Jantar (R$)</label>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <Moon className="w-2.5 h-2.5 text-indigo-400" />
+                              <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
                             </div>
                             <Input
                               type="number" step="0.01" className="h-8 text-xs"
@@ -597,9 +599,9 @@ export default function BudgetActualPage() {
                             />
                           </div>
                         </div>
-                        <div className="mt-2.5 pt-2 border-t border-amber-100 dark:border-amber-800/50 flex items-center justify-between">
-                          <span className="text-[10px] text-amber-600 font-medium uppercase">Subtotal</span>
-                          <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
+                        <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
+                          <span className="text-[9px] text-amber-500 font-medium uppercase tracking-wider">Subtotal</span>
+                          <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
                         </div>
                       </div>
                     </div>
@@ -607,17 +609,15 @@ export default function BudgetActualPage() {
                 </div>
 
                 {/* Footer fixo */}
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <div className="px-6 py-3.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl px-5 py-3">
-                        <div className="text-[10px] uppercase text-purple-600 dark:text-purple-400 font-semibold tracking-wider mb-0.5">Total Geral</div>
-                        <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(modalTotal)}</div>
-                      </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da execução</div>
+                      <div className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                     </div>
-                    <div className="flex gap-3">
-                      <Button variant="outline" className="h-10 px-5" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
-                      <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-10 px-6 bg-purple-600 hover:bg-purple-700 shadow-md">
+                    <div className="flex gap-2.5">
+                      <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
+                      <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-9 px-5 text-sm bg-purple-600 hover:bg-purple-700">
                         Salvar Alterações
                       </Button>
                     </div>

@@ -1,0 +1,102 @@
+PROMPT – REFINAMENTO DA TELA DE EDIÇÃO DO REALIZADO
+
+Refine a tela/modal de edição do Orçamento Realizado, mantendo a estrutura atual, com foco em clareza de cálculo, agilidade de edição e percepção de que os valores representam a execução real do evento.
+
+Contexto:
+Esta tela é usada para editar uma execução real enviada do Planejado ou criada no Realizado.
+Os valores podem divergir do Planejado e representam o que efetivamente aconteceu.
+
+1. Cabeçalho do modal
+
+Manter o nome do colaborador como elemento principal.
+
+Exibir badges claros e consistentes:
+
+Função
+
+Tipo (Casa / Freela)
+
+Origem: “Criado no Realizado” ou “Enviado do Planejado”
+
+Reduzir a altura do header para priorizar o conteúdo editável.
+
+2. Comunicação de contexto (muito importante)
+
+Incluir uma mensagem sutil no topo do modal:
+
+Você está editando a execução real do evento
+Os valores podem ser diferentes do planejado
+
+Usar tipografia discreta, sem competir com os campos.
+
+3. Seção “Diárias”
+
+Manter como a seção mais importante.
+
+Organizar o cálculo de forma explícita e visual:
+
+Quantidade × Valor unitário = Subtotal
+
+Destacar o subtotal com:
+
+Fonte maior
+
+Fundo leve
+
+Garantir atualização em tempo real.
+
+4. Mobilidade
+
+Priorizar “Total do período” como campo principal.
+
+“Por dia” deve ser:
+
+Somente leitura
+
+Visualmente secundário
+
+Evitar dar peso igual a campos que não são decisão principal.
+
+5. Alimentação
+
+Manter separação clara entre:
+
+Dias úteis
+
+Fins de semana
+
+Reduzir repetição visual de rótulos.
+
+Subtotais bem visíveis em cada bloco.
+
+Valor total da alimentação destacado no cabeçalho da seção, mas sem competir com o Total Geral.
+
+6. Total Geral (rodapé)
+
+Manter fixo no rodapé do modal.
+
+Valor em destaque, rótulo com menor peso.
+
+Atualização instantânea ao alterar qualquer campo.
+
+Indicação sutil:
+
+Total da execução
+
+7. Ações
+
+Botão primário: Salvar Alterações
+
+Botão secundário: Cancelar
+
+Desabilitar “Salvar” quando não houver mudanças.
+
+Feedback visual após salvar (ex: check ou toast).
+
+8. Usabilidade e refinamento visual
+
+Reduzir sombras excessivas nos cards internos.
+
+Aumentar espaçamento vertical entre seções.
+
+Garantir alinhamento perfeito entre inputs e subtotais.
