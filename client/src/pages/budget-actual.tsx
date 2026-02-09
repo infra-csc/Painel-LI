@@ -817,6 +817,11 @@ export default function BudgetActualPage() {
                       <div className="flex items-center gap-2">
                         {planned && <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(plannedAlimentacao)}</span>}
                         <span className="text-xs font-bold text-orange-500 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                        {editFormData.dailyQuantity > 0 && (
+                          <span className="text-[10px] text-gray-400 tabular-nums">
+                            ({formatCurrency(Math.round(totalAlimentacao / editFormData.dailyQuantity))}/dia)
+                          </span>
+                        )}
                       </div>
                     </div>
 
