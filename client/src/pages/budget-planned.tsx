@@ -136,6 +136,29 @@ export default function BudgetPlannedPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
+  const countWeekdaysAndWeekends = (startDate: string | null, endDate: string | null): { weekdays: number; weekends: number } => {
+    if (!startDate || !endDate) return { weekdays: 0, weekends: 0 };
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return { weekdays: 0, weekends: 0 };
+    
+    let weekdays = 0;
+    let weekends = 0;
+    const current = new Date(start);
+    
+    while (current <= end) {
+      const day = current.getDay();
+      if (day === 0 || day === 6) {
+        weekends++;
+      } else {
+        weekdays++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return { weekdays, weekends };
+  };
+
   // Filtrar apenas escalações CONFIRMADAS
   const confirmedInclusions = useMemo(() => {
     if (!teamInclusions) return [];
@@ -164,11 +187,16 @@ export default function BudgetPlannedPage() {
       const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? 25000;
       const subtotalDiarias = qtdDiarias * valorDiaria;
       
+      const { weekdays, weekends } = countWeekdaysAndWeekends(
+        inclusion.scheduleStartDate, 
+        inclusion.scheduleEndDate
+      );
+      
       const mobilidade = override?.mobilidade ?? fv?.mobility ?? 2500;
-      const almocoSemana = override?.almocoSemana ?? ((fv?.weekdayLunch || 3500) * qtdDiarias);
-      const jantarSemana = override?.jantarSemana ?? ((fv?.weekdayDinner || 4000) * qtdDiarias);
-      const almocoFds = override?.almocoFds ?? ((fv?.weekendLunch || 4000) * Math.ceil(qtdDiarias / 5));
-      const jantarFds = override?.jantarFds ?? ((fv?.weekendDinner || 4500) * Math.ceil(qtdDiarias / 5));
+      const almocoSemana = override?.almocoSemana ?? ((fv?.weekdayLunch || 3500) * weekdays);
+      const jantarSemana = override?.jantarSemana ?? ((fv?.weekdayDinner || 4000) * weekdays);
+      const almocoFds = override?.almocoFds ?? ((fv?.weekendLunch || 4000) * weekends);
+      const jantarFds = override?.jantarFds ?? ((fv?.weekendDinner || 4500) * weekends);
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -187,6 +215,8 @@ export default function BudgetPlannedPage() {
         jantarFds,
         ajudaCusto,
         totalFinal,
+        weekdays,
+        weekends,
         hasOverride: !!override,
       };
     });
@@ -781,7 +811,7 @@ export default function BudgetPlannedPage() {
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-center gap-1 font-medium text-gray-600 dark:text-gray-400">
                               <Coffee className="w-3 h-3" />
-                              <span>Semana</span>
+                              <span>Semana ({budget.weekdays}d)</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
@@ -831,7 +861,7 @@ export default function BudgetPlannedPage() {
                           <div className="space-y-1.5 border-l pl-4">
                             <div className="flex items-center justify-center gap-1 font-medium text-gray-600 dark:text-gray-400">
                               <Utensils className="w-3 h-3" />
-                              <span>Fim de Sem.</span>
+                              <span>Fds ({budget.weekends}d)</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1"><Sun className="w-2.5 h-2.5 text-yellow-500" /><span className="text-gray-500">Almoço</span></div>
