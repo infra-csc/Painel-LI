@@ -724,154 +724,163 @@ export default function BudgetPlannedPage() {
 
       {/* Modal de Edição */}
       <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>
-        <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0">
-          <div className="px-6 py-4 border-b bg-gray-50 dark:bg-gray-800/50 rounded-t-lg">
-            <DialogHeader>
-              <DialogTitle className="text-lg">Editar Orçamento</DialogTitle>
-            </DialogHeader>
-            {editingBudgetInfo && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">{editingBudgetInfo.name}</span>
-                <span className="text-sm text-gray-500">{editingBudgetInfo.functionName}</span>
-                <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">{editingBudgetInfo.type}</span>
-                <span className="text-xs text-gray-400">{editingBudgetInfo.period} ({editingBudgetInfo.weekdays} dias úteis, {editingBudgetInfo.weekends} fins de semana)</span>
-              </div>
-            )}
-          </div>
+        <DialogContent className="max-w-2xl w-[95vw] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Editar Orçamento</DialogTitle>
+          </DialogHeader>
           
           {editingBudget && editingBudgetInfo && (
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="grid grid-cols-2 gap-5">
-                {/* Diárias */}
-                <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-semibold text-blue-900 dark:text-blue-200">Diárias</h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Quantidade</Label>
+            <>
+              {/* Header com dados do colaborador */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
+                <h2 className="text-lg font-bold">{editingBudgetInfo.name}</h2>
+                <div className="flex items-center gap-3 mt-1 text-blue-100 text-sm">
+                  <span>{editingBudgetInfo.functionName}</span>
+                  <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium">{editingBudgetInfo.type}</span>
+                </div>
+                <div className="text-blue-200 text-xs mt-1">
+                  {editingBudgetInfo.period} — {editingBudgetInfo.weekdays} dias úteis, {editingBudgetInfo.weekends} fins de semana
+                </div>
+              </div>
+
+              {/* Conteúdo em tabela limpa */}
+              <div className="max-h-[60vh] overflow-y-auto">
+                <table className="w-full">
+                  <tbody>
+                    {/* Seção Diárias */}
+                    <tr className="bg-gray-50 dark:bg-gray-800/50">
+                      <td colSpan={4} className="px-6 py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          DIÁRIAS
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-3 text-sm text-gray-500 w-32">Quantidade</td>
+                      <td className="py-3 pr-4">
                         <Input 
-                          type="number"
+                          type="number" className="w-28 h-10"
                           value={editingBudget.qtdDiarias} 
                           onChange={e => setEditingBudget({...editingBudget, qtdDiarias: parseInt(e.target.value) || 0})}
                         />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Valor unitário (R$)</Label>
+                      </td>
+                      <td className="py-3 text-sm text-gray-500">Valor unitário (R$)</td>
+                      <td className="py-3 pr-6">
                         <Input 
-                          type="number" step="0.01"
+                          type="number" step="0.01" className="w-28 h-10"
                           value={(editingBudget.valorDiaria / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, valorDiaria: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm text-gray-500">Subtotal: </span>
-                      <span className="font-bold text-lg text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</span>
-                    </div>
-                  </div>
-                </div>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="px-6 pb-3 text-sm text-gray-500">Subtotal</td>
+                      <td colSpan={3} className="pb-3 pr-6">
+                        <span className="font-bold text-blue-700 dark:text-blue-400 text-lg">{formatCurrency(editingBudget.qtdDiarias * editingBudget.valorDiaria)}</span>
+                      </td>
+                    </tr>
 
-                {/* Mobilidade */}
-                <div className="bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Car className="w-5 h-5 text-gray-600" />
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-200">Mobilidade</h3>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Valor total do período (R$)</Label>
-                    <Input 
-                      type="number" step="0.01"
-                      value={(editingBudget.mobilidade / 100).toFixed(2)} 
-                      onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Alimentação - linha inteira */}
-              <div className="mt-5 bg-orange-50/50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Utensils className="w-5 h-5 text-orange-600" />
-                  <h3 className="font-semibold text-orange-900 dark:text-orange-200">Alimentação</h3>
-                  <span className="text-xs text-gray-400 ml-auto">Valores totais do período</span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <div className="text-sm font-medium text-center text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-lg py-2 mb-3 border">
-                      Dias Úteis ({editingBudgetInfo.weekdays} dias)
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Almoço (R$)</Label>
+                    {/* Seção Mobilidade */}
+                    <tr className="bg-gray-50 dark:bg-gray-800/50">
+                      <td colSpan={4} className="px-6 py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          <Car className="w-4 h-4 text-gray-500" />
+                          MOBILIDADE
+                        </div>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="px-6 py-3 text-sm text-gray-500">Valor total (R$)</td>
+                      <td colSpan={3} className="py-3 pr-6">
                         <Input 
-                          type="number" step="0.01"
+                          type="number" step="0.01" className="w-28 h-10"
+                          value={(editingBudget.mobilidade / 100).toFixed(2)} 
+                          onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                        />
+                      </td>
+                    </tr>
+
+                    {/* Seção Alimentação */}
+                    <tr className="bg-orange-50 dark:bg-orange-900/20">
+                      <td colSpan={4} className="px-6 py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-300">
+                          <Utensils className="w-4 h-4" />
+                          ALIMENTAÇÃO
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Sub-header dias úteis / fins de semana */}
+                    <tr>
+                      <td className="px-6 py-1"></td>
+                      <td className="py-1 pr-4 text-center">
+                        <span className="text-xs font-medium text-gray-500 uppercase">Dias Úteis ({editingBudgetInfo.weekdays}d)</span>
+                      </td>
+                      <td className="py-1 text-center" colSpan={2}>
+                        <span className="text-xs font-medium text-gray-500 uppercase">Fins de Semana ({editingBudgetInfo.weekends}d)</span>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td className="px-6 py-3 text-sm text-gray-500">Almoço (R$)</td>
+                      <td className="py-3 pr-4">
+                        <Input 
+                          type="number" step="0.01" className="w-28 h-10"
                           value={(editingBudget.almocoSemana / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Jantar (R$)</Label>
+                      </td>
+                      <td colSpan={2} className="py-3 pr-6">
                         <Input 
-                          type="number" step="0.01"
-                          value={(editingBudget.jantarSemana / 100).toFixed(2)} 
-                          onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-center text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-lg py-2 mb-3 border">
-                      Fins de Semana ({editingBudgetInfo.weekends} dias)
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Almoço (R$)</Label>
-                        <Input 
-                          type="number" step="0.01"
+                          type="number" step="0.01" className="w-28 h-10"
                           value={(editingBudget.almocoFds / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                      </div>
-                      <div>
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Jantar (R$)</Label>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="px-6 py-3 text-sm text-gray-500">Jantar (R$)</td>
+                      <td className="py-3 pr-4">
                         <Input 
-                          type="number" step="0.01"
+                          type="number" step="0.01" className="w-28 h-10"
+                          value={(editingBudget.jantarSemana / 100).toFixed(2)} 
+                          onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
+                        />
+                      </td>
+                      <td colSpan={2} className="py-3 pr-6">
+                        <Input 
+                          type="number" step="0.01" className="w-28 h-10"
                           value={(editingBudget.jantarFds / 100).toFixed(2)} 
                           onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                      </div>
-                    </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer com total e botões */}
+              <div className="px-6 py-4 border-t bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-gray-400 uppercase tracking-wide">Total Geral</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {formatCurrency(
+                      (editingBudget.qtdDiarias * editingBudget.valorDiaria) + 
+                      editingBudget.mobilidade + 
+                      editingBudget.almocoSemana + 
+                      editingBudget.jantarSemana + 
+                      editingBudget.almocoFds + 
+                      editingBudget.jantarFds
+                    )}
                   </div>
                 </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
+                  <Button onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700 px-6">Salvar Alterações</Button>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Footer fixo */}
-          {editingBudget && (
-            <div className="px-6 py-4 border-t bg-gray-50 dark:bg-gray-800/50 rounded-b-lg flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Geral:</span>
-                <span className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {formatCurrency(
-                    (editingBudget.qtdDiarias * editingBudget.valorDiaria) + 
-                    editingBudget.mobilidade + 
-                    editingBudget.almocoSemana + 
-                    editingBudget.jantarSemana + 
-                    editingBudget.almocoFds + 
-                    editingBudget.jantarFds
-                  )}
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" size="lg" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
-                <Button size="lg" onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700 px-8">Salvar</Button>
-              </div>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
