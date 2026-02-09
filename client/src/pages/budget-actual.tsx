@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send } from "lucide-react";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 
@@ -101,6 +101,16 @@ export default function BudgetActualPage() {
       const url = selectedEventId ? `/api/budget-actual?eventId=${selectedEventId}` : "/api/budget-actual";
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch budget actual");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const { data: teamInclusions } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/team-inclusions?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch team inclusions");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -211,10 +221,10 @@ export default function BudgetActualPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
-  const eventDayCounts = useMemo(() => {
-    if (!selectedEvent?.startDate || !selectedEvent?.endDate) return { weekdays: 0, weekends: 0 };
-    let start = new Date(selectedEvent.startDate + 'T00:00:00');
-    let end = new Date(selectedEvent.endDate + 'T00:00:00');
+  const countWeekdaysAndWeekends = (startDate: string | null | undefined, endDate: string | null | undefined): { weekdays: number; weekends: number } => {
+    if (!startDate || !endDate) return { weekdays: 0, weekends: 0 };
+    let start = new Date(startDate + 'T00:00:00');
+    let end = new Date(endDate + 'T00:00:00');
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return { weekdays: 0, weekends: 0 };
     if (end < start) { const tmp = start; start = end; end = tmp; }
     let weekdays = 0, weekends = 0;
@@ -226,7 +236,28 @@ export default function BudgetActualPage() {
       current.setDate(current.getDate() + 1);
     }
     return { weekdays, weekends };
-  }, [selectedEvent]);
+  };
+
+  const getItemInclusion = (item: BudgetActual): TeamInclusion | undefined => {
+    if (!teamInclusions || !item.collaboratorId) return undefined;
+    return teamInclusions.find(ti =>
+      ti.collaboratorId === item.collaboratorId &&
+      ti.eventId === item.eventId
+    );
+  };
+
+  const getItemDayCounts = (item: BudgetActual): { weekdays: number; weekends: number; startDate: string | null; endDate: string | null } => {
+    const inclusion = getItemInclusion(item);
+    if (inclusion?.scheduleStartDate && inclusion?.scheduleEndDate) {
+      const counts = countWeekdaysAndWeekends(inclusion.scheduleStartDate, inclusion.scheduleEndDate);
+      return { ...counts, startDate: inclusion.scheduleStartDate, endDate: inclusion.scheduleEndDate };
+    }
+    if (selectedEvent?.startDate && selectedEvent?.endDate) {
+      const counts = countWeekdaysAndWeekends(selectedEvent.startDate, selectedEvent.endDate);
+      return { ...counts, startDate: selectedEvent.startDate, endDate: selectedEvent.endDate };
+    }
+    return { weekdays: 0, weekends: 0, startDate: null, endDate: null };
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedCards(prev => {
@@ -719,6 +750,8 @@ export default function BudgetActualPage() {
             const plannedTotal = planned ? planned.totalValue : 0;
             const hasDivergence = planned && plannedTotal !== modalTotal;
             const difference = modalTotal - plannedTotal;
+            const itemDays = getItemDayCounts(editingItem);
+            const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
             const PRef = ({ value }: { value: number }) => (
               <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Planejado: {formatCurrency(value)}</span>
@@ -753,25 +786,22 @@ export default function BudgetActualPage() {
 
                 <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
 
-                  {selectedEvent && (selectedEvent.startDate || selectedEvent.endDate) && (
+                  {(itemDays.startDate || itemDays.endDate) && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-gray-400" />
                         <span className="text-[11px] text-gray-500">
-                          {(() => {
-                            const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                            const s = selectedEvent.startDate;
-                            const e = selectedEvent.endDate;
-                            if (s && e) return `${fmt(s)} a ${fmt(e)}`;
-                            if (s) return `Início: ${fmt(s)}`;
-                            return `Fim: ${fmt(e!)}`;
-                          })()}
+                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} a ${fmt(itemDays.endDate)}` :
+                           itemDays.startDate ? `Início: ${fmt(itemDays.startDate)}` : `Fim: ${fmt(itemDays.endDate!)}`}
                         </span>
+                        {getItemInclusion(editingItem) && (
+                          <Badge variant="outline" className="text-[9px] h-[16px] px-1 text-gray-400 border-gray-200">Escalação</Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                        {eventDayCounts.weekdays > 0 && <span>{eventDayCounts.weekdays} {eventDayCounts.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
-                        {eventDayCounts.weekends > 0 && <span>{eventDayCounts.weekends} {eventDayCounts.weekends === 1 ? 'fim de semana' : 'fins de semana'}</span>}
-                        <span className="font-medium text-gray-500">{eventDayCounts.weekdays + eventDayCounts.weekends} dias</span>
+                        {itemDays.weekdays > 0 && <span>{itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
+                        {itemDays.weekends > 0 && <span>{itemDays.weekends} {itemDays.weekends === 1 ? 'fim de semana' : 'fins de semana'}</span>}
+                        <span className="font-medium text-gray-500">{itemDays.weekdays + itemDays.weekends} dias</span>
                       </div>
                     </div>
                   )}
@@ -879,10 +909,10 @@ export default function BudgetActualPage() {
                             />
                             <div className="flex items-center justify-between mt-0.5">
                               {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayLunch)}{eventDayCounts.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / eventDayCounts.weekdays))}/dia)` : ''}</span>
+                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayLunch)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / itemDays.weekdays))}/dia)` : ''}</span>
                               ) : <span />}
-                              {eventDayCounts.weekdays > 0 && (
-                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayLunch / eventDayCounts.weekdays))}/dia</span>
+                              {itemDays.weekdays > 0 && (
+                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))}/dia</span>
                               )}
                             </div>
                           </div>
@@ -898,10 +928,10 @@ export default function BudgetActualPage() {
                             />
                             <div className="flex items-center justify-between mt-0.5">
                               {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayDinner)}{eventDayCounts.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / eventDayCounts.weekdays))}/dia)` : ''}</span>
+                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayDinner)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / itemDays.weekdays))}/dia)` : ''}</span>
                               ) : <span />}
-                              {eventDayCounts.weekdays > 0 && (
-                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayDinner / eventDayCounts.weekdays))}/dia</span>
+                              {itemDays.weekdays > 0 && (
+                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))}/dia</span>
                               )}
                             </div>
                           </div>
@@ -933,10 +963,10 @@ export default function BudgetActualPage() {
                             />
                             <div className="flex items-center justify-between mt-0.5">
                               {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendLunch)}{eventDayCounts.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / eventDayCounts.weekends))}/dia)` : ''}</span>
+                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendLunch)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / itemDays.weekends))}/dia)` : ''}</span>
                               ) : <span />}
-                              {eventDayCounts.weekends > 0 && (
-                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendLunch / eventDayCounts.weekends))}/dia</span>
+                              {itemDays.weekends > 0 && (
+                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))}/dia</span>
                               )}
                             </div>
                           </div>
@@ -952,10 +982,10 @@ export default function BudgetActualPage() {
                             />
                             <div className="flex items-center justify-between mt-0.5">
                               {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendDinner)}{eventDayCounts.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / eventDayCounts.weekends))}/dia)` : ''}</span>
+                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendDinner)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / itemDays.weekends))}/dia)` : ''}</span>
                               ) : <span />}
-                              {eventDayCounts.weekends > 0 && (
-                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendDinner / eventDayCounts.weekends))}/dia</span>
+                              {itemDays.weekends > 0 && (
+                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))}/dia</span>
                               )}
                             </div>
                           </div>
