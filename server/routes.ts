@@ -2136,7 +2136,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : items;
 
       for (const item of toUpdate) {
-        await storage.updateBudgetActual(item.id, { sentForReview: true });
+        const wasRejectedOrReturned = item.rhStatus === 'rejeitado' || item.rhStatus === 'devolvido';
+        await storage.updateBudgetActual(item.id, {
+          sentForReview: true,
+          rhStatus: 'pendente',
+          ...(wasRejectedOrReturned ? { resubmitted: true } : {}),
+        });
       }
 
       res.json({ updated: toUpdate.length });
@@ -2290,6 +2295,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error returning budget comparison:", error);
       res.status(400).json({ message: "Erro ao devolver comparativo" });
+    }
+  });
+
+  app.post("/api/budget-actual/rh-action", async (req, res) => {
+    try {
+      const { itemIds, action, comment, actionBy } = req.body;
+      if (!itemIds?.length || !action || !actionBy) {
+        return res.status(400).json({ message: "Dados incompletos" });
+      }
+      if (!['aprovado', 'rejeitado', 'devolvido'].includes(action)) {
+        return res.status(400).json({ message: "Ação inválida" });
+      }
+
+      const results = [];
+      for (const id of itemIds) {
+        const updated = await storage.updateBudgetActual(id, {
+          rhStatus: action,
+          rhComment: comment || null,
+          rhActionBy: actionBy,
+          rhActionAt: new Date(),
+          ...(action === 'devolvido' || action === 'rejeitado'
+            ? { sentForReview: false }
+            : {}),
+        });
+        results.push(updated);
+      }
+
+      res.json({ updated: results.length, items: results });
+    } catch (error) {
+      console.error("Error performing RH action:", error);
+      res.status(400).json({ message: "Erro ao processar ação do RH" });
     }
   });
 

@@ -301,6 +301,11 @@ export const budgetActual = pgTable("budget_actual", {
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
   sentForReview: boolean("sent_for_review").notNull().default(false),
+  rhStatus: text("rh_status").notNull().default("pendente"), // pendente, aprovado, rejeitado, devolvido
+  rhComment: text("rh_comment"),
+  rhActionBy: varchar("rh_action_by").references(() => users.id),
+  rhActionAt: timestamp("rh_action_at"),
+  resubmitted: boolean("resubmitted").notNull().default(false), // true quando reenviado após devolução/recusa
 });
 
 // Comparativo e aprovação do RH
