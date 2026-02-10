@@ -444,9 +444,14 @@ export default function BudgetPlannedPage() {
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
-          <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
+            <Calculator className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-blue-900 dark:text-blue-100">Orçamento Planejado</h1>
+            <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedEventId} onValueChange={setSelectedEventId}>
@@ -463,10 +468,25 @@ export default function BudgetPlannedPage() {
       </div>
 
       {!selectedEventId ? (
-        <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
-          <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para visualizar o orçamento planejado.</p>
+        <div className="rounded-xl border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-16 text-center">
+          <div className="bg-blue-100 dark:bg-blue-900/50 rounded-2xl p-5 w-fit mx-auto mb-5">
+            <Calculator className="w-14 h-14 text-blue-500 dark:text-blue-400" />
+          </div>
+          <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-2">Selecione um evento</h2>
+          <p className="text-blue-600/70 dark:text-blue-400/70 text-sm max-w-md mx-auto mb-6">
+            Visualize o orçamento previsto com base nas escalações confirmadas. Os valores são calculados automaticamente a partir das funções e períodos de trabalho.
+          </p>
+          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-700 shadow-sm hover:border-blue-400 transition-colors">
+              <Calendar className="w-4 h-4 text-blue-500 mr-2 shrink-0" />
+              <SelectValue placeholder="Selecionar evento" />
+            </SelectTrigger>
+            <SelectContent>
+              {events?.map(event => (
+                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       ) : (
           <>

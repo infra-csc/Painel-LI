@@ -286,9 +286,14 @@ export default function BudgetComparisonPage() {
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Comparativo Planejado × Realizado</h1>
-          <p className="text-sm text-gray-500">Análise e aprovação do RH para faturamento</p>
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-100 dark:bg-emerald-900/40 p-2 rounded-lg">
+            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-emerald-900 dark:text-emerald-100">Comparativo Planejado × Realizado</h1>
+            <p className="text-sm text-gray-500">Análise e aprovação do RH para faturamento</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }}>
@@ -311,10 +316,25 @@ export default function BudgetComparisonPage() {
       </div>
 
       {!selectedEventId && (
-        <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
-          <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para analisar o comparativo entre planejado e realizado.</p>
+        <div className="rounded-xl border-2 border-dashed border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 p-16 text-center">
+          <div className="bg-emerald-100 dark:bg-emerald-900/50 rounded-2xl p-5 w-fit mx-auto mb-5">
+            <BarChart3 className="w-14 h-14 text-emerald-500 dark:text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-semibold text-emerald-900 dark:text-emerald-100 mb-2">Selecione um evento</h2>
+          <p className="text-emerald-600/70 dark:text-emerald-400/70 text-sm max-w-md mx-auto mb-6">
+            Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
+          </p>
+          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }}>
+            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-emerald-300 dark:border-emerald-700 shadow-sm hover:border-emerald-400 transition-colors">
+              <Calendar className="w-4 h-4 text-emerald-500 mr-2 shrink-0" />
+              <SelectValue placeholder="Selecionar evento" />
+            </SelectTrigger>
+            <SelectContent>
+              {events?.map(event => (
+                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 

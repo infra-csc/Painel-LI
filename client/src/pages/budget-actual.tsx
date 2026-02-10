@@ -398,9 +398,14 @@ export default function BudgetActualPage() {
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
-          <p className="text-sm text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-lg">
+            <ClipboardCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-purple-900 dark:text-purple-100">Orçamento Realizado</h1>
+            <p className="text-sm text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
@@ -429,10 +434,25 @@ export default function BudgetActualPage() {
       </div>
 
       {!selectedEventId ? (
-        <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
-          <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para visualizar as execuções realizadas.</p>
+        <div className="rounded-xl border-2 border-dashed border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20 p-16 text-center">
+          <div className="bg-purple-100 dark:bg-purple-900/50 rounded-2xl p-5 w-fit mx-auto mb-5">
+            <ClipboardCheck className="w-14 h-14 text-purple-500 dark:text-purple-400" />
+          </div>
+          <h2 className="text-xl font-semibold text-purple-900 dark:text-purple-100 mb-2">Selecione um evento</h2>
+          <p className="text-purple-600/70 dark:text-purple-400/70 text-sm max-w-md mx-auto mb-6">
+            Registre a execução real do orçamento. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
+          </p>
+          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
+            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-purple-300 dark:border-purple-700 shadow-sm hover:border-purple-400 transition-colors">
+              <Calendar className="w-4 h-4 text-purple-500 mr-2 shrink-0" />
+              <SelectValue placeholder="Selecionar evento" />
+            </SelectTrigger>
+            <SelectContent>
+              {events?.map(event => (
+                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       ) : isLoading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>
