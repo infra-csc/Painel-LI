@@ -454,7 +454,9 @@ export default function BudgetPlannedPage() {
             <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={events} />
+        {selectedEventId && (
+          <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={events} />
+        )}
       </div>
 
       {!selectedEventId ? (

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Calendar } from "lucide-react";
 import {
   Select,
@@ -21,7 +22,47 @@ interface EventSelectProps {
   className?: string;
 }
 
+function useSortedEvents(events: Event[] | undefined) {
+  return useMemo(() => {
+    if (!events) return [];
+    return [...events].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [events]);
+}
+
+function EventItems({ events, checkedClass }: { events: Event[]; checkedClass: string }) {
+  return (
+    <>
+      {events.map((event, index) => (
+        <TooltipProvider key={event.id} delayDuration={400}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                {index > 0 && (
+                  <div className="mx-2 h-px bg-gray-100 dark:bg-gray-800" />
+                )}
+                <SelectItem
+                  value={event.id}
+                  className={`py-2.5 px-3 pl-8 text-[14px] rounded-md cursor-pointer ${checkedClass} data-[state=checked]:font-semibold focus:bg-gray-50 dark:focus:bg-gray-800`}
+                >
+                  <span className="truncate block max-w-[260px]">{event.name}</span>
+                </SelectItem>
+              </div>
+            </TooltipTrigger>
+            {event.name.length > 35 && (
+              <TooltipContent side="left" className="max-w-xs">
+                <p className="text-sm">{event.name}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      ))}
+    </>
+  );
+}
+
 export function EventSelect({ value, onValueChange, events, className }: EventSelectProps) {
+  const sorted = useSortedEvents(events);
+
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
@@ -31,30 +72,7 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
         <SelectValue placeholder="Selecionar evento" />
       </SelectTrigger>
       <SelectContent className="rounded-lg shadow-lg border-gray-200 dark:border-gray-700">
-        {events?.map((event, index) => (
-          <TooltipProvider key={event.id} delayDuration={400}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  {index > 0 && (
-                    <div className="mx-2 h-px bg-gray-100 dark:bg-gray-800" />
-                  )}
-                  <SelectItem
-                    value={event.id}
-                    className="py-2.5 px-3 pl-8 text-[14px] rounded-md cursor-pointer data-[state=checked]:bg-blue-50 dark:data-[state=checked]:bg-blue-950/30 data-[state=checked]:text-blue-700 dark:data-[state=checked]:text-blue-300 data-[state=checked]:font-semibold focus:bg-gray-50 dark:focus:bg-gray-800"
-                  >
-                    <span className="truncate block max-w-[260px]">{event.name}</span>
-                  </SelectItem>
-                </div>
-              </TooltipTrigger>
-              {event.name.length > 35 && (
-                <TooltipContent side="left" className="max-w-xs">
-                  <p className="text-sm">{event.name}</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        ))}
+        <EventItems events={sorted} checkedClass="data-[state=checked]:bg-blue-50 dark:data-[state=checked]:bg-blue-950/30 data-[state=checked]:text-blue-700 dark:data-[state=checked]:text-blue-300" />
       </SelectContent>
     </Select>
   );
@@ -66,6 +84,8 @@ export function EventSelectCTA({
   events,
   accentColor = "blue",
 }: EventSelectProps & { accentColor?: "blue" | "purple" | "emerald" }) {
+  const sorted = useSortedEvents(events);
+
   const colorMap = {
     blue: {
       border: "border-blue-300 dark:border-blue-700 hover:border-blue-400",
@@ -95,30 +115,7 @@ export function EventSelectCTA({
         <SelectValue placeholder="Selecionar evento" />
       </SelectTrigger>
       <SelectContent className="rounded-lg shadow-lg border-gray-200 dark:border-gray-700">
-        {events?.map((event, index) => (
-          <TooltipProvider key={event.id} delayDuration={400}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  {index > 0 && (
-                    <div className="mx-2 h-px bg-gray-100 dark:bg-gray-800" />
-                  )}
-                  <SelectItem
-                    value={event.id}
-                    className={`py-2.5 px-3 pl-8 text-[14px] rounded-md cursor-pointer ${colors.checked} data-[state=checked]:font-semibold focus:bg-gray-50 dark:focus:bg-gray-800`}
-                  >
-                    <span className="truncate block max-w-[260px]">{event.name}</span>
-                  </SelectItem>
-                </div>
-              </TooltipTrigger>
-              {event.name.length > 35 && (
-                <TooltipContent side="left" className="max-w-xs">
-                  <p className="text-sm">{event.name}</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        ))}
+        <EventItems events={sorted} checkedClass={`${colors.checked}`} />
       </SelectContent>
     </Select>
   );

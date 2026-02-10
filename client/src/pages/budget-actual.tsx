@@ -409,7 +409,9 @@ export default function BudgetActualPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} />
+          {selectedEventId && (
+            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} />
+          )}
           {selectedEventId && filteredItems.length > 0 && (
             sentForReview ? (
               <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">

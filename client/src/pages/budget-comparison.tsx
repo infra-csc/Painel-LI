@@ -297,7 +297,9 @@ export default function BudgetComparisonPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} />
+          {selectedEventId && (
+            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} />
+          )}
           {selectedEventId && (
             <Button size="sm" variant="outline" onClick={() => calculateMutation.mutate(selectedEventId)} disabled={calculateMutation.isPending}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${calculateMutation.isPending ? 'animate-spin' : ''}`} />
