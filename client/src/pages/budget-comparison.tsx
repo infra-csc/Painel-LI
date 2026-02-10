@@ -9,9 +9,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   BarChart3, RefreshCw, CheckCircle, XCircle, RotateCcw,
-  TrendingUp, TrendingDown, DollarSign, ArrowRight,
+  TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare,
-  ChevronDown, ChevronUp, AlertTriangle, Minus
+  ChevronDown, ChevronUp, AlertTriangle
 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -141,7 +141,7 @@ export default function BudgetComparisonPage() {
     }
   };
 
-  const formatCurrency = (cents: number) =>
+  const fmt = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
   const getCollaboratorName = (id?: string | null) =>
@@ -230,24 +230,58 @@ export default function BudgetComparisonPage() {
 
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
 
-  const CompareRow = ({ label, plannedVal, actualVal, isDifferent }: { label: string; plannedVal: string; actualVal: string; isDifferent?: boolean }) => (
-    <div className={`flex items-center text-[11px] py-1.5 px-2 rounded ${isDifferent ? 'bg-amber-50/60 dark:bg-amber-950/20' : ''}`}>
-      <div className={`w-[35%] ${isDifferent ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-        {label}
-      </div>
-      <div className={`w-[28%] text-right tabular-nums ${isDifferent ? 'text-gray-600' : 'text-gray-400'}`}>{plannedVal}</div>
-      <div className="w-[6%] flex justify-center">
-        {isDifferent
-          ? <ArrowRight className="w-3 h-3 text-amber-400" />
-          : <Minus className="w-2.5 h-2.5 text-gray-200" />
-        }
-      </div>
-      <div className={`w-[28%] text-right tabular-nums ${isDifferent ? 'font-semibold text-gray-800 dark:text-gray-100' : 'text-gray-400'}`}>{actualVal}</div>
-      {isDifferent && <div className="w-[3%] flex justify-end"><AlertTriangle className="w-3 h-3 text-amber-400" /></div>}
-    </div>
-  );
+  const CategoryBlock = ({ title, rows }: {
+    title: string;
+    rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
+  }) => {
+    const currencyRows = rows.filter(r => !r.isQuantity);
+    const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
+    const subtotalActual = currencyRows.reduce((s, r) => s + r.actual, 0);
+    const subtotalDiff = subtotalActual - subtotalPlanned;
+    const hasAnyDiff = rows.some(r => r.planned !== r.actual);
+    const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
 
-  const isValDiff = (a: number | undefined, b: number | undefined) => (a || 0) !== (b || 0);
+    return (
+      <div className={`rounded-lg border p-3 ${hasAnyDiff ? 'border-amber-200/70 bg-amber-50/20 dark:bg-amber-950/10' : 'border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{title}</span>
+          {hasAnyDiff && <AlertTriangle className="w-3 h-3 text-amber-400" />}
+        </div>
+
+        <div className="space-y-1.5">
+          {rows.map((row, i) => {
+            const diff = row.actual - row.planned;
+            const isDiff = diff !== 0;
+            return (
+              <div key={i} className="grid grid-cols-4 gap-2 text-[11px] items-center">
+                <span className={`${isDiff ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-400'}`}>{row.label}</span>
+                <span className={`text-right tabular-nums ${isDiff ? 'text-gray-500' : 'text-gray-400'}`}>{fmtVal(row.planned, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums ${isDiff ? 'font-semibold text-gray-800 dark:text-gray-100' : 'text-gray-400'}`}>{fmtVal(row.actual, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums text-[10px] font-medium ${
+                  diff > 0 ? 'text-red-500' : diff < 0 ? 'text-emerald-500' : 'text-gray-300'
+                }`}>
+                  {diff === 0 ? '—' : row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : ''}${fmt(diff)}`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {currencyRows.length > 0 && (
+          <div className="grid grid-cols-4 gap-2 text-[11px] items-center mt-2 pt-2 border-t border-gray-200/60 dark:border-gray-600/40 font-semibold">
+            <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
+            <span className="text-right tabular-nums text-blue-600">{fmt(subtotalPlanned)}</span>
+            <span className="text-right tabular-nums text-purple-600">{fmt(subtotalActual)}</span>
+            <span className={`text-right tabular-nums text-[10px] ${
+              subtotalDiff > 0 ? 'text-red-500' : subtotalDiff < 0 ? 'text-emerald-500' : 'text-gray-400'
+            }`}>
+              {subtotalDiff === 0 ? '—' : `${subtotalDiff > 0 ? '+' : ''}${fmt(subtotalDiff)}`}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-32">
@@ -322,46 +356,26 @@ export default function BudgetComparisonPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase text-blue-400 font-medium tracking-wider">Total Planejado</p>
-                  <p className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">{formatCurrency(totals.totalPlanned)}</p>
-                </div>
-                <DollarSign className="w-6 h-6 text-blue-200" />
-              </div>
+              <p className="text-[10px] uppercase text-blue-400 font-medium tracking-wider">Total Planejado</p>
+              <p className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">{fmt(totals.totalPlanned)}</p>
             </div>
-
             <div className="rounded-lg border border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase text-purple-400 font-medium tracking-wider">Total Realizado</p>
-                  <p className="text-xl font-bold text-purple-700 dark:text-purple-300 tabular-nums mt-1">{formatCurrency(totals.totalActual)}</p>
-                </div>
-                <DollarSign className="w-6 h-6 text-purple-200" />
-              </div>
+              <p className="text-[10px] uppercase text-purple-400 font-medium tracking-wider">Total Realizado</p>
+              <p className="text-xl font-bold text-purple-700 dark:text-purple-300 tabular-nums mt-1">{fmt(totals.totalActual)}</p>
             </div>
-
             <div className={`rounded-lg border p-4 ${totals.difference <= 0
               ? 'border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20'
               : 'border-red-200 bg-red-50/50 dark:bg-red-950/20'
             }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-[10px] uppercase font-medium tracking-wider ${totals.difference <= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    Diferença
-                  </p>
-                  <p className={`text-xl font-bold tabular-nums mt-1 ${totals.difference <= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                    {totals.difference > 0 ? '+' : ''}{formatCurrency(totals.difference)}
-                  </p>
-                  <p className={`text-[10px] mt-0.5 ${totals.difference <= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do previsto'}
-                  </p>
-                </div>
-                {totals.difference <= 0
-                  ? <TrendingDown className="w-6 h-6 text-emerald-200" />
-                  : <TrendingUp className="w-6 h-6 text-red-200" />
-                }
-              </div>
+              <p className={`text-[10px] uppercase font-medium tracking-wider ${totals.difference <= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                Diferença
+              </p>
+              <p className={`text-xl font-bold tabular-nums mt-1 ${totals.difference <= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                {totals.difference > 0 ? '+' : ''}{fmt(totals.difference)}
+              </p>
+              <p className={`text-[10px] mt-0.5 ${totals.difference <= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do previsto'}
+              </p>
             </div>
           </div>
 
@@ -415,6 +429,13 @@ export default function BudgetComparisonPage() {
                   const hasJustification = !!a.changeReason;
                   const hasDiff = diff !== 0;
 
+                  const dailyPlanned = p ? p.dailyQuantity * p.dailyValue : 0;
+                  const dailyActual = a.dailyQuantity * a.dailyValue;
+                  const mealPlanned = p ? (p.weekdayLunch + p.weekdayDinner + p.weekendLunch + p.weekendDinner) : 0;
+                  const mealActual = a.weekdayLunch + a.weekdayDinner + a.weekendLunch + a.weekendDinner;
+                  const mobilityPlanned = p ? (p.mobility + p.transport) : 0;
+                  const mobilityActual = a.mobility + a.transport;
+
                   return (
                     <div
                       key={idx}
@@ -436,20 +457,20 @@ export default function BudgetComparisonPage() {
                           <div className="grid grid-cols-3 gap-x-4 text-right min-w-[280px]">
                             <div>
                               <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Planejado</span>
-                              <span className="text-xs tabular-nums text-blue-600">{formatCurrency(plannedTotal)}</span>
+                              <span className="text-xs tabular-nums text-blue-600">{fmt(plannedTotal)}</span>
                             </div>
                             <div>
                               <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Realizado</span>
-                              <span className="text-xs tabular-nums text-purple-600 font-medium">{formatCurrency(actualTotal)}</span>
+                              <span className="text-xs tabular-nums text-purple-600 font-medium">{fmt(actualTotal)}</span>
                             </div>
                             <div>
                               <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Diferença</span>
                               {hasDiff ? (
                                 <span className={`text-xs tabular-nums font-semibold ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                  {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                                  {diff > 0 ? '+' : ''}{fmt(diff)}
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-300 tabular-nums">{formatCurrency(0)}</span>
+                                <span className="text-xs text-gray-300 tabular-nums">{fmt(0)}</span>
                               )}
                             </div>
                           </div>
@@ -458,8 +479,8 @@ export default function BudgetComparisonPage() {
                       </div>
 
                       {isExpanded && (
-                        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
-                          <div className="flex items-center gap-1.5 mb-3">
+                        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3">
+                          <div className="flex items-center gap-1.5">
                             <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5">{getFunctionName(row.functionId)}</Badge>
                             <Badge className={`text-[9px] h-[16px] px-1.5 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
                               {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
@@ -472,74 +493,74 @@ export default function BudgetComparisonPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center text-[9px] uppercase tracking-wider text-gray-400 font-medium pb-1.5 mb-1 px-2">
-                            <div className="w-[35%]">Item</div>
-                            <div className="w-[28%] text-right">Planejado</div>
-                            <div className="w-[6%]"></div>
-                            <div className="w-[28%] text-right">Realizado</div>
-                            <div className="w-[3%]"></div>
+                          <div className="grid grid-cols-4 gap-2 text-[9px] uppercase tracking-wider text-gray-400 font-medium px-0.5">
+                            <span></span>
+                            <span className="text-right">Planejado</span>
+                            <span className="text-right">Realizado</span>
+                            <span className="text-right">Diferença</span>
                           </div>
 
-                          <div className="space-y-0.5">
-                            <CompareRow
-                              label="Qtd. Diárias"
-                              plannedVal={p ? String(p.dailyQuantity) : '-'}
-                              actualVal={String(a.dailyQuantity)}
-                              isDifferent={isValDiff(p?.dailyQuantity, a.dailyQuantity)}
-                            />
-                            <CompareRow
-                              label="Valor Diária"
-                              plannedVal={p ? formatCurrency(p.dailyValue) : '-'}
-                              actualVal={formatCurrency(a.dailyValue)}
-                              isDifferent={isValDiff(p?.dailyValue, a.dailyValue)}
-                            />
-                            <CompareRow
-                              label="Subtotal Diárias"
-                              plannedVal={p ? formatCurrency(p.dailyQuantity * p.dailyValue) : '-'}
-                              actualVal={formatCurrency(a.dailyQuantity * a.dailyValue)}
-                              isDifferent={isValDiff(p ? p.dailyQuantity * p.dailyValue : undefined, a.dailyQuantity * a.dailyValue)}
-                            />
+                          <CategoryBlock
+                            title="Diárias"
+                            rows={[
+                              { label: "Qtd. Diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, isQuantity: true },
+                              { label: "Valor Unitário", planned: p?.dailyValue || 0, actual: a.dailyValue },
+                              { label: "Subtotal Diárias", planned: dailyPlanned, actual: dailyActual },
+                            ]}
+                          />
 
-                            <div className="pt-2 mt-1">
-                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider px-2">Alimentação</span>
-                            </div>
-                            <CompareRow label="Almoço (Sem.)" plannedVal={p ? formatCurrency(p.weekdayLunch) : '-'} actualVal={formatCurrency(a.weekdayLunch)} isDifferent={isValDiff(p?.weekdayLunch, a.weekdayLunch)} />
-                            <CompareRow label="Jantar (Sem.)" plannedVal={p ? formatCurrency(p.weekdayDinner) : '-'} actualVal={formatCurrency(a.weekdayDinner)} isDifferent={isValDiff(p?.weekdayDinner, a.weekdayDinner)} />
-                            <CompareRow label="Almoço (FdS)" plannedVal={p ? formatCurrency(p.weekendLunch) : '-'} actualVal={formatCurrency(a.weekendLunch)} isDifferent={isValDiff(p?.weekendLunch, a.weekendLunch)} />
-                            <CompareRow label="Jantar (FdS)" plannedVal={p ? formatCurrency(p.weekendDinner) : '-'} actualVal={formatCurrency(a.weekendDinner)} isDifferent={isValDiff(p?.weekendDinner, a.weekendDinner)} />
-                            <CompareRow
-                              label="Subtotal Alim."
-                              plannedVal={p ? formatCurrency(p.weekdayLunch + p.weekdayDinner + p.weekendLunch + p.weekendDinner) : '-'}
-                              actualVal={formatCurrency(a.weekdayLunch + a.weekdayDinner + a.weekendLunch + a.weekendDinner)}
-                              isDifferent={isValDiff(
-                                p ? p.weekdayLunch + p.weekdayDinner + p.weekendLunch + p.weekendDinner : undefined,
-                                a.weekdayLunch + a.weekdayDinner + a.weekendLunch + a.weekendDinner
-                              )}
-                            />
+                          <CategoryBlock
+                            title="Alimentação"
+                            rows={[
+                              { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
+                              { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
+                              { label: "Almoço (FdS)", planned: p?.weekendLunch || 0, actual: a.weekendLunch },
+                              { label: "Jantar (FdS)", planned: p?.weekendDinner || 0, actual: a.weekendDinner },
+                            ]}
+                          />
 
-                            <div className="pt-2 mt-1">
-                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider px-2">Outros</span>
+                          <CategoryBlock
+                            title="Mobilidade"
+                            rows={[
+                              { label: "Mobilidade", planned: p?.mobility || 0, actual: a.mobility },
+                              { label: "Translado", planned: p?.transport || 0, actual: a.transport },
+                            ]}
+                          />
+
+                          <div className={`rounded-lg border-2 p-4 ${
+                            diff > 0 ? 'border-red-300 bg-red-50/50 dark:bg-red-950/20'
+                              : diff < 0 ? 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20'
+                              : 'border-gray-300 bg-gray-50/50 dark:bg-gray-800'
+                          }`}>
+                            <div className="grid grid-cols-3 gap-4 text-center">
+                              <div>
+                                <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider block mb-1">Total Planejado</span>
+                                <span className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">{fmt(plannedTotal)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider block mb-1">Total Realizado</span>
+                                <span className="text-lg font-bold text-purple-700 dark:text-purple-300 tabular-nums">{fmt(actualTotal)}</span>
+                              </div>
+                              <div>
+                                <span className={`text-[9px] uppercase font-medium tracking-wider block mb-1 ${
+                                  diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-400'
+                                }`}>Diferença</span>
+                                <span className={`text-lg font-bold tabular-nums ${
+                                  diff > 0 ? 'text-red-600' : diff < 0 ? 'text-emerald-600' : 'text-gray-500'
+                                }`}>
+                                  {diff > 0 ? '+' : ''}{fmt(diff)}
+                                </span>
+                                {hasDiff && (
+                                  <span className={`block text-[10px] mt-0.5 ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {diff > 0 ? 'Acima do previsto' : 'Economia'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <CompareRow label="Mobilidade" plannedVal={p ? formatCurrency(p.mobility) : '-'} actualVal={formatCurrency(a.mobility)} isDifferent={isValDiff(p?.mobility, a.mobility)} />
-                            <CompareRow label="Translado" plannedVal={p ? formatCurrency(p.transport) : '-'} actualVal={formatCurrency(a.transport)} isDifferent={isValDiff(p?.transport, a.transport)} />
                           </div>
-
-                          <div className="flex items-center text-xs font-semibold pt-2.5 mt-2 border-t border-gray-200 dark:border-gray-600 px-2">
-                            <div className="w-[35%] text-gray-700 dark:text-gray-200">TOTAL</div>
-                            <div className="w-[28%] text-right text-blue-700 tabular-nums">{formatCurrency(plannedTotal)}</div>
-                            <div className="w-[6%] flex justify-center"><ArrowRight className="w-3 h-3 text-gray-300" /></div>
-                            <div className="w-[28%] text-right text-purple-700 tabular-nums">{formatCurrency(actualTotal)}</div>
-                            <div className="w-[3%]"></div>
-                          </div>
-
-                          {hasDiff && (
-                            <div className={`flex items-center justify-end mt-1.5 text-xs font-medium tabular-nums px-2 ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                              Diferença: {diff > 0 ? '+' : ''}{formatCurrency(diff)}
-                            </div>
-                          )}
 
                           {a.changeReason && (
-                            <div className="mt-3 p-2.5 rounded-md bg-gray-50 dark:bg-gray-750 border border-gray-100 dark:border-gray-700">
+                            <div className="p-2.5 rounded-md bg-gray-50 dark:bg-gray-750 border border-gray-100 dark:border-gray-700">
                               <div className="flex items-start gap-1.5">
                                 <span className="text-xs mt-0.5">💬</span>
                                 <div>
@@ -551,7 +572,7 @@ export default function BudgetComparisonPage() {
                           )}
 
                           {rhComment && (
-                            <div className="mt-2 p-2.5 rounded-md bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-800">
+                            <div className="p-2.5 rounded-md bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-800">
                               <div className="flex items-start gap-1.5">
                                 <span className="text-xs mt-0.5">💬</span>
                                 <div>
@@ -581,7 +602,7 @@ export default function BudgetComparisonPage() {
                 <p className="text-[10px] text-gray-400 mt-0.5">{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</p>
               </div>
               <div className="flex gap-2">
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-xs px-4" onClick={() => setActionModal({ type: 'approve' })}>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-xs px-5" onClick={() => setActionModal({ type: 'approve' })}>
                   <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Aprovar para faturamento
                 </Button>
                 <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50 h-9 text-xs px-4" onClick={() => setActionModal({ type: 'return' })}>
