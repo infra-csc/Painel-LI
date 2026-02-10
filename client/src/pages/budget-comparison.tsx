@@ -598,24 +598,22 @@ export default function BudgetComparisonPage() {
       )}
 
       {comparison && !isReadOnly && sortedData.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 shadow-lg">
-          <div className="max-w-5xl mx-auto px-6 py-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Decisão do RH</h3>
-                <p className="text-[10px] text-gray-400 mt-0.5">{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</p>
-              </div>
-              <div className="flex gap-2">
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 text-xs px-5" onClick={() => setActionModal({ type: 'approve' })}>
-                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Aprovar para faturamento
-                </Button>
-                <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50 h-9 text-xs px-4" onClick={() => setActionModal({ type: 'return' })}>
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Devolver para ajustes
-                </Button>
-                <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 h-9 text-xs px-4" onClick={() => setActionModal({ type: 'reject' })}>
-                  <XCircle className="w-3.5 h-3.5 mr-1.5" /> Recusar
-                </Button>
-              </div>
+        <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">Decisão do RH</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</p>
+            </div>
+            <div className="flex gap-2.5">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm px-5 shadow-sm" onClick={() => setActionModal({ type: 'approve' })}>
+                <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar
+              </Button>
+              <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 h-10 text-sm px-4" onClick={() => setActionModal({ type: 'return' })}>
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver
+              </Button>
+              <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4" onClick={() => setActionModal({ type: 'reject' })}>
+                <XCircle className="w-4 h-4 mr-1.5" /> Recusar
+              </Button>
             </div>
           </div>
         </div>
