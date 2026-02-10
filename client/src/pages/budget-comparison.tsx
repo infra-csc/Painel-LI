@@ -353,18 +353,35 @@ export default function BudgetComparisonPage() {
 
       {selectedEventId && selectedEvent && (
         <>
-          {sortedData.length > 0 && (
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              {currentStatus !== "pendente" && (
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
-                  <span className="text-sm">{statusInfo.icon}</span>
-                  <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+          {budgetActual && budgetActual.length > 0 && (() => {
+            const totalActualItems = budgetActual.length;
+            const sentCount = budgetActual.filter(a => a.sentForReview).length;
+            const pendingCount = totalActualItems - sentCount;
+            return (
+              <div className="flex items-center gap-4 text-[11px] text-gray-400">
+                {currentStatus !== "pendente" && (
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
+                    <span className="text-xs">{statusInfo.icon}</span>
+                    <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">{sentCount}</span>
+                  <span>enviada{sentCount !== 1 ? 's' : ''} para revisão</span>
                 </div>
-              )}
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">{sortedData.length}</span>
-              <span>execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</span>
-            </div>
-          )}
+                <span className="text-gray-300">·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-gray-100 text-gray-500 text-[9px] font-bold">{pendingCount}</span>
+                  <span>pendente{pendingCount !== 1 ? 's' : ''}</span>
+                </div>
+                <span className="text-gray-300">·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold">{totalActualItems}</span>
+                  <span>total</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {rhComment && (
             <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-3">
