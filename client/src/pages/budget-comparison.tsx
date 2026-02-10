@@ -11,8 +11,9 @@ import {
   BarChart3, RefreshCw, CheckCircle, XCircle, RotateCcw,
   TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare,
-  ChevronDown, ChevronUp, AlertTriangle
+  ChevronDown, ChevronUp, AlertTriangle, Search
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +24,9 @@ export default function BudgetComparisonPage() {
   const [actionNote, setActionNote] = useState("");
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const [sortBy, setSortBy] = useState<'difference' | 'total'>('difference');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterFunction, setFilterFunction] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -185,15 +189,38 @@ export default function BudgetComparisonPage() {
     return data;
   }, [budgetPlanned, budgetActual]);
 
+  const filteredData = useMemo(() => {
+    let data = [...comparisonData];
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      data = data.filter(r => {
+        const name = getCollaboratorName(r.collaboratorId).toLowerCase();
+        return name.includes(term);
+      });
+    }
+    if (filterFunction !== "all") {
+      data = data.filter(r => r.functionId === filterFunction);
+    }
+    if (filterType !== "all") {
+      data = data.filter(r => r.collaboratorType === filterType);
+    }
+    return data;
+  }, [comparisonData, searchTerm, filterFunction, filterType]);
+
   const sortedData = useMemo(() => {
-    const sorted = [...comparisonData];
+    const sorted = [...filteredData];
     if (sortBy === 'difference') {
       sorted.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
     } else {
       sorted.sort((a, b) => b.actual.totalValue - a.actual.totalValue);
     }
     return sorted;
-  }, [comparisonData, sortBy]);
+  }, [filteredData, sortBy]);
+
+  const usedFunctionIds = useMemo(() => {
+    const ids = new Set(comparisonData.map(r => r.functionId).filter(Boolean));
+    return Array.from(ids);
+  }, [comparisonData]);
 
   const totals = useMemo(() => {
     if (comparison && comparison.totalPlanned > 0) {
@@ -388,30 +415,64 @@ export default function BudgetComparisonPage() {
           </p>
 
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                Detalhamento por Execução
-                <span className="text-gray-400 font-normal ml-2">({sortedData.length})</span>
-              </h2>
+            <div className="space-y-3 mb-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  Detalhamento por Execução
+                  <span className="text-gray-400 font-normal ml-2">({sortedData.length})</span>
+                </h2>
+                <div className="flex items-center gap-2">
+                  <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
+                    <SelectTrigger className="h-7 text-[11px] w-40 border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="difference">Maior diferença</SelectItem>
+                      <SelectItem value="total">Maior valor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => {
+                    if (expandedCards.size === sortedData.length) {
+                      setExpandedCards(new Set());
+                    } else {
+                      setExpandedCards(new Set(sortedData.map((_, i) => i)));
+                    }
+                  }}>
+                    {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
+                  </Button>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
-                  <SelectTrigger className="h-7 text-[11px] w-40 border-gray-200">
-                    <SelectValue />
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <Input
+                    placeholder="Buscar por nome..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="h-8 pl-8 text-xs"
+                  />
+                </div>
+                <Select value={filterFunction} onValueChange={setFilterFunction}>
+                  <SelectTrigger className="h-8 text-xs w-44 border-gray-200">
+                    <SelectValue placeholder="Função" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="difference">Maior diferença</SelectItem>
-                    <SelectItem value="total">Maior valor</SelectItem>
+                    <SelectItem value="all">Todas as funções</SelectItem>
+                    {usedFunctionIds.map(fid => (
+                      <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => {
-                  if (expandedCards.size === sortedData.length) {
-                    setExpandedCards(new Set());
-                  } else {
-                    setExpandedCards(new Set(sortedData.map((_, i) => i)));
-                  }
-                }}>
-                  {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
-                </Button>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="h-8 text-xs w-32 border-gray-200">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="casa">Casa</SelectItem>
+                    <SelectItem value="freelancer">Freela</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -452,9 +513,16 @@ export default function BudgetComparisonPage() {
                         onClick={() => toggleExpand(idx)}
                       >
                         <div className="min-w-0">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">
                             {getCollaboratorName(row.collaboratorId)}
                           </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-gray-400">{getFunctionName(row.functionId)}</span>
+                            <span className="text-gray-300 dark:text-gray-600">·</span>
+                            <span className={`text-[10px] font-medium ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
+                              {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-4 shrink-0">
@@ -597,12 +665,12 @@ export default function BudgetComparisonPage() {
         </>
       )}
 
-      {comparison && !isReadOnly && sortedData.length > 0 && (
+      {comparison && !isReadOnly && comparisonData.length > 0 && (
         <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">Decisão do RH</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</p>
+              <p className="text-xs text-gray-400 mt-0.5">{comparisonData.length} execuç{comparisonData.length === 1 ? 'ão' : 'ões'} para análise</p>
             </div>
             <div className="flex gap-2.5">
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm px-5 shadow-sm" onClick={() => setActionModal({ type: 'approve' })}>
