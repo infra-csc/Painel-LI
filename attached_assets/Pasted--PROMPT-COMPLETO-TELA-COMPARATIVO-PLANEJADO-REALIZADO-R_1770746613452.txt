@@ -1,0 +1,209 @@
+🎨 PROMPT COMPLETO — TELA COMPARATIVO PLANEJADO × REALIZADO (RH)
+
+Crie a tela “Comparativo Planejado × Realizado” de um sistema de gestão financeira de eventos, destinada ao RH, responsável por analisar, aprovar ou devolver valores para faturamento.
+
+Contexto do fluxo:
+
+O Planejado já foi definido e confirmado
+
+O Realizado já foi preenchido e enviado para revisão
+
+Esta tela é a etapa final antes da criação de Nota Fiscal
+
+🎯 Objetivo da tela
+
+Comparar claramente Planejado e Realizado
+
+Evidenciar diferenças financeiras
+
+Permitir decisão formal do RH:
+
+Aprovar para faturamento
+
+Devolver para ajustes
+
+Recusar execução
+
+Registrar comentários opcionais como feedback
+
+1. Header (contexto forte)
+
+Título: Comparativo Planejado × Realizado
+
+Informações do evento:
+
+Nome do evento
+
+Período
+
+Status atual:
+
+🟡 Aguardando aprovação
+
+🔄 Devolvido para ajustes
+
+🟢 Aprovado para faturamento
+
+🔴 Recusado
+
+2. Cards de resumo (obrigatórios)
+
+Exibir no topo:
+
+Total Planejado
+
+Total Realizado
+
+Diferença Total
+
+Regras visuais:
+
+Diferença positiva ou negativa claramente indicada
+
+Cores semânticas discretas
+
+Valores fáceis de escanear
+
+3. Lista de execuções (comparativo principal)
+
+Exibir execuções individualmente (por colaborador/escala).
+
+Cada execução deve conter:
+
+Cabeçalho
+
+Nome do colaborador
+
+Função
+
+Tipo (Casa / Freela)
+
+Status da execução
+
+Comparação lado a lado (obrigatório)
+
+Estrutura clara:
+
+PLANEJADO                REALIZADO
+Diárias: 4               Diárias: 5
+Valor: R$ 1.000,00       Valor: R$ 1.250,00
+
+Mobilidade: R$ 25,00     Mobilidade: R$ 30,00
+Alimentação: R$ 320,00   Alimentação: R$ 360,00
+
+TOTAL: R$ 1.345,00       TOTAL: R$ 1.640,00
+Diferença: + R$ 295,00
+
+
+Regras:
+
+Nenhum campo é editável
+
+Diferença sempre visível
+
+Valores iguais aparecem em estado neutro
+
+4. Justificativas do Realizado
+
+Exibir justificativa informada no Realizado (somente leitura)
+
+Se houver diferença sem justificativa:
+
+Badge: ⚠️ Sem justificativa
+
+5. Ações do RH (decisão)
+
+Ações disponíveis:
+
+✅ Aprovar para faturamento
+
+🔄 Devolver para ajustes
+
+❌ Recusar execução
+
+6. Comentários do RH (opcionais)
+
+Ao executar qualquer ação (aprovar, devolver ou recusar):
+
+Exibir campo:
+
+Comentário (opcional)
+
+Regras:
+
+Comentário nunca é obrigatório
+
+Interface pode sugerir:
+
+Adicionar um comentário ajuda a orientar o responsável
+
+7. Registro e rastreabilidade
+
+Salvar comentário junto com:
+
+Ação tomada
+
+Usuário do RH
+
+Data e hora
+
+8. Visualização do comentário pelo responsável
+
+Após a ação do RH:
+
+Na tela do Realizado (operacional)
+
+No card da execução, exibir:
+
+Status: Devolvido para ajustes
+💬 Comentário do RH:
+“Ajustar valor da alimentação do fim de semana”
+
+
+Comentário somente leitura
+
+Visual discreto
+
+Sempre visível enquanto o status permitir edição
+
+No modal de edição do Realizado
+
+Quando a execução estiver devolvida:
+
+Exibir no topo do modal:
+
+💬 Comentário do RH
+“Ajustar valor da alimentação do fim de semana”
+
+9. Comportamento após decisão
+
+Aprovado para faturamento
+
+Tela fica somente leitura
+
+Libera criação de Nota Fiscal
+
+Devolvido para ajustes
+
+Execução volta para edição
+
+Comentário do RH visível
+
+Recusado
+
+Execução bloqueada
+
+Motivo registrado
+
+10. Estilo visual
+
+Interface institucional e confiável
+
+Comparação clara e direta
+
+Comentários com aparência secundária
+
+Nenhum excesso visual
+
+Resultado esperado:
+Uma tela clara, decisiva e rastreável para o RH, permitindo comparar Planejado e Realizado, tomar decisões formais com comentários opcionais e garantir que o responsável pelo Realizado receba feedback direto e compreensível.

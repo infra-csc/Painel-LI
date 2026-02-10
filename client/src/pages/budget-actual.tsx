@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send } from "lucide-react";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 
@@ -115,6 +115,20 @@ export default function BudgetActualPage() {
     },
     enabled: !!selectedEventId,
   });
+
+  const { data: budgetComparison } = useQuery<BudgetComparison | null>({
+    queryKey: ["/api/budget-comparison", selectedEventId],
+    queryFn: async () => {
+      if (!selectedEventId) return null;
+      const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
+                    budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
 
   const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
@@ -396,6 +410,23 @@ export default function BudgetActualPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {rhComment && selectedEventId && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-3.5 flex items-start gap-2.5">
+          <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center shrink-0 mt-0.5">
+            <span className="text-xs">💬</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] uppercase text-orange-500 font-semibold tracking-wider">Comentário do RH</span>
+              <Badge className="text-[9px] h-[16px] px-1.5 bg-orange-100 text-orange-600 border border-orange-200 hover:bg-orange-100">
+                {budgetComparison?.status === 'devolvido' ? 'Devolvido para ajustes' : 'Recusado'}
+              </Badge>
+            </div>
+            <p className="text-sm text-orange-800 dark:text-orange-200">{rhComment}</p>
+          </div>
+        </div>
+      )}
 
       {!selectedEventId ? (
         <div className="text-center py-16">
@@ -782,6 +813,17 @@ export default function BudgetActualPage() {
                   <p className="text-[11px] text-gray-400 mt-2">
                     Execução real do evento — os valores planejados abaixo servem apenas como referência
                   </p>
+                  {rhComment && (
+                    <div className="mt-2.5 p-2.5 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs mt-0.5">💬</span>
+                        <div>
+                          <span className="text-[9px] uppercase text-orange-500 font-semibold tracking-wider">Comentário do RH</span>
+                          <p className="text-[11px] text-orange-700 dark:text-orange-300 mt-0.5">{rhComment}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
