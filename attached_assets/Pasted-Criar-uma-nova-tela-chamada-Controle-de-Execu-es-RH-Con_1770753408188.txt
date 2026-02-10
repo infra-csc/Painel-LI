@@ -1,0 +1,139 @@
+Criar uma nova tela chamada “Controle de Execuções – RH”.
+
+Contexto:
+Esta tela é utilizada exclusivamente pelo RH para acompanhar
+todos os eventos e execuções desde a criação do Planejado
+até a aprovação final do Realizado para faturamento.
+
+O RH:
+- Não preenche o Realizado
+- Planeja, libera, revisa e aprova
+- Precisa ter visão global e controle do fluxo
+
+Objetivo da tela:
+- Saber rapidamente o que está travado
+- Identificar quem precisa agir
+- Aprovar, devolver ou recusar execuções
+- Acompanhar o andamento dos eventos
+
+--------------------------------------------------
+
+1. HEADER DA TELA
+
+- Título: “Controle de Execuções – RH”
+- Subtítulo:
+  “Acompanhamento do fluxo entre Planejado, Realizado e Aprovação”
+
+Filtros no topo:
+- Evento (select)
+- Status (Todos | Aguardando realizado | Em revisão | Devolvido | Aprovado)
+- Função
+- Responsável
+
+--------------------------------------------------
+
+2. PAINEL DE STATUS (VISÃO MACRO)
+
+Exibir cards de contagem no topo da tela:
+
+- 📝 Aguardando realizado
+- ⏳ Em revisão
+- 🔄 Devolvidos
+- ✅ Aprovados
+
+Regras:
+- Cards clicáveis (filtram a lista)
+- Visual limpo, números em destaque
+- Sem valores financeiros nessa etapa
+
+--------------------------------------------------
+
+3. LISTA PRINCIPAL DE EXECUÇÕES
+
+Exibir uma lista de execuções planejadas pelo RH.
+Cada item representa uma execução ligada a um evento.
+
+Estrutura do card:
+
+Topo:
+- Nome do evento
+- Função
+- Responsável pela função
+
+Status visual grande e claro:
+- 📝 Aguardando realizado
+- ⏳ Em revisão
+- 🔄 Devolvido
+- ✅ Aprovado
+
+Informações auxiliares:
+- Data da última ação
+- Quem realizou a última ação (RH ou responsável)
+
+--------------------------------------------------
+
+4. AÇÕES DO RH (POR STATUS)
+
+As ações disponíveis devem variar conforme o status da execução:
+
+- Aguardando realizado:
+  • Visualizar planejado
+  • Enviar lembrete (opcional)
+
+- Em revisão:
+  • Aprovar para faturamento
+  • Devolver para ajustes
+  • Recusar execução
+
+- Devolvido:
+  • Acompanhar correção
+  • Visualizar comentário enviado
+
+- Aprovado:
+  • Visualizar detalhes
+  • Enviar para faturamento
+
+--------------------------------------------------
+
+5. COMENTÁRIOS DO RH
+
+Ao executar as ações:
+- Aprovar
+- Devolver
+- Recusar
+
+Exibir um modal com:
+- Campo “Comentário (opcional)”
+- Texto de apoio:
+  “Este comentário será visível para o responsável pela função”
+
+Regras:
+- Comentário não é obrigatório
+- Comentário fica registrado com data, hora e usuário
+
+--------------------------------------------------
+
+6. VISUALIZAÇÃO DE COMENTÁRIOS
+
+No card da execução:
+- Exibir comentário do RH quando houver
+- Mostrar em formato somente leitura
+- Ícone de comentário para destaque visual
+
+--------------------------------------------------
+
+7. ESTILO VISUAL
+
+- Interface institucional e clara
+- Foco em status e ações
+- Sem edição de valores
+- Sem poluição visual
+- Destaque apenas para itens que exigem ação
+
+--------------------------------------------------
+
+Resultado esperado:
+Uma tela de controle clara e eficiente para o RH,
+permitindo acompanhar o andamento dos eventos,
+identificar gargalos, tomar decisões formais
+e conduzir o fluxo até o faturamento com segurança.

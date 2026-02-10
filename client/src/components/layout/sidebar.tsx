@@ -23,7 +23,8 @@ import {
   Focus,
   Calculator,
   ClipboardCheck,
-  BarChart3
+  BarChart3,
+  Shield
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -49,6 +50,7 @@ const iconColors: Record<string, string> = {
   "budget-planned": "text-blue-600",
   "budget-actual": "text-purple-600",
   "budget-comparison": "text-green-600",
+  "rh-control": "text-indigo-600",
 };
 
 const menuGroups = [
@@ -62,7 +64,7 @@ const menuGroups = [
   },
   {
     title: "Financeiro",
-    items: ["budget-planned", "budget-actual", "budget-comparison"]
+    items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control"]
   },
   {
     title: "Gestão",
@@ -174,6 +176,13 @@ export default function Sidebar() {
       path: "/budget-comparison",
       label: "Comparativo",
       icon: BarChart3,
+      permission: "canAccessScreen5" as const,
+    },
+    {
+      id: "rh-control",
+      path: "/rh-control",
+      label: "Controle RH",
+      icon: Shield,
       permission: "canAccessScreen5" as const,
     },
   ];
