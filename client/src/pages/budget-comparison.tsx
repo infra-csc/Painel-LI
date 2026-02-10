@@ -353,17 +353,18 @@ export default function BudgetComparisonPage() {
 
       {selectedEventId && selectedEvent && (
         <>
-          {currentStatus !== "pendente" ? (
-            <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
-              <span className="text-sm">{statusInfo.icon}</span>
-              <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
-            </div>
-          ) : sortedData.length > 0 ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+          {sortedData.length > 0 && (
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              {currentStatus !== "pendente" && (
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
+                  <span className="text-sm">{statusInfo.icon}</span>
+                  <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                </div>
+              )}
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">{sortedData.length}</span>
               <span>execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</span>
             </div>
-          ) : null}
+          )}
 
           {rhComment && (
             <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-3">
