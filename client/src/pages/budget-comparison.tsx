@@ -399,22 +399,13 @@ export default function BudgetComparisonPage() {
           </p>
 
           <div>
-            <div className="space-y-3 mb-3">
+            <div className="mb-3 space-y-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                   Detalhamento por Execução
                   <span className="text-gray-400 font-normal ml-2">({sortedData.length})</span>
                 </h2>
-                <div className="flex items-center gap-2">
-                  <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
-                    <SelectTrigger className="h-7 text-[11px] w-40 border-gray-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="difference">Maior diferença</SelectItem>
-                      <SelectItem value="total">Maior valor</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-1.5">
                   <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => {
                     if (expandedCards.size === sortedData.length) {
                       setExpandedCards(new Set());
@@ -446,7 +437,7 @@ export default function BudgetComparisonPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="relative flex-1 max-w-xs">
+                <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <Input
                     placeholder="Buscar por nome..."
@@ -456,7 +447,7 @@ export default function BudgetComparisonPage() {
                   />
                 </div>
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="h-8 text-xs w-44 border-gray-200">
+                  <SelectTrigger className="h-8 text-xs w-40 border-gray-200">
                     <SelectValue placeholder="Função" />
                   </SelectTrigger>
                   <SelectContent>
@@ -467,13 +458,22 @@ export default function BudgetComparisonPage() {
                   </SelectContent>
                 </Select>
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="h-8 text-xs w-32 border-gray-200">
+                  <SelectTrigger className="h-8 text-xs w-28 border-gray-200">
                     <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="casa">Casa</SelectItem>
                     <SelectItem value="freelancer">Freela</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
+                  <SelectTrigger className="h-8 text-xs w-40 border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="difference">Maior diferença</SelectItem>
+                    <SelectItem value="total">Maior valor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
