@@ -95,6 +95,17 @@ export default function BudgetActualPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+
+  const { data: allBudgetPlanned } = useQuery<BudgetPlanned[]>({
+    queryKey: ["/api/budget-planned"],
+  });
+
+  const eventsWithPlanned = useMemo(() => {
+    if (!events || !allBudgetPlanned) return undefined;
+    const eventIdsWithPlanned = new Set(allBudgetPlanned.map(bp => bp.eventId));
+    return events.filter(e => eventIdsWithPlanned.has(e.id));
+  }, [events, allBudgetPlanned]);
+
   const { data: budgetActual, isLoading } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
     queryFn: async () => {
@@ -410,7 +421,7 @@ export default function BudgetActualPage() {
         </div>
         <div className="flex items-center gap-3">
           {selectedEventId && (
-            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} />
+            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
           )}
           {selectedEventId && filteredItems.length > 0 && (
             sentForReview ? (
@@ -436,7 +447,7 @@ export default function BudgetActualPage() {
           <p className="text-purple-600/70 dark:text-purple-400/70 text-sm max-w-md mx-auto mb-6">
             Registre a execução real do orçamento. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
           </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} accentColor="purple" />
+          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} accentColor="purple" />
         </div>
       ) : isLoading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>

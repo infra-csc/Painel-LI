@@ -15,7 +15,7 @@ import {
   AlertTriangle, Users, Zap, Calendar, Filter,
   ChevronRight, Sparkles
 } from "lucide-react";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
 type ExecutionStatus = "aguardando" | "em_revisao" | "devolvido" | "aprovado" | "recusado" | "all";
 
@@ -79,6 +79,14 @@ export default function RhControlPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: users } = useQuery<User[]>({ queryKey: ["/api/users"] });
+  const { data: allTeamInclusions, isLoading: loadingInclusions } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions"],
+    queryFn: async () => {
+      const res = await fetch("/api/team-inclusions", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
   const { data: allPlanned, isLoading: loadingPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned"],
   });
@@ -86,7 +94,12 @@ export default function RhControlPage() {
     queryKey: ["/api/budget-actual"],
   });
 
-  const isLoading = loadingPlanned || loadingActual;
+  const eventIdsWithInclusions = useMemo(() => {
+    if (!allTeamInclusions) return new Set<string>();
+    return new Set(allTeamInclusions.map(ti => ti.eventId));
+  }, [allTeamInclusions]);
+
+  const isLoading = loadingPlanned || loadingActual || loadingInclusions;
 
   const rhActionMutation = useMutation({
     mutationFn: async ({ itemIds, action, comment }: { itemIds: string[]; action: string; comment: string }) => {
@@ -141,12 +154,13 @@ export default function RhControlPage() {
   };
 
   const executionItems = useMemo((): ExecutionItem[] => {
-    if (!allPlanned || !events) return [];
+    if (!allPlanned || !events || eventIdsWithInclusions.size === 0) return [];
     const now = new Date();
     const recentThreshold = new Date(now.getTime() - RECENT_HOURS * 60 * 60 * 1000);
     const items: ExecutionItem[] = [];
 
     for (const planned of allPlanned) {
+      if (!eventIdsWithInclusions.has(planned.eventId)) continue;
       const event = events.find(e => e.id === planned.eventId);
       if (!event) continue;
 
@@ -188,7 +202,7 @@ export default function RhControlPage() {
     });
 
     return items;
-  }, [allPlanned, allActual, events]);
+  }, [allPlanned, allActual, events, eventIdsWithInclusions]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { aguardando: 0, em_revisao: 0, devolvido: 0, aprovado: 0, recusado: 0 };
@@ -609,7 +623,7 @@ export default function RhControlPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {events?.map(e => (
+                {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => (
                   <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                 ))}
               </SelectContent>

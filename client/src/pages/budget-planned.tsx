@@ -111,7 +111,22 @@ export default function BudgetPlannedPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues, isLoading: isLoadingFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
-  
+
+  const { data: allTeamInclusions } = useQuery<TeamInclusion[]>({
+    queryKey: ["/api/team-inclusions"],
+    queryFn: async () => {
+      const res = await fetch("/api/team-inclusions", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch team inclusions");
+      return res.json();
+    },
+  });
+
+  const eventsWithInclusions = useMemo(() => {
+    if (!events || !allTeamInclusions) return undefined;
+    const eventIdsWithInclusions = new Set(allTeamInclusions.map(ti => ti.eventId));
+    return events.filter(e => eventIdsWithInclusions.has(e.id));
+  }, [events, allTeamInclusions]);
+
   const { data: teamInclusions, isLoading: isLoadingInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions", selectedEventId],
     queryFn: async () => {
@@ -455,7 +470,7 @@ export default function BudgetPlannedPage() {
           </div>
         </div>
         {selectedEventId && (
-          <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={events} />
+          <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
         )}
       </div>
 
@@ -468,7 +483,7 @@ export default function BudgetPlannedPage() {
           <p className="text-blue-600/70 dark:text-blue-400/70 text-sm max-w-md mx-auto mb-6">
             Visualize o orçamento previsto com base nas escalações confirmadas. Os valores são calculados automaticamente a partir das funções e períodos de trabalho.
           </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={events} accentColor="blue" />
+          <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} accentColor="blue" />
         </div>
       ) : (
           <>
