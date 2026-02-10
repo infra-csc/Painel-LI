@@ -1,72 +1,96 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
   FileText, ChevronDown, ChevronUp, MessageSquare,
-  AlertTriangle, Users, Zap, Calendar, Filter,
-  ChevronRight, Sparkles, ExternalLink, ArrowRight
+  AlertTriangle, Users, Calendar, Filter,
+  ChevronRight, Eye, ArrowRight, ClipboardList,
+  Send, CircleDot, Ban
 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
-type ExecutionStatus = "aguardando_preenchimento" | "enviado_para_rh" | "devolvido_para_ajuste" | "aprovado_rh" | "recusado_rh" | "all";
+type PrestacaoStatus =
+  | "planejamento_pendente"
+  | "aguardando_prestacao"
+  | "prestacao_recebida"
+  | "devolvida_para_ajuste"
+  | "aprovada_faturamento"
+  | "recusada"
+  | "all";
 
-interface ExecutionItem {
-  planned: BudgetPlanned;
-  actual: BudgetActual | null;
+interface PrestacaoItem {
+  id: string;
+  teamInclusion?: TeamInclusion;
+  planned?: BudgetPlanned;
+  actual?: BudgetActual;
   event: Event;
-  status: ExecutionStatus;
+  collaboratorId?: string | null;
+  functionId?: string | null;
+  status: PrestacaoStatus;
   lastActivityDate: Date | null;
-  isRecent: boolean;
+  responsavelAtual: string;
 }
 
 interface EventGroup {
   event: Event;
-  items: ExecutionItem[];
+  items: PrestacaoItem[];
   actionNeeded: number;
-  recentCount: number;
 }
 
-const STATUS_PRIORITY: Record<string, number> = {
-  enviado_para_rh: 0,
-  devolvido_para_ajuste: 1,
-  aguardando_preenchimento: 2,
-  recusado_rh: 3,
-  aprovado_rh: 4,
-};
+const STATUS_ORDER: PrestacaoStatus[] = [
+  "prestacao_recebida",
+  "devolvida_para_ajuste",
+  "planejamento_pendente",
+  "aguardando_prestacao",
+  "aprovada_faturamento",
+  "recusada",
+];
 
-const RECENT_HOURS = 48;
+const STATUS_PRIORITY: Record<string, number> = {};
+STATUS_ORDER.forEach((s, i) => { STATUS_PRIORITY[s] = i; });
 
-function timeAgo(date: Date | string | null | undefined): string {
+function timeInStatus(date: Date | string | null | undefined): string {
   if (!date) return "-";
   const now = new Date();
   const d = new Date(date);
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "Agora";
-  if (diffMin < 60) return `${diffMin}min atrás`;
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `há ${diffMin}min`;
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h atrás`;
+  if (diffH < 24) return `há ${diffH}h`;
   const diffD = Math.floor(diffH / 24);
-  if (diffD === 1) return "Ontem";
-  if (diffD < 7) return `${diffD}d atrás`;
-  return new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  if (diffD === 1) return "há 1 dia";
+  return `há ${diffD} dias`;
 }
+
+const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada"];
+const ACTIONABLE_STATUSES: PrestacaoStatus[] = ["planejamento_pendente", "aguardando_prestacao", "prestacao_recebida", "devolvida_para_ajuste"];
 
 export default function RhControlPage() {
   const [filterEvent, setFilterEvent] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<ExecutionStatus>("all");
+  const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showConcluded, setShowConcluded] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; item: PrestacaoItem } | null>(null);
+  const [actionNote, setActionNote] = useState("");
+  const { toast } = useToast();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [, navigate] = useLocation();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -88,12 +112,40 @@ export default function RhControlPage() {
     queryKey: ["/api/budget-actual"],
   });
 
-  const eventIdsWithInclusions = useMemo(() => {
-    if (!allTeamInclusions) return new Set<string>();
-    return new Set(allTeamInclusions.map(ti => ti.eventId));
-  }, [allTeamInclusions]);
-
   const isLoading = loadingPlanned || loadingActual || loadingInclusions;
+
+  const rhActionMutation = useMutation({
+    mutationFn: async ({ itemIds, action, comment }: { itemIds: string[]; action: string; comment: string }) => {
+      const res = await apiRequest("POST", `/api/budget-actual/rh-action`, {
+        itemIds,
+        action,
+        comment,
+        actionBy: user?.id,
+      });
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      const labels: Record<string, { title: string; cls: string }> = {
+        aprovado: { title: "Prestação aprovada para faturamento", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
+        rejeitado: { title: "Prestação recusada", cls: "bg-red-50 border-red-200 text-red-800" },
+        devolvido: { title: "Prestação devolvida para ajuste", cls: "bg-amber-50 border-amber-200 text-amber-800" },
+      };
+      const info = labels[variables.action];
+      toast({ title: info?.title || "Ação realizada", className: info?.cls });
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+      setActionModal(null);
+      setActionNote("");
+    },
+  });
+
+  const handleAction = () => {
+    if (!actionModal) return;
+    const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
+    const rhAction = actionMap[actionModal.type];
+    const actualId = actionModal.item.actual?.id;
+    if (!actualId) return;
+    rhActionMutation.mutate({ itemIds: [actualId], action: rhAction, comment: actionNote });
+  };
 
   const getCollaboratorName = (id?: string | null) =>
     id ? collaborators?.find(c => c.id === id)?.fullName || "-" : "-";
@@ -114,43 +166,134 @@ export default function RhControlPage() {
       date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
-  const executionItems = useMemo((): ExecutionItem[] => {
-    if (!allPlanned || !events || eventIdsWithInclusions.size === 0) return [];
-    const now = new Date();
-    const recentThreshold = new Date(now.getTime() - RECENT_HOURS * 60 * 60 * 1000);
-    const items: ExecutionItem[] = [];
+  const resolveResponsavel = (id?: string | null): string => {
+    if (!id) return "Responsável da função";
+    return users?.find(u => u.id === id)?.name || "Responsável da função";
+  };
 
-    for (const planned of allPlanned) {
-      if (!eventIdsWithInclusions.has(planned.eventId)) continue;
+  const prestacaoItems = useMemo((): PrestacaoItem[] => {
+    if (!events) return [];
+    const activeInclusions = (allTeamInclusions || []).filter(ti => !ti.deletedAt && ti.collaboratorId);
+    const items: PrestacaoItem[] = [];
+    const processedPlannedIds = new Set<string>();
+    const seenKeys = new Set<string>();
+
+    for (const ti of activeInclusions) {
+      const event = events.find(e => e.id === ti.eventId);
+      if (!event) continue;
+
+      const matchingPlanned = allPlanned?.find(p =>
+        p.eventId === ti.eventId &&
+        p.collaboratorId === ti.collaboratorId &&
+        p.functionId === ti.functionId
+      );
+
+      if (!matchingPlanned) {
+        items.push({
+          id: `ti-${ti.id}`,
+          teamInclusion: ti,
+          event,
+          collaboratorId: ti.collaboratorId,
+          functionId: ti.functionId,
+          status: "planejamento_pendente",
+          lastActivityDate: ti.createdAt ? new Date(ti.createdAt) : null,
+          responsavelAtual: "RH",
+        });
+        continue;
+      }
+
+      const itemKey = `pl-${matchingPlanned.id}`;
+      if (seenKeys.has(itemKey)) continue;
+      seenKeys.add(itemKey);
+      processedPlannedIds.add(matchingPlanned.id);
+
+      const matchingActual = allActual?.find(a =>
+        (a.plannedId === matchingPlanned.id) ||
+        (a.collaboratorId === matchingPlanned.collaboratorId && a.functionId === matchingPlanned.functionId && a.eventId === matchingPlanned.eventId)
+      ) || null;
+
+      let status: PrestacaoStatus = "aguardando_prestacao";
+      let responsavelAtual = "Responsável da função";
+      let lastActivityDate: Date | null = matchingPlanned.updatedAt ? new Date(matchingPlanned.updatedAt) : null;
+
+      if (matchingActual) {
+        const rhStatus = matchingActual.rhStatus || "pendente";
+        if (rhStatus === "aprovado") {
+          status = "aprovada_faturamento";
+          responsavelAtual = "Concluído";
+          lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate;
+        } else if (rhStatus === "rejeitado") {
+          status = "recusada";
+          responsavelAtual = "Concluído";
+          lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate;
+        } else if (rhStatus === "devolvido") {
+          status = "devolvida_para_ajuste";
+          lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate;
+          responsavelAtual = resolveResponsavel(matchingActual.updatedBy || matchingPlanned.createdBy);
+        } else if (matchingActual.sentForReview) {
+          status = "prestacao_recebida";
+          responsavelAtual = "RH";
+          lastActivityDate = matchingActual.updatedAt ? new Date(matchingActual.updatedAt) : lastActivityDate;
+        } else {
+          status = "aguardando_prestacao";
+          lastActivityDate = matchingActual.updatedAt ? new Date(matchingActual.updatedAt) : lastActivityDate;
+          responsavelAtual = resolveResponsavel(matchingActual.updatedBy || matchingPlanned.createdBy);
+        }
+      } else {
+        responsavelAtual = resolveResponsavel(matchingPlanned.createdBy);
+      }
+
+      items.push({
+        id: itemKey,
+        teamInclusion: ti,
+        planned: matchingPlanned,
+        actual: matchingActual || undefined,
+        event,
+        collaboratorId: matchingPlanned.collaboratorId,
+        functionId: matchingPlanned.functionId,
+        status,
+        lastActivityDate,
+        responsavelAtual,
+      });
+    }
+
+    const orphanPlanned = (allPlanned || []).filter(p => !processedPlannedIds.has(p.id));
+    for (const planned of orphanPlanned) {
       const event = events.find(e => e.id === planned.eventId);
       if (!event) continue;
+
+      const itemKey = `pl-${planned.id}`;
+      if (seenKeys.has(itemKey)) continue;
+      seenKeys.add(itemKey);
 
       const matchingActual = allActual?.find(a =>
         (a.plannedId === planned.id) ||
         (a.collaboratorId === planned.collaboratorId && a.functionId === planned.functionId && a.eventId === planned.eventId)
       ) || null;
 
-      let status: ExecutionStatus = "aguardando_preenchimento";
+      let status: PrestacaoStatus = "aguardando_prestacao";
+      let responsavelAtual = resolveResponsavel(planned.createdBy);
+      let lastActivityDate: Date | null = planned.updatedAt ? new Date(planned.updatedAt) : null;
+
       if (matchingActual) {
         const rhStatus = matchingActual.rhStatus || "pendente";
-        if (rhStatus === "aprovado") status = "aprovado_rh";
-        else if (rhStatus === "rejeitado") status = "recusado_rh";
-        else if (rhStatus === "devolvido") status = "devolvido_para_ajuste";
-        else if (matchingActual.sentForReview) status = "enviado_para_rh";
-        else status = "aguardando_preenchimento";
+        if (rhStatus === "aprovado") { status = "aprovada_faturamento"; responsavelAtual = "Concluído"; lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate; }
+        else if (rhStatus === "rejeitado") { status = "recusada"; responsavelAtual = "Concluído"; lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate; }
+        else if (rhStatus === "devolvido") { status = "devolvida_para_ajuste"; responsavelAtual = resolveResponsavel(matchingActual.updatedBy); lastActivityDate = matchingActual.rhActionAt ? new Date(matchingActual.rhActionAt) : lastActivityDate; }
+        else if (matchingActual.sentForReview) { status = "prestacao_recebida"; responsavelAtual = "RH"; lastActivityDate = matchingActual.updatedAt ? new Date(matchingActual.updatedAt) : lastActivityDate; }
       }
 
-      const lastActivityDate = matchingActual?.rhActionAt
-        ? new Date(matchingActual.rhActionAt)
-        : matchingActual?.updatedAt
-        ? new Date(matchingActual.updatedAt)
-        : planned.updatedAt
-        ? new Date(planned.updatedAt)
-        : null;
-
-      const isRecent = lastActivityDate ? lastActivityDate >= recentThreshold : false;
-
-      items.push({ planned, actual: matchingActual, event, status, lastActivityDate, isRecent });
+      items.push({
+        id: itemKey,
+        planned,
+        actual: matchingActual || undefined,
+        event,
+        collaboratorId: planned.collaboratorId,
+        functionId: planned.functionId,
+        status,
+        lastActivityDate,
+        responsavelAtual,
+      });
     }
 
     items.sort((a, b) => {
@@ -163,45 +306,45 @@ export default function RhControlPage() {
     });
 
     return items;
-  }, [allPlanned, allActual, events, eventIdsWithInclusions]);
+  }, [allTeamInclusions, allPlanned, allActual, events, users]);
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { aguardando_preenchimento: 0, enviado_para_rh: 0, devolvido_para_ajuste: 0, aprovado_rh: 0, recusado_rh: 0 };
-    executionItems.forEach(item => { counts[item.status] = (counts[item.status] || 0) + 1; });
+    const counts: Record<string, number> = {};
+    STATUS_ORDER.forEach(s => { counts[s] = 0; });
+    prestacaoItems.forEach(item => { counts[item.status] = (counts[item.status] || 0) + 1; });
     return counts;
-  }, [executionItems]);
+  }, [prestacaoItems]);
 
   const filteredItems = useMemo(() => {
-    return executionItems.filter(item => {
-      if (filterEvent !== "all" && item.planned.eventId !== filterEvent) return false;
-      if (filterStatus !== "all" && item.status !== filterStatus) return false;
-      if (filterFunction !== "all" && item.planned.functionId !== filterFunction) return false;
+    return prestacaoItems.filter(item => {
+      if (filterStatus !== "all") {
+        if (item.status !== filterStatus) return false;
+      } else {
+        if (!showConcluded && CONCLUDED_STATUSES.includes(item.status)) return false;
+      }
+      if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
+      if (filterFunction !== "all" && item.functionId !== filterFunction) return false;
       if (searchTerm) {
-        const name = getCollaboratorName(item.planned.collaboratorId).toLowerCase();
+        const name = getCollaboratorName(item.collaboratorId).toLowerCase();
         if (!name.includes(searchTerm.toLowerCase())) return false;
       }
       return true;
     });
-  }, [executionItems, filterEvent, filterStatus, filterFunction, searchTerm, collaborators]);
-
-  const recentItems = useMemo(() => {
-    return filteredItems.filter(i => i.isRecent);
-  }, [filteredItems]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, searchTerm, showConcluded, collaborators]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
     for (const item of filteredItems) {
       const eid = item.event.id;
       if (!map.has(eid)) {
-        map.set(eid, { event: item.event, items: [], actionNeeded: 0, recentCount: 0 });
+        map.set(eid, { event: item.event, items: [], actionNeeded: 0 });
       }
       const g = map.get(eid)!;
       g.items.push(item);
-      if (item.status === "enviado_para_rh" || item.status === "devolvido_para_ajuste") g.actionNeeded++;
-      if (item.isRecent) g.recentCount++;
+      if (ACTIONABLE_STATUSES.includes(item.status)) g.actionNeeded++;
     }
     const groups = Array.from(map.values());
-    groups.sort((a, b) => b.actionNeeded - a.actionNeeded || b.recentCount - a.recentCount);
+    groups.sort((a, b) => b.actionNeeded - a.actionNeeded);
     return groups;
   }, [filteredItems]);
 
@@ -219,9 +362,14 @@ export default function RhControlPage() {
   }, [eventGroups]);
 
   const usedFunctionIds = useMemo(() => {
-    const ids = new Set(executionItems.map(i => i.planned.functionId).filter(Boolean));
+    const ids = new Set(prestacaoItems.map(i => i.functionId).filter(Boolean));
     return Array.from(ids);
-  }, [executionItems]);
+  }, [prestacaoItems]);
+
+  const eventIdsWithInclusions = useMemo(() => {
+    if (!allTeamInclusions) return new Set<string>();
+    return new Set(allTeamInclusions.filter(ti => !ti.deletedAt).map(ti => ti.eventId));
+  }, [allTeamInclusions]);
 
   const toggleExpand = (id: string) => {
     const next = new Set(expandedCards);
@@ -235,123 +383,168 @@ export default function RhControlPage() {
     setExpandedEvents(next);
   };
 
-  const expandAllEvents = () => {
-    setExpandedEvents(new Set(eventGroups.map(g => g.event.id)));
-  };
+  const expandAllEvents = () => setExpandedEvents(new Set(eventGroups.map(g => g.event.id)));
+  const collapseAllEvents = () => setExpandedEvents(new Set());
 
-  const collapseAllEvents = () => {
-    setExpandedEvents(new Set());
-  };
-
-  const statusConfig: Record<ExecutionStatus, { label: string; shortLabel: string; description: string; actionPage: string; icon: any; color: string; bg: string; border: string; iconColor: string; badgeCls: string }> = {
-    aguardando_preenchimento: {
-      label: "Aguardando preenchimento",
+  const statusConfig: Record<PrestacaoStatus, {
+    label: string; shortLabel: string; description: string;
+    icon: any; color: string; bg: string; border: string;
+    iconColor: string; badgeCls: string; cardBorder: string;
+  }> = {
+    planejamento_pendente: {
+      label: "Planejamento pendente",
+      shortLabel: "Plan. pendente",
+      description: "Existe escalação, mas o RH ainda não criou o planejado",
+      icon: ClipboardList,
+      color: "text-amber-700 dark:text-amber-300",
+      bg: "bg-amber-50 dark:bg-amber-950/30",
+      border: "border-amber-200 dark:border-amber-800",
+      iconColor: "text-amber-500",
+      badgeCls: "bg-amber-100 text-amber-700 border-amber-200",
+      cardBorder: "border-amber-200 dark:border-amber-800",
+    },
+    aguardando_prestacao: {
+      label: "Aguardando prestação",
       shortLabel: "Aguardando",
-      description: "O responsável pela função precisa preencher os valores realizados na página Realizado",
-      actionPage: "Realizado",
-      icon: FileText,
+      description: "Planejado criado — aguardando o responsável da função preencher a prestação de contas",
+      icon: Clock,
       color: "text-slate-700 dark:text-slate-300",
       bg: "bg-slate-50 dark:bg-slate-900/40",
       border: "border-slate-200 dark:border-slate-700",
       iconColor: "text-slate-400",
       badgeCls: "bg-slate-100 text-slate-600 border-slate-200",
+      cardBorder: "border-gray-200 dark:border-gray-700",
     },
-    enviado_para_rh: {
-      label: "Enviado para o RH",
-      shortLabel: "No RH",
-      description: "O responsável preencheu os valores e enviou para análise do RH",
-      actionPage: "RH",
-      icon: Clock,
+    prestacao_recebida: {
+      label: "Prestação recebida",
+      shortLabel: "Recebida",
+      description: "O responsável enviou a prestação de contas — aguardando análise do RH",
+      icon: Send,
       color: "text-blue-700 dark:text-blue-300",
       bg: "bg-blue-50 dark:bg-blue-950/30",
       border: "border-blue-200 dark:border-blue-800",
       iconColor: "text-blue-500",
       badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
+      cardBorder: "border-blue-200 dark:border-blue-800 shadow-sm shadow-blue-100/50",
     },
-    devolvido_para_ajuste: {
-      label: "Devolvido pelo RH",
-      shortLabel: "Devolvido",
-      description: "O RH devolveu para correção — o responsável pela função precisa ajustar na página Realizado",
-      actionPage: "Realizado",
+    devolvida_para_ajuste: {
+      label: "Devolvida para ajuste",
+      shortLabel: "Devolvida",
+      description: "O RH devolveu a prestação — aguardando o responsável da função corrigir e reenviar",
       icon: RotateCcw,
       color: "text-orange-700 dark:text-orange-300",
       bg: "bg-orange-50 dark:bg-orange-950/30",
       border: "border-orange-200 dark:border-orange-800",
       iconColor: "text-orange-500",
       badgeCls: "bg-orange-100 text-orange-700 border-orange-200",
+      cardBorder: "border-orange-200 dark:border-orange-800",
     },
-    aprovado_rh: {
-      label: "Aprovado pelo RH",
-      shortLabel: "Aprovado",
-      description: "O RH aprovou esta execução — pronto para faturamento",
-      actionPage: "",
+    aprovada_faturamento: {
+      label: "Aprovada para faturamento",
+      shortLabel: "Aprovada",
+      description: "O RH aprovou esta prestação — pronta para faturamento",
       icon: CheckCircle,
       color: "text-emerald-700 dark:text-emerald-300",
       bg: "bg-emerald-50 dark:bg-emerald-950/30",
       border: "border-emerald-200 dark:border-emerald-800",
       iconColor: "text-emerald-500",
       badgeCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      cardBorder: "border-emerald-200 dark:border-emerald-800",
     },
-    recusado_rh: {
-      label: "Recusado pelo RH",
-      shortLabel: "Recusado",
-      description: "O RH recusou esta execução — não será faturada",
-      actionPage: "",
-      icon: XCircle,
+    recusada: {
+      label: "Recusada",
+      shortLabel: "Recusada",
+      description: "O RH recusou esta prestação — não será faturada",
+      icon: Ban,
       color: "text-red-700 dark:text-red-300",
       bg: "bg-red-50 dark:bg-red-950/30",
       border: "border-red-200 dark:border-red-800",
       iconColor: "text-red-500",
       badgeCls: "bg-red-100 text-red-700 border-red-200",
+      cardBorder: "border-red-200 dark:border-red-800",
     },
     all: {
-      label: "Todos",
-      shortLabel: "Todos",
-      description: "",
-      actionPage: "",
-      icon: Users,
-      color: "text-gray-700",
-      bg: "bg-gray-50",
-      border: "border-gray-200",
-      iconColor: "text-gray-400",
+      label: "Todos", shortLabel: "Todos", description: "",
+      icon: Users, color: "text-gray-700", bg: "bg-gray-50",
+      border: "border-gray-200", iconColor: "text-gray-400",
       badgeCls: "bg-gray-100 text-gray-600 border-gray-200",
+      cardBorder: "border-gray-200",
     },
   };
 
-  const actionNeededTotal = statusCounts.enviado_para_rh + statusCounts.devolvido_para_ajuste;
   const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterStatus !== "all" || searchTerm !== "";
+  const rhActionCount = statusCounts.prestacao_recebida || 0;
 
-  const handleCardClick = (item: ExecutionItem) => {
-    navigate("/budget-actual");
+  const getTimelineStep = (item: PrestacaoItem): number => {
+    if (item.status === "planejamento_pendente") return 0;
+    if (item.status === "aguardando_prestacao") return 1;
+    if (item.status === "prestacao_recebida" || item.status === "devolvida_para_ajuste") return 2;
+    return 3;
   };
 
-  const getActionHint = (item: ExecutionItem): string | null => {
-    if (item.status === "aguardando_preenchimento") return "Ir para Realizado — preencher valores";
-    if (item.status === "devolvido_para_ajuste") return "Ir para Realizado — corrigir valores";
+  const renderTimeline = (item: PrestacaoItem) => {
+    const step = getTimelineStep(item);
+    const steps = ["Escalação", "Planejado", "Prestação", "Aprovação"];
+    return (
+      <div className="flex items-center gap-0 w-full">
+        {steps.map((label, i) => {
+          const isCompleted = i < step;
+          const isCurrent = i === step;
+          return (
+            <div key={label} className="flex items-center flex-1">
+              <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border-2 ${
+                  isCompleted ? 'bg-indigo-600 border-indigo-600 text-white' :
+                  isCurrent ? 'bg-white dark:bg-gray-800 border-indigo-500 text-indigo-600' :
+                  'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400'
+                }`}>
+                  {isCompleted ? <CheckCircle className="w-3 h-3" /> : i + 1}
+                </div>
+                <span className={`text-[8px] font-medium whitespace-nowrap ${
+                  isCompleted ? 'text-indigo-600 dark:text-indigo-400' :
+                  isCurrent ? 'text-indigo-700 dark:text-indigo-300 font-semibold' :
+                  'text-gray-400'
+                }`}>{label}</span>
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 ${
+                  isCompleted ? 'bg-indigo-500' : 'bg-gray-200 dark:bg-gray-700'
+                }`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const getPrimaryAction = (item: PrestacaoItem) => {
+    if (item.status === "planejamento_pendente") {
+      return { label: "Criar planejado", onClick: () => navigate("/budget-planned"), icon: ArrowRight };
+    }
+    if (item.status === "prestacao_recebida") {
+      return { label: "Analisar prestação", onClick: () => setActionModal({ type: 'approve', item }), icon: Eye, isAnalyze: true };
+    }
     return null;
   };
 
-  const renderExecutionCard = (item: ExecutionItem) => {
+  const renderPrestacaoCard = (item: PrestacaoItem) => {
     const config = statusConfig[item.status];
-    const isExpanded = expandedCards.has(item.planned.id);
+    const isExpanded = expandedCards.has(item.id);
     const isResubmitted = item.actual?.resubmitted;
-    const actionHint = getActionHint(item);
-    const isClickable = !!actionHint;
+    const primaryAction = getPrimaryAction(item);
+    const needsRhAction = item.status === "prestacao_recebida";
 
     return (
       <div
-        key={item.planned.id}
-        className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${
-          item.status === "enviado_para_rh" ? 'border-blue-200 dark:border-blue-800 shadow-sm shadow-blue-100/50' :
-          item.status === "devolvido_para_ajuste" ? 'border-orange-200 dark:border-orange-800' :
-          item.status === "aprovado_rh" ? 'border-emerald-200 dark:border-emerald-800' :
-          item.status === "recusado_rh" ? 'border-red-200 dark:border-red-800' :
-          'border-gray-200 dark:border-gray-700'
-        }`}
+        key={item.id}
+        className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${config.cardBorder}`}
       >
         <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors"
-          onClick={() => toggleExpand(item.planned.id)}
+          className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
+            needsRhAction ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''
+          }`}
+          onClick={() => toggleExpand(item.id)}
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
@@ -363,44 +556,46 @@ export default function RhControlPage() {
                 <RotateCcw className="w-2.5 h-2.5" /> Reenviado
               </span>
             )}
-            {item.isRecent && (
-              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-[9px] font-semibold text-amber-600 dark:text-amber-400">
-                <Sparkles className="w-2.5 h-2.5" /> Novo
-              </span>
-            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                  {getCollaboratorName(item.planned.collaboratorId)}
+                  {getCollaboratorName(item.collaboratorId)}
                 </span>
-                <span className={`text-[10px] font-medium ${item.planned.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
-                  {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                </span>
+                {item.planned?.collaboratorType && (
+                  <span className={`text-[10px] font-medium ${item.planned.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
+                    {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
-                <span className="font-medium text-gray-500">{item.event.name}</span>
+                <span>{getFunctionName(item.functionId)}</span>
                 <span className="text-gray-300">·</span>
-                <span>{getFunctionName(item.planned.functionId)}</span>
-                {item.actual?.updatedBy && (
-                  <>
-                    <span className="text-gray-300">·</span>
-                    <span>Resp: {getUserName(item.actual.updatedBy)}</span>
-                  </>
-                )}
+                <span className="font-medium text-gray-500">{item.responsavelAtual}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="text-right hidden sm:block">
-              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Última atividade</span>
+              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Neste status</span>
               <span className={`text-[10px] font-medium ${
-                item.lastActivityDate && (new Date().getTime() - item.lastActivityDate.getTime()) < 24 * 60 * 60 * 1000
+                item.lastActivityDate && (new Date().getTime() - item.lastActivityDate.getTime()) > 3 * 24 * 60 * 60 * 1000
+                  ? 'text-red-500 font-semibold' :
+                item.lastActivityDate && (new Date().getTime() - item.lastActivityDate.getTime()) > 24 * 60 * 60 * 1000
                   ? 'text-amber-600' : 'text-gray-500'
               }`}>
-                {timeAgo(item.lastActivityDate)}
+                {timeInStatus(item.lastActivityDate)}
               </span>
             </div>
+            {needsRhAction && primaryAction && (
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
+                onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+              >
+                <Eye className="w-3 h-3 mr-1" /> Analisar
+              </Button>
+            )}
             {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </div>
         </div>
@@ -415,67 +610,73 @@ export default function RhControlPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
-                <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider mb-2">Planejado</p>
-                <div className="space-y-1 text-[11px]">
-                  <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
-                  <div className="flex justify-between border-t border-blue-100 dark:border-blue-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span></div>
-                </div>
-              </div>
+            <div className="py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+              {renderTimeline(item)}
+            </div>
 
-              {item.actual ? (
-                <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
-                  <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider mb-2">Realizado</p>
+            {item.planned && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
+                  <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider mb-2">Planejado</p>
                   <div className="space-y-1 text-[11px]">
-                    <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
-                    <div className="flex justify-between border-t border-purple-100 dark:border-purple-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                    <div className="flex justify-between border-t border-blue-100 dark:border-blue-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span></div>
                   </div>
-                  {item.actual.changeReason && (
-                    <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                      <div className="flex items-start gap-1">
-                        <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
-                        <div>
-                          <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa</span>
-                          <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
+                </div>
+
+                {item.actual ? (
+                  <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
+                    <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider mb-2">Prestação de contas</p>
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
+                      <div className="flex justify-between border-t border-purple-100 dark:border-purple-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span></div>
+                    </div>
+                    {item.actual.changeReason && (
+                      <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                        <div className="flex items-start gap-1">
+                          <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                          <div>
+                            <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa da divergência</span>
+                            <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
-                  <div className="text-center">
-                    <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
-                    <p className="text-[10px] text-gray-400">Realizado não preenchido</p>
+                    )}
                   </div>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
+                    <div className="text-center">
+                      <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                      <p className="text-[10px] text-gray-400">Prestação não preenchida</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {item.actual?.rhComment && (
               <div className={`p-2.5 rounded-md border ${
-                item.status === 'aprovado_rh' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
-                item.status === 'recusado_rh' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
+                item.status === 'aprovada_faturamento' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
+                item.status === 'recusada' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
                 'bg-orange-50/60 dark:bg-orange-950/20 border-orange-100 dark:border-orange-800'
               }`}>
                 <div className="flex items-start gap-1.5">
                   <MessageSquare className={`w-3 h-3 mt-0.5 shrink-0 ${
-                    item.status === 'aprovado_rh' ? 'text-emerald-400' :
-                    item.status === 'recusado_rh' ? 'text-red-400' : 'text-orange-400'
+                    item.status === 'aprovada_faturamento' ? 'text-emerald-400' :
+                    item.status === 'recusada' ? 'text-red-400' : 'text-orange-400'
                   }`} />
                   <div>
                     <span className={`text-[9px] uppercase font-medium tracking-wider ${
-                      item.status === 'aprovado_rh' ? 'text-emerald-500' :
-                      item.status === 'recusado_rh' ? 'text-red-500' : 'text-orange-500'
+                      item.status === 'aprovada_faturamento' ? 'text-emerald-500' :
+                      item.status === 'recusada' ? 'text-red-500' : 'text-orange-500'
                     }`}>Comentário do RH</span>
                     <p className={`text-[10px] mt-0.5 ${
-                      item.status === 'aprovado_rh' ? 'text-emerald-700 dark:text-emerald-300' :
-                      item.status === 'recusado_rh' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'
+                      item.status === 'aprovada_faturamento' ? 'text-emerald-700 dark:text-emerald-300' :
+                      item.status === 'recusada' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'
                     }`}>{item.actual.rhComment}</p>
                     {item.actual.rhActionAt && (
                       <span className="text-[9px] text-gray-400 mt-1 block">
@@ -487,21 +688,49 @@ export default function RhControlPage() {
               </div>
             )}
 
-            {item.status === "aprovado_rh" && item.actual?.rhActionAt && (
+            {item.status === "aprovada_faturamento" && item.actual?.rhActionAt && (
               <div className="flex items-center gap-2 text-[10px] text-emerald-600 pt-1">
                 <CheckCircle className="w-3.5 h-3.5" />
-                <span className="font-medium">Aprovado pelo RH para faturamento</span>
+                <span className="font-medium">Aprovada pelo RH para faturamento</span>
                 <span className="text-gray-400">em {formatDateTime(item.actual.rhActionAt)}</span>
               </div>
             )}
 
-            {isClickable && (
+            {item.status === "prestacao_recebida" && (
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3"
+                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'approve', item }); }}
+                >
+                  <CheckCircle className="w-3.5 h-3.5 mr-1" /> Aprovar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50 text-xs h-8 px-3"
+                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'return', item }); }}
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Devolver
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 border-red-300 hover:bg-red-50 text-xs h-8 px-3"
+                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'reject', item }); }}
+                >
+                  <XCircle className="w-3.5 h-3.5 mr-1" /> Recusar
+                </Button>
+              </div>
+            )}
+
+            {item.status === "planejamento_pendente" && (
               <button
-                onClick={() => handleCardClick(item)}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+                onClick={() => navigate("/budget-planned")}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
-                {actionHint}
+                <ClipboardList className="w-3.5 h-3.5" />
+                Criar planejado
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -519,18 +748,18 @@ export default function RhControlPage() {
             <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Controle de Execuções</h1>
-            <p className="text-sm text-gray-500">Visão geral do andamento de todas as execuções</p>
+            <h1 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Controle de Prestações de Contas</h1>
+            <p className="text-sm text-gray-500">Fluxo: Escalação → Planejado → Prestação de Contas → Aprovação</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
-        {(["enviado_para_rh", "devolvido_para_ajuste", "aguardando_preenchimento", "aprovado_rh", "recusado_rh"] as ExecutionStatus[]).map(status => {
+      <div className="grid grid-cols-6 gap-2">
+        {STATUS_ORDER.map(status => {
           const config = statusConfig[status];
           const count = statusCounts[status] || 0;
           const isActive = filterStatus === status;
-          const needsAttention = status === "enviado_para_rh" || status === "devolvido_para_ajuste";
+          const needsRhAttention = status === "prestacao_recebida" || status === "planejamento_pendente";
           return (
             <button
               key={status}
@@ -541,7 +770,7 @@ export default function RhControlPage() {
                   : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
               }`}
             >
-              {needsAttention && count > 0 && !isActive && (
+              {needsRhAttention && count > 0 && !isActive && (
                 <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
               )}
               <div className="flex items-center justify-between mb-1">
@@ -550,7 +779,7 @@ export default function RhControlPage() {
                   {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
                 </span>
               </div>
-              <span className={`text-[10px] font-medium uppercase tracking-wider ${isActive ? config.color : 'text-gray-400'}`}>
+              <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
                 {config.shortLabel}
               </span>
             </button>
@@ -558,22 +787,19 @@ export default function RhControlPage() {
         })}
       </div>
 
-      {!isLoading && actionNeededTotal > 0 && filterStatus === "all" && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-          <p className="text-sm text-amber-800 dark:text-amber-300">
-            <span className="font-semibold">{actionNeededTotal} execuç{actionNeededTotal === 1 ? 'ão precisa' : 'ões precisam'} de atenção</span>
-            {" "}— {statusCounts.enviado_para_rh > 0 && <>{statusCounts.enviado_para_rh} enviada{statusCounts.enviado_para_rh !== 1 ? 's' : ''} para o RH</>}
-            {statusCounts.enviado_para_rh > 0 && statusCounts.devolvido_para_ajuste > 0 && ", "}
-            {statusCounts.devolvido_para_ajuste > 0 && <>{statusCounts.devolvido_para_ajuste} devolvida{statusCounts.devolvido_para_ajuste !== 1 ? 's' : ''} para ajuste</>}
+      {!isLoading && rhActionCount > 0 && filterStatus === "all" && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+          <Send className="w-4 h-4 text-blue-500 shrink-0" />
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <span className="font-semibold">{rhActionCount} prestaç{rhActionCount === 1 ? 'ão' : 'ões'} aguardando sua análise</span>
           </p>
           <Button
             size="sm"
             variant="outline"
-            className="ml-auto text-amber-700 border-amber-300 hover:bg-amber-100 text-xs h-7"
-            onClick={() => setFilterStatus("enviado_para_rh")}
+            className="ml-auto text-blue-700 border-blue-300 hover:bg-blue-100 text-xs h-7"
+            onClick={() => setFilterStatus("prestacao_recebida")}
           >
-            Ver pendentes
+            Ver recebidas
           </Button>
         </div>
       )}
@@ -589,6 +815,22 @@ export default function RhControlPage() {
               className="h-8 pl-8 text-xs"
             />
           </div>
+          <Button
+            variant={showConcluded ? "default" : "outline"}
+            size="sm"
+            className={`h-8 text-xs gap-1.5 ${showConcluded ? 'bg-indigo-600 text-white' : ''}`}
+            onClick={() => setShowConcluded(!showConcluded)}
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            Concluídos
+            {(statusCounts.aprovada_faturamento + statusCounts.recusada) > 0 && (
+              <span className={`text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold ${
+                showConcluded ? 'bg-white text-indigo-600' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {statusCounts.aprovada_faturamento + statusCounts.recusada}
+              </span>
+            )}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -639,17 +881,18 @@ export default function RhControlPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as ExecutionStatus)}>
+            <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as PrestacaoStatus)}>
               <SelectTrigger className="h-8 text-xs w-52 border-gray-200">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="aguardando_preenchimento">Aguardando preenchimento</SelectItem>
-                <SelectItem value="enviado_para_rh">Enviado para o RH</SelectItem>
-                <SelectItem value="devolvido_para_ajuste">Devolvido pelo RH</SelectItem>
-                <SelectItem value="aprovado_rh">Aprovado pelo RH</SelectItem>
-                <SelectItem value="recusado_rh">Recusado pelo RH</SelectItem>
+                <SelectItem value="planejamento_pendente">Planejamento pendente</SelectItem>
+                <SelectItem value="aguardando_prestacao">Aguardando prestação</SelectItem>
+                <SelectItem value="prestacao_recebida">Prestação recebida</SelectItem>
+                <SelectItem value="devolvida_para_ajuste">Devolvida para ajuste</SelectItem>
+                <SelectItem value="aprovada_faturamento">Aprovada para faturamento</SelectItem>
+                <SelectItem value="recusada">Recusada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -674,9 +917,11 @@ export default function RhControlPage() {
       ) : filteredItems.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
           <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Nenhuma execução encontrada</p>
+          <p className="text-gray-500 font-medium">Nenhuma prestação encontrada</p>
           <p className="text-sm text-gray-400 mt-1">
-            {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." : "Aguarde novas inclusões de orçamento."}
+            {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
+             showConcluded ? "Nenhuma prestação concluída ainda." :
+             "Todas as prestações estão em dia. Use o filtro 'Concluídos' para ver itens finalizados."}
           </p>
           {hasActiveFilters && (
             <Button
@@ -690,108 +935,148 @@ export default function RhControlPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {recentItems.length > 0 && filterStatus === "all" && !hasActiveFilters && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  Execuções recentes
-                </h2>
-                <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full font-medium">
-                  últimas {RECENT_HOURS}h
-                </span>
-                <span className="text-[10px] text-amber-600 font-semibold">
-                  {recentItems.length} ite{recentItems.length === 1 ? 'm' : 'ns'}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {recentItems.slice(0, 5).map(item => renderExecutionCard(item))}
-                {recentItems.length > 5 && (
-                  <p className="text-[10px] text-gray-400 text-center py-1">
-                    +{recentItems.length - 5} execuç{recentItems.length - 5 === 1 ? 'ão' : 'ões'} recente{recentItems.length - 5 === 1 ? '' : 's'} abaixo nos eventos
-                  </p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-indigo-500" />
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Por evento
+              </h2>
+              <span className="text-[10px] text-gray-400 font-medium">
+                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} prestaç{filteredItems.length === 1 ? 'ão' : 'ões'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={expandAllEvents}>
+                Expandir tudo
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={collapseAllEvents}>
+                Recolher tudo
+              </Button>
+            </div>
+          </div>
+
+          {eventGroups.map(group => {
+            const isOpen = expandedEvents.has(group.event.id);
+            return (
+              <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
+                <button
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
+                  onClick={() => toggleEventExpand(group.event.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                    <div className="text-left min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
+                      <p className="text-[10px] text-gray-400">{group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {group.actionNeeded > 0 && (
+                      <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[9px] font-semibold text-blue-700">
+                        <CircleDot className="w-2.5 h-2.5" /> {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {(() => {
+                      const statuses = group.items.reduce((acc, i) => {
+                        acc[i.status] = (acc[i.status] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>);
+                      return (
+                        <div className="flex items-center gap-1">
+                          {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-500" title={`${statuses.prestacao_recebida} recebida(s)`} /> : null}
+                          {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-500" title={`${statuses.planejamento_pendente} plan. pendente`} /> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-500" title={`${statuses.devolvida_para_ajuste} devolvida(s)`} /> : null}
+                          {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-400" title={`${statuses.aguardando_prestacao} aguardando`} /> : null}
+                          {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-500" title={`${statuses.aprovada_faturamento} aprovada(s)`} /> : null}
+                          {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-500" title={`${statuses.recusada} recusada(s)`} /> : null}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-gray-50/30 dark:bg-gray-900/20">
+                    {group.items.map(item => renderPrestacaoCard(item))}
+                  </div>
                 )}
               </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-500" />
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  Por evento
-                </h2>
-                <span className="text-[10px] text-gray-400 font-medium">
-                  {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} execuç{filteredItems.length === 1 ? 'ão' : 'ões'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={expandAllEvents}>
-                  Expandir tudo
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={collapseAllEvents}>
-                  Recolher tudo
-                </Button>
-              </div>
-            </div>
-
-            {eventGroups.map(group => {
-              const isOpen = expandedEvents.has(group.event.id);
-              return (
-                <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
-                  <button
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
-                    onClick={() => toggleEventExpand(group.event.id)}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                      <div className="text-left min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
-                        <p className="text-[10px] text-gray-400">{group.items.length} execuç{group.items.length === 1 ? 'ão' : 'ões'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {group.recentCount > 0 && (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9px] font-semibold text-amber-600">
-                          <Sparkles className="w-2.5 h-2.5" /> {group.recentCount} nov{group.recentCount === 1 ? 'a' : 'as'}
-                        </span>
-                      )}
-                      {group.actionNeeded > 0 && (
-                        <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[9px] font-semibold text-blue-700">
-                          <Zap className="w-2.5 h-2.5" /> {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                      {(() => {
-                        const statuses = group.items.reduce((acc, i) => {
-                          acc[i.status] = (acc[i.status] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>);
-                        return (
-                          <div className="flex items-center gap-1">
-                            {statuses.enviado_para_rh ? <span className="w-2 h-2 rounded-full bg-blue-500" title={`${statuses.enviado_para_rh} enviado para o RH`} /> : null}
-                            {statuses.devolvido_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-500" title={`${statuses.devolvido_para_ajuste} devolvido para ajuste`} /> : null}
-                            {statuses.aprovado_rh ? <span className="w-2 h-2 rounded-full bg-emerald-500" title={`${statuses.aprovado_rh} aprovado pelo RH`} /> : null}
-                            {statuses.recusado_rh ? <span className="w-2 h-2 rounded-full bg-red-500" title={`${statuses.recusado_rh} recusado pelo RH`} /> : null}
-                            {statuses.aguardando_preenchimento ? <span className="w-2 h-2 rounded-full bg-slate-400" title={`${statuses.aguardando_preenchimento} aguardando preenchimento`} /> : null}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </button>
-
-                  {isOpen && (
-                    <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-gray-50/30 dark:bg-gray-900/20">
-                      {group.items.map(item => renderExecutionCard(item))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            );
+          })}
         </div>
       )}
+
+      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {actionModal?.type === 'approve' && <><CheckCircle className="w-5 h-5 text-emerald-600" /> Aprovar para faturamento</>}
+              {actionModal?.type === 'reject' && <><XCircle className="w-5 h-5 text-red-600" /> Recusar prestação</>}
+              {actionModal?.type === 'return' && <><RotateCcw className="w-5 h-5 text-orange-600" /> Devolver para ajuste</>}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {actionModal && (
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Prestação de contas</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  {getCollaboratorName(actionModal.item.collaboratorId)}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {actionModal.item.event.name} · {getFunctionName(actionModal.item.functionId)}
+                </p>
+                {actionModal.item.planned && actionModal.item.actual && (
+                  <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div>
+                      <span className="text-[9px] uppercase text-blue-400 font-semibold">Planejado</span>
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">{fmt(actionModal.item.planned.totalValue)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase text-purple-400 font-semibold">Prestação</span>
+                      <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{fmt(actionModal.item.actual.totalValue)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div>
+              <label className="text-sm text-gray-600 dark:text-gray-300">
+                Comentário {actionModal?.type === 'return' || actionModal?.type === 'reject' ? '(recomendado)' : '(opcional)'}
+              </label>
+              <p className="text-[10px] text-gray-400 mb-1.5">Este comentário será visível para o responsável da função</p>
+              <Textarea
+                value={actionNote}
+                onChange={e => setActionNote(e.target.value)}
+                placeholder={
+                  actionModal?.type === 'approve' ? 'Adicionar um comentário...' :
+                  actionModal?.type === 'reject' ? 'Informe o motivo da recusa...' :
+                  'Informe o que precisa ser corrigido...'
+                }
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
+            <Button
+              onClick={handleAction}
+              disabled={rhActionMutation.isPending}
+              className={
+                actionModal?.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                actionModal?.type === 'reject' ? 'bg-red-600 hover:bg-red-700' :
+                'bg-orange-600 hover:bg-orange-700'
+              }
+            >
+              {rhActionMutation.isPending ? 'Processando...' :
+                actionModal?.type === 'approve' ? 'Aprovar' :
+                actionModal?.type === 'reject' ? 'Recusar' : 'Devolver'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

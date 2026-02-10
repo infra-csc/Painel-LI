@@ -1,0 +1,156 @@
+Ajustar e consolidar a tela “Controle de Prestações de Contas – RH”,
+considerando exclusivamente a visão do RH e o fluxo completo
+entre Planejado e Realizado.
+
+Esta tela é visível apenas para o RH.
+
+--------------------------------------------------
+CONCEITOS OFICIAIS (OBRIGATÓRIOS)
+
+1. Planejado:
+   - Criado exclusivamente pelo RH
+   - Base financeira estimada a partir da escalação
+   - Serve como referência para o Realizado
+   - Sem Planejado não existe Realizado
+
+2. Realizado:
+   - Representa a Prestação de Contas
+   - Preenchido apenas pelo responsável da função
+   - Sempre baseado no Planejado
+   - Pode divergir dos valores planejados
+
+3. Terminologia:
+   - Substituir completamente o termo “Execução”
+   - Utilizar “Prestação” ou “Prestação de Contas”
+   - Padronizar o uso do termo em toda a área financeira
+
+--------------------------------------------------
+REGRAS DE NEGÓCIO (ENTRADA NO FLUXO)
+
+1. Eventos sem escalação NÃO devem aparecer:
+   - no Planejado
+   - no Controle de Prestações – RH
+
+2. A criação da primeira escalação é o gatilho para:
+   - Exibir o evento no Planejado (RH)
+   - Tornar o evento elegível para controle financeiro
+
+3. Responsáveis de função só visualizam algo
+   após o Planejado ser enviado para prestação.
+
+--------------------------------------------------
+STATUS OFICIAIS DO FLUXO (RH)
+
+Status de Planejado (RH):
+- Planejamento pendente
+  (Existe escalação, RH ainda não criou o Planejado)
+- Planejado em edição
+- Planejado confirmado
+- Enviado para prestação
+
+Status de Prestação (visão do RH):
+- Aguardando prestação
+- Prestação recebida
+- Devolvida para ajuste
+- Aprovada para faturamento
+- Recusada
+- Concluída
+
+Regras importantes:
+- Nunca utilizar “No RH” como status
+- Status indicam etapa do processo, não a área responsável
+
+--------------------------------------------------
+REGRAS DE EXIBIÇÃO NA TELA DO RH
+
+1. A tela inicial deve mostrar apenas itens acionáveis:
+   - Planejamento pendente
+   - Aguardando prestação
+   - Prestação recebida
+   - Devolvida para ajuste
+
+2. NÃO exibir na tela inicial:
+   - Eventos onde todas as prestações estejam
+     aprovadas para faturamento ou recusadas
+
+3. Eventos totalmente resolvidos devem aparecer
+   apenas quando o filtro “Concluídos” estiver ativo.
+
+--------------------------------------------------
+ESTRUTURA DA TELA (RH)
+
+Header:
+- Título: Controle de Prestações de Contas – RH
+- Subtítulo explicativo do fluxo Planejado → Prestação → Aprovação
+
+Painel de status (cards):
+- Planejamento pendente
+- Aguardando prestação
+- Prestações recebidas
+- Devolvidas
+- Aprovadas
+- Recusadas
+
+Lista principal:
+- Agrupar informações por evento
+- Cada item representa uma Prestação vinculada a uma função
+- Exibir claramente:
+  • Evento
+  • Função
+  • Responsável
+  • Status atual
+  • Tempo no status (ex: “há 3 dias”)
+
+--------------------------------------------------
+AÇÕES DO RH (POR STATUS)
+
+- Planejamento pendente:
+  • Criar planejado
+
+- Aguardando prestação:
+  • Nenhuma ação direta (apenas acompanhamento)
+
+- Prestação recebida:
+  • Analisar prestação
+
+- Devolvida para ajuste:
+  • Acompanhar correção
+
+- Aprovada para faturamento:
+  • Visualizar / encaminhar para faturamento
+
+Cada status deve ter apenas UMA ação principal destacada.
+
+--------------------------------------------------
+COMENTÁRIOS DO RH
+
+1. Ao devolver ou recusar uma prestação:
+   - Permitir comentário (obrigatório ou recomendado)
+
+2. Ao aprovar:
+   - Permitir comentário opcional
+
+3. Comentários devem:
+   - Ficar registrados com data e usuário
+   - Ser visíveis posteriormente no histórico
+   - Ser exibidos para o responsável da função
+
+--------------------------------------------------
+MELHORIAS DE USABILIDADE (SEM AGRUPAMENTO POR PRIORIDADE)
+
+- Exibir “tempo no status” em todos os cards
+- Destacar visualmente apenas itens que exigem ação do RH
+- Exibir linha do tempo simples do fluxo:
+  Escalação → Planejado → Prestação → Aprovação
+- Exibir responsável atual (RH ou Responsável da função)
+- Manter filtros de status visíveis e simples
+
+--------------------------------------------------
+OBJETIVO FINAL
+
+Transformar a tela do RH em um painel de controle claro,
+acionável e confiável, onde o RH:
+- sabe o que ainda não foi planejado
+- identifica prestações pendentes
+- analisa e decide com segurança
+- evita ruído visual e eventos sem ação possível

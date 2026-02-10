@@ -35,6 +35,20 @@ Preferred communication style: Simple, everyday language.
 - **Status Tracking**: Comprehensive status management across all entities
 - **Comments System**: Built-in commenting system for collaboration and audit trails
 
+## Financial Workflow (Prestações de Contas)
+- **Terminology**: "Prestação de Contas" (NOT "Execução") — refers to the accountability/expense report flow
+- **Flow**: Escalação → Planejado (RH) → Prestação de Contas (Resp. Função) → Aprovação (RH)
+- **RH Control Page**: "Controle de Prestações de Contas" — RH-only view showing all items across events
+- **Status Flow**:
+  - Planejamento pendente: Escalação exists, RH hasn't created the planned budget
+  - Aguardando prestação: Planned exists, waiting for function responsible to fill actual
+  - Prestação recebida: Function responsible submitted, awaiting RH analysis
+  - Devolvida para ajuste: RH returned for corrections
+  - Aprovada para faturamento: RH approved for billing
+  - Recusada: RH rejected
+- **Default view**: Hides concluded items (aprovada/recusada); "Concluídos" filter shows them
+- **Business rules**: Events without escalações don't appear in Planejado or RH Control
+
 ## Authentication & Authorization
 - **User Roles**: Administrator, Production Area, Function Area, Purchasing, Financial
 - **Session Management**: Server-side session handling with secure authentication
