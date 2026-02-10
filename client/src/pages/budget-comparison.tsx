@@ -138,11 +138,9 @@ export default function BudgetComparisonPage() {
         approveMutation.mutate({ id, note: actionNote });
         break;
       case 'reject':
-        if (!actionNote.trim()) { toast({ title: "Informe o motivo da recusa", variant: "destructive" }); return; }
         rejectMutation.mutate({ id, note: actionNote });
         break;
       case 'return':
-        if (!actionNote.trim()) { toast({ title: "Informe o motivo da devolução", variant: "destructive" }); return; }
         returnMutation.mutate({ id, note: actionNote });
         break;
     }
@@ -770,7 +768,7 @@ export default function BudgetComparisonPage() {
             </div>
             <div>
               <label className="text-sm text-gray-600 dark:text-gray-300">
-                {actionModal?.type === 'approve' ? 'Comentário (opcional)' : 'Motivo *'}
+                Comentário (opcional)
               </label>
               <Textarea
                 className="mt-1.5"
