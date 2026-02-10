@@ -13,6 +13,7 @@ import {
   Calendar, MessageSquare,
   ChevronDown, ChevronUp, AlertTriangle
 } from "lucide-react";
+import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -296,16 +297,7 @@ export default function BudgetComparisonPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Selecione um evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} />
           {selectedEventId && (
             <Button size="sm" variant="outline" onClick={() => calculateMutation.mutate(selectedEventId)} disabled={calculateMutation.isPending}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${calculateMutation.isPending ? 'animate-spin' : ''}`} />
@@ -324,17 +316,7 @@ export default function BudgetComparisonPage() {
           <p className="text-emerald-600/70 dark:text-emerald-400/70 text-sm max-w-md mx-auto mb-6">
             Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
           </p>
-          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }}>
-            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-emerald-300 dark:border-emerald-700 shadow-sm hover:border-emerald-400 transition-colors">
-              <Calendar className="w-4 h-4 text-emerald-500 mr-2 shrink-0" />
-              <SelectValue placeholder="Selecionar evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} accentColor="emerald" />
         </div>
       )}
 

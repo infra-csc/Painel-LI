@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3 } from "lucide-react";
+import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
@@ -408,16 +409,7 @@ export default function BudgetActualPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Selecione um evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} />
           {selectedEventId && filteredItems.length > 0 && (
             sentForReview ? (
               <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
@@ -442,17 +434,7 @@ export default function BudgetActualPage() {
           <p className="text-purple-600/70 dark:text-purple-400/70 text-sm max-w-md mx-auto mb-6">
             Registre a execução real do orçamento. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
           </p>
-          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
-            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-purple-300 dark:border-purple-700 shadow-sm hover:border-purple-400 transition-colors">
-              <Calendar className="w-4 h-4 text-purple-500 mr-2 shrink-0" />
-              <SelectValue placeholder="Selecionar evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={events} accentColor="purple" />
         </div>
       ) : isLoading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>

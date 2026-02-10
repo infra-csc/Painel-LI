@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
+import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -453,18 +454,7 @@ export default function BudgetPlannedPage() {
             <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Selecione um evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={events} />
       </div>
 
       {!selectedEventId ? (
@@ -476,17 +466,7 @@ export default function BudgetPlannedPage() {
           <p className="text-blue-600/70 dark:text-blue-400/70 text-sm max-w-md mx-auto mb-6">
             Visualize o orçamento previsto com base nas escalações confirmadas. Os valores são calculados automaticamente a partir das funções e períodos de trabalho.
           </p>
-          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="w-72 mx-auto bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-700 shadow-sm hover:border-blue-400 transition-colors">
-              <Calendar className="w-4 h-4 text-blue-500 mr-2 shrink-0" />
-              <SelectValue placeholder="Selecionar evento" />
-            </SelectTrigger>
-            <SelectContent>
-              {events?.map(event => (
-                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={events} accentColor="blue" />
         </div>
       ) : (
           <>
