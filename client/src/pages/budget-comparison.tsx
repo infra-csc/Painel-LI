@@ -353,7 +353,7 @@ export default function BudgetComparisonPage() {
 
       {selectedEventId && selectedEvent && (
         <>
-          {currentStatus !== "pendente" && (
+          {currentStatus !== "pendente" ? (
             <div className={`rounded-lg border p-4 ${statusInfo.bg} ${statusInfo.border}`}>
               <div className="flex items-center justify-between">
                 <div>
@@ -369,13 +369,16 @@ export default function BudgetComparisonPage() {
                         {formatDate(selectedEvent.startDate)} a {formatDate(selectedEvent.endDate)}
                       </span>
                     )}
-                    <span className="text-gray-400">•</span>
-                    <span>{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} enviada{sortedData.length === 1 ? '' : 's'}</span>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          ) : sortedData.length > 0 ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">{sortedData.length}</span>
+              <span>execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise</span>
+            </div>
+          ) : null}
 
           {rhComment && (
             <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-3">
@@ -586,7 +589,7 @@ export default function BudgetComparisonPage() {
                       </div>
 
                       {isExpanded && (
-                        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/70 dark:bg-gray-850/50">
+                        <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-600 pt-3 space-y-3 bg-stone-50 dark:bg-gray-900">
                           <div className="flex items-center gap-1.5">
                             <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5">{getFunctionName(row.functionId)}</Badge>
                             <Badge className={`text-[9px] h-[16px] px-1.5 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
