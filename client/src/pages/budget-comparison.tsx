@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  BarChart3, RefreshCw, CheckCircle, XCircle, RotateCcw,
+  BarChart3, CheckCircle, XCircle, RotateCcw,
   TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare,
   ChevronDown, ChevronUp, AlertTriangle, Search
@@ -290,7 +290,9 @@ export default function BudgetComparisonPage() {
               <div key={i} className="grid grid-cols-4 gap-2 text-[12px] items-center">
                 <span className="text-gray-700 dark:text-gray-200 font-medium">{row.label}</span>
                 <span className="text-right tabular-nums text-blue-600 dark:text-blue-400 font-medium">{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className="text-right tabular-nums text-purple-600 dark:text-purple-400 font-semibold">{fmtVal(row.actual, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums font-semibold ${
+                  isDiff ? 'text-orange-600 dark:text-orange-400' : 'text-purple-600 dark:text-purple-400'
+                }`}>{fmtVal(row.actual, row.isQuantity)}</span>
                 <span className={`text-right tabular-nums text-[11px] font-semibold ${
                   diff > 0 ? 'text-red-600' : diff < 0 ? 'text-emerald-600' : 'text-gray-400'
                 }`}>
@@ -305,7 +307,7 @@ export default function BudgetComparisonPage() {
           <div className="grid grid-cols-4 gap-2 text-[11px] items-center mt-2 pt-2 border-t border-gray-200/60 dark:border-gray-600/40 font-semibold">
             <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
             <span className="text-right tabular-nums text-blue-600">{fmt(subtotalPlanned)}</span>
-            <span className="text-right tabular-nums text-purple-600">{fmt(subtotalActual)}</span>
+            <span className={`text-right tabular-nums ${subtotalDiff !== 0 ? 'text-orange-600' : 'text-purple-600'}`}>{fmt(subtotalActual)}</span>
             <span className={`text-right tabular-nums text-[10px] ${
               subtotalDiff > 0 ? 'text-red-500' : subtotalDiff < 0 ? 'text-emerald-500' : 'text-gray-400'
             }`}>
@@ -332,12 +334,6 @@ export default function BudgetComparisonPage() {
         <div className="flex items-center gap-3">
           {selectedEventId && (
             <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} />
-          )}
-          {selectedEventId && (
-            <Button size="sm" variant="outline" onClick={() => calculateMutation.mutate(selectedEventId)} disabled={calculateMutation.isPending}>
-              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${calculateMutation.isPending ? 'animate-spin' : ''}`} />
-              Recalcular
-            </Button>
           )}
         </div>
       </div>
