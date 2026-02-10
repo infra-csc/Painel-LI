@@ -12,7 +12,8 @@ import {
   BarChart3, CheckCircle, XCircle, RotateCcw,
   TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare,
-  ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square
+  ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
+  Send, Clock, ListChecks
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
@@ -358,20 +359,21 @@ export default function BudgetComparisonPage() {
             const sentCount = budgetActual.filter(a => a.sentForReview).length;
             const pendingCount = totalActualItems - sentCount;
             return (
-              <div className="flex items-center gap-4 text-[11px] text-gray-400">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">{sentCount}</span>
-                  <span>enviada{sentCount !== 1 ? 's' : ''} para revisão</span>
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800">
+                  <Send className="w-3 h-3 text-emerald-500" />
+                  <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{sentCount}</span>
+                  <span className="text-[10px] text-emerald-600/70 dark:text-emerald-500/70">enviada{sentCount !== 1 ? 's' : ''}</span>
                 </div>
-                <span className="text-gray-300">·</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-gray-100 text-gray-500 text-[9px] font-bold">{pendingCount}</span>
-                  <span>pendente{pendingCount !== 1 ? 's' : ''}</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                  <Clock className="w-3 h-3 text-amber-500" />
+                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{pendingCount}</span>
+                  <span className="text-[10px] text-amber-600/70 dark:text-amber-500/70">pendente{pendingCount !== 1 ? 's' : ''}</span>
                 </div>
-                <span className="text-gray-300">·</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold">{totalActualItems}</span>
-                  <span>total</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700">
+                  <ListChecks className="w-3 h-3 text-slate-400" />
+                  <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{totalActualItems}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">total</span>
                 </div>
               </div>
             );
