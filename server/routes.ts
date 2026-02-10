@@ -2124,6 +2124,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/budget-actual/send-for-review", async (req, res) => {
+    try {
+      const { eventId, itemIds } = req.body;
+      if (!eventId) {
+        return res.status(400).json({ message: "eventId é obrigatório" });
+      }
+      const items = await storage.getBudgetActual(eventId);
+      const toUpdate = itemIds?.length
+        ? items.filter((i: any) => itemIds.includes(i.id))
+        : items;
+
+      for (const item of toUpdate) {
+        await storage.updateBudgetActual(item.id, { sentForReview: true });
+      }
+
+      res.json({ updated: toUpdate.length });
+    } catch (error) {
+      console.error("Error sending for review:", error);
+      res.status(500).json({ message: "Erro ao enviar para revisão" });
+    }
+  });
+
   // Budget Comparison (Comparativo)
   app.get("/api/budget-comparison", async (req, res) => {
     try {

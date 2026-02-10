@@ -300,6 +300,7 @@ export const budgetActual = pgTable("budget_actual", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
+  sentForReview: boolean("sent_for_review").notNull().default(false),
 });
 
 // Comparativo e aprovação do RH

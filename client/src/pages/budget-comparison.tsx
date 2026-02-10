@@ -155,7 +155,7 @@ export default function BudgetComparisonPage() {
   const comparisonData = useMemo(() => {
     if (!budgetPlanned || !budgetActual) return [];
 
-    const sentActual = budgetActual.filter(a => a.totalValue > 0);
+    const sentActual = budgetActual.filter(a => a.sentForReview);
 
     const data: Array<{
       collaboratorId: string | null;

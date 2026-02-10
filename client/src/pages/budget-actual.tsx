@@ -87,7 +87,6 @@ export default function BudgetActualPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
-  const [sentForReview, setSentForReview] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -129,6 +128,29 @@ export default function BudgetActualPage() {
 
   const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
                     budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
+
+  const sentForReview = useMemo(() => {
+    if (!budgetActual || budgetActual.length === 0) return false;
+    return budgetActual.every(a => a.sentForReview);
+  }, [budgetActual]);
+
+  const sendForReviewMutation = useMutation({
+    mutationFn: async ({ eventId, itemIds }: { eventId: string; itemIds?: string[] }) => {
+      const res = await apiRequest("POST", "/api/budget-actual/send-for-review", { eventId, itemIds });
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual", variables.eventId] });
+      toast({
+        title: "Enviado para revisão",
+        description: "O orçamento realizado foi enviado para conferência.",
+        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+      });
+    },
+    onError: () => {
+      toast({ title: "Erro ao enviar", variant: "destructive" });
+    },
+  });
 
   const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
     queryKey: ["/api/budget-planned", selectedEventId],
@@ -399,7 +421,7 @@ export default function BudgetActualPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block uppercase tracking-wider">Evento</label>
-        <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); setSentForReview(false); }}>
+        <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
           <SelectTrigger className="w-full md:w-96">
             <SelectValue placeholder="Selecione um evento para visualizar" />
           </SelectTrigger>
@@ -722,14 +744,11 @@ export default function BudgetActualPage() {
                   <Button
                     size="sm"
                     className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    disabled={sendForReviewMutation.isPending}
                     onClick={() => {
-                      setSentForReview(true);
+                      if (!selectedEventId) return;
+                      sendForReviewMutation.mutate({ eventId: selectedEventId, itemIds: Array.from(selectedCards) });
                       setSelectedCards(new Set());
-                      toast({
-                        title: "Enviado para revisão",
-                        description: `${selectedCards.size} ${selectedCards.size === 1 ? 'execução enviada' : 'execuções enviadas'} para conferência.`,
-                        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
-                      });
                     }}
                   >
                     <Send className="w-3 h-3 mr-1.5" />
@@ -744,13 +763,10 @@ export default function BudgetActualPage() {
                   <Button
                     size="sm"
                     className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    disabled={sendForReviewMutation.isPending}
                     onClick={() => {
-                      setSentForReview(true);
-                      toast({
-                        title: "Enviado para revisão",
-                        description: "O orçamento realizado foi enviado para conferência.",
-                        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
-                      });
+                      if (!selectedEventId) return;
+                      sendForReviewMutation.mutate({ eventId: selectedEventId });
                     }}
                   >
                     <Send className="w-3 h-3 mr-1.5" />
