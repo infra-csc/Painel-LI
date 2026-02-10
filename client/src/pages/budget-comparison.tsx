@@ -426,40 +426,30 @@ export default function BudgetComparisonPage() {
                         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
                         onClick={() => toggleExpand(idx)}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                                {getCollaboratorName(row.collaboratorId)}
-                              </span>
-                              <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5 shrink-0">{getFunctionName(row.functionId)}</Badge>
-                              <Badge className={`text-[9px] h-[16px] px-1.5 shrink-0 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
-                                {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                              </Badge>
-                            </div>
-                            {hasDiff && !hasJustification && (
-                              <span className="text-[9px] text-amber-500 flex items-center gap-0.5 mt-0.5 opacity-70">
-                                <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
-                              </span>
-                            )}
-                          </div>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {getCollaboratorName(row.collaboratorId)}
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-4 shrink-0">
-                          <div className="text-right min-w-[200px]">
-                            <div className="flex items-center justify-end gap-2 text-xs tabular-nums">
-                              <span className="text-gray-400 text-[10px] uppercase tracking-wide mr-1">Plan.</span>
-                              <span className="text-blue-600 w-[80px] text-right">{formatCurrency(plannedTotal)}</span>
-                              <ArrowRight className="w-3 h-3 text-gray-300" />
-                              <span className="text-purple-600 font-medium w-[80px] text-right">{formatCurrency(actualTotal)}</span>
+                          <div className="grid grid-cols-3 gap-x-4 text-right min-w-[280px]">
+                            <div>
+                              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Planejado</span>
+                              <span className="text-xs tabular-nums text-blue-600">{formatCurrency(plannedTotal)}</span>
                             </div>
-                            <div className="mt-0.5">
+                            <div>
+                              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Realizado</span>
+                              <span className="text-xs tabular-nums text-purple-600 font-medium">{formatCurrency(actualTotal)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Diferença</span>
                               {hasDiff ? (
-                                <span className={`text-[10px] tabular-nums font-semibold ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                <span className={`text-xs tabular-nums font-semibold ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                   {diff > 0 ? '+' : ''}{formatCurrency(diff)}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-gray-300">Sem diferença</span>
+                                <span className="text-xs text-gray-300 tabular-nums">{formatCurrency(0)}</span>
                               )}
                             </div>
                           </div>
@@ -469,6 +459,19 @@ export default function BudgetComparisonPage() {
 
                       {isExpanded && (
                         <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                          <div className="flex items-center gap-1.5 mb-3">
+                            <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5">{getFunctionName(row.functionId)}</Badge>
+                            <Badge className={`text-[9px] h-[16px] px-1.5 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
+                              {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
+                            </Badge>
+                            {!p && <Badge className="text-[9px] h-[16px] px-1.5 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Sem planejado</Badge>}
+                            {hasDiff && !hasJustification && (
+                              <span className="text-[9px] text-amber-500 flex items-center gap-0.5 ml-1 opacity-70">
+                                <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
+                              </span>
+                            )}
+                          </div>
+
                           <div className="flex items-center text-[9px] uppercase tracking-wider text-gray-400 font-medium pb-1.5 mb-1 px-2">
                             <div className="w-[35%]">Item</div>
                             <div className="w-[28%] text-right">Planejado</div>
