@@ -354,24 +354,9 @@ export default function BudgetComparisonPage() {
       {selectedEventId && selectedEvent && (
         <>
           {currentStatus !== "pendente" ? (
-            <div className={`rounded-lg border p-4 ${statusInfo.bg} ${statusInfo.border}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{statusInfo.icon}</span>
-                    <span className={`text-sm font-semibold ${statusInfo.color}`}>{statusInfo.label}</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-500">
-                    <span className="font-medium text-gray-700 dark:text-gray-200">{selectedEvent.name}</span>
-                    {selectedEvent.startDate && selectedEvent.endDate && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(selectedEvent.startDate)} a {formatDate(selectedEvent.endDate)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
+              <span className="text-sm">{statusInfo.icon}</span>
+              <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
             </div>
           ) : sortedData.length > 0 ? (
             <div className="flex items-center gap-2 text-xs text-gray-400">
