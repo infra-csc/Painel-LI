@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart3, CheckCircle, XCircle, RotateCcw,
   TrendingUp, TrendingDown, DollarSign,
   Calendar, MessageSquare,
-  ChevronDown, ChevronUp, AlertTriangle, Search
+  ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
@@ -27,6 +28,7 @@ export default function BudgetComparisonPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -333,7 +335,7 @@ export default function BudgetComparisonPage() {
         </div>
         <div className="flex items-center gap-3">
           {selectedEventId && (
-            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} />
+            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
           )}
         </div>
       </div>
@@ -347,7 +349,7 @@ export default function BudgetComparisonPage() {
           <p className="text-emerald-600/70 dark:text-emerald-400/70 text-sm max-w-md mx-auto mb-6">
             Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
           </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); }} events={events} accentColor="emerald" />
+          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} accentColor="emerald" />
         </div>
       )}
 
@@ -442,6 +444,21 @@ export default function BudgetComparisonPage() {
                   }}>
                     {expandedCards.size === sortedData.length ? 'Recolher todos' : 'Expandir todos'}
                   </Button>
+                  {!isReadOnly && (
+                    <Button size="sm" variant="ghost" className="text-xs h-7 gap-1" onClick={() => {
+                      if (selectedItems.size === sortedData.length) {
+                        setSelectedItems(new Set());
+                      } else {
+                        setSelectedItems(new Set(sortedData.map((_, i) => i)));
+                      }
+                    }}>
+                      {selectedItems.size === sortedData.length && sortedData.length > 0 ? (
+                        <><CheckSquare className="w-3.5 h-3.5" /> Limpar seleção</>
+                      ) : (
+                        <><Square className="w-3.5 h-3.5" /> Selecionar todos</>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -507,14 +524,29 @@ export default function BudgetComparisonPage() {
                     <div
                       key={idx}
                       className={`rounded-lg border bg-white dark:bg-gray-800 overflow-hidden transition-all ${
-                        diff > 0 ? 'border-red-200/60' : diff < 0 ? 'border-emerald-200/60' : 'border-gray-200'
+                        selectedItems.has(idx)
+                          ? 'border-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800'
+                          : diff > 0 ? 'border-red-200/60' : diff < 0 ? 'border-emerald-200/60' : 'border-gray-200'
                       }`}
                     >
                       <div
                         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
                         onClick={() => toggleExpand(idx)}
                       >
-                        <div className="min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {!isReadOnly && (
+                            <Checkbox
+                              checked={selectedItems.has(idx)}
+                              onCheckedChange={(checked) => {
+                                const next = new Set(selectedItems);
+                                if (checked) next.add(idx); else next.delete(idx);
+                                setSelectedItems(next);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="shrink-0 border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                            />
+                          )}
+                          <div className="min-w-0">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">
                             {getCollaboratorName(row.collaboratorId)}
                           </span>
@@ -524,6 +556,7 @@ export default function BudgetComparisonPage() {
                             <span className={`text-[10px] font-medium ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
                               {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                             </span>
+                          </div>
                           </div>
                         </div>
 
@@ -672,17 +705,36 @@ export default function BudgetComparisonPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">Decisão do RH</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{comparisonData.length} execuç{comparisonData.length === 1 ? 'ão' : 'ões'} para análise</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {selectedItems.size > 0
+                  ? <>{selectedItems.size} de {sortedData.length} selecionado{selectedItems.size !== 1 ? 's' : ''}</>
+                  : <>{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise — selecione os itens acima</>
+                }
+              </p>
             </div>
             <div className="flex gap-2.5">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm px-5 shadow-sm" onClick={() => setActionModal({ type: 'approve' })}>
-                <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 text-sm px-5 shadow-sm disabled:opacity-40"
+                onClick={() => setActionModal({ type: 'approve' })}
+                disabled={selectedItems.size === 0}
+              >
+                <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
               </Button>
-              <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 h-10 text-sm px-4" onClick={() => setActionModal({ type: 'return' })}>
-                <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver
+              <Button
+                variant="outline"
+                className="text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 h-10 text-sm px-4 disabled:opacity-40"
+                onClick={() => setActionModal({ type: 'return' })}
+                disabled={selectedItems.size === 0}
+              >
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
               </Button>
-              <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4" onClick={() => setActionModal({ type: 'reject' })}>
-                <XCircle className="w-4 h-4 mr-1.5" /> Recusar
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 disabled:opacity-40"
+                onClick={() => setActionModal({ type: 'reject' })}
+                disabled={selectedItems.size === 0}
+              >
+                <XCircle className="w-4 h-4 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
               </Button>
             </div>
           </div>
@@ -700,6 +752,22 @@ export default function BudgetComparisonPage() {
           </DialogHeader>
 
           <div className="space-y-3">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-32 overflow-y-auto">
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5">
+                {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} selecionado{selectedItems.size !== 1 ? 's' : ''}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from(selectedItems).map(idx => {
+                  const row = sortedData[idx];
+                  if (!row) return null;
+                  return (
+                    <Badge key={idx} variant="secondary" className="text-[10px]">
+                      {getCollaboratorName(row.collaboratorId)}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
             <div>
               <label className="text-sm text-gray-600 dark:text-gray-300">
                 {actionModal?.type === 'approve' ? 'Comentário (opcional)' : 'Motivo *'}
