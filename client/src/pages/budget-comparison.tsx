@@ -83,68 +83,39 @@ export default function BudgetComparisonPage() {
     },
   });
 
-  const approveMutation = useMutation({
-    mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const res = await apiRequest("POST", `/api/budget-comparison/${id}/approve`, {
-        approvedBy: user?.id,
-        approvalObservation: note,
+  const rhActionMutation = useMutation({
+    mutationFn: async ({ itemIds, action, comment }: { itemIds: string[]; action: string; comment: string }) => {
+      const res = await apiRequest("POST", `/api/budget-actual/rh-action`, {
+        itemIds,
+        action,
+        comment,
+        actionBy: user?.id,
       });
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Aprovado para faturamento", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
+    onSuccess: (_, variables) => {
+      const labels: Record<string, { title: string; cls: string }> = {
+        aprovado: { title: "Aprovado para faturamento", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
+        rejeitado: { title: "Execução recusada", cls: "bg-red-50 border-red-200 text-red-800" },
+        devolvido: { title: "Devolvido para ajustes", cls: "bg-amber-50 border-amber-200 text-amber-800" },
+      };
+      const info = labels[variables.action];
+      toast({ title: info?.title || "Ação realizada", className: info?.cls });
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setActionModal(null);
       setActionNote("");
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const res = await apiRequest("POST", `/api/budget-comparison/${id}/reject`, {
-        approvedBy: user?.id,
-        rejectionReason: note,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Execução recusada", className: "bg-red-50 border-red-200 text-red-800" });
-      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
-      setActionModal(null);
-      setActionNote("");
-    },
-  });
-
-  const returnMutation = useMutation({
-    mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const res = await apiRequest("POST", `/api/budget-comparison/${id}/return`, {
-        approvedBy: user?.id,
-        returnReason: note,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Devolvido para ajustes", className: "bg-amber-50 border-amber-200 text-amber-800" });
-      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
-      setActionModal(null);
-      setActionNote("");
+      setSelectedItems(new Set());
     },
   });
 
   const handleAction = () => {
-    if (!actionModal || !comparison) return;
-    const id = comparison.id;
-    switch (actionModal.type) {
-      case 'approve':
-        approveMutation.mutate({ id, note: actionNote });
-        break;
-      case 'reject':
-        rejectMutation.mutate({ id, note: actionNote });
-        break;
-      case 'return':
-        returnMutation.mutate({ id, note: actionNote });
-        break;
-    }
+    if (!actionModal) return;
+    const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
+    const rhAction = actionMap[actionModal.type];
+    const selectedActualIds = Array.from(selectedItems).map(idx => sortedData[idx]?.actual?.id).filter(Boolean) as string[];
+    if (selectedActualIds.length === 0) return;
+    rhActionMutation.mutate({ itemIds: selectedActualIds, action: rhAction, comment: actionNote });
   };
 
   const fmt = (cents: number) =>
@@ -259,7 +230,7 @@ export default function BudgetComparisonPage() {
 
   const currentStatus = comparison?.status || "pendente";
   const statusInfo = statusConfig[currentStatus] || statusConfig.pendente;
-  const isReadOnly = currentStatus === "aprovado" || currentStatus === "rejeitado";
+  const isReadOnly = false;
 
   const formatDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -356,20 +327,27 @@ export default function BudgetComparisonPage() {
         <>
           {budgetActual && budgetActual.length > 0 && (() => {
             const totalActualItems = budgetActual.length;
-            const sentCount = budgetActual.filter(a => a.sentForReview).length;
-            const pendingCount = totalActualItems - sentCount;
+            const sentCount = budgetActual.filter(a => a.sentForReview && a.rhStatus === 'pendente').length;
+            const approvedCount = budgetActual.filter(a => a.rhStatus === 'aprovado').length;
+            const rejectedCount = budgetActual.filter(a => a.rhStatus === 'rejeitado').length;
+            const returnedCount = budgetActual.filter(a => a.rhStatus === 'devolvido').length;
+            const pendingCount = budgetActual.filter(a => !a.sentForReview && a.rhStatus === 'pendente').length;
+            const chips = [
+              sentCount > 0 && { icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', iconColor: 'text-blue-500', numColor: 'text-blue-700 dark:text-blue-400', textColor: 'text-blue-600/70 dark:text-blue-500/70' },
+              approvedCount > 0 && { icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', iconColor: 'text-emerald-500', numColor: 'text-emerald-700 dark:text-emerald-400', textColor: 'text-emerald-600/70 dark:text-emerald-500/70' },
+              rejectedCount > 0 && { icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-800', iconColor: 'text-red-500', numColor: 'text-red-700 dark:text-red-400', textColor: 'text-red-600/70 dark:text-red-500/70' },
+              returnedCount > 0 && { icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', iconColor: 'text-orange-500', numColor: 'text-orange-700 dark:text-orange-400', textColor: 'text-orange-600/70 dark:text-orange-500/70' },
+              pendingCount > 0 && { icon: Clock, count: pendingCount, label: `pendente${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', iconColor: 'text-amber-500', numColor: 'text-amber-700 dark:text-amber-400', textColor: 'text-amber-600/70 dark:text-amber-500/70' },
+            ].filter(Boolean) as Array<{ icon: any; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string }>;
             return (
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800">
-                  <Send className="w-3 h-3 text-emerald-500" />
-                  <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{sentCount}</span>
-                  <span className="text-[10px] text-emerald-600/70 dark:text-emerald-500/70">enviada{sentCount !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
-                  <Clock className="w-3 h-3 text-amber-500" />
-                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{pendingCount}</span>
-                  <span className="text-[10px] text-amber-600/70 dark:text-amber-500/70">pendente{pendingCount !== 1 ? 's' : ''}</span>
-                </div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {chips.map((chip, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${chip.bg} ${chip.border}`}>
+                    <chip.icon className={`w-3 h-3 ${chip.iconColor}`} />
+                    <span className={`text-sm font-semibold ${chip.numColor}`}>{chip.count}</span>
+                    <span className={`text-[10px] ${chip.textColor}`}>{chip.label}</span>
+                  </div>
+                ))}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700">
                   <ListChecks className="w-3 h-3 text-slate-400" />
                   <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">{totalActualItems}</span>
@@ -448,13 +426,17 @@ export default function BudgetComparisonPage() {
                   </Button>
                   {!isReadOnly && (
                     <Button size="sm" variant="ghost" className="text-xs h-7 gap-1" onClick={() => {
-                      if (selectedItems.size === sortedData.length) {
+                      const selectableIndices = sortedData
+                        .map((row, i) => ({ i, status: row.actual.rhStatus || 'pendente' }))
+                        .filter(x => x.status === 'pendente')
+                        .map(x => x.i);
+                      if (selectedItems.size > 0) {
                         setSelectedItems(new Set());
                       } else {
-                        setSelectedItems(new Set(sortedData.map((_, i) => i)));
+                        setSelectedItems(new Set(selectableIndices));
                       }
                     }}>
-                      {selectedItems.size === sortedData.length && sortedData.length > 0 ? (
+                      {selectedItems.size > 0 ? (
                         <><CheckSquare className="w-3.5 h-3.5" /> Limpar seleção</>
                       ) : (
                         <><Square className="w-3.5 h-3.5" /> Selecionar todos</>
@@ -522,13 +504,26 @@ export default function BudgetComparisonPage() {
                   const mobilityPlanned = p ? (p.mobility + p.transport) : 0;
                   const mobilityActual = a.mobility + a.transport;
 
+                  const itemRhStatus = a.rhStatus || 'pendente';
+                  const isDecided = itemRhStatus === 'aprovado' || itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido';
+                  const isResubmitted = a.resubmitted;
+
+                  const statusStyles: Record<string, { bg: string; border: string; text: string; icon: any; label: string }> = {
+                    aprovado: { bg: 'bg-emerald-50 dark:bg-emerald-950/40', border: 'border-emerald-300 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle, label: 'Aprovado' },
+                    rejeitado: { bg: 'bg-red-50 dark:bg-red-950/40', border: 'border-red-300 dark:border-red-700', text: 'text-red-700 dark:text-red-400', icon: XCircle, label: 'Recusado' },
+                    devolvido: { bg: 'bg-orange-50 dark:bg-orange-950/40', border: 'border-orange-300 dark:border-orange-700', text: 'text-orange-700 dark:text-orange-400', icon: RotateCcw, label: 'Devolvido' },
+                  };
+                  const decidedStyle = statusStyles[itemRhStatus];
+
                   return (
                     <div
                       key={idx}
-                      className={`rounded-lg border bg-white dark:bg-gray-800 overflow-hidden transition-all ${
-                        selectedItems.has(idx)
-                          ? 'border-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800'
-                          : diff > 0 ? 'border-red-200/60' : diff < 0 ? 'border-emerald-200/60' : 'border-gray-200'
+                      className={`rounded-lg border overflow-hidden transition-all ${
+                        isDecided
+                          ? `${decidedStyle.bg} ${decidedStyle.border} opacity-80`
+                          : selectedItems.has(idx)
+                            ? 'bg-white dark:bg-gray-800 border-emerald-400 ring-1 ring-emerald-200 dark:ring-emerald-800'
+                            : `bg-white dark:bg-gray-800 ${diff > 0 ? 'border-red-200/60' : diff < 0 ? 'border-emerald-200/60' : 'border-gray-200'}`
                       }`}
                     >
                       <div
@@ -536,7 +531,7 @@ export default function BudgetComparisonPage() {
                         onClick={() => toggleExpand(idx)}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {!isReadOnly && (
+                          {!isReadOnly && !isDecided && (
                             <Checkbox
                               checked={selectedItems.has(idx)}
                               onCheckedChange={(checked) => {
@@ -548,10 +543,23 @@ export default function BudgetComparisonPage() {
                               className="shrink-0 border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
                             />
                           )}
+                          {isDecided && decidedStyle && (
+                            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${decidedStyle.text} ${decidedStyle.bg} border ${decidedStyle.border}`}>
+                              <decidedStyle.icon className="w-3 h-3" />
+                              {decidedStyle.label}
+                            </div>
+                          )}
                           <div className="min-w-0">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">
-                            {getCollaboratorName(row.collaboratorId)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                              {getCollaboratorName(row.collaboratorId)}
+                            </span>
+                            {isResubmitted && (
+                              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-800 text-[9px] font-semibold text-violet-700 dark:text-violet-400">
+                                <RotateCcw className="w-2.5 h-2.5" /> Reenviado
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[10px] text-gray-400">{getFunctionName(row.functionId)}</span>
                             <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -680,12 +688,34 @@ export default function BudgetComparisonPage() {
                             </div>
                           )}
 
-                          {rhComment && (
+                          {a.rhComment && (
+                            <div className={`p-2.5 rounded-md border ${
+                              itemRhStatus === 'aprovado' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
+                              itemRhStatus === 'rejeitado' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
+                              'bg-orange-50/60 dark:bg-orange-950/20 border-orange-100 dark:border-orange-800'
+                            }`}>
+                              <div className="flex items-start gap-1.5">
+                                <span className="text-xs mt-0.5">💬</span>
+                                <div>
+                                  <span className={`text-[9px] uppercase font-medium tracking-wider ${
+                                    itemRhStatus === 'aprovado' ? 'text-emerald-500' :
+                                    itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'
+                                  }`}>Comentário do RH</span>
+                                  <p className={`text-[11px] mt-0.5 ${
+                                    itemRhStatus === 'aprovado' ? 'text-emerald-700 dark:text-emerald-300' :
+                                    itemRhStatus === 'rejeitado' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'
+                                  }`}>{a.rhComment}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {rhComment && !a.rhComment && (
                             <div className="p-2.5 rounded-md bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-800">
                               <div className="flex items-start gap-1.5">
                                 <span className="text-xs mt-0.5">💬</span>
                                 <div>
-                                  <span className="text-[9px] uppercase text-orange-500 font-medium tracking-wider">Comentário do RH</span>
+                                  <span className="text-[9px] uppercase text-orange-500 font-medium tracking-wider">Comentário do RH (geral)</span>
                                   <p className="text-[11px] text-orange-700 dark:text-orange-300 mt-0.5">{rhComment}</p>
                                 </div>
                               </div>
@@ -702,15 +732,15 @@ export default function BudgetComparisonPage() {
         </>
       )}
 
-      {comparison && !isReadOnly && comparisonData.length > 0 && (
+      {comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
         <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">Decisão do RH</h3>
               <p className="text-xs text-gray-400 mt-0.5">
                 {selectedItems.size > 0
-                  ? <>{selectedItems.size} de {sortedData.length} selecionado{selectedItems.size !== 1 ? 's' : ''}</>
-                  : <>{sortedData.length} execuç{sortedData.length === 1 ? 'ão' : 'ões'} para análise — selecione os itens acima</>
+                  ? <>{selectedItems.size} selecionado{selectedItems.size !== 1 ? 's' : ''} para ação</>
+                  : <>Selecione os itens pendentes acima para tomar uma decisão</>
                 }
               </p>
             </div>
@@ -792,14 +822,14 @@ export default function BudgetComparisonPage() {
             <Button variant="outline" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
             <Button
               onClick={handleAction}
-              disabled={approveMutation.isPending || rejectMutation.isPending || returnMutation.isPending}
+              disabled={rhActionMutation.isPending}
               className={
                 actionModal?.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' :
                 actionModal?.type === 'reject' ? 'bg-red-600 hover:bg-red-700' :
                 'bg-orange-600 hover:bg-orange-700'
               }
             >
-              {(approveMutation.isPending || rejectMutation.isPending || returnMutation.isPending) ? 'Processando...' :
+              {rhActionMutation.isPending ? 'Processando...' :
                actionModal?.type === 'approve' ? 'Aprovar' :
                actionModal?.type === 'reject' ? 'Recusar' : 'Devolver'}
             </Button>
