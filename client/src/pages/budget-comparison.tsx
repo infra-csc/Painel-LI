@@ -586,7 +586,7 @@ export default function BudgetComparisonPage() {
                       </div>
 
                       {isExpanded && (
-                        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3">
+                        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/70 dark:bg-gray-850/50">
                           <div className="flex items-center gap-1.5">
                             <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5">{getFunctionName(row.functionId)}</Badge>
                             <Badge className={`text-[9px] h-[16px] px-1.5 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
