@@ -284,7 +284,7 @@ export default function BudgetComparisonPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto pb-32">
+    <div className="space-y-5 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Comparativo Planejado × Realizado</h1>
@@ -314,7 +314,7 @@ export default function BudgetComparisonPage() {
         <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
           <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento acima para analisar o comparativo</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para analisar o comparativo entre planejado e realizado.</p>
         </div>
       )}
 

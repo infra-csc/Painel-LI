@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
@@ -396,65 +396,43 @@ export default function BudgetActualPage() {
   const isReadOnly = sentForReview;
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-5 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <ClipboardCheck className="w-5 h-5 text-purple-600" />
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
+          <p className="text-sm text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
         </div>
-        {selectedEventId && filteredItems.length > 0 && (
-          sentForReview ? (
-            <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
-              <Send className="w-3 h-3 mr-1" />
-              Enviado para revisão
-            </Badge>
-          ) : (
-            <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
-              Em preenchimento
-            </Badge>
-          )
-        )}
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block uppercase tracking-wider">Evento</label>
-        <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
-          <SelectTrigger className="w-full md:w-96">
-            <SelectValue placeholder="Selecione um evento para visualizar" />
-          </SelectTrigger>
-          <SelectContent>
-            {events?.map(event => (
-              <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {rhComment && selectedEventId && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-3.5 flex items-start gap-2.5">
-          <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center shrink-0 mt-0.5">
-            <span className="text-xs">💬</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[10px] uppercase text-orange-500 font-semibold tracking-wider">Comentário do RH</span>
-              <Badge className="text-[9px] h-[16px] px-1.5 bg-orange-100 text-orange-600 border border-orange-200 hover:bg-orange-100">
-                {budgetComparison?.status === 'devolvido' ? 'Devolvido para ajustes' : 'Recusado'}
+        <div className="flex items-center gap-3">
+          <Select value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Selecione um evento" />
+            </SelectTrigger>
+            <SelectContent>
+              {events?.map(event => (
+                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedEventId && filteredItems.length > 0 && (
+            sentForReview ? (
+              <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+                <Send className="w-3 h-3 mr-1" />
+                Enviado para revisão
               </Badge>
-            </div>
-            <p className="text-sm text-orange-800 dark:text-orange-200">{rhComment}</p>
-          </div>
+            ) : (
+              <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
+                Em preenchimento
+              </Badge>
+            )
+          )}
         </div>
-      )}
+      </div>
 
       {!selectedEventId ? (
-        <div className="text-center py-16">
-          <ClipboardCheck className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+        <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
+          <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento acima para ver as execuções realizadas</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para visualizar as execuções realizadas.</p>
         </div>
       ) : isLoading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>

@@ -442,52 +442,33 @@ export default function BudgetPlannedPage() {
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id)).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header fixo */}
-      <div className="bg-white dark:bg-gray-800 border-b shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <Calculator className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
-                <p className="text-xs text-gray-500">Cálculo automático das escalações confirmadas</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-                <SelectTrigger className={`w-72 h-10 ${selectedEventId ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 font-medium' : 'bg-white dark:bg-gray-700'}`}>
-                  <Calendar className="w-4 h-4 mr-1 shrink-0" />
-                  <SelectValue placeholder="Selecione o evento..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {events?.map(event => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+    <div className="space-y-5 max-w-5xl mx-auto pb-24">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
+          <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Selecione um evento" />
+            </SelectTrigger>
+            <SelectContent>
+              {events?.map(event => (
+                <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-5">
-        {!selectedEventId ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-6 mb-4">
-              <Calendar className="w-12 h-12 text-gray-400" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Selecione um Evento</h2>
-            <p className="text-gray-500 mt-2 text-center max-w-md">
-              Escolha um evento no seletor acima para visualizar o orçamento planejado das escalações confirmadas.
-            </p>
-          </div>
-        ) : (
+      {!selectedEventId ? (
+        <div className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
+          <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Selecione um evento</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Escolha um evento no seletor acima para visualizar o orçamento planejado.</p>
+        </div>
+      ) : (
           <>
             {/* Total Geral Destacado */}
             <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl p-5 mb-4 shadow-lg">
@@ -777,7 +758,6 @@ export default function BudgetPlannedPage() {
             )}
           </>
         )}
-      </div>
 
       {/* Modal de Edição */}
       <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>
