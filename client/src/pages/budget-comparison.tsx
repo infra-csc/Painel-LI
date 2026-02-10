@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +189,12 @@ export default function BudgetComparisonPage() {
     return data;
   }, [budgetPlanned, budgetActual]);
 
+  useEffect(() => {
+    if (selectedEventId && !comparison && comparisonData.length > 0 && !calculateMutation.isPending) {
+      calculateMutation.mutate(selectedEventId);
+    }
+  }, [selectedEventId, comparison, comparisonData.length]);
+
   const filteredData = useMemo(() => {
     let data = [...comparisonData];
     if (searchTerm) {
@@ -281,12 +287,12 @@ export default function BudgetComparisonPage() {
             const diff = row.actual - row.planned;
             const isDiff = diff !== 0;
             return (
-              <div key={i} className="grid grid-cols-4 gap-2 text-[11px] items-center">
-                <span className={`${isDiff ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-400'}`}>{row.label}</span>
-                <span className={`text-right tabular-nums ${isDiff ? 'text-gray-500' : 'text-gray-400'}`}>{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums ${isDiff ? 'font-semibold text-gray-800 dark:text-gray-100' : 'text-gray-400'}`}>{fmtVal(row.actual, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums text-[10px] font-medium ${
-                  diff > 0 ? 'text-red-500' : diff < 0 ? 'text-emerald-500' : 'text-gray-300'
+              <div key={i} className="grid grid-cols-4 gap-2 text-[12px] items-center">
+                <span className="text-gray-700 dark:text-gray-200 font-medium">{row.label}</span>
+                <span className="text-right tabular-nums text-blue-600 dark:text-blue-400 font-medium">{fmtVal(row.planned, row.isQuantity)}</span>
+                <span className="text-right tabular-nums text-purple-600 dark:text-purple-400 font-semibold">{fmtVal(row.actual, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums text-[11px] font-semibold ${
+                  diff > 0 ? 'text-red-600' : diff < 0 ? 'text-emerald-600' : 'text-gray-400'
                 }`}>
                   {diff === 0 ? '—' : row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : ''}${fmt(diff)}`}
                 </span>
@@ -565,11 +571,11 @@ export default function BudgetComparisonPage() {
                             )}
                           </div>
 
-                          <div className="grid grid-cols-4 gap-2 text-[9px] uppercase tracking-wider text-gray-400 font-medium px-0.5">
+                          <div className="grid grid-cols-4 gap-2 text-[10px] uppercase tracking-wider font-semibold px-0.5">
                             <span></span>
-                            <span className="text-right">Planejado</span>
-                            <span className="text-right">Realizado</span>
-                            <span className="text-right">Diferença</span>
+                            <span className="text-right text-blue-500">Planejado</span>
+                            <span className="text-right text-purple-500">Realizado</span>
+                            <span className="text-right text-gray-500">Diferença</span>
                           </div>
 
                           <CategoryBlock
