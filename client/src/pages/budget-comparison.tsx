@@ -359,12 +359,6 @@ export default function BudgetComparisonPage() {
             const pendingCount = totalActualItems - sentCount;
             return (
               <div className="flex items-center gap-4 text-[11px] text-gray-400">
-                {currentStatus !== "pendente" && (
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statusInfo.bg} ${statusInfo.border}`}>
-                    <span className="text-xs">{statusInfo.icon}</span>
-                    <span className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
-                  </div>
-                )}
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">{sentCount}</span>
                   <span>enviada{sentCount !== 1 ? 's' : ''} para revisão</span>
