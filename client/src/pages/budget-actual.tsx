@@ -900,40 +900,50 @@ export default function BudgetActualPage() {
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
                               <Sun className="w-2.5 h-2.5 text-amber-400" />
-                              <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
+                              <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
                             </div>
                             <CurrencyInput
                               className="h-8 text-xs"
                               value={editFormData.weekdayLunch}
                               onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                             />
-                            <div className="flex items-center justify-between mt-0.5">
-                              {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayLunch)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / itemDays.weekdays))}/dia)` : ''}</span>
-                              ) : <span />}
-                              {itemDays.weekdays > 0 && (
-                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))}/dia</span>
-                              )}
-                            </div>
+                            {itemDays.weekdays > 0 && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                                <CurrencyInput
+                                  className="h-6 text-[10px] flex-1"
+                                  value={Math.round(editFormData.weekdayLunch / itemDays.weekdays)}
+                                  onChange={perDay => setEditFormData({...editFormData, weekdayLunch: perDay * itemDays.weekdays})}
+                                />
+                              </div>
+                            )}
+                            {planned && (
+                              <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Plan. {formatCurrency(planned.weekdayLunch)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / itemDays.weekdays))}/dia)` : ''}</span>
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
                               <Moon className="w-2.5 h-2.5 text-indigo-400" />
-                              <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
+                              <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
                             </div>
                             <CurrencyInput
                               className="h-8 text-xs"
                               value={editFormData.weekdayDinner}
                               onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                             />
-                            <div className="flex items-center justify-between mt-0.5">
-                              {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekdayDinner)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / itemDays.weekdays))}/dia)` : ''}</span>
-                              ) : <span />}
-                              {itemDays.weekdays > 0 && (
-                                <span className="text-[10px] text-blue-400 tabular-nums">{formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))}/dia</span>
-                              )}
-                            </div>
+                            {itemDays.weekdays > 0 && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                                <CurrencyInput
+                                  className="h-6 text-[10px] flex-1"
+                                  value={Math.round(editFormData.weekdayDinner / itemDays.weekdays)}
+                                  onChange={perDay => setEditFormData({...editFormData, weekdayDinner: perDay * itemDays.weekdays})}
+                                />
+                              </div>
+                            )}
+                            {planned && (
+                              <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Plan. {formatCurrency(planned.weekdayDinner)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / itemDays.weekdays))}/dia)` : ''}</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
@@ -954,40 +964,50 @@ export default function BudgetActualPage() {
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
                               <Sun className="w-2.5 h-2.5 text-amber-400" />
-                              <label className="text-[10px] font-medium text-gray-500">Almoço (R$)</label>
+                              <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
                             </div>
                             <CurrencyInput
                               className="h-8 text-xs"
                               value={editFormData.weekendLunch}
                               onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                             />
-                            <div className="flex items-center justify-between mt-0.5">
-                              {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendLunch)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / itemDays.weekends))}/dia)` : ''}</span>
-                              ) : <span />}
-                              {itemDays.weekends > 0 && (
-                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))}/dia</span>
-                              )}
-                            </div>
+                            {itemDays.weekends > 0 && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                                <CurrencyInput
+                                  className="h-6 text-[10px] flex-1"
+                                  value={Math.round(editFormData.weekendLunch / itemDays.weekends)}
+                                  onChange={perDay => setEditFormData({...editFormData, weekendLunch: perDay * itemDays.weekends})}
+                                />
+                              </div>
+                            )}
+                            {planned && (
+                              <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Plan. {formatCurrency(planned.weekendLunch)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / itemDays.weekends))}/dia)` : ''}</span>
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1 mb-0.5">
                               <Moon className="w-2.5 h-2.5 text-indigo-400" />
-                              <label className="text-[10px] font-medium text-gray-500">Jantar (R$)</label>
+                              <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
                             </div>
                             <CurrencyInput
                               className="h-8 text-xs"
                               value={editFormData.weekendDinner}
                               onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                             />
-                            <div className="flex items-center justify-between mt-0.5">
-                              {planned ? (
-                                <span className="text-[10px] text-gray-400 tabular-nums">Plan. {formatCurrency(planned.weekendDinner)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / itemDays.weekends))}/dia)` : ''}</span>
-                              ) : <span />}
-                              {itemDays.weekends > 0 && (
-                                <span className="text-[10px] text-amber-500 tabular-nums">{formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))}/dia</span>
-                              )}
-                            </div>
+                            {itemDays.weekends > 0 && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                                <CurrencyInput
+                                  className="h-6 text-[10px] flex-1"
+                                  value={Math.round(editFormData.weekendDinner / itemDays.weekends)}
+                                  onChange={perDay => setEditFormData({...editFormData, weekendDinner: perDay * itemDays.weekends})}
+                                />
+                              </div>
+                            )}
+                            {planned && (
+                              <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Plan. {formatCurrency(planned.weekendDinner)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / itemDays.weekends))}/dia)` : ''}</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
