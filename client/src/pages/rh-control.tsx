@@ -549,7 +549,19 @@ export default function RhControlPage() {
               <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
                 <span>{getFunctionName(item.functionId)}</span>
                 <span className="text-gray-300">·</span>
-                <span className="font-medium text-gray-500">{item.responsavelAtual === "Concluído" ? "Concluído" : `Aguardando: ${item.responsavelAtual}`}</span>
+                {item.responsavelAtual === "Concluído" ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-semibold text-[9px]">
+                    <CheckCircle className="w-2.5 h-2.5" /> Concluído
+                  </span>
+                ) : item.responsavelAtual === "RH" ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-semibold text-[9px]">
+                    <Clock className="w-2.5 h-2.5" /> Com o RH
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold text-[9px]">
+                    <Clock className="w-2.5 h-2.5" /> Com o Resp. Função
+                  </span>
+                )}
               </div>
             </div>
           </div>
