@@ -538,7 +538,7 @@ export default function RhControlPage() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                  {getCollaboratorName(item.collaboratorId)}
+                  {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : (item.planned?.collaboratorType === 'freela' ? 'Freela (a definir)' : '-')}
                 </span>
                 {item.planned?.collaboratorType && (
                   <span className={`text-[10px] font-medium ${item.planned.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
