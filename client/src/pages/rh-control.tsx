@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import {
@@ -11,7 +11,7 @@ import {
   FileText, ChevronDown, ChevronUp, MessageSquare,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
-  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp, Activity
+  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp
 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
@@ -90,18 +90,6 @@ function getDiffDays(date: Date | string | null | undefined): number {
   const now = new Date();
   const d = new Date(date);
   return (now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000);
-}
-
-function getAverageWaitTime(items: PrestacaoItem[]): string {
-  const received = items.filter(i => i.status === "prestacao_recebida" && i.lastActivityDate);
-  if (received.length === 0) return "";
-  const now = new Date();
-  const totalDays = received.reduce((sum, i) => {
-    return sum + (now.getTime() - i.lastActivityDate!.getTime()) / (24 * 60 * 60 * 1000);
-  }, 0);
-  const avg = totalDays / received.length;
-  if (avg < 1) return "menos de 1 dia";
-  return `${Math.round(avg)} dia${Math.round(avg) !== 1 ? 's' : ''}`;
 }
 
 const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada"];
@@ -521,44 +509,93 @@ export default function RhControlPage() {
     return null;
   };
 
+  const getStepResponsible = (item: PrestacaoItem, stepIndex: number): string | null => {
+    if (stepIndex === 0) {
+      return item.teamInclusion?.updatedBy ? getUserName(item.teamInclusion.updatedBy) : null;
+    }
+    if (stepIndex === 1 && item.planned) {
+      const name = getUserName(item.planned.createdBy);
+      return name !== "-" ? name : null;
+    }
+    if (stepIndex === 2 && item.actual) {
+      const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
+      return name !== "-" ? name : null;
+    }
+    if (stepIndex === 3 && item.actual?.rhActionBy) {
+      const name = getUserName(item.actual.rhActionBy);
+      return name !== "-" ? name : null;
+    }
+    return null;
+  };
+
+  const STEP_TOOLTIPS = [
+    "Equipe definida e confirmada para o evento",
+    "Valores planejados pelo RH",
+    "Valores realizados enviados pelo responsável da função",
+    "Análise final do RH para liberação de pagamento",
+  ];
+
   const renderTimeline = (item: PrestacaoItem) => {
     const step = getTimelineStep(item);
     const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
     const steps = [
-      { label: "Escalação", color: "bg-cyan-500", text: "text-cyan-500" },
-      { label: "Planejado", color: "bg-blue-500", text: "text-blue-500" },
-      { label: "Prestação", color: "bg-purple-500", text: "text-purple-500" },
-      { label: "Aprovação", color: "bg-emerald-500", text: "text-emerald-500" },
+      { label: "Escalação", color: "bg-cyan-500", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-400" },
+      { label: "Planejado", color: "bg-blue-500", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-400" },
+      { label: "Prestação", color: "bg-purple-500", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-400" },
+      { label: "Aprovação", color: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-400" },
     ];
     return (
-      <div className="flex items-center gap-0 w-full">
-        {steps.map((s, i) => {
-          const isCompleted = isConcluded ? true : i < step;
-          const isCurrent = !isConcluded && i === step;
-          return (
-            <div key={s.label} className="flex items-center flex-1">
-              <div className="flex flex-col items-center gap-0 flex-shrink-0">
-                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${
-                  isCompleted ? `${s.color}` :
-                  isCurrent ? `border-2 border-current ${s.text} bg-white dark:bg-gray-800` :
-                  'bg-gray-200 dark:bg-gray-600'
-                }`}>
-                  {isCompleted && <CheckCircle className="w-2 h-2 text-white" />}
-                  {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
-                </div>
-                <span className={`text-[7px] font-medium whitespace-nowrap mt-0.5 ${
-                  isCompleted || isCurrent ? s.text : 'text-gray-300 dark:text-gray-500'
-                }`}>{s.label}</span>
+      <TooltipProvider delayDuration={200}>
+        <div className="flex items-start gap-0 w-full">
+          {steps.map((s, i) => {
+            const isCompleted = isConcluded ? true : i < step;
+            const isCurrent = !isConcluded && i === step;
+            const isFuture = !isCompleted && !isCurrent;
+            const dateStr = getStepDate(item, i);
+            const responsibleName = getStepResponsible(item, i);
+            return (
+              <div key={s.label} className="flex items-start flex-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex flex-col items-center gap-0 flex-shrink-0 min-w-[52px] cursor-default">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                        isCompleted ? `${s.color} shadow-sm` :
+                        isCurrent ? `border-2 border-current ${s.text} bg-white dark:bg-gray-800 shadow-sm` :
+                        'bg-gray-200 dark:bg-gray-700'
+                      }`}>
+                        {isCompleted && <CheckCircle className="w-3 h-3 text-white" />}
+                        {isCurrent && <CircleDot className="w-3 h-3" />}
+                      </div>
+                      <span className={`text-[9px] font-semibold whitespace-nowrap mt-1 ${
+                        isCompleted || isCurrent ? s.text : 'text-gray-300 dark:text-gray-500'
+                      }`}>{s.label}</span>
+                      {(isCompleted || isCurrent) && dateStr ? (
+                        <span className="text-[8px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{dateStr}</span>
+                      ) : isFuture ? (
+                        <span className="text-[8px] text-gray-300 dark:text-gray-600 whitespace-nowrap italic">Pendente</span>
+                      ) : null}
+                      {(isCompleted || isCurrent) && responsibleName ? (
+                        <span className="text-[7px] text-gray-400 dark:text-gray-500 whitespace-nowrap mt-0.5 max-w-[60px] truncate">
+                          por: {responsibleName}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                    <p className="font-semibold">{s.label}</p>
+                    <p className="text-gray-400">{STEP_TOOLTIPS[i]}</p>
+                  </TooltipContent>
+                </Tooltip>
+                {i < steps.length - 1 && (
+                  <div className={`h-0.5 flex-1 mx-0.5 mt-2.5 rounded-full transition-all ${
+                    isCompleted ? s.line : 'bg-gray-200 dark:bg-gray-700'
+                  }`} />
+                )}
               </div>
-              {i < steps.length - 1 && (
-                <div className={`h-px flex-1 mx-0.5 ${
-                  isCompleted ? s.color : 'bg-gray-200 dark:bg-gray-700'
-                }`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </TooltipProvider>
     );
   };
 
@@ -980,66 +1017,26 @@ export default function RhControlPage() {
         </div>
       </div>
 
-      {!isLoading && (() => {
-        const avgWait = getAverageWaitTime(prestacaoItems);
-        const approvedToday = prestacaoItems.filter(i => {
-          if (i.status !== "aprovada_faturamento" || !i.actual?.rhActionAt) return false;
-          const d = new Date(i.actual.rhActionAt);
-          const now = new Date();
-          return d.toDateString() === now.toDateString();
-        }).length;
-        const rejectedToday = prestacaoItems.filter(i => {
-          if (i.status !== "recusada" || !i.actual?.rhActionAt) return false;
-          const d = new Date(i.actual.rhActionAt);
-          const now = new Date();
-          return d.toDateString() === now.toDateString();
-        }).length;
-        return (
-          <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 dark:from-indigo-950/30 dark:to-blue-950/30 p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest font-bold text-indigo-500 dark:text-indigo-400 mb-2 flex items-center gap-1.5">
-                  <Activity className="w-3 h-3" />
-                  Resumo do RH hoje
-                </p>
-                <div className="space-y-1">
-                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                    <span><strong>{rhReceivedCount}</strong> prestaç{rhReceivedCount === 1 ? 'ão' : 'ões'} aguardando análise</span>
-                  </p>
-                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                    <span><strong>{rhPlanPendingCount}</strong> planejamento{rhPlanPendingCount !== 1 ? 's' : ''} pendente{rhPlanPendingCount !== 1 ? 's' : ''}</span>
-                  </p>
-                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                    <span><strong>{approvedToday}</strong> aprovada{approvedToday !== 1 ? 's' : ''} hoje</span>
-                  </p>
-                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                    <span><strong>{rejectedToday}</strong> recusada{rejectedToday !== 1 ? 's' : ''} hoje</span>
-                  </p>
-                  {avgWait && rhReceivedCount > 0 && (
-                    <p className="text-[11px] text-indigo-500/80 dark:text-indigo-400/70 mt-1 pt-1 border-t border-indigo-100 dark:border-indigo-800">
-                      Tempo médio de análise: <strong>{avgWait}</strong>
-                    </p>
-                  )}
-                </div>
-              </div>
-              {rhActionCount > 0 && (
-                <Button
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-4 shadow-sm shrink-0"
-                  onClick={() => setFilterStatus("rh_action")}
-                >
-                  <Eye className="w-3.5 h-3.5 mr-1.5" />
-                  Ver pendências ({rhActionCount})
-                </Button>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
+        <div className="flex justify-center">
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm h-9 px-5 shadow-sm gap-2"
+            onClick={() => {
+              setFilterStatus("rh_action");
+              setShowConcluded(false);
+              setTimeout(() => {
+                document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 100);
+            }}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Ver pendências
+            <span className="bg-white/20 text-white text-xs font-bold rounded-full min-w-[22px] h-5 flex items-center justify-center px-1.5">
+              {rhActionCount}
+            </span>
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -1187,7 +1184,7 @@ export default function RhControlPage() {
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
+        <div id="rh-listing" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
           <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">Nenhuma prestação encontrada</p>
           <p className="text-sm text-gray-400 mt-1">
@@ -1207,7 +1204,7 @@ export default function RhControlPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div id="rh-listing" className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-indigo-500" />

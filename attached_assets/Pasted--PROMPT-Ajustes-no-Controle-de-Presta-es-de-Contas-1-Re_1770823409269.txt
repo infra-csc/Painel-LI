@@ -1,0 +1,151 @@
+📌 PROMPT — Ajustes no Controle de Prestações de Contas
+🔵 1) Remover bloco de resumo e manter apenas botão de pendências
+
+Remover completamente o bloco “Resumo do RH”.
+
+Manter apenas um botão de ação:
+
+Botão: “Ver pendências (X)”
+
+Regras:
+
+Ficar alinhado à direita, na mesma linha dos cards de status.
+
+Exibir dinamicamente o total de itens que estão:
+
+Prestação recebida
+
+Planejamento pendente
+
+Aguardando análise
+
+Estilo:
+
+Botão primário
+
+Ícone de lista ou alerta
+
+Badge com número de pendências
+
+Ao clicar:
+
+Aplicar filtro automático mostrando apenas pendências do RH
+
+Esconder itens aprovados e recusados
+
+Scroll automático até a listagem
+
+Não exibir textos explicativos adicionais.
+
+Tela deve ficar mais limpa e executiva.
+
+🧭 2) Melhorar visual da Timeline dentro do card individual
+
+A timeline deve ficar mais clara, informativa e profissional.
+
+📌 Estrutura visual:
+
+Cada etapa deve conter:
+
+Ícone
+
+Nome da etapa
+
+Data menor abaixo
+
+Nome da pessoa que realizou a ação abaixo da data
+
+Exemplo visual:
+
+Escalação ✓
+09/09
+por: João Silva
+
+Planejado ✓
+05/02
+por: RH – Mariana
+
+Prestação ✓
+10/02
+por: Arlodo
+
+Aprovação
+Pendente
+
+🎨 Regras visuais:
+
+Etapas concluídas:
+
+Ícone com check
+
+Cor ativa (azul ou verde)
+
+Etapa atual:
+
+Cor destaque
+
+Linha de progresso até ela
+
+Etapas futuras:
+
+Ícone cinza claro
+
+Texto cinza claro
+
+Linha de progresso cinza
+
+Datas:
+
+Fonte menor
+
+Cor mais suave
+
+Sempre abaixo do nome da etapa
+
+Responsável:
+
+Texto ainda menor
+
+Formato: “por: Nome”
+
+Cor neutra
+
+🧠 Hover explicativo
+
+Ao passar o mouse sobre cada etapa, exibir tooltip explicando:
+
+Escalação
+"Equipe definida e confirmada para o evento"
+
+Planejado
+"Valores planejados pelo RH"
+
+Prestação
+"Valores realizados enviados pelo responsável da função"
+
+Aprovação
+"Análise final do RH para liberação de pagamento"
+
+📊 Linha de progresso
+
+A linha deve:
+
+Ter cor ativa até a última etapa concluída
+
+Ficar cinza nas etapas futuras
+
+Animação suave ao expandir o card
+
+🚀 Resultado esperado
+
+Tela mais clara visualmente
+
+RH entende rapidamente:
+
+Quem fez cada etapa
+
+Quando fez
+
+Onde está parado
+
+Interface mais profissional e menos “crua”
