@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -759,7 +759,7 @@ export default function BudgetActualPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5">
-                      {isItemEditable && (
+                      {isItemEditable ? (
                         <>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                             onClick={() => openEditModal(item)} title="Editar execução">
@@ -775,6 +775,11 @@ export default function BudgetActualPage() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                          onClick={() => openEditModal(item)} title="Visualizar prestação">
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
                       )}
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
                         onClick={() => toggleCollapse(item.id)} title={isCollapsed ? "Expandir" : "Recolher"}>
@@ -896,6 +901,7 @@ export default function BudgetActualPage() {
           </DialogHeader>
 
           {editingItem && editFormData && (() => {
+            const isReadOnly = editingItem.sentForReview && !["devolvido", "rejeitado"].includes(editingItem.rhStatus || "");
             const itemDays = getItemDayCounts(editingItem);
             const subtotalDiariasUtil = itemDays.weekdays * editFormData.valorDiariaUtil;
             const subtotalDiariasFds = itemDays.weekends * editFormData.valorDiariaFds;
@@ -966,7 +972,7 @@ export default function BudgetActualPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-gray-400 mt-2">
-                    Informe os valores realmente executados.
+                    {isReadOnly ? 'Visualização dos valores enviados. Não é possível editar.' : 'Informe os valores realmente executados.'}
                   </p>
                   {rhComment && (
                     <div className="mt-2.5 p-2.5 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
@@ -1055,10 +1061,10 @@ export default function BudgetActualPage() {
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-400 font-medium">R$</span>
                               <CurrencyInput
-                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.valorDiariaUtil}
                                 onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
-                                disabled={itemDays.weekdays === 0}
+                                disabled={itemDays.weekdays === 0 || isReadOnly}
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
@@ -1093,10 +1099,10 @@ export default function BudgetActualPage() {
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-400 font-medium">R$</span>
                               <CurrencyInput
-                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.valorDiariaFds}
                                 onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
-                                disabled={itemDays.weekends === 0}
+                                disabled={itemDays.weekends === 0 || isReadOnly}
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
@@ -1170,9 +1176,10 @@ export default function BudgetActualPage() {
                             )}
                           </div>
                           <CurrencyInput
-                            className="h-9 text-sm"
+                            className={`h-9 text-sm ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             value={editFormData.mobility}
                             onChange={v => setEditFormData({...editFormData, mobility: v})}
+                            disabled={isReadOnly}
                           />
                           {planned && (
                             <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.mobility)}</span>
@@ -1250,10 +1257,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-8 text-xs ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekdayLunch}
                                 onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
-                                disabled={itemDays.weekdays === 0}
+                                disabled={itemDays.weekdays === 0 || isReadOnly}
                               />
                               {itemDays.weekdays > 0 && (
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayLunch)}</div>
@@ -1271,10 +1278,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-8 text-xs ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekdayDinner}
                                 onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
-                                disabled={itemDays.weekdays === 0}
+                                disabled={itemDays.weekdays === 0 || isReadOnly}
                               />
                               {itemDays.weekdays > 0 && (
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayDinner)}</div>
@@ -1305,10 +1312,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-8 text-xs ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekendLunch}
                                 onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
-                                disabled={itemDays.weekends === 0}
+                                disabled={itemDays.weekends === 0 || isReadOnly}
                               />
                               {itemDays.weekends > 0 && (
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))} = {formatCurrency(editFormData.weekendLunch)}</div>
@@ -1326,10 +1333,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`h-8 text-xs ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekendDinner}
                                 onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
-                                disabled={itemDays.weekends === 0}
+                                disabled={itemDays.weekends === 0 || isReadOnly}
                               />
                               {itemDays.weekends > 0 && (
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))} = {formatCurrency(editFormData.weekendDinner)}</div>
@@ -1390,10 +1397,16 @@ export default function BudgetActualPage() {
                       )}
                     </div>
                     <div className="flex gap-2.5">
-                      <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
-                      <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-9 px-5 text-sm bg-purple-600 hover:bg-purple-700">
-                        {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
-                      </Button>
+                      {isReadOnly ? (
+                        <Button variant="outline" className="h-9 px-5 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Fechar</Button>
+                      ) : (
+                        <>
+                          <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
+                          <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-9 px-5 text-sm bg-purple-600 hover:bg-purple-700">
+                            {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
