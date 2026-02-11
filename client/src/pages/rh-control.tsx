@@ -987,19 +987,23 @@ export default function RhControlPage() {
       </div>
 
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+        <div className="flex items-center justify-between px-5 py-4 rounded-lg border-l-4 border-l-indigo-500 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+              <ClipboardList className="w-[18px] h-[18px] text-gray-600 dark:text-gray-400" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
-                Você tem pendências para resolver
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Pendências do RH
               </p>
-              <p className="text-[11px] text-indigo-500 dark:text-indigo-400">
-                {rhPlanPendingCount > 0 ? `${rhPlanPendingCount} planejamento${rhPlanPendingCount !== 1 ? 's' : ''}` : ''}
-                {rhReceivedCount > 0 && rhPlanPendingCount > 0 ? ' · ' : ''}
-                {rhReceivedCount > 0 ? `${rhReceivedCount} comparativo${rhReceivedCount !== 1 ? 's' : ''}` : ''}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {rhPlanPendingCount > 0 && (
+                  <><span className="font-semibold text-gray-700 dark:text-gray-300">{rhPlanPendingCount}</span> planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</>
+                )}
+                {rhReceivedCount > 0 && rhPlanPendingCount > 0 && <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>}
+                {rhReceivedCount > 0 && (
+                  <><span className="font-semibold text-gray-700 dark:text-gray-300">{rhReceivedCount}</span> análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}</>
+                )}
               </p>
             </div>
           </div>
@@ -1013,8 +1017,7 @@ export default function RhControlPage() {
               }, 100);
             }}
           >
-            <ClipboardList className="w-4 h-4" />
-            Ver {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''}
+            Ver pendências ({rhActionCount})
           </button>
         </div>
       )}
