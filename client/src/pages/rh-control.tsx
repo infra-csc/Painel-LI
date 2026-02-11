@@ -11,7 +11,7 @@ import {
   FileText, ChevronDown, ChevronUp, MessageSquare,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
-  Send, CircleDot, Ban, ExternalLink
+  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp, Activity
 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
@@ -344,7 +344,12 @@ export default function RhControlPage() {
       if (ACTIONABLE_STATUSES.includes(item.status)) g.actionNeeded++;
     }
     const groups = Array.from(map.values());
-    groups.sort((a, b) => b.actionNeeded - a.actionNeeded);
+    groups.sort((a, b) => {
+      if (b.actionNeeded !== a.actionNeeded) return b.actionNeeded - a.actionNeeded;
+      const maxStalledA = Math.max(...a.items.map(i => getDiffDays(i.lastActivityDate)), 0);
+      const maxStalledB = Math.max(...b.items.map(i => getDiffDays(i.lastActivityDate)), 0);
+      return maxStalledB - maxStalledA;
+    });
     return groups;
   }, [filteredItems]);
 
@@ -520,39 +525,34 @@ export default function RhControlPage() {
     const step = getTimelineStep(item);
     const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
     const steps = [
-      { label: "Escalação", completed: "bg-cyan-600 border-cyan-600", current: "border-cyan-500 text-cyan-600", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-500" },
-      { label: "Planejado", completed: "bg-blue-600 border-blue-600", current: "border-blue-500 text-blue-600", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-500" },
-      { label: "Prestação", completed: "bg-purple-600 border-purple-600", current: "border-purple-500 text-purple-600", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-500" },
-      { label: "Aprovação", completed: "bg-emerald-600 border-emerald-600", current: "border-emerald-500 text-emerald-600", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-500" },
+      { label: "Escalação", color: "bg-cyan-500", text: "text-cyan-500" },
+      { label: "Planejado", color: "bg-blue-500", text: "text-blue-500" },
+      { label: "Prestação", color: "bg-purple-500", text: "text-purple-500" },
+      { label: "Aprovação", color: "bg-emerald-500", text: "text-emerald-500" },
     ];
     return (
       <div className="flex items-center gap-0 w-full">
         {steps.map((s, i) => {
           const isCompleted = isConcluded ? true : i < step;
           const isCurrent = !isConcluded && i === step;
-          const dateStr = getStepDate(item, i);
           return (
             <div key={s.label} className="flex items-center flex-1">
-              <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border-2 ${
-                  isCompleted ? `${s.completed} text-white` :
-                  isCurrent ? `bg-white dark:bg-gray-800 ${s.current}` :
-                  'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400'
+              <div className="flex flex-col items-center gap-0 flex-shrink-0">
+                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${
+                  isCompleted ? `${s.color}` :
+                  isCurrent ? `border-2 border-current ${s.text} bg-white dark:bg-gray-800` :
+                  'bg-gray-200 dark:bg-gray-600'
                 }`}>
-                  {isCompleted ? <CheckCircle className="w-3 h-3" /> : isCurrent ? <CircleDot className="w-3 h-3" /> : <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500" />}
+                  {isCompleted && <CheckCircle className="w-2 h-2 text-white" />}
+                  {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
                 </div>
-                <span className={`text-[8px] font-medium whitespace-nowrap ${
-                  isCompleted ? s.text :
-                  isCurrent ? `${s.text} font-semibold` :
-                  'text-gray-400'
+                <span className={`text-[7px] font-medium whitespace-nowrap mt-0.5 ${
+                  isCompleted || isCurrent ? s.text : 'text-gray-300 dark:text-gray-500'
                 }`}>{s.label}</span>
-                {dateStr && (isCompleted || isCurrent) && (
-                  <span className="text-[7px] text-gray-400 whitespace-nowrap">{dateStr}</span>
-                )}
               </div>
               {i < steps.length - 1 && (
-                <div className={`h-0.5 flex-1 mx-1 ${
-                  isCompleted ? s.line : 'bg-gray-200 dark:bg-gray-700'
+                <div className={`h-px flex-1 mx-0.5 ${
+                  isCompleted ? s.color : 'bg-gray-200 dark:bg-gray-700'
                 }`} />
               )}
             </div>
@@ -589,6 +589,37 @@ export default function RhControlPage() {
     return null;
   };
 
+  const renderResponsibilityBadge = (item: PrestacaoItem, size: "sm" | "md" = "sm") => {
+    const cls = size === "md" ? "text-[10px] px-2 py-0.5 gap-1.5" : "text-[9px] px-1.5 py-0.5 gap-1";
+    const iconSize = size === "md" ? "w-3 h-3" : "w-2.5 h-2.5";
+    if (item.responsavelAtual === "RH") {
+      return (
+        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700`}>
+          <Shield className={iconSize} /> Com RH
+        </span>
+      );
+    }
+    if (item.responsavelAtual === "Concluído") {
+      return (
+        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700`}>
+          <CheckCircle className={iconSize} /> Finalizada
+        </span>
+      );
+    }
+    if (item.status === "aguardando_prestacao") {
+      return (
+        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700`}>
+          <Clock className={iconSize} /> Aguardando envio
+        </span>
+      );
+    }
+    return (
+      <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700`}>
+        <RotateCcw className={iconSize} /> Com resp. da função
+      </span>
+    );
+  };
+
   const getLeftBorderColor = (status: PrestacaoStatus): string => {
     switch (status) {
       case "prestacao_recebida": return "border-l-4 border-l-blue-500";
@@ -606,7 +637,7 @@ export default function RhControlPage() {
     const isExpanded = expandedCards.has(item.id);
     const isResubmitted = item.actual?.resubmitted;
     const navTarget = getNavigationTarget(item);
-    const needsRhAction = item.status === "prestacao_recebida";
+    const needsRhAction = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
     const urgency = getUrgencyLevel(item.lastActivityDate);
 
     return (
@@ -616,18 +647,18 @@ export default function RhControlPage() {
       >
         <div
           className={`px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
-            needsRhAction ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''
+            needsRhAction ? 'bg-blue-50/20 dark:bg-blue-950/10' : ''
           }`}
           onClick={() => toggleExpand(item.id)}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
                   {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'Colaborador a definir'}
                 </span>
                 {item.collaboratorId && item.planned?.collaboratorType && (
-                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' : 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400'}`}>
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' : 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400'}`}>
                     {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                   </span>
                 )}
@@ -637,68 +668,47 @@ export default function RhControlPage() {
                   </span>
                 )}
               </div>
+
               <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
                 {item.event.name} · {getFunctionName(item.functionId)}
               </p>
-            </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
-                <config.icon className="w-3 h-3" />
-                {config.shortLabel}
-              </div>
-
-              <div className={`text-right hidden sm:block px-2 py-1 rounded-md min-w-[70px] ${
-                urgency === "critical" ? "bg-red-50 dark:bg-red-950/30" :
-                urgency === "medium" ? "bg-orange-50/70 dark:bg-orange-950/20" :
-                urgency === "low" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""
-              }`}>
-                <span className={`text-xs font-bold flex items-center gap-1 justify-end ${
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
+                  <config.icon className="w-2.5 h-2.5" />
+                  {config.shortLabel}
+                </div>
+                {renderResponsibilityBadge(item, "sm")}
+                <span className={`text-[10px] font-semibold flex items-center gap-1 ${
                   urgency === "critical" ? "text-red-600 dark:text-red-400" :
                   urgency === "medium" ? "text-orange-600 dark:text-orange-400" :
                   urgency === "low" ? "text-amber-600 dark:text-amber-400" :
                   "text-gray-400"
                 }`}>
-                  {urgency === "critical" && <AlertTriangle className="w-3 h-3" />}
+                  {urgency === "critical" && <AlertTriangle className="w-2.5 h-2.5" />}
                   {timeInStatus(item.lastActivityDate)}
                 </span>
               </div>
+            </div>
 
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
               {needsRhAction && navTarget && (
                 <Button
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
                   onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
                 >
-                  <Eye className="w-3 h-3 mr-1" /> Analisar
+                  <Eye className="w-3 h-3 mr-1" /> {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
                 </Button>
               )}
               {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </div>
           </div>
-
-          <div className="flex items-center gap-3 mt-1.5">
-            <div className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded ${
-              item.responsavelAtual === "RH"
-                ? "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400"
-                : item.responsavelAtual === "Concluído"
-                ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
-                : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"
-            }`}>
-              {item.responsavelAtual === "RH" ? (
-                <><Shield className="w-2.5 h-2.5" /> Responsável atual: RH</>
-              ) : item.responsavelAtual === "Concluído" ? (
-                <><CheckCircle className="w-2.5 h-2.5" /> Finalizada</>
-              ) : (
-                <><Clock className="w-2.5 h-2.5" /> Responsável atual: Resp. da função</>
-              )}
-            </div>
-          </div>
         </div>
 
         {isExpanded && (
-          <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/50 dark:bg-gray-900/30">
-            <div className="py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+          <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/30 dark:bg-gray-900/20">
+            <div className="py-1.5 px-2 rounded bg-gray-50/80 dark:bg-gray-900/40">
               {renderTimeline(item)}
             </div>
 
@@ -708,65 +718,76 @@ export default function RhControlPage() {
                   const diff = item.actual.totalValue - item.planned.totalValue;
                   const isNegative = diff < 0;
                   const isZero = diff === 0;
+                  const pct = item.planned.totalValue > 0
+                    ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1)
+                    : "0";
                   return (
-                    <div className={`rounded-lg border-2 p-3 text-center ${
+                    <div className={`rounded-xl border-2 p-4 text-center ${
                       isZero
                         ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
                         : isNegative
-                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
-                        : "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700"
+                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700"
+                        : "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700"
                     }`}>
-                      <p className="text-[9px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Diferença Planejado × Prestação</p>
-                      <p className={`text-lg font-bold tabular-nums ${
-                        isZero ? "text-gray-500" :
-                        isNegative ? "text-emerald-700 dark:text-emerald-300" :
-                        "text-red-700 dark:text-red-300"
-                      }`}>
-                        {isZero ? "R$ 0,00" : `${isNegative ? '-' : '+'}${fmt(Math.abs(diff))}`}
+                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 dark:text-gray-500 mb-1.5">
+                        Diferença apurada
                       </p>
-                      <p className={`text-[10px] font-medium ${
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        {!isZero && (
+                          isNegative
+                            ? <TrendingDown className="w-5 h-5 text-emerald-500" />
+                            : <TrendingUp className="w-5 h-5 text-red-500" />
+                        )}
+                        <p className={`text-2xl font-extrabold tabular-nums ${
+                          isZero ? "text-gray-400" :
+                          isNegative ? "text-emerald-700 dark:text-emerald-300" :
+                          "text-red-700 dark:text-red-300"
+                        }`}>
+                          {isZero ? "R$ 0,00" : `${isNegative ? '- ' : '+ '}${fmt(Math.abs(diff))}`}
+                        </p>
+                      </div>
+                      <p className={`text-xs font-semibold ${
                         isZero ? "text-gray-400" :
                         isNegative ? "text-emerald-600 dark:text-emerald-400" :
                         "text-red-600 dark:text-red-400"
                       }`}>
-                        {isZero ? "Sem diferença" : isNegative ? "economia em relação ao planejado" : "acima do planejado"}
+                        {isZero ? "Valores idênticos ao planejado" :
+                         isNegative ? `Economia de ${pct}% em relação ao planejado` :
+                         `Acima do planejado (+${pct}%)`}
                       </p>
                     </div>
                   );
                 })()}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider">Planejado</p>
+                      <p className="text-[9px] uppercase text-blue-400 font-bold tracking-wider">Planejado</p>
                       <span className="text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span>
                     </div>
-                    <div className="space-y-1 text-[11px]">
-                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                    <div className="space-y-0.5 text-[10px]">
+                      <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-blue-600/70">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-400">Alimentação</span><span className="tabular-nums text-blue-600/70">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-400">Mobilidade</span><span className="tabular-nums text-blue-600/70">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
                     </div>
                   </div>
 
                   {item.actual ? (
                     <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider">Prestação</p>
+                        <p className="text-[9px] uppercase text-purple-400 font-bold tracking-wider">Prestação</p>
                         <span className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
                       </div>
-                      <div className="space-y-1 text-[11px]">
-                        <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
+                      <div className="space-y-0.5 text-[10px]">
+                        <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-purple-600/70">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Alimentação</span><span className="tabular-nums text-purple-600/70">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Mobilidade</span><span className="tabular-nums text-purple-600/70">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
                       </div>
                       {item.actual.changeReason && (
-                        <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                        <div className="mt-2 p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
                           <div className="flex items-start gap-1">
-                            <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
-                            <div>
-                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa</span>
-                              <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
-                            </div>
+                            <MessageSquare className="w-2.5 h-2.5 text-gray-400 mt-0.5 shrink-0" />
+                            <p className="text-[9px] text-gray-500 dark:text-gray-400">{item.actual.changeReason}</p>
                           </div>
                         </div>
                       )}
@@ -774,8 +795,8 @@ export default function RhControlPage() {
                   ) : (
                     <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
                       <div className="text-center">
-                        <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
-                        <p className="text-[10px] text-gray-400">Prestação não preenchida</p>
+                        <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1" />
+                        <p className="text-[9px] text-gray-400">Prestação não preenchida</p>
                       </div>
                     </div>
                   )}
@@ -784,7 +805,7 @@ export default function RhControlPage() {
             )}
 
             {item.actual?.rhComment && (
-              <div className={`p-2.5 rounded-md border ${
+              <div className={`p-2 rounded-md border ${
                 item.status === 'aprovada_faturamento' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
                 item.status === 'recusada' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
                 'bg-orange-50/60 dark:bg-orange-950/20 border-orange-100 dark:border-orange-800'
@@ -813,18 +834,10 @@ export default function RhControlPage() {
               </div>
             )}
 
-            {item.status === "aprovada_faturamento" && item.actual?.rhActionAt && (
-              <div className="flex items-center gap-2 text-[10px] text-emerald-600 pt-1">
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span className="font-medium">Aprovada pelo RH para faturamento</span>
-                <span className="text-gray-400">em {formatDateTime(item.actual.rhActionAt)}</span>
-              </div>
-            )}
-
             {navTarget && (
               <button
                 onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${
                   item.status === "prestacao_recebida"
                     ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                     : item.status === "planejamento_pendente"
@@ -967,37 +980,63 @@ export default function RhControlPage() {
         </div>
       </div>
 
-      {!isLoading && rhActionCount > 0 && filterStatus === "all" && !isRhFilterActive && (() => {
+      {!isLoading && (() => {
         const avgWait = getAverageWaitTime(prestacaoItems);
+        const approvedToday = prestacaoItems.filter(i => {
+          if (i.status !== "aprovada_faturamento" || !i.actual?.rhActionAt) return false;
+          const d = new Date(i.actual.rhActionAt);
+          const now = new Date();
+          return d.toDateString() === now.toDateString();
+        }).length;
+        const rejectedToday = prestacaoItems.filter(i => {
+          if (i.status !== "recusada" || !i.actual?.rhActionAt) return false;
+          const d = new Date(i.actual.rhActionAt);
+          const now = new Date();
+          return d.toDateString() === now.toDateString();
+        }).length;
         return (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-            <div className="flex-1 space-y-1">
-              {rhReceivedCount > 0 && (
-                <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
-                  <AlertTriangle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span className="font-semibold">{rhReceivedCount} prestaç{rhReceivedCount === 1 ? 'ão' : 'ões'} aguardando análise</span>
-                </div>
-              )}
-              {rhPlanPendingCount > 0 && (
-                <div className="flex items-center gap-2 text-sm text-blue-700/80 dark:text-blue-400/80">
-                  <ClipboardList className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span>{rhPlanPendingCount} planejamento{rhPlanPendingCount !== 1 ? 's' : ''} pendente{rhPlanPendingCount !== 1 ? 's' : ''}</span>
-                </div>
-              )}
-              {avgWait && rhReceivedCount > 0 && (
-                <p className="text-[11px] text-blue-500/70 dark:text-blue-400/60 pl-5.5">
-                  Tempo médio aguardando análise: {avgWait}
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 dark:from-indigo-950/30 dark:to-blue-950/30 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-indigo-500 dark:text-indigo-400 mb-2 flex items-center gap-1.5">
+                  <Activity className="w-3 h-3" />
+                  Resumo do RH hoje
                 </p>
+                <div className="space-y-1">
+                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                    <span><strong>{rhReceivedCount}</strong> prestaç{rhReceivedCount === 1 ? 'ão' : 'ões'} aguardando análise</span>
+                  </p>
+                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                    <span><strong>{rhPlanPendingCount}</strong> planejamento{rhPlanPendingCount !== 1 ? 's' : ''} pendente{rhPlanPendingCount !== 1 ? 's' : ''}</span>
+                  </p>
+                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span><strong>{approvedToday}</strong> aprovada{approvedToday !== 1 ? 's' : ''} hoje</span>
+                  </p>
+                  <p className="text-[12px] text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span><strong>{rejectedToday}</strong> recusada{rejectedToday !== 1 ? 's' : ''} hoje</span>
+                  </p>
+                  {avgWait && rhReceivedCount > 0 && (
+                    <p className="text-[11px] text-indigo-500/80 dark:text-indigo-400/70 mt-1 pt-1 border-t border-indigo-100 dark:border-indigo-800">
+                      Tempo médio de análise: <strong>{avgWait}</strong>
+                    </p>
+                  )}
+                </div>
+              </div>
+              {rhActionCount > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-4 shadow-sm shrink-0"
+                  onClick={() => setFilterStatus("rh_action")}
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1.5" />
+                  Ver pendências ({rhActionCount})
+                </Button>
               )}
             </div>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
-              onClick={() => setFilterStatus("rh_action")}
-            >
-              <Eye className="w-3.5 h-3.5 mr-1.5" />
-              Ver pendências
-            </Button>
           </div>
         );
       })()}
@@ -1191,6 +1230,7 @@ export default function RhControlPage() {
 
           {eventGroups.map(group => {
             const isOpen = expandedEvents.has(group.event.id);
+            const stalledCount = group.items.filter(i => ACTIONABLE_STATUSES.includes(i.status) && getDiffDays(i.lastActivityDate) >= 5).length;
             return (
               <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
                 <button
@@ -1198,21 +1238,30 @@ export default function RhControlPage() {
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
-                      <p className="text-[10px] text-gray-400">
-                        {group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-[10px] text-gray-400">
+                          {group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}
+                        </span>
                         {group.actionNeeded > 0 && (
-                          <span className="text-blue-500 font-medium"> · {group.actionNeeded} aguardando análise</span>
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                            {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
+                          </span>
                         )}
-                      </p>
+                        {stalledCount > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-red-600 dark:text-red-400 font-semibold">
+                            <AlertTriangle className="w-2.5 h-2.5" /> {stalledCount} com mais de 5 dias
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {group.actionNeeded > 0 && (
-                      <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[9px] font-semibold text-blue-700">
-                        <CircleDot className="w-2.5 h-2.5" /> {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
+                      <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-[9px] font-bold text-blue-700 dark:text-blue-300">
+                        {group.actionNeeded}
                       </span>
                     )}
                     {(() => {
@@ -1221,7 +1270,7 @@ export default function RhControlPage() {
                         return acc;
                       }, {} as Record<string, number>);
                       return (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-500" title={`${statuses.prestacao_recebida} recebida(s)`} /> : null}
                           {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-500" title={`${statuses.planejamento_pendente} plan. pendente`} /> : null}
                           {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-500" title={`${statuses.devolvida_para_ajuste} devolvida(s)`} /> : null}

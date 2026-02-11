@@ -1,0 +1,135 @@
+eorganizar a estrutura visual do card individual na seguinte ordem de prioridade:
+
+Nova ordem obrigatória:
+
+Cabeçalho
+
+Nome do colaborador
+
+Tipo (Freela / Casa)
+
+Evento
+
+Badge de status
+
+Badge “Responsável atual”
+
+Timeline (versão compacta)
+
+Reduzir peso visual
+
+Ícones menores
+
+Linha mais fina
+
+Deve funcionar apenas como contexto
+
+Bloco principal de DIFERENÇA (Hero financeiro)
+
+Destaque central
+
+Fundo levemente destacado
+
+Tipografia maior
+
+Texto explicativo
+
+Cards comparativos lado a lado
+
+Planejado
+
+Prestação
+
+Botão principal de ação
+
+2️⃣ MELHORAR BLOCO DE DIFERENÇA (TORNAR EXECUTIVO)
+
+Substituir o modelo atual por:
+
+Quando for economia:
+DIFERENÇA APURADA
+- R$ 105,00
+Economia de 7,8% em relação ao planejado
+
+Quando ultrapassar o planejado:
+DIFERENÇA APURADA
++ R$ 210,00
+Acima do planejado (+15%)
+
+Regras:
+
+Calcular percentual automaticamente
+
+Verde para economia
+
+Vermelho para estouro
+
+Fundo suave da mesma cor
+
+3️⃣ MELHORAR INDICADOR DE RESPONSABILIDADE
+
+Substituir texto simples por badges visuais padronizados:
+
+🟣 Com RH
+🟡 Com Responsável da Função
+🔵 Aguardando envio do responsável
+
+Esses badges devem aparecer:
+
+No cabeçalho do card
+
+Na listagem resumida
+
+
+5️⃣ MELHORAR AGRUPAMENTO POR EVENTO
+
+Dentro do agrupamento “Por evento”, adicionar:
+
+Badge com total pendente
+
+Indicador visual se houver itens parados há mais de X dias
+
+Exemplo:
+
+Running Lad - 2021
+21 aguardando análise
+⚠ 2 com mais de 5 dias parados
+
+Ordenar eventos automaticamente por:
+
+Maior número de pendências
+
+Maior tempo parado
+
+6️⃣ ADICIONAR RESUMO EXECUTIVO NO TOPO
+
+Adicionar um bloco logo abaixo dos cards de status com:
+
+Resumo do RH hoje:
+• 1 prestação aguardando análise
+• 33 planejamentos pendentes
+• 0 aprovadas hoje
+• 0 recusadas
+Tempo médio de análise: 6h
+
+
+Objetivo:
+Transformar a tela em painel de gestão real, não apenas lista operacional.
+
+7️⃣ AJUSTAR PESO DA TIMELINE
+
+Reduzir tamanho geral
+
+Não competir com o comparativo financeiro
+
+Manter como elemento secundário
+
+8️⃣ PADRONIZAÇÃO VISUAL
+
+Melhorar espaçamento interno
+
+Aumentar contraste do bloco de diferença
+
+Evitar que todos os elementos tenham o mesmo peso visual
+
+Garantir hierarquia clara: decisão > números > contexto
