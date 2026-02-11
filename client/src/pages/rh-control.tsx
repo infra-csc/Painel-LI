@@ -393,9 +393,9 @@ export default function RhControlPage() {
     iconColor: string; badgeCls: string; cardBorder: string;
   }> = {
     planejamento_pendente: {
-      label: "Aguardando escalação",
-      shortLabel: "Ag. escalação",
-      description: "Falta confirmar um colaborador na escalação",
+      label: "Aguardando planejamento",
+      shortLabel: "Ag. planejamento",
+      description: "Escalação confirmada — RH precisa criar o planejamento de valores",
       icon: ClipboardList,
       color: "text-amber-700 dark:text-amber-300",
       bg: "bg-amber-50 dark:bg-amber-950/30",
@@ -417,9 +417,9 @@ export default function RhControlPage() {
       cardBorder: "border-gray-200 dark:border-gray-700",
     },
     prestacao_recebida: {
-      label: "Realizado recebido",
-      shortLabel: "Realizado receb.",
-      description: "O responsável enviou o realizado — aguardando análise do RH",
+      label: "Análise pendente",
+      shortLabel: "Análise pendente",
+      description: "Realizado recebido — RH precisa analisar o comparativo para aprovar ou recusar",
       icon: Send,
       color: "text-blue-700 dark:text-blue-300",
       bg: "bg-blue-50 dark:bg-blue-950/30",
@@ -613,7 +613,7 @@ export default function RhControlPage() {
       return { label: "Ir para Planejado", path: buildNavPath("/budget-planned", item), icon: ArrowRight };
     }
     if (item.status === "prestacao_recebida") {
-      return { label: "Analisar realizado", path: buildNavPath("/budget-comparison", item), icon: Eye };
+      return { label: "Analisar comparativo", path: buildNavPath("/budget-comparison", item), icon: Eye };
     }
     if (item.status === "devolvida_para_ajuste") {
       return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
@@ -852,7 +852,7 @@ export default function RhControlPage() {
                 }`}
               >
                 <navTarget.icon className="w-3.5 h-3.5" />
-                {item.status === "prestacao_recebida" ? "Analisar realizado" : navTarget.label}
+                {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -883,7 +883,7 @@ export default function RhControlPage() {
             Pendências do RH
           </p>
           <div className="grid grid-cols-2 gap-2">
-            {(["prestacao_recebida", "planejamento_pendente"] as PrestacaoStatus[]).map(status => {
+            {(["planejamento_pendente", "prestacao_recebida"] as PrestacaoStatus[]).map(status => {
               const config = statusConfig[status];
               const count = statusCounts[status] || 0;
               const isActive = filterStatus === status;
@@ -1006,9 +1006,9 @@ export default function RhControlPage() {
                 {rhActionCount} {rhActionCount === 1 ? 'item aguardando' : 'itens aguardando'} ação do RH
               </p>
               <p className="text-[11px] text-indigo-500 dark:text-indigo-400">
-                {rhReceivedCount > 0 ? `${rhReceivedCount} realizado${rhReceivedCount !== 1 ? 's' : ''} para analisar` : ''}
-                {rhReceivedCount > 0 && rhPlanPendingCount > 0 ? ' · ' : ''}
                 {rhPlanPendingCount > 0 ? `${rhPlanPendingCount} para planejar` : ''}
+                {rhReceivedCount > 0 && rhPlanPendingCount > 0 ? ' · ' : ''}
+                {rhReceivedCount > 0 ? `${rhReceivedCount} análise${rhReceivedCount !== 1 ? 's' : ''} pendente${rhReceivedCount !== 1 ? 's' : ''}` : ''}
               </p>
             </div>
           </div>
@@ -1120,9 +1120,9 @@ export default function RhControlPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="planejamento_pendente">Aguardando escalação</SelectItem>
+                <SelectItem value="planejamento_pendente">Aguardando planejamento</SelectItem>
                 <SelectItem value="aguardando_prestacao">Aguardando realizado</SelectItem>
-                <SelectItem value="prestacao_recebida">Realizado recebido</SelectItem>
+                <SelectItem value="prestacao_recebida">Análise pendente</SelectItem>
                 <SelectItem value="devolvida_para_ajuste">Devolvida para ajuste</SelectItem>
                 <SelectItem value="aprovada_faturamento">Aprovada para faturamento</SelectItem>
                 <SelectItem value="recusada">Recusada</SelectItem>
