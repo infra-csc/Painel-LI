@@ -1164,17 +1164,21 @@ export default function BudgetActualPage() {
                               <div className="text-base font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                             </div>
                           </div>
-                          <Separator />
-                          <div className="px-3 py-2 text-center">
-                            <span className={`text-[11px] font-medium tabular-nums ${difference === 0 ? 'text-gray-400' : difference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                              Impacto no orçamento: {difference === 0 ? 'R$ 0,00' : `${difference > 0 ? '+' : '-'}${formatCurrency(Math.abs(difference))}`}
-                            </span>
-                            {difference !== 0 && plannedTotal > 0 && (
-                              <span className={`text-[10px] tabular-nums ml-1 ${difference > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
-                                ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
-                              </span>
-                            )}
-                          </div>
+                          {Math.abs(difference) > 1 && (
+                            <>
+                              <Separator />
+                              <div className="px-3 py-2 text-center">
+                                <span className={`text-[11px] font-medium tabular-nums ${difference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                  {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
+                                </span>
+                                {plannedTotal > 0 && (
+                                  <span className={`text-[10px] tabular-nums ml-1 ${difference > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                                    ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div>
