@@ -1,0 +1,133 @@
+Ajustar o modal de edição do Planejado para deixá-lo mais financeiro, claro e profissional, mantendo a mesma lógica atual.
+
+1️⃣ Melhorar Header do Modal
+
+Logo abaixo do nome do colaborador, adicionar um bloco de contexto:
+
+Exibir:
+
+Título secundário: Orçamento Planejado da Função
+
+Período completo (ex: 09/10/2025 a 12/10/2025)
+
+Quantidade de dias no formato:
+
+4 dias totais (2 úteis + 2 fim de semana)
+
+Esse bloco deve ser discreto, com fonte menor e cor neutra.
+
+2️⃣ Reorganizar Blocos Financeiros
+
+Transformar cada seção em um bloco financeiro bem definido:
+
+Blocos:
+
+🗓 Diárias
+
+🚗 Mobilidade
+
+🍽 Alimentação
+
+Cada bloco deve:
+
+Ter um header mais destacado
+
+Ter separador visual
+
+Mostrar SUBTOTAL claramente
+
+Ter leve background neutro diferente do fundo principal
+
+Exemplo dentro do bloco:
+
+DIÁRIAS
+Subtotal: R$ 300,00
+
+Não deixar apenas o valor no canto — deixar explícito que é subtotal da categoria.
+
+3️⃣ Melhorar Visual dos Inputs Monetários
+
+Todos os campos monetários devem:
+
+Ter prefixo fixo “R$”
+
+Usar máscara de moeda automática
+
+Formatar ao perder foco
+
+Não permitir caracteres inválidos
+
+Exemplo visual:
+
+R$ [ 80,00 ]
+
+4️⃣ Melhorar Hierarquia Dias Úteis x Fim de Semana
+
+Deixar visualmente mais separado:
+
+Dias Úteis (2 dias)
+Valor por dia
+Subtotal
+
+Fim de Semana (2 dias)
+Valor por dia
+Subtotal
+
+As datas devem aparecer menores abaixo do título da categoria.
+
+5️⃣ Melhorar Bloco de Total Geral
+
+Alterar o rodapé do modal:
+
+Centralizar o total
+
+Destacar como bloco principal
+
+Mostrar impacto caso tenha alteração
+
+Formato:
+
+TOTAL DO PLANEJADO
+R$ 645,00
+
+Se houver alteração:
+
+R$ 645,00 → R$ 680,00
+(+ R$ 35,00)
+
+Esse bloco deve ser visualmente mais forte que os subtotais.
+
+6️⃣ Melhorar Botões do Rodapé
+
+Manter:
+
+Cancelar (botão ghost)
+
+Salvar Alterações (botão primário)
+
+Regras visuais:
+
+Botão Salvar desabilitado se não houver alteração
+
+Se houver alteração, pode exibir:
+Salvar Alterações (+R$ 35,00)
+
+7️⃣ Adicionar Ação Extra
+
+Adicionar no topo direito do modal:
+
+Botão secundário pequeno:
+
+“Restaurar valores padrão”
+
+Esse botão deve restaurar valores originais da função.
+
+8️⃣ Não Alterar
+
+Não mudar regras de cálculo
+
+Não alterar lógica de dias
+
+Não alterar estrutura de dados
+
+Apenas melhorar organização visual e clareza financeira

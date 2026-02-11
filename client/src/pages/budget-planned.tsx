@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
@@ -400,6 +400,9 @@ export default function BudgetPlannedPage() {
   };
 
 
+  const [originalModalTotal, setOriginalModalTotal] = useState<number>(0);
+  const [defaultBudgetValues, setDefaultBudgetValues] = useState<BudgetEdit | null>(null);
+
   const openEditModal = (budget: typeof calculatedBudgets[0]) => {
     const startDate = budget.inclusion.scheduleStartDate;
     const endDate = budget.inclusion.scheduleEndDate;
@@ -414,7 +417,23 @@ export default function BudgetPlannedPage() {
       weekends: budget.weekends,
       period,
     });
-    setEditingBudget({
+
+    const fv = getFunctionValue(budget.inclusion.functionId);
+    const defaultVals: BudgetEdit = {
+      inclusionId: budget.inclusion.id,
+      qtdDiarias: budget.qtdDiarias,
+      valorDiaria: fv?.dailyValue ?? 5000,
+      valorDiariaUtil: 5000,
+      valorDiariaFds: 10000,
+      mobilidade: (fv?.mobility ?? 2500) * budget.qtdDiarias,
+      almocoSemana: (fv?.weekdayLunch || 3500) * budget.weekdays,
+      jantarSemana: (fv?.weekdayDinner || 4000) * budget.weekdays,
+      almocoFds: (fv?.weekendLunch || 4000) * budget.weekends,
+      jantarFds: (fv?.weekendDinner || 4500) * budget.weekends,
+    };
+    setDefaultBudgetValues(defaultVals);
+
+    const editVals: BudgetEdit = {
       inclusionId: budget.inclusion.id,
       qtdDiarias: budget.qtdDiarias,
       valorDiaria: budget.valorDiaria,
@@ -425,7 +444,9 @@ export default function BudgetPlannedPage() {
       jantarSemana: budget.jantarSemana,
       almocoFds: budget.almocoFds,
       jantarFds: budget.jantarFds,
-    });
+    };
+    setEditingBudget(editVals);
+    setOriginalModalTotal(budget.totalFinal);
   };
 
   const saveEdit = () => {
@@ -852,9 +873,9 @@ export default function BudgetPlannedPage() {
 
       {/* Modal de Edição */}
       <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>
-        <DialogContent className="max-w-[700px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
           <DialogHeader className="sr-only">
-            <DialogTitle>Editar Orçamento</DialogTitle>
+            <DialogTitle>Editar Orçamento Planejado</DialogTitle>
           </DialogHeader>
           
           {editingBudget && editingBudgetInfo && (() => {
@@ -865,238 +886,272 @@ export default function BudgetPlannedPage() {
               editingBudget.mobilidade + editingBudget.almocoSemana + editingBudget.jantarSemana + 
               editingBudget.almocoFds + editingBudget.jantarFds;
             const totalAlimentacao = editingBudget.almocoSemana + editingBudget.jantarSemana + editingBudget.almocoFds + editingBudget.jantarFds;
+            const diff = modalTotal - originalModalTotal;
+            const hasChanges = diff !== 0;
+
+            const restoreDefaults = () => {
+              if (defaultBudgetValues) {
+                setEditingBudget({ ...defaultBudgetValues });
+              }
+            };
             
             return (
             <>
-              {/* Header compacto */}
-              <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex items-center justify-between">
+              {/* Header */}
+              <div className="bg-white dark:bg-gray-800 px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingBudgetInfo.name}</h2>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge variant="secondary" className="text-xs h-5 px-2">{editingBudgetInfo.functionName}</Badge>
-                      <Badge className={`text-xs h-5 px-2 ${editingBudgetInfo.type === 'Casa' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' : 'bg-orange-100 text-orange-700 hover:bg-orange-100'}`}>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Orçamento Planejado — {editingBudgetInfo.functionName}</p>
+                    <div className="flex items-center gap-3 mt-2.5">
+                      <Badge className={`text-[10px] h-5 px-2 ${editingBudgetInfo.type === 'Casa' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' : 'bg-orange-100 text-orange-700 hover:bg-orange-100'}`}>
                         {editingBudgetInfo.type}
                       </Badge>
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {editingBudgetInfo.period}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {editingBudget.qtdDiarias} dias ({editingBudgetInfo.weekdays} úteis + {editingBudgetInfo.weekends} fds)
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right text-xs text-gray-500 dark:text-gray-400 pr-6">
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>{editingBudgetInfo.period}</span>
-                    </div>
-                    <div className="mt-1 text-gray-400">
-                      {editingBudgetInfo.weekdays} úteis + {editingBudgetInfo.weekends} fds
-                    </div>
-                  </div>
+                  <Button 
+                    variant="ghost" size="sm" 
+                    className="text-xs text-gray-400 hover:text-gray-600 h-7 px-2 gap-1 mr-6"
+                    onClick={restoreDefaults}
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Restaurar padrão
+                  </Button>
                 </div>
               </div>
 
               {/* Corpo */}
-              <div className="max-h-[58vh] overflow-y-auto px-6 py-5 space-y-4 bg-gray-50 dark:bg-gray-900">
+              <div className="max-h-[55vh] overflow-y-auto px-5 py-4 space-y-3 bg-gray-50/80 dark:bg-gray-900">
                 
-                {/* Diárias - Seção principal */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
+                {/* BLOCO: Diárias */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Diárias</span>
+                      <span className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Diárias</span>
                     </div>
-                    <span className="text-sm font-bold text-blue-600">{formatCurrency(totalDiarias)}</span>
+                    <div className="text-right">
+                      <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
+                      <div className="text-sm font-bold text-blue-600">{formatCurrency(totalDiarias)}</div>
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg px-3 py-2.5">
-                      <Briefcase className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300 w-24 shrink-0">Dias Úteis ({editingBudgetInfo.weekdays})</span>
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs text-gray-400">R$</span>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-[140px]">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-500" />
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Dias Úteis</div>
+                          <div className="text-[10px] text-gray-400">{editingBudgetInfo.weekdays} dias</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 font-medium">R$</span>
                         <Input 
-                          type="number" step="1" className="h-8 text-sm w-24"
+                          type="number" step="1" className="h-9 text-sm w-24 text-center font-medium"
                           value={editingBudget.valorDiariaUtil / 100} 
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaUtil: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                        <span className="text-xs text-gray-400">/dia</span>
+                        <span className="text-[10px] text-gray-400">/dia</span>
                       </div>
-                      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 min-w-[80px] text-right">{formatCurrency(subtotalDiariasUtil)}</span>
+                      <div className="text-right min-w-[90px]">
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(subtotalDiariasUtil)}</span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg px-3 py-2.5">
-                      <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300 w-24 shrink-0">Fds/Feriado ({editingBudgetInfo.weekends})</span>
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs text-gray-400">R$</span>
+                    <Separator className="my-1" />
+
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-[140px]">
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Fim de Semana</div>
+                          <div className="text-[10px] text-gray-400">{editingBudgetInfo.weekends} dias</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 font-medium">R$</span>
                         <Input 
-                          type="number" step="1" className="h-8 text-sm w-24"
+                          type="number" step="1" className="h-9 text-sm w-24 text-center font-medium"
                           value={editingBudget.valorDiariaFds / 100} 
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
-                        <span className="text-xs text-gray-400">/dia</span>
+                        <span className="text-[10px] text-gray-400">/dia</span>
                       </div>
-                      <span className="text-xs font-bold text-amber-700 dark:text-amber-300 min-w-[80px] text-right">{formatCurrency(subtotalDiariasFds)}</span>
+                      <div className="text-right min-w-[90px]">
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(subtotalDiariasFds)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Mobilidade */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Car className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Mobilidade</span>
+                {/* BLOCO: Mobilidade */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Mobilidade</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
+                      <div className="text-sm font-bold text-purple-600">{formatCurrency(editingBudget.mobilidade)}</div>
+                    </div>
                   </div>
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Por dia (R$)</label>
-                      <Input 
-                        type="number" step="0.01" className="h-10 text-sm"
-                        value={(editingBudget.qtdDiarias > 0 ? (editingBudget.mobilidade / editingBudget.qtdDiarias) / 100 : 0).toFixed(2)} 
-                        onChange={e => {
-                          const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
-                          setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
-                        }}
-                      />
-                    </div>
-                    <div className="text-gray-300 dark:text-gray-600 text-lg font-light pb-2">&times;</div>
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1.5 block">Dias ({editingBudget.qtdDiarias})</label>
-                      <div className="h-10 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
-                        {editingBudget.qtdDiarias} dias
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-[140px]">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Valor por dia</div>
+                          <div className="text-[10px] text-gray-400">{editingBudget.qtdDiarias} dias</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-gray-300 dark:text-gray-600 text-lg font-light pb-2">=</div>
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Total (R$)</label>
-                      <Input 
-                        type="number" step="0.01" className="h-10 text-sm"
-                        value={(editingBudget.mobilidade / 100).toFixed(2)} 
-                        onChange={e => setEditingBudget({...editingBudget, mobilidade: Math.round(parseFloat(e.target.value) * 100) || 0})}
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 font-medium">R$</span>
+                        <Input 
+                          type="number" step="1" className="h-9 text-sm w-24 text-center font-medium"
+                          value={editingBudget.qtdDiarias > 0 ? Math.round(editingBudget.mobilidade / editingBudget.qtdDiarias) / 100 : 0} 
+                          onChange={e => {
+                            const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
+                            setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
+                          }}
+                        />
+                        <span className="text-[10px] text-gray-400">/dia</span>
+                      </div>
+                      <div className="text-right min-w-[90px]">
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(editingBudget.mobilidade)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Alimentação */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
+                {/* BLOCO: Alimentação */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-2">
                       <Utensils className="w-4 h-4 text-orange-500" />
-                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Alimentação</span>
+                      <span className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Alimentação</span>
                     </div>
-                    <span className="text-sm font-bold text-orange-600">{formatCurrency(totalAlimentacao)}</span>
+                    <div className="text-right">
+                      <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
+                      <div className="text-sm font-bold text-orange-600">{formatCurrency(totalAlimentacao)}</div>
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Dias Úteis */}
-                    <div className="bg-blue-50/40 dark:bg-blue-950/15 rounded-lg p-3 border border-blue-100 dark:border-blue-900/50">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Briefcase className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                          Dias Úteis ({editingBudgetInfo.weekdays})
-                        </span>
+                  <div className="p-4 space-y-1">
+                    {/* Dias Úteis - Alimentação */}
+                    <div className="mb-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Briefcase className="w-3 h-3 text-blue-500" />
+                        <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Dias Úteis ({editingBudgetInfo.weekdays})</span>
                       </div>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Sun className="w-3 h-3 text-amber-500" />
-                            <label className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Almoço</label>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
+                      <div className="space-y-2 pl-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[60px]">Almoço</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">R$</span>
                             <Input 
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editingBudget.almocoSemana / 100).toFixed(2)} 
+                              type="number" step="1" className="h-8 text-sm w-24 text-center"
+                              value={Math.round(editingBudget.almocoSemana / 100)} 
                               onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
-                            <div className="h-8 flex items-center px-2 rounded-md bg-white/60 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 text-xs text-amber-600">
-                              {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
-                            </div>
+                            <span className="text-[10px] text-gray-400">total</span>
                           </div>
+                          <span className="text-[10px] text-gray-400 min-w-[70px] text-right">
+                            {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
+                          </span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Moon className="w-3 h-3 text-indigo-500" />
-                            <label className="text-[11px] font-medium text-indigo-700 dark:text-indigo-400">Jantar</label>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[60px]">Jantar</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">R$</span>
                             <Input 
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editingBudget.jantarSemana / 100).toFixed(2)} 
+                              type="number" step="1" className="h-8 text-sm w-24 text-center"
+                              value={Math.round(editingBudget.jantarSemana / 100)} 
                               onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
-                            <div className="h-8 flex items-center px-2 rounded-md bg-white/60 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 text-xs text-indigo-600">
-                              {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
-                            </div>
+                            <span className="text-[10px] text-gray-400">total</span>
                           </div>
+                          <span className="text-[10px] text-gray-400 min-w-[70px] text-right">
+                            {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
+                          </span>
                         </div>
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-blue-100 dark:border-blue-800/50 flex items-center justify-between">
-                        <span className="text-[10px] text-blue-500 font-medium uppercase">Subtotal</span>
-                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{formatCurrency(editingBudget.almocoSemana + editingBudget.jantarSemana)}</span>
                       </div>
                     </div>
 
-                    {/* Fins de Semana */}
-                    <div className="bg-amber-50/40 dark:bg-amber-950/15 rounded-lg p-3 border border-amber-100 dark:border-amber-900/50">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                          Fins de Semana ({editingBudgetInfo.weekends})
-                        </span>
+                    <Separator />
+
+                    {/* Fins de Semana - Alimentação */}
+                    <div className="pt-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Sun className="w-3 h-3 text-amber-500" />
+                        <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Fim de Semana ({editingBudgetInfo.weekends})</span>
                       </div>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Sun className="w-3 h-3 text-amber-500" />
-                            <label className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Almoço</label>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
+                      <div className="space-y-2 pl-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[60px]">Almoço</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">R$</span>
                             <Input 
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editingBudget.almocoFds / 100).toFixed(2)} 
+                              type="number" step="1" className="h-8 text-sm w-24 text-center"
+                              value={Math.round(editingBudget.almocoFds / 100)} 
                               onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
-                            <div className="h-8 flex items-center px-2 rounded-md bg-white/60 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 text-xs text-amber-600">
-                              {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
-                            </div>
+                            <span className="text-[10px] text-gray-400">total</span>
                           </div>
+                          <span className="text-[10px] text-gray-400 min-w-[70px] text-right">
+                            {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
+                          </span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Moon className="w-3 h-3 text-indigo-500" />
-                            <label className="text-[11px] font-medium text-indigo-700 dark:text-indigo-400">Jantar</label>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[60px]">Jantar</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">R$</span>
                             <Input 
-                              type="number" step="0.01" className="h-8 text-xs"
-                              value={(editingBudget.jantarFds / 100).toFixed(2)} 
+                              type="number" step="1" className="h-8 text-sm w-24 text-center"
+                              value={Math.round(editingBudget.jantarFds / 100)} 
                               onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
-                            <div className="h-8 flex items-center px-2 rounded-md bg-white/60 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 text-xs text-indigo-600">
-                              {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
-                            </div>
+                            <span className="text-[10px] text-gray-400">total</span>
                           </div>
+                          <span className="text-[10px] text-gray-400 min-w-[70px] text-right">
+                            {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
+                          </span>
                         </div>
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-amber-100 dark:border-amber-800/50 flex items-center justify-between">
-                        <span className="text-[10px] text-amber-600 font-medium uppercase">Subtotal</span>
-                        <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{formatCurrency(editingBudget.almocoFds + editingBudget.jantarFds)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Footer fixo com Total Geral */}
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+              {/* Footer - Total Geral */}
+              <div className="px-5 py-4 border-t-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl px-5 py-3">
-                      <div className="text-[10px] uppercase text-green-600 dark:text-green-400 font-semibold tracking-wider mb-0.5">Total Geral</div>
-                      <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(modalTotal)}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-5 py-3 text-center min-w-[180px]">
+                      <div className="text-[10px] uppercase text-emerald-600 dark:text-emerald-400 font-bold tracking-widest mb-1">Total do Planejado</div>
+                      <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(modalTotal)}</div>
+                      {hasChanges && (
+                        <div className={`text-xs font-semibold mt-1 ${diff > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                          {formatCurrency(originalModalTotal)} → {formatCurrency(modalTotal)}
+                          <span className="ml-1">({diff > 0 ? '+' : ''}{formatCurrency(diff)})</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <Button variant="outline" className="h-10 px-5" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
-                    <Button onClick={saveEdit} className="h-10 px-6 bg-blue-600 hover:bg-blue-700 shadow-md">Salvar Alterações</Button>
+                    <Button variant="ghost" className="h-10 px-5 text-gray-500" onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>Cancelar</Button>
+                    <Button 
+                      onClick={saveEdit} 
+                      className="h-10 px-6 bg-blue-600 hover:bg-blue-700 shadow-md font-semibold"
+                      disabled={!hasChanges}
+                    >
+                      {hasChanges ? `Salvar Alterações (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar Alterações'}
+                    </Button>
                   </div>
                 </div>
               </div>
