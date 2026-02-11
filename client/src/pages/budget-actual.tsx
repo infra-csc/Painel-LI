@@ -255,7 +255,7 @@ export default function BudgetActualPage() {
       setEditFormData(null);
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao atualizar execução", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao atualizar prestação", variant: "destructive" });
     },
   });
 
@@ -264,12 +264,12 @@ export default function BudgetActualPage() {
       await apiRequest("DELETE", `/api/budget-actual/${id}`);
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Execução removida" });
+      toast({ title: "Sucesso", description: "Prestação removida" });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setConfirmDeleteId(null);
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao remover execução", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao remover prestação", variant: "destructive" });
     },
   });
 
@@ -279,11 +279,11 @@ export default function BudgetActualPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Execução duplicada" });
+      toast({ title: "Sucesso", description: "Prestação duplicada" });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao duplicar execução", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao duplicar prestação", variant: "destructive" });
     },
   });
 
@@ -490,7 +490,7 @@ export default function BudgetActualPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-purple-900 dark:text-purple-100">Orçamento Realizado</h1>
-            <p className="text-sm text-gray-500">Registro da execução real — escalas enviadas do Planejado</p>
+            <p className="text-sm text-gray-500">Registro da prestação de contas — escalas enviadas do Planejado</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -519,7 +519,7 @@ export default function BudgetActualPage() {
           </div>
           <h2 className="text-xl font-semibold text-purple-900 dark:text-purple-100 mb-2">Selecione um evento</h2>
           <p className="text-purple-600/70 dark:text-purple-400/70 text-sm max-w-md mx-auto mb-6">
-            Registre a execução real do orçamento. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
+            Registre a prestação de contas. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
           </p>
           <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} accentColor="purple" />
         </div>
@@ -528,7 +528,7 @@ export default function BudgetActualPage() {
       ) : filteredItems.length === 0 && !searchTerm && filterType === "all" ? (
         <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <ClipboardCheck className="w-16 h-16 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma execução disponível</h3>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma prestação disponível</h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
             Envie escalas do Planejado para iniciar o Realizado deste evento
           </p>
@@ -615,7 +615,7 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <div className="text-[11px] text-gray-400 ml-auto">
-              {filteredItems.length} {filteredItems.length === 1 ? 'execução' : 'execuções'}
+              {filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}
             </div>
           </div>
 
@@ -688,6 +688,12 @@ export default function BudgetActualPage() {
               const isItemLocked = item.sentForReview && !["devolvido", "rejeitado"].includes(item.rhStatus || "");
               const isItemEditable = !item.sentForReview || item.rhStatus === "devolvido" || item.rhStatus === "rejeitado";
 
+              const hasBeenEdited = item.updatedAt && item.createdAt && new Date(item.updatedAt).getTime() > new Date(item.createdAt).getTime() + 1000;
+              const formatDateTime = (d: string | Date) => {
+                const date = new Date(d);
+                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              };
+
               const getStatusBadge = () => {
                 if (item.sentForReview) {
                   if (item.rhStatus === "aprovado") {
@@ -704,7 +710,10 @@ export default function BudgetActualPage() {
                 if (isDuplicated) {
                   return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50">Duplicado</Badge>;
                 }
-                return null;
+                if (hasBeenEdited) {
+                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50">Salvo {formatDateTime(item.updatedAt!)}</Badge>;
+                }
+                return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50">Não preenchido</Badge>;
               };
 
               return (
@@ -762,7 +771,7 @@ export default function BudgetActualPage() {
                       {isItemEditable ? (
                         <>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => openEditModal(item)} title="Editar execução">
+                            onClick={() => openEditModal(item)} title="Editar prestação">
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
@@ -771,7 +780,7 @@ export default function BudgetActualPage() {
                             <Copy className="w-3.5 h-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => setConfirmDeleteId(item.id)} title="Remover execução">
+                            onClick={() => setConfirmDeleteId(item.id)} title="Remover prestação">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </>
@@ -842,7 +851,7 @@ export default function BudgetActualPage() {
               </div>
               <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
               <div className="text-[11px] text-gray-400">
-                {filteredItems.length} {filteredItems.length === 1 ? 'execução' : 'execuções'}
+                {filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -854,7 +863,7 @@ export default function BudgetActualPage() {
               ) : selectedCards.size > 0 ? (
                 <>
                   <div className="text-[11px] text-gray-500">
-                    {selectedCards.size} {selectedCards.size === 1 ? 'execução selecionada' : 'execuções selecionadas'}
+                    {selectedCards.size} {selectedCards.size === 1 ? 'prestação selecionada' : 'prestações selecionadas'}
                   </div>
                   <Button
                     size="sm"
@@ -897,7 +906,7 @@ export default function BudgetActualPage() {
       <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-xl">
           <DialogHeader className="sr-only">
-            <DialogTitle>Editar Execução Real</DialogTitle>
+            <DialogTitle>Editar Prestação de Contas</DialogTitle>
           </DialogHeader>
 
           {editingItem && editFormData && (() => {
@@ -1391,7 +1400,7 @@ export default function BudgetActualPage() {
                         </div>
                       ) : (
                         <div>
-                          <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da execução</div>
+                          <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da prestação</div>
                           <div className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                         </div>
                       )}
@@ -1422,7 +1431,7 @@ export default function BudgetActualPage() {
             <DialogTitle>Confirmar Remoção</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Tem certeza que deseja remover esta execução? Esta ação não pode ser desfeita.
+            Tem certeza que deseja remover esta prestação? Esta ação não pode ser desfeita.
           </p>
           <div className="flex justify-end gap-3 mt-4">
             <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>Cancelar</Button>
