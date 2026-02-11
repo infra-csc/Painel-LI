@@ -824,15 +824,26 @@ export default function BudgetPlannedPage() {
                               </span>
                             </div>
                           )}
-                          <div className="flex justify-between items-center py-1">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                              <span className="text-xs text-gray-400">
-                                {budget.weekdays}d × {formatCurrency(budget.valorDiariaUtil)} + {budget.weekends}fds × {formatCurrency(budget.valorDiariaFds)}
-                              </span>
+                          <div className="py-1">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+                              </div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
                             </div>
-                            <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
+                            <div className="ml-6 mt-0.5 space-y-0.5">
+                              {budget.weekdays > 0 && (
+                                <div className="text-[11px] text-gray-400">
+                                  {budget.weekdays} dias úteis × {formatCurrency(budget.valorDiariaUtil)}
+                                </div>
+                              )}
+                              {budget.weekends > 0 && (
+                                <div className="text-[11px] text-gray-400">
+                                  {budget.weekends} fins de semana × {formatCurrency(budget.valorDiariaFds)}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="flex justify-between items-center py-1">
                             <div className="flex items-center gap-2">
