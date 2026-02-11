@@ -443,31 +443,37 @@ export default function RhControlPage() {
 
   const renderTimeline = (item: PrestacaoItem) => {
     const step = getTimelineStep(item);
-    const steps = ["Escalação", "Planejado", "Prestação", "Aprovação"];
+    const steps = [
+      { label: "Escalação", color: "cyan", completed: "bg-cyan-600 border-cyan-600", current: "border-cyan-500 text-cyan-600", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-500" },
+      { label: "Planejado", color: "blue", completed: "bg-blue-600 border-blue-600", current: "border-blue-500 text-blue-600", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-500" },
+      { label: "Prestação", color: "purple", completed: "bg-purple-600 border-purple-600", current: "border-purple-500 text-purple-600", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-500" },
+      { label: "Aprovação", color: "emerald", completed: "bg-emerald-600 border-emerald-600", current: "border-emerald-500 text-emerald-600", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-500" },
+    ];
     return (
       <div className="flex items-center gap-0 w-full">
-        {steps.map((label, i) => {
+        {steps.map((s, i) => {
           const isCompleted = i < step;
           const isCurrent = i === step;
+          const prevCompleted = i > 0 && i - 1 < step;
           return (
-            <div key={label} className="flex items-center flex-1">
+            <div key={s.label} className="flex items-center flex-1">
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold border-2 ${
-                  isCompleted ? 'bg-indigo-600 border-indigo-600 text-white' :
-                  isCurrent ? 'bg-white dark:bg-gray-800 border-indigo-500 text-indigo-600' :
+                  isCompleted ? `${s.completed} text-white` :
+                  isCurrent ? `bg-white dark:bg-gray-800 ${s.current}` :
                   'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400'
                 }`}>
                   {isCompleted ? <CheckCircle className="w-3 h-3" /> : i + 1}
                 </div>
                 <span className={`text-[8px] font-medium whitespace-nowrap ${
-                  isCompleted ? 'text-indigo-600 dark:text-indigo-400' :
-                  isCurrent ? 'text-indigo-700 dark:text-indigo-300 font-semibold' :
+                  isCompleted ? s.text :
+                  isCurrent ? `${s.text} font-semibold` :
                   'text-gray-400'
-                }`}>{label}</span>
+                }`}>{s.label}</span>
               </div>
               {i < steps.length - 1 && (
                 <div className={`h-0.5 flex-1 mx-1 ${
-                  isCompleted ? 'bg-indigo-500' : 'bg-gray-200 dark:bg-gray-700'
+                  isCompleted ? s.line : 'bg-gray-200 dark:bg-gray-700'
                 }`} />
               )}
             </div>
