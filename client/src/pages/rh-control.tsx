@@ -510,31 +510,21 @@ export default function RhControlPage() {
   };
 
   const getStepResponsible = (item: PrestacaoItem, stepIndex: number): string | null => {
-    if (stepIndex === 0 && item.teamInclusion) {
+    if (stepIndex === 0 && item.teamInclusion?.updatedBy) {
       const name = getUserName(item.teamInclusion.updatedBy);
-      return name !== "-" ? name : "Produção";
+      return name !== "-" ? name : null;
     }
-    if (stepIndex === 1) {
-      if (item.planned) {
-        const name = getUserName(item.planned.createdBy);
-        return name !== "-" ? name : "RH";
-      }
-      return null;
+    if (stepIndex === 1 && item.planned?.createdBy) {
+      const name = getUserName(item.planned.createdBy);
+      return name !== "-" ? name : null;
     }
-    if (stepIndex === 2) {
-      if (item.actual) {
-        const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
-        return name !== "-" ? name : "Resp. Função";
-      }
-      return null;
+    if (stepIndex === 2 && item.actual) {
+      const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
+      return name !== "-" ? name : null;
     }
-    if (stepIndex === 3) {
-      if (item.actual?.rhActionBy) {
-        const name = getUserName(item.actual.rhActionBy);
-        return name !== "-" ? name : "RH";
-      }
-      if (item.status === "aprovada_faturamento" || item.status === "recusada") return "RH";
-      return null;
+    if (stepIndex === 3 && item.actual?.rhActionBy) {
+      const name = getUserName(item.actual.rhActionBy);
+      return name !== "-" ? name : null;
     }
     return null;
   };
@@ -1238,7 +1228,6 @@ export default function RhControlPage() {
 
           {eventGroups.map(group => {
             const isOpen = expandedEvents.has(group.event.id);
-            const stalledCount = group.items.filter(i => ACTIONABLE_STATUSES.includes(i.status) && getDiffDays(i.lastActivityDate) >= 5).length;
             return (
               <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
                 <button
@@ -1256,11 +1245,6 @@ export default function RhControlPage() {
                         {group.actionNeeded > 0 && (
                           <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
                             {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {stalledCount > 0 && (
-                          <span className="flex items-center gap-0.5 text-[10px] text-red-600 dark:text-red-400 font-semibold">
-                            <AlertTriangle className="w-2.5 h-2.5" /> {stalledCount} com mais de 5 dias
                           </span>
                         )}
                       </div>
