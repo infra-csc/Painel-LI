@@ -255,9 +255,9 @@ export default function BudgetPlannedPage() {
       const override = budgetOverrides[inclusion.id];
       
       const qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
-      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? 25000;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? valorDiaria;
-      const valorDiariaFds = override?.valorDiariaFds ?? valorDiaria;
+      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? 5000;
+      const valorDiariaUtil = override?.valorDiariaUtil ?? 5000;
+      const valorDiariaFds = override?.valorDiariaFds ?? 10000;
       
       const { weekdays, weekends } = countWeekdaysAndWeekends(
         inclusion.scheduleStartDate, 
@@ -892,7 +892,7 @@ export default function BudgetPlannedPage() {
                 
                 {/* Diárias - Seção principal */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-blue-600" />
                       <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Diárias</span>
@@ -900,47 +900,35 @@ export default function BudgetPlannedPage() {
                     <span className="text-sm font-bold text-blue-600">{formatCurrency(totalDiarias)}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50/40 dark:bg-blue-950/15 rounded-lg p-3 border border-blue-100 dark:border-blue-900/50">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Briefcase className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                          Dias Úteis ({editingBudgetInfo.weekdays})
-                        </span>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-blue-600 dark:text-blue-400 mb-1 block">Valor unitário (R$)</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg px-3 py-2.5">
+                      <Briefcase className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300 w-24 shrink-0">Dias Úteis ({editingBudgetInfo.weekdays})</span>
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xs text-gray-400">R$</span>
                         <Input 
-                          type="number" step="0.01" className="h-8 text-xs"
-                          value={(editingBudget.valorDiariaUtil / 100).toFixed(2)} 
+                          type="number" step="1" className="h-8 text-sm w-24"
+                          value={editingBudget.valorDiariaUtil / 100} 
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaUtil: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
+                        <span className="text-xs text-gray-400">/dia</span>
                       </div>
-                      <div className="mt-2.5 pt-2 border-t border-blue-100 dark:border-blue-800/50 flex items-center justify-between">
-                        <span className="text-[10px] text-blue-500 font-medium uppercase">Subtotal</span>
-                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{formatCurrency(subtotalDiariasUtil)}</span>
-                      </div>
+                      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 min-w-[80px] text-right">{formatCurrency(subtotalDiariasUtil)}</span>
                     </div>
 
-                    <div className="bg-amber-50/40 dark:bg-amber-950/15 rounded-lg p-3 border border-amber-100 dark:border-amber-900/50">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                          Fins de Semana ({editingBudgetInfo.weekends})
-                        </span>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-amber-600 dark:text-amber-400 mb-1 block">Valor unitário (R$)</label>
+                    <div className="flex items-center gap-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg px-3 py-2.5">
+                      <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300 w-24 shrink-0">Fds/Feriado ({editingBudgetInfo.weekends})</span>
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xs text-gray-400">R$</span>
                         <Input 
-                          type="number" step="0.01" className="h-8 text-xs"
-                          value={(editingBudget.valorDiariaFds / 100).toFixed(2)} 
+                          type="number" step="1" className="h-8 text-sm w-24"
+                          value={editingBudget.valorDiariaFds / 100} 
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
+                        <span className="text-xs text-gray-400">/dia</span>
                       </div>
-                      <div className="mt-2.5 pt-2 border-t border-amber-100 dark:border-amber-800/50 flex items-center justify-between">
-                        <span className="text-[10px] text-amber-500 font-medium uppercase">Subtotal</span>
-                        <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{formatCurrency(subtotalDiariasFds)}</span>
-                      </div>
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-300 min-w-[80px] text-right">{formatCurrency(subtotalDiariasFds)}</span>
                     </div>
                   </div>
                 </div>
