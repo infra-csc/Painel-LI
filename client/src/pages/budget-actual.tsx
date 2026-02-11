@@ -881,6 +881,24 @@ export default function BudgetActualPage() {
                     <span className="text-gray-400 text-[10px] uppercase tracking-wider font-medium">Total</span>
                     <span className="font-bold text-base text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
                   </div>
+
+                  {(() => {
+                    const planned = getPlannedRef(item);
+                    if (!planned) return null;
+                    const diff = item.totalValue - planned.totalValue;
+                    return (
+                      <div className="px-4 py-2 border-t border-dashed border-gray-100 dark:border-gray-700 flex items-center justify-between text-[11px]">
+                        <span className="text-gray-400">Planejado: <span className="tabular-nums font-medium text-gray-500">{formatCurrency(planned.totalValue)}</span></span>
+                        {diff === 0 ? (
+                          <span className="text-gray-400">Sem diferença</span>
+                        ) : (
+                          <span className={`tabular-nums font-medium ${diff < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {diff > 0 ? '+' : '-'} {formatCurrency(Math.abs(diff))}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
