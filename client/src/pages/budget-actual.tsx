@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3 } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -368,29 +368,10 @@ export default function BudgetActualPage() {
 
   const openEditModal = (item: BudgetActual) => {
     setEditingItem(item);
-    const days = getItemDayCounts(item);
-
-    const subtotalDiarias = item.dailyQuantity * item.dailyValue;
-    let valorUtil = 5000;
-    let valorFds = 10000;
-
-    if (days.weekdays > 0 && days.weekends === 0) {
-      valorUtil = days.weekdays > 0 ? Math.round(subtotalDiarias / days.weekdays) : 5000;
-    } else if (days.weekdays === 0 && days.weekends > 0) {
-      valorFds = days.weekends > 0 ? Math.round(subtotalDiarias / days.weekends) : 10000;
-    } else if (days.weekdays > 0 && days.weekends > 0) {
-      const defaultSubtotal = days.weekdays * 5000 + days.weekends * 10000;
-      if (defaultSubtotal === subtotalDiarias) {
-      } else {
-        const scale = subtotalDiarias / defaultSubtotal;
-        valorUtil = Math.round(5000 * scale);
-        valorFds = Math.round(10000 * scale);
-      }
-    }
 
     setEditFormData({
-      valorDiariaUtil: valorUtil,
-      valorDiariaFds: valorFds,
+      valorDiariaUtil: 5000,
+      valorDiariaFds: 10000,
       weekdayLunch: item.weekdayLunch,
       weekdayDinner: item.weekdayDinner,
       weekendLunch: item.weekendLunch,
@@ -472,7 +453,12 @@ export default function BudgetActualPage() {
   }, [filteredItems, budgetPlanned]);
   const totalDifference = totalRealizado - totalPlanejado;
 
-  const isReadOnly = sentForReview;
+  const hasAnyEditable = useMemo(() => {
+    if (!budgetActual) return true;
+    const eventItems = budgetActual.filter(a => a.eventId === selectedEventId);
+    return eventItems.some(item => !item.sentForReview || item.rhStatus === "devolvido" || item.rhStatus === "rejeitado");
+  }, [budgetActual, selectedEventId]);
+  const allSentForReview = sentForReview;
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
@@ -612,7 +598,7 @@ export default function BudgetActualPage() {
             </div>
           </div>
 
-          {!isReadOnly && filteredItems.length > 1 && (
+          {hasAnyEditable && filteredItems.length > 1 && (
             <div className="flex items-center gap-2">
               <button
                 onClick={selectAll}
@@ -662,14 +648,26 @@ export default function BudgetActualPage() {
               const diverges = hasItemDivergence(item);
               const isSelected = selectedCards.has(item.id);
 
+              const isItemLocked = item.sentForReview && !["devolvido", "rejeitado"].includes(item.rhStatus || "");
+              const isItemEditable = !item.sentForReview || item.rhStatus === "devolvido" || item.rhStatus === "rejeitado";
+
               const getStatusBadge = () => {
-                if (isFromPlanned) {
-                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-green-50 text-green-600 border border-green-200 hover:bg-green-50">Enviado do Planejado</Badge>;
+                if (item.sentForReview) {
+                  if (item.rhStatus === "aprovado") {
+                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-green-50 text-green-600 border border-green-200 hover:bg-green-50">Aprovado</Badge>;
+                  }
+                  if (item.rhStatus === "devolvido") {
+                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Devolvido</Badge>;
+                  }
+                  if (item.rhStatus === "rejeitado") {
+                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-red-50 text-red-600 border border-red-200 hover:bg-red-50">Recusado</Badge>;
+                  }
+                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50">Enviado para revisão</Badge>;
                 }
                 if (isDuplicated) {
                   return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50">Duplicado</Badge>;
                 }
-                return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50">Criado no Realizado</Badge>;
+                return null;
               };
 
               return (
@@ -681,7 +679,9 @@ export default function BudgetActualPage() {
                 }`}>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <div className="flex items-center gap-3">
-                      {!isReadOnly && (
+                      {isItemLocked ? (
+                        <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      ) : isItemEditable ? (
                         <button
                           onClick={() => toggleSelect(item.id)}
                           className="flex-shrink-0"
@@ -696,7 +696,7 @@ export default function BudgetActualPage() {
                             )}
                           </div>
                         </button>
-                      )}
+                      ) : null}
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
@@ -722,7 +722,7 @@ export default function BudgetActualPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5">
-                      {!isReadOnly && (
+                      {isItemEditable && (
                         <>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                             onClick={() => openEditModal(item)} title="Editar execução">
@@ -792,7 +792,7 @@ export default function BudgetActualPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isReadOnly ? (
+              {allSentForReview ? (
                 <div className="text-[11px] text-emerald-600 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Enviado para revisão

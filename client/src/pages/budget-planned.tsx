@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
@@ -132,6 +132,16 @@ export default function BudgetPlannedPage() {
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues, isLoading: isLoadingFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
 
+  const { data: existingActuals } = useQuery<any[]>({
+    queryKey: ["/api/budget-actual", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-actual?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget actual");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
   const { data: allTeamInclusions } = useQuery<TeamInclusion[]>({
     queryKey: ["/api/team-inclusions"],
     queryFn: async () => {
@@ -244,6 +254,19 @@ export default function BudgetPlannedPage() {
       inc.status === "aprovado"
     );
   }, [teamInclusions]);
+
+  useEffect(() => {
+    if (existingActuals && confirmedInclusions) {
+      const sentIds = new Set<string>();
+      confirmedInclusions.forEach(inc => {
+        const hasActual = existingActuals.some(a =>
+          a.collaboratorId === inc.collaboratorId && a.functionId === inc.functionId
+        );
+        if (hasActual) sentIds.add(inc.id);
+      });
+      setSentToActual(sentIds);
+    }
+  }, [existingActuals, confirmedInclusions]);
 
   // Calcular orçamento automaticamente baseado nas escalações confirmadas
   const calculatedBudgets = useMemo(() => {
@@ -749,13 +772,13 @@ export default function BudgetPlannedPage() {
                       className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden ${
                         highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
                         isSelected ? 'ring-2 ring-green-500 border-green-300' : 
-                        isSent ? 'border-green-200 dark:border-green-800' :
+                        isSent ? 'border-indigo-200 dark:border-indigo-800 opacity-75' :
                         budget.hasOverride ? 'border-yellow-200 dark:border-yellow-800' : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       {/* Cabeçalho do Card */}
                       <div className={`flex items-center justify-between px-4 py-3 ${
-                        isSent ? 'bg-green-50 dark:bg-green-950/30' : 'bg-gray-50 dark:bg-gray-700/50'
+                        isSent ? 'bg-gray-50/80 dark:bg-gray-700/30' : 'bg-gray-50 dark:bg-gray-700/50'
                       }`}>
                         <div className="flex items-center gap-3">
                           {!isSent ? (
@@ -764,7 +787,7 @@ export default function BudgetPlannedPage() {
                               onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
                             />
                           ) : (
-                            <CheckCheck className="w-5 h-5 text-green-600" />
+                            <Lock className="w-4 h-4 text-indigo-400" />
                           )}
                           <div>
                             <div className="flex items-center gap-2">
@@ -786,6 +809,11 @@ export default function BudgetPlannedPage() {
                               }`}>
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
+                              {isSent && (
+                                <Badge className="text-[10px] h-5 px-1.5 font-medium bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800">
+                                  No Realizado
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
