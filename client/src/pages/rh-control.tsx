@@ -22,7 +22,8 @@ type PrestacaoStatus =
   | "devolvida_para_ajuste"
   | "aprovada_faturamento"
   | "recusada"
-  | "all";
+  | "all"
+  | "rh_action";
 
 interface PrestacaoItem {
   id: string;
@@ -307,9 +308,13 @@ export default function RhControlPage() {
     return counts;
   }, [prestacaoItems]);
 
+  const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
+
   const filteredItems = useMemo(() => {
     return prestacaoItems.filter(item => {
-      if (filterStatus !== "all") {
+      if (filterStatus === "rh_action") {
+        if (!RH_STATUSES.includes(item.status)) return false;
+      } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
         if (!showConcluded && CONCLUDED_STATUSES.includes(item.status)) return false;
@@ -874,16 +879,14 @@ export default function RhControlPage() {
                 {avgWait && rhReceivedCount > 0 ? ` · tempo médio: ${avgWait}` : ""}
               </p>
             </div>
-            {rhReceivedCount > 0 && (
-              <Button
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
-                onClick={() => setFilterStatus("prestacao_recebida")}
-              >
-                <Eye className="w-3.5 h-3.5 mr-1.5" />
-                Analisar agora
-              </Button>
-            )}
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
+              onClick={() => setFilterStatus("rh_action")}
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+              Ver todos
+            </Button>
           </div>
         );
       })()}
