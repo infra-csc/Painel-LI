@@ -667,6 +667,22 @@ export default function BudgetActualPage() {
               const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
               const isDuplicated = item.observations?.includes('Duplicado no Realizado');
               const diverges = hasItemDivergence(item);
+              const cardDays = getItemDayCounts(item);
+              const cardSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
+              const cardTotalDays = cardDays.weekdays + cardDays.weekends;
+              let cardValorUtil = 0;
+              let cardValorFds = 0;
+              if (cardTotalDays > 0 && cardSubtotalDiarias > 0) {
+                if (cardDays.weekdays === 0) {
+                  cardValorFds = Math.round(cardSubtotalDiarias / cardDays.weekends);
+                } else if (cardDays.weekends === 0) {
+                  cardValorUtil = Math.round(cardSubtotalDiarias / cardDays.weekdays);
+                } else {
+                  const tw = cardDays.weekdays + cardDays.weekends * 2;
+                  cardValorUtil = Math.round(cardSubtotalDiarias / tw);
+                  cardValorFds = Math.round((cardSubtotalDiarias - cardDays.weekdays * cardValorUtil) / cardDays.weekends);
+                }
+              }
               const isSelected = selectedCards.has(item.id);
 
               const isItemLocked = item.sentForReview && !["devolvido", "rejeitado"].includes(item.rhStatus || "");
@@ -771,19 +787,31 @@ export default function BudgetActualPage() {
                     <div className="px-4 pb-2 text-sm">
                       <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-center">
                         <Calendar className="w-3 h-3 text-blue-400" />
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                          <span className="text-[11px] text-gray-400">{item.dailyQuantity} × {formatCurrency(item.dailyValue)}</span>
-                        </div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(item.dailyQuantity * item.dailyValue)}</span>
+                        <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
 
-                        <Car className="w-3 h-3 text-purple-400" />
-                        <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
+                        <span />
+                        <div className="ml-1 space-y-0.5">
+                          {cardDays.weekdays > 0 && (
+                            <div className="text-[11px] text-gray-400">
+                              {cardDays.weekdays} dias úteis × {formatCurrency(cardValorUtil)}
+                            </div>
+                          )}
+                          {cardDays.weekends > 0 && (
+                            <div className="text-[11px] text-gray-400">
+                              {cardDays.weekends} fins de semana × {formatCurrency(cardValorFds)}
+                            </div>
+                          )}
+                        </div>
+                        <span />
 
                         <Utensils className="w-3 h-3 text-orange-400" />
                         <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
                         <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+
+                        <Car className="w-3 h-3 text-purple-400" />
+                        <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
+                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
                       </div>
                     </div>
                   )}
