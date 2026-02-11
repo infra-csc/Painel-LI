@@ -627,37 +627,6 @@ export default function RhControlPage() {
     return null;
   };
 
-  const renderResponsibilityBadge = (item: PrestacaoItem, size: "sm" | "md" = "sm") => {
-    const cls = size === "md" ? "text-[10px] px-2 py-0.5 gap-1.5" : "text-[9px] px-1.5 py-0.5 gap-1";
-    const iconSize = size === "md" ? "w-3 h-3" : "w-2.5 h-2.5";
-    if (item.responsavelAtual === "RH") {
-      return (
-        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700`}>
-          <Shield className={iconSize} /> Com RH
-        </span>
-      );
-    }
-    if (item.responsavelAtual === "Concluído") {
-      return (
-        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700`}>
-          <CheckCircle className={iconSize} /> Finalizada
-        </span>
-      );
-    }
-    if (item.status === "aguardando_prestacao") {
-      return (
-        <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700`}>
-          <Clock className={iconSize} /> Aguardando envio
-        </span>
-      );
-    }
-    return (
-      <span className={`inline-flex items-center ${cls} rounded-full font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700`}>
-        <RotateCcw className={iconSize} /> Com resp. da função
-      </span>
-    );
-  };
-
   const getLeftBorderColor = (status: PrestacaoStatus): string => {
     switch (status) {
       case "prestacao_recebida": return "border-l-4 border-l-blue-500";
@@ -716,7 +685,6 @@ export default function RhControlPage() {
                   <config.icon className="w-2.5 h-2.5" />
                   {config.shortLabel}
                 </div>
-                {renderResponsibilityBadge(item, "sm")}
                 <span className={`text-[10px] font-semibold flex items-center gap-1 ${
                   urgency === "critical" ? "text-red-600 dark:text-red-400" :
                   urgency === "medium" ? "text-orange-600 dark:text-orange-400" :
