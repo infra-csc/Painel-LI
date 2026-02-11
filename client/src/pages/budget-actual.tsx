@@ -559,8 +559,8 @@ export default function BudgetActualPage() {
             const diffLabel = totalDifference === 0
               ? { text: "Dentro do planejado", color: "text-gray-500" }
               : totalDifference < 0
-                ? { text: `Economia de ${formatCurrency(Math.abs(totalDifference))}`, color: "text-emerald-600" }
-                : { text: `Acima do planejado em ${formatCurrency(totalDifference)}`, color: "text-red-500" };
+                ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-emerald-600" }
+                : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-red-500" };
 
             return (
               <div className="space-y-3">
