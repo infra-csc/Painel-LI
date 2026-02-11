@@ -844,38 +844,53 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
-                  {!isCollapsed && (
-                    <div className="px-4 pb-2 text-sm">
-                      <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 items-center">
-                        <Calendar className="w-3 h-3 text-blue-400" />
-                        <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                  {!isCollapsed && (() => {
+                    const planned = getPlannedRef(item);
+                    const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
+                    const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
+                    const diffBadge = (actual: number, plan: number) => {
+                      if (!planned) return null;
+                      const d = actual - plan;
+                      if (d === 0) return null;
+                      return <span className={`text-[10px] tabular-nums font-medium ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '-'}{formatCurrency(Math.abs(d))}</span>;
+                    };
+                    return (
+                      <div className="px-4 pb-2 text-sm">
+                        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 gap-y-1 items-center">
+                          <Calendar className="w-3 h-3 text-blue-400" />
+                          <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+                          <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                          <span className="text-right">{diffBadge(cardSubtotalDiarias, plannedDiarias)}</span>
 
-                        <span />
-                        <div className="ml-1 space-y-0.5">
-                          {cardDays.weekdays > 0 && (
-                            <div className="text-[11px] text-gray-400">
-                              {cardDays.weekdays} dias úteis × {formatCurrency(cardValorUtil)}
-                            </div>
-                          )}
-                          {cardDays.weekends > 0 && (
-                            <div className="text-[11px] text-gray-400">
-                              {cardDays.weekends} fins de semana × {formatCurrency(cardValorFds)}
-                            </div>
-                          )}
+                          <span />
+                          <div className="ml-1 space-y-0.5">
+                            {cardDays.weekdays > 0 && (
+                              <div className="text-[11px] text-gray-400">
+                                {cardDays.weekdays} dias úteis × {formatCurrency(cardValorUtil)}
+                              </div>
+                            )}
+                            {cardDays.weekends > 0 && (
+                              <div className="text-[11px] text-gray-400">
+                                {cardDays.weekends} fins de semana × {formatCurrency(cardValorFds)}
+                              </div>
+                            )}
+                          </div>
+                          <span />
+                          <span />
+
+                          <Utensils className="w-3 h-3 text-orange-400" />
+                          <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
+                          <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                          <span className="text-right">{diffBadge(totalAlimentacao, plannedAlim)}</span>
+
+                          <Car className="w-3 h-3 text-purple-400" />
+                          <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
+                          <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
+                          <span className="text-right">{diffBadge(item.mobility, planned?.mobility ?? 0)}</span>
                         </div>
-                        <span />
-
-                        <Utensils className="w-3 h-3 text-orange-400" />
-                        <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
-                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-
-                        <Car className="w-3 h-3 text-purple-400" />
-                        <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                        <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700">
                     <span className="text-gray-400 text-[10px] uppercase tracking-wider font-medium">Total</span>
