@@ -424,7 +424,7 @@ export default function RhControlPage() {
     },
     prestacao_recebida: {
       label: "Prestação recebida",
-      shortLabel: "Recebida",
+      shortLabel: "Prest. recebida",
       description: "O responsável enviou a prestação de contas — aguardando análise do RH",
       icon: Send,
       color: "text-blue-700 dark:text-blue-300",
@@ -477,9 +477,17 @@ export default function RhControlPage() {
       badgeCls: "bg-gray-100 text-gray-600 border-gray-200",
       cardBorder: "border-gray-200",
     },
+    rh_action: {
+      label: "Pendências do RH", shortLabel: "Pendências RH", description: "",
+      icon: Shield, color: "text-blue-700", bg: "bg-blue-50",
+      border: "border-blue-200", iconColor: "text-blue-500",
+      badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
+      cardBorder: "border-blue-200",
+    },
   };
 
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || searchTerm !== "";
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || searchTerm !== "";
+  const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
   const rhActionCount = rhReceivedCount + rhPlanPendingCount;
@@ -659,13 +667,18 @@ export default function RhControlPage() {
               urgency === "critical" ? "bg-red-50 dark:bg-red-950/30" :
               urgency === "warning" ? "bg-amber-50/70 dark:bg-amber-950/20" : ""
             }`}>
-              <span className={`text-xs font-semibold flex items-center gap-1 justify-end ${
+              <span className={`text-xs font-bold flex items-center gap-1 justify-end uppercase tracking-wide ${
                 urgency === "critical" ? "text-red-600 dark:text-red-400" :
                 urgency === "warning" ? "text-amber-600 dark:text-amber-400" :
                 "text-gray-500"
               }`}>
                 {urgency === "critical" && <AlertTriangle className="w-3 h-3" />}
                 {timeInStatus(item.lastActivityDate)}
+              </span>
+              <span className="text-[9px] text-gray-400 dark:text-gray-500 block mt-0.5">
+                {item.responsavelAtual === "RH" ? "Aguardando análise do RH" :
+                 item.responsavelAtual === "Concluído" ? "Concluído" :
+                 "Aguardando envio do responsável"}
               </span>
             </div>
             {needsRhAction && navTarget && (
@@ -862,22 +875,28 @@ export default function RhControlPage() {
         })}
       </div>
 
-      {!isLoading && rhActionCount > 0 && filterStatus === "all" && (() => {
+      {!isLoading && rhActionCount > 0 && filterStatus === "all" && !isRhFilterActive && (() => {
         const avgWait = getAverageWaitTime(prestacaoItems);
-        const parts: string[] = [];
-        if (rhReceivedCount > 0) parts.push(`${rhReceivedCount} aguardando análise`);
-        if (rhPlanPendingCount > 0) parts.push(`${rhPlanPendingCount} com planejamento pendente`);
         return (
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-            <Send className="w-5 h-5 text-blue-500 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                {rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'} dependendo do RH
-              </p>
-              <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
-                {parts.join(" · ")}
-                {avgWait && rhReceivedCount > 0 ? ` · tempo médio: ${avgWait}` : ""}
-              </p>
+            <div className="flex-1 space-y-1">
+              {rhReceivedCount > 0 && (
+                <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
+                  <AlertTriangle className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span className="font-semibold">{rhReceivedCount} prestaç{rhReceivedCount === 1 ? 'ão' : 'ões'} aguardando análise</span>
+                </div>
+              )}
+              {rhPlanPendingCount > 0 && (
+                <div className="flex items-center gap-2 text-sm text-blue-700/80 dark:text-blue-400/80">
+                  <ClipboardList className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>{rhPlanPendingCount} planejamento{rhPlanPendingCount !== 1 ? 's' : ''} pendente{rhPlanPendingCount !== 1 ? 's' : ''}</span>
+                </div>
+              )}
+              {avgWait && rhReceivedCount > 0 && (
+                <p className="text-[11px] text-blue-500/70 dark:text-blue-400/60 pl-5.5">
+                  Tempo médio aguardando análise: {avgWait}
+                </p>
+              )}
             </div>
             <Button
               size="sm"
@@ -885,7 +904,7 @@ export default function RhControlPage() {
               onClick={() => setFilterStatus("rh_action")}
             >
               <Eye className="w-3.5 h-3.5 mr-1.5" />
-              Ver todos
+              Ver pendências
             </Button>
           </div>
         );
@@ -1003,6 +1022,23 @@ export default function RhControlPage() {
           </div>
         )}
       </div>
+
+      {isRhFilterActive && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+          <Shield className="w-3.5 h-3.5 text-blue-500" />
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-6 text-[10px] text-blue-500 hover:text-blue-700"
+            onClick={() => setFilterStatus("all")}
+          >
+            Limpar filtro
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

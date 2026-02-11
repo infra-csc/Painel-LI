@@ -1,0 +1,97 @@
+Aplicar apenas os seguintes refinamentos na tela
+“Controle de Prestações de Contas – RH”.
+
+Não alterar layout estrutural.
+Não alterar regras de negócio.
+Apenas ajustes de clareza e hierarquia.
+
+--------------------------------------------------
+1. MELHORAR O BANNER SUPERIOR
+
+Substituir texto genérico:
+
+“34 itens dependendo do RH”
+
+Por resumo contextual dividido por tipo:
+
+Exemplo:
+⚠️ 1 prestação aguardando análise
+📝 33 planejamentos pendentes
+
+Adicionar botão:
+“Ver pendências”
+
+Objetivo:
+Tornar o número mais claro e acionável.
+
+--------------------------------------------------
+2. AJUSTAR TEXTO DO STATUS “Recebida”
+
+Substituir o badge:
+
+“Recebida”
+
+Por:
+
+“Prestação recebida”
+
+Evitar termos genéricos.
+
+--------------------------------------------------
+3. EXIBIR RESPONSABILIDADE ATUAL NO CARD
+
+Abaixo do tempo no status (ex: “Há 5 dias”),
+adicionar texto discreto indicando responsabilidade atual.
+
+Exemplos:
+- “Aguardando envio do responsável”
+- “Aguardando análise do RH”
+
+Objetivo:
+Eliminar dúvida sobre quem precisa agir.
+
+--------------------------------------------------
+4. DESTACAR MELHOR O TEMPO NO STATUS
+
+O tempo (“Há 19h”, “Há 5 dias”) deve:
+
+- Ter maior contraste que o texto “Neste status”
+- Aplicar escala visual:
+
+0–3 dias → neutro
+4–15 dias → amarelo suave
++15 dias → vermelho suave com ícone ⚠️
+
+--------------------------------------------------
+5. APRIMORAR BLOCO DE DIFERENÇA FINANCEIRA
+
+No card expandido:
+
+Se economia:
+- Fundo verde suave
+- Texto:
+  “Diferença: R$ 105,00 (economia)”
+
+Se valor acima do planejado:
+- Fundo vermelho suave
+- Texto:
+  “Diferença: R$ 105,00 acima do planejado”
+
+Se igual:
+- Fundo neutro
+- Texto:
+  “Sem diferença em relação ao planejado”
+
+--------------------------------------------------
+6. MELHORAR INFORMAÇÃO POR EVENTO
+
+Ao lado do nome do evento, substituir:
+
+“21 prestações”
+
+Por:
+
+“21 prestações • 3 aguardando análise”
+
+Objetivo:
+Evitar necessidade de expandir apenas para saber prioridade.
