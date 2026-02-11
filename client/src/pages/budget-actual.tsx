@@ -372,18 +372,17 @@ export default function BudgetActualPage() {
     const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
     const totalDays = days.weekdays + days.weekends;
 
-    let valorUtil = 5000;
-    let valorFds = 10000;
+    let valorUtil = days.weekdays > 0 ? 5000 : 0;
+    let valorFds = days.weekends > 0 ? 10000 : 0;
 
     if (totalDays === 0 || storedSubtotalDiarias <= 0) {
-      // no days or no value, use defaults
-    } else if (days.weekdays === 0 && days.weekends === 1) {
-      valorFds = storedSubtotalDiarias;
-    } else if (days.weekdays === 1 && days.weekends === 0) {
-      valorUtil = storedSubtotalDiarias;
+      valorUtil = 0;
+      valorFds = 0;
     } else if (days.weekdays === 0) {
+      valorUtil = 0;
       valorFds = Math.round(storedSubtotalDiarias / days.weekends);
     } else if (days.weekends === 0) {
+      valorFds = 0;
       valorUtil = Math.round(storedSubtotalDiarias / days.weekdays);
     } else {
       const totalWeightedDays = days.weekdays + days.weekends * 2;
@@ -872,9 +871,12 @@ export default function BudgetActualPage() {
             const itemDays = getItemDayCounts(editingItem);
             const subtotalDiariasUtil = itemDays.weekdays * editFormData.valorDiariaUtil;
             const subtotalDiariasFds = itemDays.weekends * editFormData.valorDiariaFds;
-            const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
-            const modalTotal = subtotalDiarias + editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
+            const subtotalDiariasRaw = subtotalDiariasUtil + subtotalDiariasFds;
+            const modalTotalRaw = subtotalDiariasRaw + editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
               editFormData.weekendLunch + editFormData.weekendDinner;
+            const modalTotal = Math.abs(modalTotalRaw - editingItem.totalValue) <= 1 ? editingItem.totalValue : modalTotalRaw;
+            const subtotalDiarias = modalTotal - editFormData.mobility - editFormData.weekdayLunch - editFormData.weekdayDinner -
+              editFormData.weekendLunch - editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const planned = getPlannedRef(editingItem);
