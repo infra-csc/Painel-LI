@@ -475,7 +475,9 @@ export default function RhControlPage() {
   };
 
   const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || searchTerm !== "";
-  const rhActionCount = statusCounts.prestacao_recebida || 0;
+  const rhReceivedCount = statusCounts.prestacao_recebida || 0;
+  const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
+  const rhActionCount = rhReceivedCount + rhPlanPendingCount;
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     if (item.status === "planejamento_pendente") return 0;
@@ -857,27 +859,31 @@ export default function RhControlPage() {
 
       {!isLoading && rhActionCount > 0 && filterStatus === "all" && (() => {
         const avgWait = getAverageWaitTime(prestacaoItems);
+        const parts: string[] = [];
+        if (rhReceivedCount > 0) parts.push(`${rhReceivedCount} aguardando análise`);
+        if (rhPlanPendingCount > 0) parts.push(`${rhPlanPendingCount} com planejamento pendente`);
         return (
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
             <Send className="w-5 h-5 text-blue-500 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                {rhActionCount} prestaç{rhActionCount === 1 ? 'ão' : 'ões'} aguardando sua análise
+                {rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'} dependendo do RH
               </p>
-              {avgWait && (
-                <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
-                  Tempo médio aguardando: {avgWait}
-                </p>
-              )}
+              <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
+                {parts.join(" · ")}
+                {avgWait && rhReceivedCount > 0 ? ` · tempo médio: ${avgWait}` : ""}
+              </p>
             </div>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
-              onClick={() => setFilterStatus("prestacao_recebida")}
-            >
-              <Eye className="w-3.5 h-3.5 mr-1.5" />
-              Analisar agora
-            </Button>
+            {rhReceivedCount > 0 && (
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
+                onClick={() => setFilterStatus("prestacao_recebida")}
+              >
+                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                Analisar agora
+              </Button>
+            )}
           </div>
         );
       })()}
