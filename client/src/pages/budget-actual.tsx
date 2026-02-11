@@ -369,14 +369,18 @@ export default function BudgetActualPage() {
   const openEditModal = (item: BudgetActual) => {
     setEditingItem(item);
     const days = getItemDayCounts(item);
-    const storedSubtotalDiarias = item.dailyQuantity * item.dailyValue;
+    const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
     const totalDays = days.weekdays + days.weekends;
 
     let valorUtil = 5000;
     let valorFds = 10000;
 
-    if (totalDays === 0 || storedSubtotalDiarias === 0) {
+    if (totalDays === 0 || storedSubtotalDiarias <= 0) {
       // no days or no value, use defaults
+    } else if (days.weekdays === 0 && days.weekends === 1) {
+      valorFds = storedSubtotalDiarias;
+    } else if (days.weekdays === 1 && days.weekends === 0) {
+      valorUtil = storedSubtotalDiarias;
     } else if (days.weekdays === 0) {
       valorFds = Math.round(storedSubtotalDiarias / days.weekends);
     } else if (days.weekends === 0) {
@@ -878,7 +882,7 @@ export default function BudgetActualPage() {
             const plannedSubDiarias = plannedDailySubtotal;
             let plannedValorUtil = 0;
             let plannedValorFds = 0;
-            if (planned) {
+            if (planned && plannedSubDiarias > 0) {
               if (itemDays.weekdays === 0 && itemDays.weekends > 0) {
                 plannedValorFds = Math.round(plannedSubDiarias / itemDays.weekends);
               } else if (itemDays.weekdays > 0 && itemDays.weekends === 0) {
@@ -886,13 +890,14 @@ export default function BudgetActualPage() {
               } else if (itemDays.weekdays > 0 && itemDays.weekends > 0) {
                 const tw = itemDays.weekdays + itemDays.weekends * 2;
                 plannedValorUtil = Math.round(plannedSubDiarias / tw);
-                plannedValorFds = plannedValorUtil * 2;
+                plannedValorFds = Math.round((plannedSubDiarias - itemDays.weekdays * plannedValorUtil) / itemDays.weekends);
               }
             }
             const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
             const plannedTotal = planned ? planned.totalValue : 0;
-            const hasDivergence = planned && plannedTotal !== modalTotal;
-            const difference = modalTotal - plannedTotal;
+            const rawDifference = modalTotal - plannedTotal;
+            const hasDivergence = planned && Math.abs(rawDifference) > 1;
+            const difference = Math.abs(rawDifference) <= 1 ? 0 : rawDifference;
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
             const PRef = ({ value }: { value: number }) => (
@@ -998,7 +1003,7 @@ export default function BudgetActualPage() {
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
-                            {planned && plannedValorUtil > 0 && <PRef value={plannedValorUtil} />}
+                            {planned && <PRef value={plannedValorUtil} />}
                           </div>
                         </div>
                         <div className="text-right min-w-[90px]">
@@ -1028,7 +1033,7 @@ export default function BudgetActualPage() {
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
-                            {planned && plannedValorFds > 0 && <PRef value={plannedValorFds} />}
+                            {planned && <PRef value={plannedValorFds} />}
                           </div>
                         </div>
                         <div className="text-right min-w-[90px]">
