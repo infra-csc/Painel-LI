@@ -580,20 +580,6 @@ export default function BudgetActualPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-5 text-xs">
-                      <div className="text-center">
-                        <div className="text-gray-400 mb-0.5">Casa</div>
-                        <div className="font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(totalCasa)}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-gray-400 mb-0.5">Freela</div>
-                        <div className="font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(totalFreela)}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-gray-400 mb-0.5">Prestações</div>
-                        <div className="font-semibold text-gray-600 dark:text-gray-300">{filteredItems.length}</div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
