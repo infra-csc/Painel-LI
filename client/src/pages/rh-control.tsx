@@ -549,7 +549,7 @@ export default function RhControlPage() {
               <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
                 <span>{getFunctionName(item.functionId)}</span>
                 <span className="text-gray-300">·</span>
-                <span className="font-medium text-gray-500">{item.responsavelAtual}</span>
+                <span className="font-medium text-gray-500">{item.responsavelAtual === "Concluído" ? "Concluído" : `Aguardando: ${item.responsavelAtual}`}</span>
               </div>
             </div>
           </div>
