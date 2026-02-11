@@ -1,0 +1,152 @@
+Refinar a tela “Controle de Prestações de Contas – RH” mantendo a estrutura atual,
+mas melhorando hierarquia visual, clareza de status e foco em ação.
+
+Não alterar o fluxo.
+Não alterar regras de negócio.
+Apenas ajustes de UX e organização visual.
+
+--------------------------------------------------
+1. HIERARQUIA DE STATUS E URGÊNCIA
+
+1.1 Destacar tempo no status de forma progressiva:
+
+- 0–3 dias → visual neutro
+- 4–15 dias → destaque amarelo suave
+- +15 dias → destaque vermelho suave com ícone de alerta
+
+Exibir o tempo como:
+“Há 19h”
+“Há 3 dias”
+“Há 42 dias ⚠️”
+
+O tempo deve chamar mais atenção que o texto “Neste status”.
+
+Remover ou reduzir destaque do rótulo “Neste status”.
+O foco deve ser no tempo.
+
+--------------------------------------------------
+2. REMOVER REDUNDÂNCIA “COM O RH”
+
+Esta tela é exclusiva do RH.
+Remover o badge “Com o RH”.
+
+Caso necessário, substituir por:
+“Responsável atual: RH”
+apenas quando o responsável NÃO for o RH.
+
+--------------------------------------------------
+3. MELHORAR O BLOCO SUPERIOR DE ALERTA
+
+Quando houver prestações recebidas:
+Manter o banner:
+“1 prestação aguardando sua análise”
+
+Mas incluir:
+- Tempo médio aguardando
+- Botão primário destacado “Analisar agora”
+
+Evitar múltiplos banners.
+Manter apenas um resumo inteligente.
+
+--------------------------------------------------
+4. CARD EXPANDIDO — MELHORAR A TIMELINE
+
+Manter a timeline visível apenas ao expandir.
+
+Ajustes:
+
+- Deixar etapas mais claras:
+  ✔ Escalação
+  ✔ Planejado
+  ● Prestação (em análise)
+  ○ Aprovação
+
+- Usar cores por etapa:
+  Azul → Planejado
+  Roxo → Prestação
+  Verde → Aprovação
+
+- Exibir data em cada etapa quando disponível.
+
+--------------------------------------------------
+5. COMPARATIVO VISUAL MELHORADO (PLANEJADO X PRESTAÇÃO)
+
+No card expandido:
+
+Hoje:
+Dois blocos lado a lado.
+
+Ajustar para:
+
+- Destacar diferença total:
+  Se negativo → verde
+  Se positivo → vermelho
+
+Exibir abaixo do total:
+“Diferença: -R$ 105,00 (economia)”
+
+Se não houver diferença:
+“Sem diferença em relação ao planejado”
+
+--------------------------------------------------
+6. AÇÃO PRINCIPAL MAIS CLARA
+
+No card recolhido:
+Manter botão “Analisar”.
+
+No card expandido:
+Manter botão principal na parte inferior:
+“Analisar prestação →”
+
+Esse botão deve ser o único CTA primário.
+
+--------------------------------------------------
+7. AGRUPAMENTO POR EVENTO — MELHORIA
+
+Ao lado do nome do evento:
+
+Exibir:
+- Total de prestações
+- Quantas exigem ação do RH
+
+Exemplo:
+“21 prestações • 3 aguardando análise”
+
+Isso evita expandir desnecessariamente.
+
+--------------------------------------------------
+8. CONTRASTE E FOCO VISUAL
+
+- Aumentar contraste do nome do colaborador
+- Reduzir saturação do fundo amarelo
+- Usar borda esquerda colorida por status:
+  Azul → Recebida
+  Amarelo → Planejamento pendente
+  Verde → Aprovada
+  Vermelho → Recusada
+
+--------------------------------------------------
+9. CONCLUÍDOS
+
+Manter botão “Concluídos”, mas:
+
+- Transformar em toggle:
+  [ ] Mostrar concluídos
+
+Desativado por padrão.
+
+--------------------------------------------------
+OBJETIVO
+
+Transformar a tela em:
+
+- Painel claro
+- Foco em ação
+- Hierarquia visual por urgência
+- Comparação financeira mais evidente
+- Menos redundância visual
+- Mais leitura rápida
+
+Sem alterar regras de negócio.
+Sem adicionar novas etapas.
+Apenas refinamento visual e estrutural.

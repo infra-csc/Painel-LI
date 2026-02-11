@@ -62,12 +62,44 @@ function timeInStatus(date: Date | string | null | undefined): string {
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return "agora";
-  if (diffMin < 60) return `há ${diffMin}min`;
+  if (diffMin < 60) return `Há ${diffMin}min`;
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `há ${diffH}h`;
+  if (diffH < 24) return `Há ${diffH}h`;
   const diffD = Math.floor(diffH / 24);
-  if (diffD === 1) return "há 1 dia";
-  return `há ${diffD} dias`;
+  if (diffD === 1) return "Há 1 dia";
+  return `Há ${diffD} dias`;
+}
+
+type UrgencyLevel = "neutral" | "warning" | "critical";
+
+function getUrgencyLevel(date: Date | string | null | undefined): UrgencyLevel {
+  if (!date) return "neutral";
+  const now = new Date();
+  const d = new Date(date);
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = diffMs / (24 * 60 * 60 * 1000);
+  if (diffDays >= 15) return "critical";
+  if (diffDays > 3) return "warning";
+  return "neutral";
+}
+
+function getDiffDays(date: Date | string | null | undefined): number {
+  if (!date) return 0;
+  const now = new Date();
+  const d = new Date(date);
+  return (now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function getAverageWaitTime(items: PrestacaoItem[]): string {
+  const received = items.filter(i => i.status === "prestacao_recebida" && i.lastActivityDate);
+  if (received.length === 0) return "";
+  const now = new Date();
+  const totalDays = received.reduce((sum, i) => {
+    return sum + (now.getTime() - i.lastActivityDate!.getTime()) / (24 * 60 * 60 * 1000);
+  }, 0);
+  const avg = totalDays / received.length;
+  if (avg < 1) return "menos de 1 dia";
+  return `${Math.round(avg)} dia${Math.round(avg) !== 1 ? 's' : ''}`;
 }
 
 const CONCLUDED_STATUSES: PrestacaoStatus[] = ["aprovada_faturamento", "recusada"];
@@ -452,20 +484,37 @@ export default function RhControlPage() {
     return 3;
   };
 
+  const getStepDate = (item: PrestacaoItem, stepIndex: number): string | null => {
+    if (stepIndex === 0 && item.teamInclusion?.createdAt) {
+      return new Date(item.teamInclusion.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    }
+    if (stepIndex === 1 && item.planned?.createdAt) {
+      return new Date(item.planned.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    }
+    if (stepIndex === 2 && item.actual?.updatedAt) {
+      return new Date(item.actual.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    }
+    if (stepIndex === 3 && item.actual?.rhActionAt) {
+      return new Date(item.actual.rhActionAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    }
+    return null;
+  };
+
   const renderTimeline = (item: PrestacaoItem) => {
     const step = getTimelineStep(item);
+    const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
     const steps = [
-      { label: "Escalação", color: "cyan", completed: "bg-cyan-600 border-cyan-600", current: "border-cyan-500 text-cyan-600", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-500" },
-      { label: "Planejado", color: "blue", completed: "bg-blue-600 border-blue-600", current: "border-blue-500 text-blue-600", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-500" },
-      { label: "Prestação", color: "purple", completed: "bg-purple-600 border-purple-600", current: "border-purple-500 text-purple-600", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-500" },
-      { label: "Aprovação", color: "emerald", completed: "bg-emerald-600 border-emerald-600", current: "border-emerald-500 text-emerald-600", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-500" },
+      { label: "Escalação", completed: "bg-cyan-600 border-cyan-600", current: "border-cyan-500 text-cyan-600", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-500" },
+      { label: "Planejado", completed: "bg-blue-600 border-blue-600", current: "border-blue-500 text-blue-600", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-500" },
+      { label: "Prestação", completed: "bg-purple-600 border-purple-600", current: "border-purple-500 text-purple-600", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-500" },
+      { label: "Aprovação", completed: "bg-emerald-600 border-emerald-600", current: "border-emerald-500 text-emerald-600", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-500" },
     ];
     return (
       <div className="flex items-center gap-0 w-full">
         {steps.map((s, i) => {
-          const isCompleted = i < step;
-          const isCurrent = i === step;
-          const prevCompleted = i > 0 && i - 1 < step;
+          const isCompleted = isConcluded ? true : i < step;
+          const isCurrent = !isConcluded && i === step;
+          const dateStr = getStepDate(item, i);
           return (
             <div key={s.label} className="flex items-center flex-1">
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
@@ -474,13 +523,16 @@ export default function RhControlPage() {
                   isCurrent ? `bg-white dark:bg-gray-800 ${s.current}` :
                   'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-400'
                 }`}>
-                  {isCompleted ? <CheckCircle className="w-3 h-3" /> : i + 1}
+                  {isCompleted ? <CheckCircle className="w-3 h-3" /> : isCurrent ? <CircleDot className="w-3 h-3" /> : <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500" />}
                 </div>
                 <span className={`text-[8px] font-medium whitespace-nowrap ${
                   isCompleted ? s.text :
                   isCurrent ? `${s.text} font-semibold` :
                   'text-gray-400'
                 }`}>{s.label}</span>
+                {dateStr && (isCompleted || isCurrent) && (
+                  <span className="text-[7px] text-gray-400 whitespace-nowrap">{dateStr}</span>
+                )}
               </div>
               {i < steps.length - 1 && (
                 <div className={`h-0.5 flex-1 mx-1 ${
@@ -521,17 +573,30 @@ export default function RhControlPage() {
     return null;
   };
 
+  const getLeftBorderColor = (status: PrestacaoStatus): string => {
+    switch (status) {
+      case "prestacao_recebida": return "border-l-4 border-l-blue-500";
+      case "planejamento_pendente": return "border-l-4 border-l-amber-400";
+      case "aguardando_prestacao": return "border-l-4 border-l-slate-300";
+      case "devolvida_para_ajuste": return "border-l-4 border-l-orange-400";
+      case "aprovada_faturamento": return "border-l-4 border-l-emerald-500";
+      case "recusada": return "border-l-4 border-l-red-500";
+      default: return "";
+    }
+  };
+
   const renderPrestacaoCard = (item: PrestacaoItem) => {
     const config = statusConfig[item.status];
     const isExpanded = expandedCards.has(item.id);
     const isResubmitted = item.actual?.resubmitted;
     const navTarget = getNavigationTarget(item);
     const needsRhAction = item.status === "prestacao_recebida";
+    const urgency = getUrgencyLevel(item.lastActivityDate);
 
     return (
       <div
         key={item.id}
-        className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${config.cardBorder}`}
+        className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${getLeftBorderColor(item.status)} ${config.cardBorder}`}
       >
         <div
           className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
@@ -551,7 +616,7 @@ export default function RhControlPage() {
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                   {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'Colaborador a definir'}
                 </span>
                 {item.collaboratorId && item.planned?.collaboratorType && (
@@ -562,33 +627,37 @@ export default function RhControlPage() {
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
                 <span>{getFunctionName(item.functionId)}</span>
-                <span className="text-gray-300">·</span>
-                {item.responsavelAtual === "Concluído" ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-semibold text-[9px]">
-                    <CheckCircle className="w-2.5 h-2.5" /> Concluído
-                  </span>
-                ) : item.responsavelAtual === "RH" ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-semibold text-[9px]">
-                    <Clock className="w-2.5 h-2.5" /> Com o RH
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold text-[9px]">
-                    <Clock className="w-2.5 h-2.5" /> Com o Resp. Função
-                  </span>
+                {item.responsavelAtual !== "RH" && item.responsavelAtual !== "Concluído" && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium text-[9px]">
+                      <Clock className="w-2.5 h-2.5" /> Com o Resp. Função
+                    </span>
+                  </>
+                )}
+                {item.responsavelAtual === "Concluído" && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium text-[9px]">
+                      <CheckCircle className="w-2.5 h-2.5" /> Concluído
+                    </span>
+                  </>
                 )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <div className="text-right hidden sm:block">
-              <span className="text-[9px] uppercase text-gray-400 tracking-wider block">Neste status</span>
-              <span className={`text-[10px] font-medium ${
-                item.lastActivityDate && (new Date().getTime() - item.lastActivityDate.getTime()) > 3 * 24 * 60 * 60 * 1000
-                  ? 'text-red-500 font-semibold' :
-                item.lastActivityDate && (new Date().getTime() - item.lastActivityDate.getTime()) > 24 * 60 * 60 * 1000
-                  ? 'text-amber-600' : 'text-gray-500'
+            <div className={`text-right hidden sm:block px-2 py-1 rounded-md ${
+              urgency === "critical" ? "bg-red-50 dark:bg-red-950/30" :
+              urgency === "warning" ? "bg-amber-50/70 dark:bg-amber-950/20" : ""
+            }`}>
+              <span className={`text-xs font-semibold flex items-center gap-1 justify-end ${
+                urgency === "critical" ? "text-red-600 dark:text-red-400" :
+                urgency === "warning" ? "text-amber-600 dark:text-amber-400" :
+                "text-gray-500"
               }`}>
+                {urgency === "critical" && <AlertTriangle className="w-3 h-3" />}
                 {timeInStatus(item.lastActivityDate)}
               </span>
             </div>
@@ -607,60 +676,76 @@ export default function RhControlPage() {
 
         {isExpanded && (
           <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/50 dark:bg-gray-900/30">
-            <div className={`flex items-start gap-2 p-2.5 rounded-lg border ${config.bg} ${config.border}`}>
-              <config.icon className={`w-4 h-4 mt-0.5 shrink-0 ${config.iconColor}`} />
-              <div>
-                <p className={`text-xs font-semibold ${config.color}`}>{config.label}</p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{config.description}</p>
-              </div>
-            </div>
-
             <div className="py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
               {renderTimeline(item)}
             </div>
 
             {item.planned && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
-                  <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider mb-2">Planejado</p>
-                  <div className="space-y-1 text-[11px]">
-                    <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
-                    <div className="flex justify-between border-t border-blue-100 dark:border-blue-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span></div>
-                  </div>
-                </div>
-
-                {item.actual ? (
-                  <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
-                    <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider mb-2">Prestação de contas</p>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
+                    <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider mb-2">Planejado</p>
                     <div className="space-y-1 text-[11px]">
-                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
-                      <div className="flex justify-between border-t border-purple-100 dark:border-purple-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                      <div className="flex justify-between border-t border-blue-100 dark:border-blue-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span></div>
                     </div>
-                    {item.actual.changeReason && (
-                      <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                        <div className="flex items-start gap-1">
-                          <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
-                          <div>
-                            <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa da divergência</span>
-                            <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
+                  </div>
+
+                  {item.actual ? (
+                    <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
+                      <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider mb-2">Prestação de contas</p>
+                      <div className="space-y-1 text-[11px]">
+                        <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
+                        <div className="flex justify-between border-t border-purple-100 dark:border-purple-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span></div>
+                      </div>
+                      {item.actual.changeReason && (
+                        <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                          <div className="flex items-start gap-1">
+                            <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa da divergência</span>
+                              <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
-                    <div className="text-center">
-                      <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
-                      <p className="text-[10px] text-gray-400">Prestação não preenchida</p>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
+                      <div className="text-center">
+                        <FileText className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                        <p className="text-[10px] text-gray-400">Prestação não preenchida</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {item.actual && item.planned && (() => {
+                  const diff = item.actual.totalValue - item.planned.totalValue;
+                  if (diff === 0) {
+                    return (
+                      <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-[11px] text-gray-500">
+                        <CheckCircle className="w-3.5 h-3.5 text-gray-400" />
+                        Sem diferença em relação ao planejado
+                      </div>
+                    );
+                  }
+                  const isNegative = diff < 0;
+                  return (
+                    <div className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold ${
+                      isNegative
+                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+                        : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+                    }`}>
+                      Diferença: {fmt(Math.abs(diff))} {isNegative ? "(economia)" : "(acima do planejado)"}
+                    </div>
+                  );
+                })()}
+              </>
             )}
 
             {item.actual?.rhComment && (
@@ -704,16 +789,16 @@ export default function RhControlPage() {
             {navTarget && (
               <button
                 onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-medium transition-colors ${
-                  item.status === "planejamento_pendente"
-                    ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                    : item.status === "prestacao_recebida"
-                    ? "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                    : "border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30"
+                className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                  item.status === "prestacao_recebida"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                    : item.status === "planejamento_pendente"
+                    ? "border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    : "border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30"
                 }`}
               >
                 <navTarget.icon className="w-3.5 h-3.5" />
-                {navTarget.label}
+                {item.status === "prestacao_recebida" ? "Analisar prestação" : navTarget.label}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -770,22 +855,32 @@ export default function RhControlPage() {
         })}
       </div>
 
-      {!isLoading && rhActionCount > 0 && filterStatus === "all" && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-          <Send className="w-4 h-4 text-blue-500 shrink-0" />
-          <p className="text-sm text-blue-800 dark:text-blue-300">
-            <span className="font-semibold">{rhActionCount} prestaç{rhActionCount === 1 ? 'ão' : 'ões'} aguardando sua análise</span>
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto text-blue-700 border-blue-300 hover:bg-blue-100 text-xs h-7"
-            onClick={() => setFilterStatus("prestacao_recebida")}
-          >
-            Ver recebidas
-          </Button>
-        </div>
-      )}
+      {!isLoading && rhActionCount > 0 && filterStatus === "all" && (() => {
+        const avgWait = getAverageWaitTime(prestacaoItems);
+        return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+            <Send className="w-5 h-5 text-blue-500 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                {rhActionCount} prestaç{rhActionCount === 1 ? 'ão' : 'ões'} aguardando sua análise
+              </p>
+              {avgWait && (
+                <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
+                  Tempo médio aguardando: {avgWait}
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-4 shadow-sm"
+              onClick={() => setFilterStatus("prestacao_recebida")}
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+              Analisar agora
+            </Button>
+          </div>
+        );
+      })()}
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -798,22 +893,30 @@ export default function RhControlPage() {
               className="h-8 pl-8 text-xs"
             />
           </div>
-          <Button
-            variant={showConcluded ? "default" : "outline"}
-            size="sm"
-            className={`h-8 text-xs gap-1.5 ${showConcluded ? 'bg-indigo-600 text-white' : ''}`}
+          <button
+            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-2 transition-colors ${
+              showConcluded
+                ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
+            }`}
             onClick={() => setShowConcluded(!showConcluded)}
           >
-            <CheckCircle className="w-3.5 h-3.5" />
-            Concluídos
+            <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-colors ${
+              showConcluded
+                ? 'bg-indigo-600 border-indigo-600'
+                : 'border-gray-300 dark:border-gray-600'
+            }`}>
+              {showConcluded && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+            </div>
+            Mostrar concluídos
             {(statusCounts.aprovada_faturamento + statusCounts.recusada) > 0 && (
-              <span className={`text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold ${
-                showConcluded ? 'bg-white text-indigo-600' : 'bg-gray-200 text-gray-600'
+              <span className={`text-[9px] rounded-full min-w-[16px] h-4 flex items-center justify-center font-bold px-1 ${
+                showConcluded ? 'bg-indigo-200 text-indigo-700' : 'bg-gray-100 text-gray-500'
               }`}>
                 {statusCounts.aprovada_faturamento + statusCounts.recusada}
               </span>
             )}
-          </Button>
+          </button>
           <Button
             variant="outline"
             size="sm"
@@ -961,7 +1064,12 @@ export default function RhControlPage() {
                     <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
-                      <p className="text-[10px] text-gray-400">{group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}
+                        {group.actionNeeded > 0 && (
+                          <span className="text-blue-500 font-medium"> · {group.actionNeeded} aguardando análise</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
