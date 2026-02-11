@@ -987,18 +987,9 @@ export default function RhControlPage() {
       </div>
 
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <button
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 transition-colors group"
-          onClick={() => {
-            setFilterStatus("rh_action");
-            setShowConcluded(false);
-            setTimeout(() => {
-              document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 100);
-          }}
-        >
+        <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div className="text-left">
@@ -1012,11 +1003,20 @@ export default function RhControlPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-indigo-600 dark:text-indigo-300 group-hover:underline">Ver pendências</span>
-            <ArrowRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </button>
+          <button
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0"
+            onClick={() => {
+              setFilterStatus("rh_action");
+              setShowConcluded(false);
+              setTimeout(() => {
+                document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 100);
+            }}
+          >
+            <ClipboardList className="w-4 h-4" />
+            Ver {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''}
+          </button>
+        </div>
       )}
 
       <div className="space-y-2">
