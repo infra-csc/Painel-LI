@@ -563,9 +563,9 @@ export default function BudgetActualPage() {
 
             return (
               <div className="space-y-3">
-                <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border ${statusColor}`}>
-                  <span className="text-sm leading-none">{statusIcon}</span>
-                  <span className="text-xs font-medium">{statusLabel}</span>
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400">
+                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="text-[11px]">Preencha os valores reais de cada escala e envie para análise do RH.</span>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
