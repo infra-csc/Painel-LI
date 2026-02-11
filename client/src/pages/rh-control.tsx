@@ -71,7 +71,7 @@ function timeInStatus(date: Date | string | null | undefined): string {
   return `Há ${diffD} dias`;
 }
 
-type UrgencyLevel = "neutral" | "warning" | "critical";
+type UrgencyLevel = "neutral" | "low" | "medium" | "critical";
 
 function getUrgencyLevel(date: Date | string | null | undefined): UrgencyLevel {
   if (!date) return "neutral";
@@ -79,8 +79,9 @@ function getUrgencyLevel(date: Date | string | null | undefined): UrgencyLevel {
   const d = new Date(date);
   const diffMs = now.getTime() - d.getTime();
   const diffDays = diffMs / (24 * 60 * 60 * 1000);
-  if (diffDays >= 15) return "critical";
-  if (diffDays > 3) return "warning";
+  if (diffDays >= 7) return "critical";
+  if (diffDays >= 3) return "medium";
+  if (diffDays >= 1) return "low";
   return "neutral";
 }
 
@@ -614,83 +615,84 @@ export default function RhControlPage() {
         className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${getLeftBorderColor(item.status)} ${config.cardBorder}`}
       >
         <div
-          className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
+          className={`px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
             needsRhAction ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''
           }`}
           onClick={() => toggleExpand(item.id)}
         >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
-              <config.icon className="w-3 h-3" />
-              {config.shortLabel}
-            </div>
-            {isResubmitted && (
-              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-800 text-[9px] font-semibold text-violet-700 dark:text-violet-400">
-                <RotateCcw className="w-2.5 h-2.5" /> Reenviado
-              </span>
-            )}
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
                   {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'Colaborador a definir'}
                 </span>
                 {item.collaboratorId && item.planned?.collaboratorType && (
-                  <span className={`text-[10px] font-medium ${item.planned.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' : 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400'}`}>
                     {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                   </span>
                 )}
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400">
-                <span>{getFunctionName(item.functionId)}</span>
-                {item.responsavelAtual !== "RH" && item.responsavelAtual !== "Concluído" && (
-                  <>
-                    <span className="text-gray-300">·</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium text-[9px]">
-                      <Clock className="w-2.5 h-2.5" /> Com o Resp. Função
-                    </span>
-                  </>
-                )}
-                {item.responsavelAtual === "Concluído" && (
-                  <>
-                    <span className="text-gray-300">·</span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium text-[9px]">
-                      <CheckCircle className="w-2.5 h-2.5" /> Concluído
-                    </span>
-                  </>
+                {isResubmitted && (
+                  <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-800 text-[9px] font-semibold text-violet-700 dark:text-violet-400">
+                    <RotateCcw className="w-2.5 h-2.5" /> Reenviado
+                  </span>
                 )}
               </div>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
+                {item.event.name} · {getFunctionName(item.functionId)}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
+                <config.icon className="w-3 h-3" />
+                {config.shortLabel}
+              </div>
+
+              <div className={`text-right hidden sm:block px-2 py-1 rounded-md min-w-[70px] ${
+                urgency === "critical" ? "bg-red-50 dark:bg-red-950/30" :
+                urgency === "medium" ? "bg-orange-50/70 dark:bg-orange-950/20" :
+                urgency === "low" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""
+              }`}>
+                <span className={`text-xs font-bold flex items-center gap-1 justify-end ${
+                  urgency === "critical" ? "text-red-600 dark:text-red-400" :
+                  urgency === "medium" ? "text-orange-600 dark:text-orange-400" :
+                  urgency === "low" ? "text-amber-600 dark:text-amber-400" :
+                  "text-gray-400"
+                }`}>
+                  {urgency === "critical" && <AlertTriangle className="w-3 h-3" />}
+                  {timeInStatus(item.lastActivityDate)}
+                </span>
+              </div>
+
+              {needsRhAction && navTarget && (
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
+                  onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
+                >
+                  <Eye className="w-3 h-3 mr-1" /> Analisar
+                </Button>
+              )}
+              {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className={`text-right hidden sm:block px-2 py-1 rounded-md ${
-              urgency === "critical" ? "bg-red-50 dark:bg-red-950/30" :
-              urgency === "warning" ? "bg-amber-50/70 dark:bg-amber-950/20" : ""
+          <div className="flex items-center gap-3 mt-1.5">
+            <div className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded ${
+              item.responsavelAtual === "RH"
+                ? "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400"
+                : item.responsavelAtual === "Concluído"
+                ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"
+                : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"
             }`}>
-              <span className={`text-xs font-bold flex items-center gap-1 justify-end uppercase tracking-wide ${
-                urgency === "critical" ? "text-red-600 dark:text-red-400" :
-                urgency === "warning" ? "text-amber-600 dark:text-amber-400" :
-                "text-gray-500"
-              }`}>
-                {urgency === "critical" && <AlertTriangle className="w-3 h-3" />}
-                {timeInStatus(item.lastActivityDate)}
-              </span>
-              <span className="text-[9px] text-gray-400 dark:text-gray-500 block mt-0.5">
-                {item.responsavelAtual === "RH" ? "Aguardando análise do RH" :
-                 item.responsavelAtual === "Concluído" ? "Concluído" :
-                 "Aguardando envio do responsável"}
-              </span>
+              {item.responsavelAtual === "RH" ? (
+                <><Shield className="w-2.5 h-2.5" /> Responsável atual: RH</>
+              ) : item.responsavelAtual === "Concluído" ? (
+                <><CheckCircle className="w-2.5 h-2.5" /> Finalizada</>
+              ) : (
+                <><Clock className="w-2.5 h-2.5" /> Responsável atual: Resp. da função</>
+              )}
             </div>
-            {needsRhAction && navTarget && (
-              <Button
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
-                onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
-              >
-                <Eye className="w-3 h-3 mr-1" /> Analisar
-              </Button>
-            )}
-            {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </div>
         </div>
 
@@ -702,32 +704,67 @@ export default function RhControlPage() {
 
             {item.planned && (
               <>
+                {item.actual && item.planned && (() => {
+                  const diff = item.actual.totalValue - item.planned.totalValue;
+                  const isNegative = diff < 0;
+                  const isZero = diff === 0;
+                  return (
+                    <div className={`rounded-lg border-2 p-3 text-center ${
+                      isZero
+                        ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                        : isNegative
+                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
+                        : "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700"
+                    }`}>
+                      <p className="text-[9px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Diferença Planejado × Prestação</p>
+                      <p className={`text-lg font-bold tabular-nums ${
+                        isZero ? "text-gray-500" :
+                        isNegative ? "text-emerald-700 dark:text-emerald-300" :
+                        "text-red-700 dark:text-red-300"
+                      }`}>
+                        {isZero ? "R$ 0,00" : `${isNegative ? '-' : '+'}${fmt(Math.abs(diff))}`}
+                      </p>
+                      <p className={`text-[10px] font-medium ${
+                        isZero ? "text-gray-400" :
+                        isNegative ? "text-emerald-600 dark:text-emerald-400" :
+                        "text-red-600 dark:text-red-400"
+                      }`}>
+                        {isZero ? "Sem diferença" : isNegative ? "economia em relação ao planejado" : "acima do planejado"}
+                      </p>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
-                    <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider mb-2">Planejado</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[9px] uppercase text-blue-400 font-semibold tracking-wider">Planejado</p>
+                      <span className="text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span>
+                    </div>
                     <div className="space-y-1 text-[11px]">
-                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
-                      <div className="flex justify-between border-t border-blue-100 dark:border-blue-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-blue-600/80 dark:text-blue-400/80">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
                     </div>
                   </div>
 
                   {item.actual ? (
                     <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
-                      <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider mb-2">Prestação de contas</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[9px] uppercase text-purple-400 font-semibold tracking-wider">Prestação</p>
+                        <span className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
+                      </div>
                       <div className="space-y-1 text-[11px]">
-                        <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
-                        <div className="flex justify-between border-t border-purple-100 dark:border-purple-800 pt-1 mt-1"><span className="font-semibold text-gray-600">Total</span><span className="font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Diárias</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Alimentação</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Mobilidade</span><span className="tabular-nums text-purple-600/80 dark:text-purple-400/80">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
                       </div>
                       {item.actual.changeReason && (
                         <div className="mt-2 p-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
                           <div className="flex items-start gap-1">
                             <MessageSquare className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
                             <div>
-                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa da divergência</span>
+                              <span className="text-[9px] uppercase text-gray-400 font-medium tracking-wider">Justificativa</span>
                               <p className="text-[10px] text-gray-600 dark:text-gray-300">{item.actual.changeReason}</p>
                             </div>
                           </div>
@@ -743,28 +780,6 @@ export default function RhControlPage() {
                     </div>
                   )}
                 </div>
-
-                {item.actual && item.planned && (() => {
-                  const diff = item.actual.totalValue - item.planned.totalValue;
-                  if (diff === 0) {
-                    return (
-                      <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-[11px] text-gray-500">
-                        <CheckCircle className="w-3.5 h-3.5 text-gray-400" />
-                        Sem diferença em relação ao planejado
-                      </div>
-                    );
-                  }
-                  const isNegative = diff < 0;
-                  return (
-                    <div className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold ${
-                      isNegative
-                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
-                        : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
-                    }`}>
-                      Diferença: {fmt(Math.abs(diff))} {isNegative ? "(economia)" : "(acima do planejado)"}
-                    </div>
-                  );
-                })()}
               </>
             )}
 
@@ -842,37 +857,114 @@ export default function RhControlPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-6 gap-2">
-        {STATUS_ORDER.map(status => {
-          const config = statusConfig[status];
-          const count = statusCounts[status] || 0;
-          const isActive = filterStatus === status;
-          const needsRhAttention = status === "prestacao_recebida" || status === "planejamento_pendente";
-          return (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(isActive ? "all" : status)}
-              className={`rounded-xl border-2 p-3 text-left transition-all relative ${
-                isActive
-                  ? `${config.bg} ${config.border} ring-2 ring-offset-1`
-                  : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
-              }`}
-            >
-              {needsRhAttention && count > 0 && !isActive && (
-                <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-              )}
-              <div className="flex items-center justify-between mb-1">
-                <config.icon className={`w-4 h-4 ${config.iconColor}`} />
-                <span className={`text-2xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
-                  {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
-                </span>
-              </div>
-              <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
-                {config.shortLabel}
-              </span>
-            </button>
-          );
-        })}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3">
+          <p className="text-[9px] uppercase tracking-wider font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1.5">
+            <Shield className="w-3 h-3" />
+            Pendências do RH
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["prestacao_recebida", "planejamento_pendente"] as PrestacaoStatus[]).map(status => {
+              const config = statusConfig[status];
+              const count = statusCounts[status] || 0;
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-lg border p-2.5 text-left transition-all relative ${
+                    isActive
+                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
+                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
+                  }`}
+                >
+                  {count > 0 && !isActive && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                  )}
+                  <div className="flex items-center justify-between mb-0.5">
+                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
+                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
+                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
+                    {config.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/20 p-3">
+          <p className="text-[9px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+            <Clock className="w-3 h-3" />
+            Em andamento
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["aguardando_prestacao", "devolvida_para_ajuste"] as PrestacaoStatus[]).map(status => {
+              const config = statusConfig[status];
+              const count = statusCounts[status] || 0;
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-lg border p-2.5 text-left transition-all ${
+                    isActive
+                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
+                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-0.5">
+                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
+                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
+                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
+                    {config.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 p-3">
+          <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-2 flex items-center gap-1.5">
+            <CheckCircle className="w-3 h-3" />
+            Finalizadas
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["aprovada_faturamento", "recusada"] as PrestacaoStatus[]).map(status => {
+              const config = statusConfig[status];
+              const count = statusCounts[status] || 0;
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-lg border p-2.5 text-left transition-all ${
+                    isActive
+                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
+                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-0.5">
+                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
+                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
+                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
+                    {config.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {!isLoading && rhActionCount > 0 && filterStatus === "all" && !isRhFilterActive && (() => {

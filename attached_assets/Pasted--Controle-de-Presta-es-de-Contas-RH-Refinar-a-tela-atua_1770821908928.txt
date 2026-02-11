@@ -1,0 +1,146 @@
+
+Controle de Prestações de Contas – RH
+
+Refinar a tela atual mantendo a estrutura existente, mas aplicando melhorias de hierarquia visual, clareza de responsabilidade e leitura estratégica.
+
+1️⃣ Reorganizar o Card Individual em 3 Zonas
+🔹 ZONA 1 — Cabeçalho Estratégico
+
+Reestruturar o topo do card aberto com:
+
+Nome do colaborador com maior peso tipográfico
+
+Evento + função abaixo em texto secundário
+
+Badge de status com cor forte e ícone
+
+Indicador claro de responsável atual
+
+Tempo parado destacado
+
+Botão principal à direita
+
+Status visuais padronizados:
+
+🔵 Prestação recebida
+
+🟡 Planejamento pendente
+
+🟠 Com responsável da função
+
+🟢 Aprovada
+
+🔴 Recusada
+
+Adicionar linha fixa:
+
+Responsável atual:
+
+RH
+
+Responsável da função
+
+Aguardando ação
+
+Finalizada
+
+Essa informação deve aparecer mesmo com o card recolhido.
+
+🔹 ZONA 2 — Comparativo Financeiro Mais Forte
+
+Melhorar a área Planejado x Prestação:
+
+Manter lado a lado
+
+Destacar o TOTAL no topo de cada bloco
+
+Dar mais peso visual à DIFERENÇA
+
+Estrutura:
+
+PLANEJADO
+Total: R$ 1.345,00
+
+PRESTAÇÃO
+Total: R$ 1.240,00
+
+Diferença: -R$ 105,00 (economia)
+
+Regras visuais:
+
+Verde → economia
+
+Vermelho → valor maior que planejado
+
+Cinza → sem diferença
+
+A diferença deve ter maior destaque que subtotais.
+
+
+2️⃣ Tempo Parado com Hierarquia Visual
+
+Aplicar regra automática de cor no tempo:
+
+Cinza → menos de 1 dia
+
+Amarelo → 1 a 3 dias
+
+Laranja → 3 a 7 dias
+
+Vermelho → mais de 7 dias
+
+O tempo deve mudar dinamicamente conforme envelhece.
+
+3️⃣ Reorganizar Contadores do Topo
+
+Agrupar visualmente os cards de status em 3 blocos:
+
+Pendências do RH
+
+Prestação recebida
+
+Planejamento pendente
+
+Em andamento (fora do RH)
+
+Aguardando responsável
+
+Devolvida
+
+Finalizadas
+
+Aprovada
+
+Recusada
+
+Separar visualmente esses grupos para melhorar leitura estratégica.
+
+4️⃣ Indicador Permanente de Responsável Atual
+
+Adicionar dentro de cada card (inclusive fechado):
+
+Responsável atual:
+
+RH
+
+Responsável da função
+
+Finalizada
+
+Essa informação deve estar sempre visível, sem precisar abrir o card.
+
+Objetivo Final
+
+A tela deve:
+
+Ter hierarquia clara
+
+Permitir leitura em segundos
+
+Mostrar responsabilidade sem ambiguidade
+
+Destacar diferença financeira
+
+Evidenciar gargalos por tempo parado
+
+Ter aparência de produto SaaS maduro e estratégico
