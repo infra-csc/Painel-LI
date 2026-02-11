@@ -71,13 +71,20 @@ function CurrencyInput({ value, onChange, className, disabled }: {
 
 export default function BudgetActualPage() {
   const searchString = useSearch();
-  const urlParams = new URLSearchParams(searchString);
-  const urlEventId = urlParams.get("event") || "";
-  const urlCollaboratorId = urlParams.get("collaborator") || "";
-  const urlFunctionId = urlParams.get("function") || "";
+  const { urlEventId, urlCollaboratorId, urlFunctionId } = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return {
+      urlEventId: p.get("event") || "",
+      urlCollaboratorId: p.get("collaborator") || "",
+      urlFunctionId: p.get("function") || "",
+    };
+  }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(urlEventId);
+  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("event") || "";
+  });
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
   const [editFormData, setEditFormData] = useState<{
     dailyQuantity: number;

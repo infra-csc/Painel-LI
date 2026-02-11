@@ -60,13 +60,19 @@ const CARD_BORDER_COLORS = {
 
 export default function BudgetPlannedPage() {
   const searchString = useSearch();
-  const urlParams = new URLSearchParams(searchString);
-  const urlEventId = urlParams.get("event") || "";
-  const urlCollaboratorId = urlParams.get("collaborator") || "";
-  const urlFunctionId = urlParams.get("function") || "";
+  const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return {
+      urlCollaboratorId: p.get("collaborator") || "",
+      urlFunctionId: p.get("function") || "",
+    };
+  }, [searchString]);
   const [highlightCardId, setHighlightCardId] = useState<string>("");
 
-  const [selectedEventId, setSelectedEventId] = useState<string>(urlEventId);
+  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("event") || "";
+  });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string } | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
