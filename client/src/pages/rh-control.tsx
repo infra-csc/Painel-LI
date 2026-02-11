@@ -987,7 +987,7 @@ export default function RhControlPage() {
       </div>
 
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between px-5 py-4 rounded-lg border-l-4 border-l-indigo-500 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="flex items-center justify-between px-5 py-4 rounded-lg border-l-4 border-l-indigo-500 border border-gray-200 dark:border-gray-700 bg-indigo-50/40 dark:bg-indigo-950/20">
           <div className="flex items-center gap-3.5">
             <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
               <ClipboardList className="w-[18px] h-[18px] text-gray-600 dark:text-gray-400" />
