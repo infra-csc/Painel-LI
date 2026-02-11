@@ -77,6 +77,7 @@ export default function RhControlPage() {
   const [filterEvent, setFilterEvent] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
+  const [filterCollaborator, setFilterCollaborator] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showConcluded, setShowConcluded] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
@@ -283,13 +284,15 @@ export default function RhControlPage() {
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
       if (filterFunction !== "all" && item.functionId !== filterFunction) return false;
+      if (filterCollaborator === "a_definir" && item.collaboratorId) return false;
+      if (filterCollaborator === "definido" && !item.collaboratorId) return false;
       if (searchTerm) {
         const name = getCollaboratorName(item.collaboratorId).toLowerCase();
         if (!name.includes(searchTerm.toLowerCase())) return false;
       }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, searchTerm, showConcluded, collaborators]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, searchTerm, showConcluded, collaborators]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -322,7 +325,15 @@ export default function RhControlPage() {
 
   const usedFunctionIds = useMemo(() => {
     const ids = new Set(prestacaoItems.map(i => i.functionId).filter(Boolean));
-    return Array.from(ids);
+    return Array.from(ids).sort((a, b) => {
+      const nameA = getFunctionName(a).toLowerCase();
+      const nameB = getFunctionName(b).toLowerCase();
+      return nameA.localeCompare(nameB, 'pt-BR');
+    });
+  }, [prestacaoItems, functions]);
+
+  const hasItemsWithoutCollaborator = useMemo(() => {
+    return prestacaoItems.some(i => !i.collaboratorId);
   }, [prestacaoItems]);
 
   const eventIdsWithInclusions = useMemo(() => {
@@ -431,7 +442,7 @@ export default function RhControlPage() {
     },
   };
 
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterStatus !== "all" || searchTerm !== "";
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || searchTerm !== "";
   const rhActionCount = statusCounts.prestacao_recebida || 0;
 
   const getTimelineStep = (item: PrestacaoItem): number => {
@@ -810,7 +821,7 @@ export default function RhControlPage() {
             Filtros
             {hasActiveFilters && (
               <span className="bg-indigo-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {[filterEvent !== "all", filterFunction !== "all", filterStatus !== "all"].filter(Boolean).length}
+                {[filterEvent !== "all", filterFunction !== "all", filterCollaborator !== "all", filterStatus !== "all"].filter(Boolean).length}
               </span>
             )}
           </Button>
@@ -819,7 +830,7 @@ export default function RhControlPage() {
               variant="ghost"
               size="sm"
               className="h-8 text-xs text-gray-400 hover:text-gray-600"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterStatus("all"); setSearchTerm(""); }}
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}
             >
               Limpar
             </Button>
@@ -848,6 +859,16 @@ export default function RhControlPage() {
                 {usedFunctionIds.map(fid => (
                   <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterCollaborator} onValueChange={setFilterCollaborator}>
+              <SelectTrigger className="h-8 text-xs w-48 border-gray-200">
+                <SelectValue placeholder="Colaborador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os colaboradores</SelectItem>
+                <SelectItem value="definido">Com colaborador</SelectItem>
+                <SelectItem value="a_definir">Colaborador a definir</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as PrestacaoStatus)}>
@@ -897,7 +918,7 @@ export default function RhControlPage() {
               variant="outline"
               size="sm"
               className="mt-3 text-xs"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterStatus("all"); setSearchTerm(""); }}
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}
             >
               Limpar filtros
             </Button>
