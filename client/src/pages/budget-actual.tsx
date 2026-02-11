@@ -384,7 +384,7 @@ export default function BudgetActualPage() {
     } else {
       const totalWeightedDays = days.weekdays + days.weekends * 2;
       valorUtil = Math.round(storedSubtotalDiarias / totalWeightedDays);
-      valorFds = valorUtil * 2;
+      valorFds = Math.round((storedSubtotalDiarias - days.weekdays * valorUtil) / days.weekends);
     }
 
     setEditFormData({
@@ -875,6 +875,20 @@ export default function BudgetActualPage() {
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const planned = getPlannedRef(editingItem);
             const plannedDailySubtotal = planned ? planned.dailyQuantity * planned.dailyValue : 0;
+            const plannedSubDiarias = plannedDailySubtotal;
+            let plannedValorUtil = 0;
+            let plannedValorFds = 0;
+            if (planned) {
+              if (itemDays.weekdays === 0 && itemDays.weekends > 0) {
+                plannedValorFds = Math.round(plannedSubDiarias / itemDays.weekends);
+              } else if (itemDays.weekdays > 0 && itemDays.weekends === 0) {
+                plannedValorUtil = Math.round(plannedSubDiarias / itemDays.weekdays);
+              } else if (itemDays.weekdays > 0 && itemDays.weekends > 0) {
+                const tw = itemDays.weekdays + itemDays.weekends * 2;
+                plannedValorUtil = Math.round(plannedSubDiarias / tw);
+                plannedValorFds = plannedValorUtil * 2;
+              }
+            }
             const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
             const plannedTotal = planned ? planned.totalValue : 0;
             const hasDivergence = planned && plannedTotal !== modalTotal;
@@ -973,14 +987,19 @@ export default function BudgetActualPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400 font-medium">R$</span>
-                          <CurrencyInput
-                            className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            value={editFormData.valorDiariaUtil}
-                            onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
-                            disabled={itemDays.weekdays === 0}
-                          />
-                          <span className="text-[10px] text-gray-400">/dia</span>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400 font-medium">R$</span>
+                              <CurrencyInput
+                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                value={editFormData.valorDiariaUtil}
+                                onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
+                                disabled={itemDays.weekdays === 0}
+                              />
+                              <span className="text-[10px] text-gray-400">/dia</span>
+                            </div>
+                            {planned && plannedValorUtil > 0 && <PRef value={plannedValorUtil} />}
+                          </div>
                         </div>
                         <div className="text-right min-w-[90px]">
                           <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasUtil)}</span>
@@ -998,14 +1017,19 @@ export default function BudgetActualPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400 font-medium">R$</span>
-                          <CurrencyInput
-                            className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            value={editFormData.valorDiariaFds}
-                            onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
-                            disabled={itemDays.weekends === 0}
-                          />
-                          <span className="text-[10px] text-gray-400">/dia</span>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400 font-medium">R$</span>
+                              <CurrencyInput
+                                className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                value={editFormData.valorDiariaFds}
+                                onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
+                                disabled={itemDays.weekends === 0}
+                              />
+                              <span className="text-[10px] text-gray-400">/dia</span>
+                            </div>
+                            {planned && plannedValorFds > 0 && <PRef value={plannedValorFds} />}
+                          </div>
                         </div>
                         <div className="text-right min-w-[90px]">
                           <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasFds)}</span>
