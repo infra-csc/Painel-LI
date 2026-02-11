@@ -540,7 +540,7 @@ export default function RhControlPage() {
                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                   {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'Colaborador a definir'}
                 </span>
-                {item.planned?.collaboratorType && (
+                {item.collaboratorId && item.planned?.collaboratorType && (
                   <span className={`text-[10px] font-medium ${item.planned.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
                     {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                   </span>
