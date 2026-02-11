@@ -779,10 +779,6 @@ export default function BudgetPlannedPage() {
                               <span>
                                 {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                               </span>
-                              <span className="text-gray-300 dark:text-gray-600">·</span>
-                              <span>{budget.weekdays} úteis</span>
-                              <span className="text-gray-300 dark:text-gray-600">·</span>
-                              <span>{budget.weekends} fds</span>
                             </div>
                           )}
                           <div className="flex justify-between items-center py-1">
