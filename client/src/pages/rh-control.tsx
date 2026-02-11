@@ -999,7 +999,7 @@ export default function RhControlPage() {
               <div className="flex flex-col gap-0.5 mt-0.5">
                 {rhPlanPendingCount > 0 && (
                   <p className="text-[13px] tracking-wide">
-                    <span className="font-bold text-amber-500 dark:text-amber-400">{rhPlanPendingCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">{rhPlanPendingCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</span>
                   </p>
                 )}
                 {rhReceivedCount > 0 && (
