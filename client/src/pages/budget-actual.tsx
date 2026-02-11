@@ -497,18 +497,6 @@ export default function BudgetActualPage() {
           {selectedEventId && (
             <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
           )}
-          {selectedEventId && filteredItems.length > 0 && (
-            sentForReview ? (
-              <Badge className="text-[10px] h-5 px-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
-                <Send className="w-3 h-3 mr-1" />
-                Enviado para revisão
-              </Badge>
-            ) : (
-              <Badge className="text-[10px] h-5 px-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
-                Em preenchimento
-              </Badge>
-            )
-          )}
         </div>
       </div>
 
@@ -541,36 +529,76 @@ export default function BudgetActualPage() {
         </div>
       ) : (
         <>
-          <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-purple-500 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
-                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatCurrency(totalRealizado)}</div>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
-                  <span className={`text-[11px] tabular-nums font-medium ${
-                    totalDifference === 0 ? 'text-emerald-600' : totalDifference > 0 ? 'text-red-500' : 'text-emerald-600'
-                  }`}>
-                    Diferença: {totalDifference === 0 ? 'R$ 0,00' : `${totalDifference > 0 ? '+' : '-'} ${formatCurrency(Math.abs(totalDifference))}`}
-                  </span>
+          {(() => {
+            const eventItems = budgetActual?.filter(a => a.eventId === selectedEventId) || [];
+            const allApproved = eventItems.length > 0 && eventItems.every(i => i.rhStatus === "aprovado");
+            const anyDevolvido = eventItems.some(i => i.rhStatus === "devolvido");
+            const anyRejeitado = eventItems.some(i => i.rhStatus === "rejeitado");
+            const allSent = eventItems.length > 0 && eventItems.every(i => i.sentForReview);
+            const anySent = eventItems.some(i => i.sentForReview);
+
+            let statusLabel = "Em preenchimento";
+            let statusColor = "bg-amber-50 text-amber-700 border-amber-200";
+            let statusIcon = "🟡";
+
+            if (allApproved) {
+              statusLabel = "Aprovada";
+              statusColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+              statusIcon = "🟢";
+            } else if (anyDevolvido || anyRejeitado) {
+              statusLabel = "Devolvida para ajuste";
+              statusColor = "bg-red-50 text-red-700 border-red-200";
+              statusIcon = "🔴";
+            } else if (allSent || anySent) {
+              statusLabel = "Aguardando análise do RH";
+              statusColor = "bg-blue-50 text-blue-700 border-blue-200";
+              statusIcon = "🔵";
+            }
+
+            const diffLabel = totalDifference === 0
+              ? { text: "Dentro do planejado", color: "text-gray-500" }
+              : totalDifference < 0
+                ? { text: `Economia de ${formatCurrency(Math.abs(totalDifference))}`, color: "text-emerald-600" }
+                : { text: `Acima do planejado em ${formatCurrency(totalDifference)}`, color: "text-red-500" };
+
+            return (
+              <div className="space-y-3">
+                <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border ${statusColor}`}>
+                  <span className="text-sm leading-none">{statusIcon}</span>
+                  <span className="text-xs font-medium">{statusLabel}</span>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-gray-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalRealizado)}</div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
+                        <span className={`text-[11px] tabular-nums font-medium ${diffLabel.color}`}>
+                          {diffLabel.text}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-5 text-xs">
+                      <div className="text-center">
+                        <div className="text-gray-400 mb-0.5">Casa</div>
+                        <div className="font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(totalCasa)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400 mb-0.5">Freela</div>
+                        <div className="font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(totalFreela)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400 mb-0.5">Prestações</div>
+                        <div className="font-semibold text-gray-600 dark:text-gray-300">{filteredItems.length}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-5 text-xs">
-                <div className="text-center">
-                  <div className="text-gray-400 mb-0.5">Casa</div>
-                  <div className="font-semibold text-gray-600 dark:text-gray-300">{formatCurrency(totalCasa)}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400 mb-0.5">Freela</div>
-                  <div className="font-semibold text-gray-600 dark:text-gray-300">{formatCurrency(totalFreela)}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400 mb-0.5">Execuções</div>
-                  <div className="font-semibold text-gray-600 dark:text-gray-300">{filteredItems.length}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
