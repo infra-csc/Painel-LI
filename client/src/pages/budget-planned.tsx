@@ -614,28 +614,6 @@ export default function BudgetPlannedPage() {
               </div>
             </div>
 
-            {/* Status do Planejamento */}
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Status:</span>
-              <Badge className={`text-[11px] h-5 px-2 font-medium ${
-                stats.progressoEnvio === 100
-                  ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/50 dark:text-green-300'
-                  : stats.enviados > 0
-                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300'
-                  : stats.total > 0
-                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400'
-              }`}>
-                {stats.progressoEnvio === 100
-                  ? 'Enviado para realização'
-                  : stats.enviados > 0
-                  ? 'Planejamento em andamento'
-                  : stats.total > 0
-                  ? 'Escalação concluída'
-                  : 'Aguardando escalação'}
-              </Badge>
-            </div>
-
             {/* Filtros e Busca */}
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -762,8 +740,8 @@ export default function BudgetPlannedPage() {
                               }`}>
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
-                              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 ml-1">{formatCurrency(budget.totalFinal)}</span>
                             </div>
+                            <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(budget.totalFinal)}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -795,44 +773,35 @@ export default function BudgetPlannedPage() {
                       
                       {/* Corpo do Card - Colapsável */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 text-sm">
-                          <div className="space-y-1">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Custos Operacionais</div>
-                            <div className="flex justify-between items-center py-1">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                                <span className="text-xs text-gray-400">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
-                              </div>
-                              <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
+                        <div className="px-4 py-3 text-sm space-y-1">
+                          <div className="flex justify-between items-center py-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                              <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+                              <span className="text-xs text-gray-400">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
                             </div>
-                            <div className="flex justify-between items-center py-1">
-                              <div className="flex items-center gap-2">
-                                <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                                <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
-                              </div>
-                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
-                            </div>
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
                           </div>
-
-                          <div className="border-t border-gray-100 dark:border-gray-700 my-2" />
-
-                          <div className="space-y-1">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Custos Extras</div>
-                            <div className="flex justify-between items-center py-1">
-                              <div className="flex items-center gap-2">
-                                <Car className="w-3.5 h-3.5 text-purple-500" />
-                                <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                              </div>
-                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.mobilidade)}</span>
+                          <div className="flex justify-between items-center py-1">
+                            <div className="flex items-center gap-2">
+                              <Utensils className="w-3.5 h-3.5 text-orange-500" />
+                              <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
                             </div>
-                            <div className="flex justify-between items-center py-1">
-                              <div className="flex items-center gap-2">
-                                <Coffee className="w-3.5 h-3.5 text-amber-500" />
-                                <span className="text-gray-600 dark:text-gray-400">Ajuda de custo</span>
-                              </div>
-                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.ajudaCusto)}</span>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <div className="flex items-center gap-2">
+                              <Car className="w-3.5 h-3.5 text-purple-500" />
+                              <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
                             </div>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.mobilidade)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <div className="flex items-center gap-2">
+                              <Coffee className="w-3.5 h-3.5 text-amber-500" />
+                              <span className="text-gray-600 dark:text-gray-400">Ajuda de custo</span>
+                            </div>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.ajudaCusto)}</span>
                           </div>
                         </div>
                       )}
