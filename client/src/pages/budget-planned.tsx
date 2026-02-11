@@ -741,7 +741,6 @@ export default function BudgetPlannedPage() {
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
                             </div>
-                            <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(budget.totalFinal)}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -774,6 +773,18 @@ export default function BudgetPlannedPage() {
                       {/* Corpo do Card - Colapsável */}
                       {!isCollapsed && (
                         <div className="px-4 py-3 text-sm space-y-1">
+                          {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
+                            <div className="flex items-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span>
+                                {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                              </span>
+                              <span className="text-gray-300 dark:text-gray-600">·</span>
+                              <span>{budget.weekdays} úteis</span>
+                              <span className="text-gray-300 dark:text-gray-600">·</span>
+                              <span>{budget.weekends} fds</span>
+                            </div>
+                          )}
                           <div className="flex justify-between items-center py-1">
                             <div className="flex items-center gap-2">
                               <Calendar className="w-3.5 h-3.5 text-blue-500" />
