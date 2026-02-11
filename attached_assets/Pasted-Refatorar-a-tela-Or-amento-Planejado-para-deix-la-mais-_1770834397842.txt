@@ -1,0 +1,116 @@
+Refatorar a tela Orçamento Planejado para deixá-la mais estratégica, clara e orientada à gestão.
+
+🎯 1️⃣ Melhorar o Card Individual do Colaborador
+🔹 1.1 Status visual lateral
+
+Adicionar uma faixa lateral esquerda colorida no card conforme status:
+
+Cinza → Não enviado para execução
+
+Azul → Pronto para envio
+
+Verde → Enviado para execução
+
+Laranja → Ajustado após devolução
+
+Isso deve permitir leitura rápida visual.
+
+🔹 1.2 Melhorar exibição das diárias
+
+Substituir formato atual:
+
+4x R$ 250,00
+
+Por formato detalhado:
+
+Diárias
+2 dias úteis × R$ 50
+2 fins de semana × R$ 100
+R$ 300,00
+
+Separar visualmente úteis e fim de semana.
+
+🔹 1.3 Mostrar impacto no orçamento
+
+Adicionar abaixo do nome do colaborador:
+
+Impacto no orçamento: X% do total do evento
+
+Calcular automaticamente com base no total geral.
+
+🔹 1.4 Exibir última alteração
+
+Adicionar no topo do card:
+
+Última edição: DD/MM por Nome do usuário
+
+🎯 2️⃣ Melhorar Bloco “Envio para Realizado”
+
+Transformar em um bloco mais claro e funcional.
+
+Substituir barra atual por:
+
+Planejamento do evento
+8 de 12 enviados para execução
+
+Barra visual real de progresso (proporcional)
+
+Botão fixo à direita:
+
+Enviar selecionados para execução (X)
+
+Desabilitado se nenhum selecionado
+
+Atualiza dinamicamente
+
+Se todos enviados:
+
+Exibir mensagem:
+
+✔️ Planejamento concluído — aguardando execuções
+
+Remover botão nesse caso.
+
+🎯 3️⃣ Melhorar Filtros
+
+Adicionar filtros rápidos acima da listagem:
+
+☐ Apenas não enviados
+☐ Apenas ajustados
+☐ Apenas acima da média
+☐ Apenas maior custo
+
+Manter filtros existentes.
+
+🎯 4️⃣ Melhorar Bloco Verde (Resumo do Evento)
+
+Adicionar abaixo do total:
+
+Média por colaborador
+
+Maior custo individual
+
+% Casa
+
+% Freela
+
+Exemplo:
+
+Maior custo individual: R$ X
+Freelas representam 27% do orçamento
+
+🎯 5️⃣ Ajustes Visuais Gerais
+
+Melhor hierarquia tipográfica
+
+Mais contraste entre valores e labels
+
+Ícones menores e mais discretos
+
+Espaçamento vertical mais consistente
+
+Evitar excesso de cinza neutro
+
+Objetivo final:
+
+Transformar o Planejado em painel de gestão estratégica e não apenas lista operacional.
