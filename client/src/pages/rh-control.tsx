@@ -698,7 +698,7 @@ export default function RhControlPage() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 pt-0.5">
-              {needsRhAction && navTarget && (
+              {needsRhAction && navTarget && !isExpanded && (
                 <Button
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
