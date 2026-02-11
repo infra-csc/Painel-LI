@@ -954,7 +954,7 @@ export default function BudgetActualPage() {
                       </div>
                     </div>
                     {planned && (
-                      <div className="flex flex-col items-end gap-1.5">
+                      <div className="flex flex-col items-end gap-1.5 mr-6">
                         <span className="text-[10px] text-gray-400">Realizado com base no planejado</span>
                         {statusBadge && (
                           <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border}`}>
@@ -1063,7 +1063,7 @@ export default function BudgetActualPage() {
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
                             {isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) && (
-                              <div className="flex items-center gap-1 mt-0.5">
+                              <div className="flex items-center gap-1 mt-1.5">
                                 <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 <span className="text-[9px] text-gray-400 tabular-nums">plan: {formatCurrency(plannedValorUtil)}</span>
                               </div>
@@ -1101,7 +1101,7 @@ export default function BudgetActualPage() {
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
                             {isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) && (
-                              <div className="flex items-center gap-1 mt-0.5">
+                              <div className="flex items-center gap-1 mt-1.5">
                                 <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 <span className="text-[9px] text-gray-400 tabular-nums">plan: {formatCurrency(plannedValorFds)}</span>
                               </div>
@@ -1175,7 +1175,7 @@ export default function BudgetActualPage() {
                             onChange={v => setEditFormData({...editFormData, mobility: v})}
                           />
                           {planned && (
-                            <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.mobility)}</span>
+                            <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.mobility)}</span>
                           )}
                         </div>
                         <div>
@@ -1259,7 +1259,7 @@ export default function BudgetActualPage() {
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayLunch)}</div>
                               )}
                               {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekdayLunch)}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekdayLunch)}</span>
                               )}
                             </div>
                             <div className={`${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
@@ -1280,7 +1280,7 @@ export default function BudgetActualPage() {
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayDinner)}</div>
                               )}
                               {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekdayDinner)}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekdayDinner)}</span>
                               )}
                             </div>
                           </div>
@@ -1314,7 +1314,7 @@ export default function BudgetActualPage() {
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))} = {formatCurrency(editFormData.weekendLunch)}</div>
                               )}
                               {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekendLunch)}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekendLunch)}</span>
                               )}
                             </div>
                             <div className={`${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
@@ -1335,7 +1335,7 @@ export default function BudgetActualPage() {
                                 <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))} = {formatCurrency(editFormData.weekendDinner)}</div>
                               )}
                               {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekendDinner)}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekendDinner)}</span>
                               )}
                             </div>
                           </div>
