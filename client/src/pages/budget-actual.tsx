@@ -246,9 +246,9 @@ export default function BudgetActualPage() {
     },
     onSuccess: () => {
       toast({
-        title: "Execução atualizada com sucesso",
-        description: "Os valores da execução foram salvos.",
-        className: "bg-emerald-50 border-emerald-200 text-emerald-800",
+        title: "✓ Prestação salva com sucesso",
+        description: "Os valores foram salvos e já estão atualizados na listagem.",
+        className: "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-lg",
       });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       setEditingItem(null);
