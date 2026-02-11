@@ -11,7 +11,7 @@ import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun,
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 
 function CurrencyInput({ value, onChange, className, disabled }: {
   value: number;
@@ -70,7 +70,14 @@ function CurrencyInput({ value, onChange, className, disabled }: {
 }
 
 export default function BudgetActualPage() {
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const urlEventId = urlParams.get("event") || "";
+  const urlCollaboratorId = urlParams.get("collaborator") || "";
+  const urlFunctionId = urlParams.get("function") || "";
+  const [highlightCardId, setHighlightCardId] = useState<string>("");
+
+  const [selectedEventId, setSelectedEventId] = useState<string>(urlEventId);
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
   const [editFormData, setEditFormData] = useState<{
     dailyQuantity: number;
@@ -140,6 +147,25 @@ export default function BudgetActualPage() {
 
   const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
                     budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
+
+  const didScrollToCard = useRef(false);
+  useEffect(() => {
+    if (didScrollToCard.current || !budgetActual || !urlCollaboratorId || !urlFunctionId) return;
+    const target = budgetActual.find(
+      a => a.collaboratorId === urlCollaboratorId && a.functionId === urlFunctionId
+    );
+    if (target) {
+      didScrollToCard.current = true;
+      setHighlightCardId(target.id);
+      setTimeout(() => {
+        const el = document.querySelector(`[data-card-id="${target.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+      setTimeout(() => setHighlightCardId(""), 4000);
+    }
+  }, [budgetActual, urlCollaboratorId, urlFunctionId]);
 
   const sentForReview = useMemo(() => {
     if (!budgetActual || budgetActual.length === 0) return false;
@@ -606,7 +632,8 @@ export default function BudgetActualPage() {
               };
 
               return (
-                <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden transition-colors ${
+                <div key={item.id} data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden transition-all duration-500 ${
+                  highlightCardId === item.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
                   isSelected ? 'ring-1 ring-purple-300 border-purple-200 dark:border-purple-700' : ''
                 } ${
                   isCasa ? 'border-l-[3px] border-l-blue-400 border-gray-200 dark:border-gray-700' : 'border-l-[3px] border-l-orange-400 border-gray-200 dark:border-gray-700'

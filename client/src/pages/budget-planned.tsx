@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { useSearch } from "wouter";
 
 interface BudgetEdit {
   inclusionId: string;
@@ -58,7 +59,14 @@ const CARD_BORDER_COLORS = {
 };
 
 export default function BudgetPlannedPage() {
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const urlEventId = urlParams.get("event") || "";
+  const urlCollaboratorId = urlParams.get("collaborator") || "";
+  const urlFunctionId = urlParams.get("function") || "";
+  const [highlightCardId, setHighlightCardId] = useState<string>("");
+
+  const [selectedEventId, setSelectedEventId] = useState<string>(urlEventId);
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string } | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
@@ -146,6 +154,25 @@ export default function BudgetPlannedPage() {
         .catch(() => {});
     }
   }, [functionValues, functions, qc]);
+
+  const didScrollToCard = useRef(false);
+  useEffect(() => {
+    if (didScrollToCard.current || !teamInclusions || !urlCollaboratorId || !urlFunctionId) return;
+    const target = teamInclusions.find(
+      ti => ti.collaboratorId === urlCollaboratorId && ti.functionId === urlFunctionId && !ti.deletedAt
+    );
+    if (target) {
+      didScrollToCard.current = true;
+      setHighlightCardId(target.id);
+      setTimeout(() => {
+        const el = document.querySelector(`[data-card-id="${target.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+      setTimeout(() => setHighlightCardId(""), 4000);
+    }
+  }, [teamInclusions, urlCollaboratorId, urlFunctionId]);
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -660,8 +687,10 @@ export default function BudgetPlannedPage() {
                   
                   return (
                     <div 
-                      key={budget.inclusion.id} 
-                      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all overflow-hidden ${
+                      key={budget.inclusion.id}
+                      data-card-id={budget.inclusion.id}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden ${
+                        highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
                         isSelected ? 'ring-2 ring-green-500 border-green-300' : 
                         isSent ? 'border-green-200 dark:border-green-800' :
                         budget.hasOverride ? 'border-yellow-200 dark:border-yellow-800' : 'border-gray-200 dark:border-gray-700'

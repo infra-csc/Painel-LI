@@ -477,18 +477,26 @@ export default function RhControlPage() {
     );
   };
 
+  const buildNavPath = (base: string, item: PrestacaoItem) => {
+    const params = new URLSearchParams();
+    params.set("event", item.event.id);
+    if (item.collaboratorId) params.set("collaborator", item.collaboratorId);
+    if (item.functionId) params.set("function", item.functionId);
+    return `${base}?${params.toString()}`;
+  };
+
   const getNavigationTarget = (item: PrestacaoItem): { label: string; path: string; icon: any } | null => {
     if (item.status === "planejamento_pendente") {
-      return { label: "Ir para Planejado", path: `/budget-planned?event=${item.event.id}`, icon: ArrowRight };
+      return { label: "Ir para Planejado", path: buildNavPath("/budget-planned", item), icon: ArrowRight };
     }
     if (item.status === "prestacao_recebida" || item.status === "devolvida_para_ajuste") {
-      return { label: "Analisar prestação", path: `/budget-actual?event=${item.event.id}`, icon: Eye };
+      return { label: "Analisar prestação", path: buildNavPath("/budget-actual", item), icon: Eye };
     }
     if (item.status === "aguardando_prestacao") {
-      return { label: "Ver realizado", path: `/budget-actual?event=${item.event.id}`, icon: ExternalLink };
+      return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
     }
     if (item.status === "aprovada_faturamento" || item.status === "recusada") {
-      return { label: "Ver detalhes", path: `/budget-actual?event=${item.event.id}`, icon: ExternalLink };
+      return { label: "Ver detalhes", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
     }
     return null;
   };
