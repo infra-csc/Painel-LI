@@ -1034,7 +1034,7 @@ export default function BudgetActualPage() {
                           {Math.abs(diffDiarias) > 1 && (
                             <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffDiarias < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
                               <span className={`text-[11px] font-medium tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {diffDiarias < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffDiarias))}
+                                {diffDiarias > 0 ? '+' : '-'}{formatCurrency(Math.abs(diffDiarias))}
                                 {plannedSubDiarias > 0 && <span className="ml-1 text-[10px]">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
                               </span>
                             </div>
@@ -1153,7 +1153,7 @@ export default function BudgetActualPage() {
                             {Math.abs(diffMob) > 1 && (
                               <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffMob < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
                                 <span className={`text-[11px] font-medium tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {diffMob < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffMob))}
+                                  {diffMob > 0 ? '+' : '-'}{formatCurrency(Math.abs(diffMob))}
                                   {planned.mobility > 0 && <span className="ml-1 text-[10px]">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>}
                                 </span>
                               </div>
@@ -1226,7 +1226,7 @@ export default function BudgetActualPage() {
                             {Math.abs(diffAlim) > 1 && (
                               <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffAlim < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
                                 <span className={`text-[11px] font-medium tabular-nums ${diffAlim < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {diffAlim < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffAlim))}
+                                  {diffAlim > 0 ? '+' : '-'}{formatCurrency(Math.abs(diffAlim))}
                                   {plannedAlim > 0 && <span className="ml-1 text-[10px]">({diffAlim > 0 ? '+' : ''}{pctAlim.toFixed(0)}%)</span>}
                                 </span>
                               </div>
@@ -1351,27 +1351,20 @@ export default function BudgetActualPage() {
 
                 <div className="px-6 py-3.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                   {planned && Math.abs(difference) > 1 && (
-                    <div className={`rounded-lg p-3 mb-3 flex items-center gap-3 ${difference < 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'}`}>
+                    <div className={`rounded-lg p-2.5 mb-3 flex items-center justify-center gap-2 ${difference < 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'}`}>
                       {difference < 0 ? (
-                        <TrendingDown className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                        <TrendingDown className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                       ) : (
-                        <TrendingUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+                        <TrendingUp className="w-4 h-4 text-red-500 flex-shrink-0" />
                       )}
-                      <div className="flex-1">
-                        <div className={`text-[11px] font-semibold ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                          {difference < 0 ? 'Economia no orçamento' : 'Acima do orçamento'}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-base font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                          {formatCurrency(Math.abs(difference))}
-                        </div>
-                        {plannedTotal > 0 && (
-                          <div className={`text-[10px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                            ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
-                          </div>
-                        )}
-                      </div>
+                      <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                        {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
+                      </span>
+                      {plannedTotal > 0 && (
+                        <span className={`text-[10px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                          ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-4">
