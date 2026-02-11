@@ -460,13 +460,16 @@ export default function BudgetPlannedPage() {
   };
 
   const savePlannedAndSendToActual = async (budget: typeof calculatedBudgets[0], obsLabel: string) => {
+    const weightedDailyValue = budget.qtdDiarias > 0 
+      ? Math.round(budget.subtotalDiarias / budget.qtdDiarias) 
+      : budget.valorDiariaUtil;
     const plannedData = {
       eventId: budget.inclusion.eventId,
       collaboratorId: budget.inclusion.collaboratorId,
       functionId: budget.inclusion.functionId,
       collaboratorType: budget.collaborator?.type || "freela",
       dailyQuantity: budget.qtdDiarias,
-      dailyValue: budget.valorDiaria,
+      dailyValue: weightedDailyValue,
       costAssistance: 0,
       weekdayLunch: budget.almocoSemana,
       weekdayDinner: budget.jantarSemana,
