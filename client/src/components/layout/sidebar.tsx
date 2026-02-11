@@ -228,7 +228,7 @@ export default function Sidebar() {
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 transition-all duration-300 flex flex-col shadow-lg",
+        "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 transition-all duration-300 flex flex-col shadow-lg overflow-hidden",
         isCompact ? "w-20" : "w-64",
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         (isCollapsed || isFocusMode) && "lg:-translate-x-full"
@@ -322,10 +322,13 @@ export default function Sidebar() {
         </nav>
 
         <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex gap-2 mb-3">
+          <div className={cn("flex gap-2 mb-3", isCompact && "flex-col items-center")}>
             <button
               onClick={toggleCompact}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+              className={cn(
+                "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200",
+                !isCompact && "flex-1"
+              )}
               title={isCompact ? "Expandir menu" : "Modo compacto"}
             >
               {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
