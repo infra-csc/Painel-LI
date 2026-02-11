@@ -89,7 +89,7 @@ export default function BudgetPlannedPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("value");
+  const [sortBy, setSortBy] = useState<string>("name_asc");
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
@@ -371,17 +371,20 @@ export default function BudgetPlannedPage() {
       );
     }
     
-    // Ordenação
     result.sort((a, b) => {
       switch (sortBy) {
-        case 'name':
+        case 'name_asc':
           return getCollaboratorName(a.inclusion.collaboratorId).localeCompare(getCollaboratorName(b.inclusion.collaboratorId));
-        case 'value':
-          return b.totalFinal - a.totalFinal;
+        case 'name_desc':
+          return getCollaboratorName(b.inclusion.collaboratorId).localeCompare(getCollaboratorName(a.inclusion.collaboratorId));
+        case 'days_desc':
+          return b.qtdDiarias - a.qtdDiarias;
+        case 'days_asc':
+          return a.qtdDiarias - b.qtdDiarias;
         case 'function':
           return getFunctionName(a.inclusion.functionId).localeCompare(getFunctionName(b.inclusion.functionId));
         default:
-          return 0;
+          return getCollaboratorName(a.inclusion.collaboratorId).localeCompare(getCollaboratorName(b.inclusion.collaboratorId));
       }
     });
     
@@ -680,8 +683,10 @@ export default function BudgetPlannedPage() {
                     <SelectValue placeholder="Ordenar" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="value">Maior Custo</SelectItem>
-                    <SelectItem value="name">Por Nome</SelectItem>
+                    <SelectItem value="name_asc">Nome A-Z</SelectItem>
+                    <SelectItem value="name_desc">Nome Z-A</SelectItem>
+                    <SelectItem value="days_desc">Mais Dias</SelectItem>
+                    <SelectItem value="days_asc">Menos Dias</SelectItem>
                     <SelectItem value="function">Por Função</SelectItem>
                   </SelectContent>
                 </Select>
