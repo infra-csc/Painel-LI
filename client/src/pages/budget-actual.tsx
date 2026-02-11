@@ -748,9 +748,6 @@ export default function BudgetActualPage() {
                           <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
                             {getCollaboratorName(item.collaboratorId)}
                           </span>
-                          {diverges && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Difere do planejado" />
-                          )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
