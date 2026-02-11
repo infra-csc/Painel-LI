@@ -1126,7 +1126,41 @@ export default function BudgetActualPage() {
                       </div>
                       <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</span>
                     </div>
-                    <div className="p-4">
+                    <div className="p-4 space-y-3">
+                      {planned && (() => {
+                        const diffMob = editFormData.mobility - planned.mobility;
+                        const pctMob = planned.mobility > 0 ? (diffMob / planned.mobility * 100) : 0;
+                        const totalDays = itemDays.weekdays + itemDays.weekends;
+                        const plannedDays = planned.dailyQuantity || totalDays;
+                        return (
+                          <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                            <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
+                              <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800">
+                                <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-1">Planejado</div>
+                                <div className="text-xs font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(planned.mobility)}</div>
+                                {plannedDays > 0 && (
+                                  <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">{formatCurrency(Math.round(planned.mobility / plannedDays))}/dia</div>
+                                )}
+                              </div>
+                              <div className="px-3 py-2 bg-purple-50/30 dark:bg-purple-950/10">
+                                <div className="text-[9px] uppercase text-purple-500 font-semibold tracking-wider mb-1">Realizado</div>
+                                <div className="text-xs font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</div>
+                                {totalDays > 0 && (
+                                  <div className="text-[10px] text-purple-400 mt-0.5 tabular-nums">{formatCurrency(Math.round(editFormData.mobility / totalDays))}/dia</div>
+                                )}
+                              </div>
+                            </div>
+                            {Math.abs(diffMob) > 1 && (
+                              <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffMob < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
+                                <span className={`text-[11px] font-medium tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  {diffMob < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffMob))}
+                                  {planned.mobility > 0 && <span className="ml-1 text-[10px]">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="grid grid-cols-2 gap-4">
                         <div className={`${isFieldChanged(editFormData.mobility, planned?.mobility ?? 0) ? 'bg-amber-50/40 dark:bg-amber-950/20 rounded-lg p-2 -m-2 border border-amber-200/60 dark:border-amber-800/40' : ''}`}>
                           <div className="flex items-center gap-1.5 mb-1">
@@ -1162,7 +1196,44 @@ export default function BudgetActualPage() {
                       </div>
                       <span className="text-sm font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                     </div>
-                    <div className="p-4">
+                    <div className="p-4 space-y-3">
+                      {planned && (() => {
+                        const plannedAlim = planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner;
+                        const diffAlim = totalAlimentacao - plannedAlim;
+                        const pctAlim = plannedAlim > 0 ? (diffAlim / plannedAlim * 100) : 0;
+                        return (
+                          <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                            <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
+                              <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800">
+                                <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-1">Planejado</div>
+                                <div className="text-xs font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedAlim)}</div>
+                                <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">
+                                  {planned.weekdayLunch + planned.weekdayDinner > 0 && <span>Úteis: {formatCurrency(planned.weekdayLunch + planned.weekdayDinner)}</span>}
+                                  {planned.weekdayLunch + planned.weekdayDinner > 0 && planned.weekendLunch + planned.weekendDinner > 0 && <span> + </span>}
+                                  {planned.weekendLunch + planned.weekendDinner > 0 && <span>FDS: {formatCurrency(planned.weekendLunch + planned.weekendDinner)}</span>}
+                                </div>
+                              </div>
+                              <div className="px-3 py-2 bg-orange-50/30 dark:bg-orange-950/10">
+                                <div className="text-[9px] uppercase text-orange-500 font-semibold tracking-wider mb-1">Realizado</div>
+                                <div className="text-xs font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</div>
+                                <div className="text-[10px] text-orange-400 mt-0.5 tabular-nums">
+                                  {editFormData.weekdayLunch + editFormData.weekdayDinner > 0 && <span>Úteis: {formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>}
+                                  {editFormData.weekdayLunch + editFormData.weekdayDinner > 0 && editFormData.weekendLunch + editFormData.weekendDinner > 0 && <span> + </span>}
+                                  {editFormData.weekendLunch + editFormData.weekendDinner > 0 && <span>FDS: {formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            {Math.abs(diffAlim) > 1 && (
+                              <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffAlim < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
+                                <span className={`text-[11px] font-medium tabular-nums ${diffAlim < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  {diffAlim < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffAlim))}
+                                  {plannedAlim > 0 && <span className="ml-1 text-[10px]">({diffAlim > 0 ? '+' : ''}{pctAlim.toFixed(0)}%)</span>}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-blue-50/30 dark:bg-blue-950/10 rounded-lg p-3 border border-blue-100/80 dark:border-blue-900/40">
                           <div className="flex items-center gap-1.5 mb-2.5">
