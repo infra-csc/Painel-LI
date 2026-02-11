@@ -510,20 +510,31 @@ export default function RhControlPage() {
   };
 
   const getStepResponsible = (item: PrestacaoItem, stepIndex: number): string | null => {
-    if (stepIndex === 0) {
-      return item.teamInclusion?.updatedBy ? getUserName(item.teamInclusion.updatedBy) : null;
+    if (stepIndex === 0 && item.teamInclusion) {
+      const name = getUserName(item.teamInclusion.updatedBy);
+      return name !== "-" ? name : "Produção";
     }
-    if (stepIndex === 1 && item.planned) {
-      const name = getUserName(item.planned.createdBy);
-      return name !== "-" ? name : null;
+    if (stepIndex === 1) {
+      if (item.planned) {
+        const name = getUserName(item.planned.createdBy);
+        return name !== "-" ? name : "RH";
+      }
+      return null;
     }
-    if (stepIndex === 2 && item.actual) {
-      const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
-      return name !== "-" ? name : null;
+    if (stepIndex === 2) {
+      if (item.actual) {
+        const name = getUserName(item.actual.createdBy || item.actual.updatedBy);
+        return name !== "-" ? name : "Resp. Função";
+      }
+      return null;
     }
-    if (stepIndex === 3 && item.actual?.rhActionBy) {
-      const name = getUserName(item.actual.rhActionBy);
-      return name !== "-" ? name : null;
+    if (stepIndex === 3) {
+      if (item.actual?.rhActionBy) {
+        const name = getUserName(item.actual.rhActionBy);
+        return name !== "-" ? name : "RH";
+      }
+      if (item.status === "aprovada_faturamento" || item.status === "recusada") return "RH";
+      return null;
     }
     return null;
   };
@@ -557,7 +568,7 @@ export default function RhControlPage() {
               <div key={s.label} className="flex items-start flex-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex flex-col items-center gap-0 flex-shrink-0 min-w-[52px] cursor-default">
+                    <div className="flex flex-col items-center gap-0 flex-shrink-0 min-w-[56px] cursor-default">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
                         isCompleted ? `${s.color} shadow-sm` :
                         isCurrent ? `border-2 border-current ${s.text} bg-white dark:bg-gray-800 shadow-sm` :
@@ -575,8 +586,8 @@ export default function RhControlPage() {
                         <span className="text-[8px] text-gray-300 dark:text-gray-600 whitespace-nowrap italic">Pendente</span>
                       ) : null}
                       {(isCompleted || isCurrent) && responsibleName ? (
-                        <span className="text-[7px] text-gray-400 dark:text-gray-500 whitespace-nowrap mt-0.5 max-w-[60px] truncate">
-                          por: {responsibleName}
+                        <span className="text-[8px] text-gray-500 dark:text-gray-400 whitespace-nowrap mt-0.5 max-w-[80px] truncate">
+                          {responsibleName}
                         </span>
                       ) : null}
                     </div>
