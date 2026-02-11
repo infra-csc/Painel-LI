@@ -1024,16 +1024,18 @@ export default function BudgetActualPage() {
                                 value={editFormData.weekdayLunch}
                                 onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                               />
-                              {itemDays.weekdays > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                                {itemDays.weekdays > 0 ? (
                                   <CurrencyInput
                                     className="h-6 text-[10px] flex-1"
                                     value={Math.round(editFormData.weekdayLunch / itemDays.weekdays)}
                                     onChange={perDay => setEditFormData({...editFormData, weekdayLunch: perDay * itemDays.weekdays})}
                                   />
-                                </div>
-                              )}
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">sem dias úteis</span>
+                                )}
+                              </div>
                               {planned && (
                                 <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekdayLunch)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / itemDays.weekdays))}/dia)` : ''}</span>
                               )}
@@ -1051,16 +1053,18 @@ export default function BudgetActualPage() {
                                 value={editFormData.weekdayDinner}
                                 onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                               />
-                              {itemDays.weekdays > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
+                                {itemDays.weekdays > 0 ? (
                                   <CurrencyInput
                                     className="h-6 text-[10px] flex-1"
                                     value={Math.round(editFormData.weekdayDinner / itemDays.weekdays)}
                                     onChange={perDay => setEditFormData({...editFormData, weekdayDinner: perDay * itemDays.weekdays})}
                                   />
-                                </div>
-                              )}
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">sem dias úteis</span>
+                                )}
+                              </div>
                               {planned && (
                                 <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekdayDinner)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / itemDays.weekdays))}/dia)` : ''}</span>
                               )}
@@ -1094,16 +1098,18 @@ export default function BudgetActualPage() {
                                 value={editFormData.weekendLunch}
                                 onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                               />
-                              {itemDays.weekends > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                                {itemDays.weekends > 0 ? (
                                   <CurrencyInput
                                     className="h-6 text-[10px] flex-1"
                                     value={Math.round(editFormData.weekendLunch / itemDays.weekends)}
                                     onChange={perDay => setEditFormData({...editFormData, weekendLunch: perDay * itemDays.weekends})}
                                   />
-                                </div>
-                              )}
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">sem fins de semana</span>
+                                )}
+                              </div>
                               {planned && (
                                 <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekendLunch)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / itemDays.weekends))}/dia)` : ''}</span>
                               )}
@@ -1121,16 +1127,18 @@ export default function BudgetActualPage() {
                                 value={editFormData.weekendDinner}
                                 onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                               />
-                              {itemDays.weekends > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
+                                {itemDays.weekends > 0 ? (
                                   <CurrencyInput
                                     className="h-6 text-[10px] flex-1"
                                     value={Math.round(editFormData.weekendDinner / itemDays.weekends)}
                                     onChange={perDay => setEditFormData({...editFormData, weekendDinner: perDay * itemDays.weekends})}
                                   />
-                                </div>
-                              )}
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">sem fins de semana</span>
+                                )}
+                              </div>
                               {planned && (
                                 <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekendDinner)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / itemDays.weekends))}/dia)` : ''}</span>
                               )}
