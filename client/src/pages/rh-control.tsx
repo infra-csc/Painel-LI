@@ -994,12 +994,12 @@ export default function RhControlPage() {
             </div>
             <div className="text-left">
               <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
-                {rhActionCount} {rhActionCount === 1 ? 'item aguardando' : 'itens aguardando'} ação do RH
+                Você tem pendências para resolver
               </p>
               <p className="text-[11px] text-indigo-500 dark:text-indigo-400">
-                {rhPlanPendingCount > 0 ? `${rhPlanPendingCount} para planejar` : ''}
+                {rhPlanPendingCount > 0 ? `${rhPlanPendingCount} planejamento${rhPlanPendingCount !== 1 ? 's' : ''}` : ''}
                 {rhReceivedCount > 0 && rhPlanPendingCount > 0 ? ' · ' : ''}
-                {rhReceivedCount > 0 ? `${rhReceivedCount} análise${rhReceivedCount !== 1 ? 's' : ''} pendente${rhReceivedCount !== 1 ? 's' : ''}` : ''}
+                {rhReceivedCount > 0 ? `${rhReceivedCount} comparativo${rhReceivedCount !== 1 ? 's' : ''}` : ''}
               </p>
             </div>
           </div>
