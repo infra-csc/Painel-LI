@@ -406,7 +406,7 @@ export default function RhControlPage() {
     },
     aguardando_prestacao: {
       label: "Aguardando realizado",
-      shortLabel: "Ag. realizado",
+      shortLabel: "Realizado",
       description: "Planejado criado — aguardando o responsável da função preencher o realizado",
       icon: Clock,
       color: "text-slate-700 dark:text-slate-300",
