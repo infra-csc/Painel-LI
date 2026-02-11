@@ -996,13 +996,13 @@ export default function RhControlPage() {
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                 Pendências do RH
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5 tracking-wide">
                 {rhPlanPendingCount > 0 && (
-                  <><span className="font-semibold text-gray-700 dark:text-gray-300">{rhPlanPendingCount}</span> planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</>
+                  <><span className="font-bold text-indigo-600 dark:text-indigo-400">{rhPlanPendingCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</span></>
                 )}
-                {rhReceivedCount > 0 && rhPlanPendingCount > 0 && <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>}
+                {rhReceivedCount > 0 && rhPlanPendingCount > 0 && <span className="mx-2 text-gray-300 dark:text-gray-600">·</span>}
                 {rhReceivedCount > 0 && (
-                  <><span className="font-semibold text-gray-700 dark:text-gray-300">{rhReceivedCount}</span> análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}</>
+                  <><span className="font-bold text-indigo-600 dark:text-indigo-400">{rhReceivedCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}</span></>
                 )}
               </p>
             </div>
