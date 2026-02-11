@@ -537,23 +537,24 @@ export default function BudgetActualPage() {
             const allSent = eventItems.length > 0 && eventItems.every(i => i.sentForReview);
             const anySent = eventItems.some(i => i.sentForReview);
 
-            let statusLabel = "Em preenchimento";
-            let statusColor = "bg-amber-50 text-amber-700 border-amber-200";
-            let statusIcon = "🟡";
-
+            let currentStep = 0;
             if (allApproved) {
-              statusLabel = "Aprovada";
-              statusColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
-              statusIcon = "🟢";
-            } else if (anyDevolvido || anyRejeitado) {
-              statusLabel = "Devolvida para ajuste";
-              statusColor = "bg-red-50 text-red-700 border-red-200";
-              statusIcon = "🔴";
+              currentStep = 3;
             } else if (allSent || anySent) {
-              statusLabel = "Aguardando análise do RH";
-              statusColor = "bg-blue-50 text-blue-700 border-blue-200";
-              statusIcon = "🔵";
+              currentStep = 2;
+            } else if (anyDevolvido || anyRejeitado) {
+              currentStep = 1;
+            } else {
+              const hasEdited = eventItems.some(i => i.updatedAt && i.createdAt && new Date(i.updatedAt).getTime() > new Date(i.createdAt).getTime() + 1000);
+              currentStep = hasEdited ? 1 : 0;
             }
+
+            const steps = [
+              { label: "Preencher valores", desc: "Informe o realizado" },
+              { label: "Enviar ao RH", desc: "Envie para análise" },
+              { label: "Análise do RH", desc: "Aguarde aprovação" },
+              { label: "Aprovado", desc: "Prestação concluída" },
+            ];
 
             const diffLabel = totalDifference === 0
               ? { text: "Dentro do planejado", color: "text-gray-500" }
@@ -563,9 +564,44 @@ export default function BudgetActualPage() {
 
             return (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400">
-                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="text-[11px]">Preencha os valores reais de cada escala e envie para análise do RH.</span>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5">
+                  <div className="flex items-center justify-between">
+                    {steps.map((step, i) => {
+                      const isDone = i < currentStep;
+                      const isActive = i === currentStep;
+                      const isLast = i === steps.length - 1;
+                      return (
+                        <div key={i} className="flex items-center flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                              isDone ? 'bg-emerald-500 text-white' :
+                              isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
+                              'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                            }`}>
+                              {isDone ? (
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (i + 1)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className={`text-[11px] font-medium leading-tight ${
+                                isDone ? 'text-emerald-600 dark:text-emerald-400' :
+                                isActive ? 'text-purple-700 dark:text-purple-300' :
+                                'text-gray-400'
+                              }`}>{step.label}</div>
+                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                            </div>
+                          </div>
+                          {!isLast && (
+                            <div className={`flex-1 h-[2px] mx-3 rounded ${
+                              isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
+                            }`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
