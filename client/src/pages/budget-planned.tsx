@@ -521,97 +521,124 @@ export default function BudgetPlannedPage() {
       ) : (
           <>
             {/* Total Geral Destacado */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl p-5 mb-4 shadow-lg">
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800 px-5 py-3 mb-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <DollarSign className="w-5 h-5 text-green-200" />
-                    <span className="text-green-100 text-sm font-medium uppercase tracking-wider">Total Geral do Evento</span>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
+                    <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <div className="text-4xl font-bold text-white">{formatCurrency(totalGeral)}</div>
-                  <div className="text-green-200 text-sm mt-1">{stats.total} colaboradores confirmados</div>
+                  <div>
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Planejado do Evento</span>
+                    <div className="text-2xl font-bold text-emerald-800 dark:text-emerald-200">{formatCurrency(totalGeral)}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-emerald-600 dark:text-emerald-400">{stats.total} colaboradores confirmados</span>
                 </div>
               </div>
             </div>
 
             {/* Cards de Resumo Secundários */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3.5 shadow-sm">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
                   <Home className="w-3.5 h-3.5 text-blue-500" />
                   <span>Casa</span>
                 </div>
-                <div className="text-lg font-bold text-gray-800 dark:text-gray-200">{stats.totalCasa} <span className="text-xs font-normal text-gray-400">colab.</span></div>
-                <div className="text-sm text-blue-600 font-medium">{formatCurrency(stats.valorCasa)}</div>
+                <div className="text-xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(stats.valorCasa)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stats.totalCasa} colaboradores</div>
+                {totalGeral > 0 && (
+                  <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-0.5">{Math.round((stats.valorCasa / totalGeral) * 100)}% do total</div>
+                )}
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3.5 shadow-sm">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
                   <UserCheck className="w-3.5 h-3.5 text-orange-500" />
                   <span>Freela</span>
                 </div>
-                <div className="text-lg font-bold text-gray-800 dark:text-gray-200">{stats.totalFreela} <span className="text-xs font-normal text-gray-400">colab.</span></div>
-                <div className="text-sm text-orange-600 font-medium">{formatCurrency(stats.valorFreela)}</div>
+                <div className="text-xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(stats.valorFreela)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stats.totalFreela} colaboradores</div>
+                {totalGeral > 0 && (
+                  <div className="text-xs font-semibold text-orange-600 dark:text-orange-400 mt-0.5">{Math.round((stats.valorFreela / totalGeral) * 100)}% do total</div>
+                )}
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3.5 shadow-sm">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
                   <Users className="w-3.5 h-3.5 text-purple-500" />
                   <span>Custo Médio / Colaborador</span>
                 </div>
-                <div className="text-lg font-bold text-purple-600">{formatCurrency(stats.media)}</div>
+                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(stats.media)}</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border p-3.5 shadow-sm">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-1.5">
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
                   <BarChart3 className="w-3.5 h-3.5 text-teal-500" />
                   <span>Custo Médio / Dia</span>
                 </div>
-                <div className="text-lg font-bold text-teal-600">{formatCurrency(stats.mediaPorDia)}</div>
+                <div className="text-xl font-bold text-teal-600 dark:text-teal-400">{formatCurrency(stats.mediaPorDia)}</div>
               </div>
             </div>
 
             {/* Barra de Progresso de Envio */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm mb-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 shrink-0">
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Envio para Realizado</span>
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Send className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Envio para Realização</span>
                 </div>
-                <div className="flex-1 max-w-md">
-                  <div className="relative h-6 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 flex items-center justify-center ${
-                        stats.progressoEnvio === 0 ? 'bg-gray-200 dark:bg-gray-600' : 
-                        stats.progressoEnvio === 100 ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${Math.max(stats.progressoEnvio, stats.total > 0 ? 35 : 0)}%` }}
-                    >
-                      <span className={`text-xs font-semibold ${stats.progressoEnvio === 0 ? 'text-gray-500 dark:text-gray-400' : 'text-white'}`}>
-                        {stats.enviados} de {stats.total} enviados
-                      </span>
-                    </div>
-                    {stats.progressoEnvio === 0 && stats.total > 0 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-gray-500 dark:text-gray-400">
-                        {stats.enviados} de {stats.total} enviados
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{Math.round(stats.progressoEnvio)}%</span>
+              </div>
+              <div className="relative h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 mb-2">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    stats.progressoEnvio === 0 ? 'bg-gray-200 dark:bg-gray-600' : 
+                    stats.progressoEnvio === 100 ? 'bg-green-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${stats.progressoEnvio}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {stats.enviados} de {stats.total} colaboradores enviados
+                </span>
                 {selectedCards.size > 0 && (
                   <Button 
                     size="sm"
                     onClick={() => setConfirmSendOpen(true)}
                     disabled={sendSelectedToActualMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700 shrink-0"
+                    className="bg-green-600 hover:bg-green-700 h-8 text-xs"
                   >
                     <Send className="w-3 h-3 mr-1.5" />
-                    Enviar selecionados ({selectedCards.size})
+                    Enviar selecionados para realização ({selectedCards.size})
                   </Button>
                 )}
               </div>
             </div>
 
-            {/* Filtros e Busca em Linha Única */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border p-3 shadow-sm mb-4">
-              <div className="flex items-center gap-3">
+            {/* Status do Planejamento */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Status:</span>
+              <Badge className={`text-[11px] h-5 px-2 font-medium ${
+                stats.progressoEnvio === 100
+                  ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/50 dark:text-green-300'
+                  : stats.enviados > 0
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300'
+                  : stats.total > 0
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400'
+              }`}>
+                {stats.progressoEnvio === 100
+                  ? 'Enviado para realização'
+                  : stats.enviados > 0
+                  ? 'Planejamento em andamento'
+                  : stats.total > 0
+                  ? 'Escalação concluída'
+                  : 'Aguardando escalação'}
+              </Badge>
+            </div>
+
+            {/* Filtros e Busca */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-4">
+              <div className="flex flex-wrap items-center gap-2">
                 {pendingCount > 0 && (
                   <Checkbox 
                     checked={selectedCards.size === pendingCount && pendingCount > 0}
@@ -619,18 +646,18 @@ export default function BudgetPlannedPage() {
                     className="shrink-0"
                   />
                 )}
-                <div className="relative flex-1 min-w-[160px]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <div className="relative flex-1 min-w-[150px]">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <Input 
                     placeholder="Buscar por nome..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-9"
+                    className="pl-9 h-8 text-sm"
                   />
                 </div>
                 
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="w-40 h-9 shrink-0">
+                  <SelectTrigger className="w-36 h-8 text-xs shrink-0">
                     <SelectValue placeholder="Função" />
                   </SelectTrigger>
                   <SelectContent>
@@ -642,7 +669,7 @@ export default function BudgetPlannedPage() {
                 </Select>
                 
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-32 h-9 shrink-0">
+                  <SelectTrigger className="w-28 h-8 text-xs shrink-0">
                     <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -653,8 +680,8 @@ export default function BudgetPlannedPage() {
                 </Select>
                 
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-36 h-9 shrink-0">
-                    <ArrowUpDown className="w-3.5 h-3.5 mr-1" />
+                  <SelectTrigger className="w-32 h-8 text-xs shrink-0">
+                    <ArrowUpDown className="w-3 h-3 mr-1" />
                     <SelectValue placeholder="Ordenar" />
                   </SelectTrigger>
                   <SelectContent>
@@ -664,7 +691,7 @@ export default function BudgetPlannedPage() {
                   </SelectContent>
                 </Select>
 
-                <span className="text-xs text-gray-400 shrink-0">{filteredBudgets.length} resultados</span>
+                <span className="text-[11px] text-gray-400 shrink-0">{filteredBudgets.length} resultados</span>
               </div>
             </div>
 
@@ -716,8 +743,13 @@ export default function BudgetPlannedPage() {
                             <CheckCheck className="w-5 h-5 text-green-600" />
                           )}
                           <div>
-                            <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                              {getCollaboratorName(budget.inclusion.collaboratorId)}
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                                {getCollaboratorName(budget.inclusion.collaboratorId)}
+                              </span>
+                              {budget.hasOverride && (
+                                <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" title="Valores personalizados" />
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-medium">
@@ -730,9 +762,7 @@ export default function BudgetPlannedPage() {
                               }`}>
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
-                              {budget.hasOverride && (
-                                <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" title="Valores personalizados" />
-                              )}
+                              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 ml-1">{formatCurrency(budget.totalFinal)}</span>
                             </div>
                           </div>
                         </div>
@@ -765,43 +795,52 @@ export default function BudgetPlannedPage() {
                       
                       {/* Corpo do Card - Colapsável */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 space-y-1.5 text-sm">
-                          <div className="flex justify-between items-center py-1.5">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                              <span className="text-xs text-gray-400">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                        <div className="px-4 py-3 text-sm">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Custos Operacionais</div>
+                            <div className="flex justify-between items-center py-1">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+                                <span className="text-xs text-gray-400">{budget.qtdDiarias} x {formatCurrency(budget.valorDiaria)}</span>
+                              </div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
                             </div>
-                            <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1.5">
-                            <div className="flex items-center gap-2">
-                              <Car className="w-3.5 h-3.5 text-purple-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
+                            <div className="flex justify-between items-center py-1">
+                              <div className="flex items-center gap-2">
+                                <Utensils className="w-3.5 h-3.5 text-orange-500" />
+                                <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
+                              </div>
+                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
                             </div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.mobilidade)}</span>
                           </div>
-                          <div className="flex justify-between items-center py-1.5">
-                            <div className="flex items-center gap-2">
-                              <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
+
+                          <div className="border-t border-gray-100 dark:border-gray-700 my-2" />
+
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Custos Extras</div>
+                            <div className="flex justify-between items-center py-1">
+                              <div className="flex items-center gap-2">
+                                <Car className="w-3.5 h-3.5 text-purple-500" />
+                                <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
+                              </div>
+                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.mobilidade)}</span>
                             </div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
-                          </div>
-                          
-                          <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                          
-                          <div className="flex justify-between items-center py-1 text-orange-600 dark:text-orange-400">
-                            <span className="text-xs font-medium uppercase tracking-wide">Ajuda de Custo</span>
-                            <span className="font-semibold text-sm">{formatCurrency(budget.ajudaCusto)}</span>
+                            <div className="flex justify-between items-center py-1">
+                              <div className="flex items-center gap-2">
+                                <Coffee className="w-3.5 h-3.5 text-amber-500" />
+                                <span className="text-gray-600 dark:text-gray-400">Ajuda de custo</span>
+                              </div>
+                              <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.ajudaCusto)}</span>
+                            </div>
                           </div>
                         </div>
                       )}
 
                       {/* Total - Sempre visível */}
-                      <div className="flex justify-between items-center px-4 py-2.5 bg-green-50 dark:bg-green-950/30 border-t border-green-100 dark:border-green-900">
-                        <span className="font-bold text-green-800 dark:text-green-300 text-xs uppercase tracking-wider">Total</span>
-                        <span className="font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(budget.totalFinal)}</span>
+                      <div className="flex justify-between items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-100 dark:border-emerald-900">
+                        <span className="font-bold text-emerald-800 dark:text-emerald-300 text-xs uppercase tracking-wider">Total</span>
+                        <span className="font-bold text-base text-emerald-700 dark:text-emerald-300">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
                   );

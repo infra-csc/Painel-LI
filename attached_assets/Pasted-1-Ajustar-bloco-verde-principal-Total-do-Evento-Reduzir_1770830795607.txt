@@ -1,0 +1,184 @@
+1️⃣ Ajustar bloco verde principal (Total do Evento)
+
+Reduzir altura do card verde e deixá-lo mais compacto.
+
+Estrutura nova:
+
+Título pequeno:
+
+Total Planejado do Evento
+
+Valor em destaque:
+
+R$ 12.555,00
+
+Linha auxiliar menor:
+
+12 colaboradores confirmados • 4 funções
+
+Ajustes visuais:
+
+Reduzir padding vertical
+
+Fundo verde menos saturado
+
+Manter número como elemento principal
+
+Remover excesso de espaço vazio
+
+Objetivo: parecer cabeçalho financeiro, não banner.
+
+2️⃣ Melhorar cards de métricas secundárias
+
+Cards:
+
+Casa
+
+Freela
+
+Custo Médio / Colaborador
+
+Custo Médio / Dia
+
+Ajustes:
+
+Fundo branco
+
+Borda leve
+
+Ícone menor
+
+Número principal com mais destaque
+
+Texto secundário menor
+
+Adicionar percentual no Casa e Freela:
+
+Exemplo:
+
+Casa
+8 colaboradores • R$ 9.135,00
+→ 73% do total
+
+Freela
+4 colaboradores • R$ 3.420,00
+→ 27% do total
+
+3️⃣ Melhorar área "Envio para Realizado"
+
+Transformar em barra de progresso real.
+
+Estrutura:
+
+Título:
+
+Envio para Realização
+
+Texto:
+
+0 de 12 colaboradores enviados
+
+Barra de progresso:
+[████░░░░░░] 0%
+
+Botão principal:
+
+Enviar selecionados para realização (3)
+
+Regras:
+
+Botão desabilitado se nada selecionado
+
+Mostrar porcentagem automática
+
+Atualizar dinamicamente
+
+4️⃣ Melhorar cards individuais de colaboradores
+4.1 Mover TOTAL para o topo do card
+
+No header do card:
+
+AROLDO FRANCISCO BRITO
+Total Planejado: R$ 1.345,00
+
+Remover total grande no rodapé ou deixar mais discreto.
+
+4.2 Organizar valores em grupos
+
+Dividir em:
+
+Custos Operacionais
+
+Diárias
+
+Alimentação
+
+Custos Extras
+
+Mobilidade
+
+Ajuda de custo
+
+Separar com pequena linha ou espaçamento.
+
+4.3 Melhorar destaque do total
+
+Total do card:
+
+Cor verde
+
+Fonte um pouco maior que os itens
+
+Sempre alinhado à direita
+
+5️⃣ Melhorar filtros superiores
+
+Organizar assim:
+
+[Buscar por nome]
+[Função]
+[Tipo: Casa / Freela]
+[Ordenar por: Maior custo | Nome | Valor total]
+
+Deixar visual mais compacto e alinhado.
+
+6️⃣ Adicionar status do fluxo do evento
+
+Adicionar pequeno indicador abaixo do título da página:
+
+Status do Planejamento:
+
+Escalação concluída
+
+Planejamento em andamento
+
+Planejamento finalizado
+
+Enviado para realização
+
+Mostrar badge visual correspondente.
+
+7️⃣ Adicionar mini insights estratégicos
+
+Abaixo do bloco principal, incluir pequeno box:
+
+Resumo Financeiro:
+
+Maior custo individual: Tiago – R$ 1.345,00
+
+Menor custo individual: Wagner – R$ 1.295,00
+
+Custo médio por colaborador: R$ 1.046,25
+
+Visual discreto, estilo informativo.
+
+8️⃣ Objetivo Final
+
+A tela deve:
+
+✔ Ficar mais profissional
+✔ Ficar menos pesada visualmente
+✔ Destacar melhor valores
+✔ Melhorar clareza do fluxo
+✔ Dar visão estratégica ao RH
+✔ Preparar naturalmente para envio ao Realizado
