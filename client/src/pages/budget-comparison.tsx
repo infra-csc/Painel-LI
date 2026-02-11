@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +17,25 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
+import { useSearch } from "wouter";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function BudgetComparisonPage() {
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const searchString = useSearch();
+  const { urlCollaboratorId, urlFunctionId } = useMemo(() => {
+    const p = new URLSearchParams(searchString);
+    return {
+      urlCollaboratorId: p.get("collaborator") || "",
+      urlFunctionId: p.get("function") || "",
+    };
+  }, [searchString]);
+  const [highlightCardId, setHighlightCardId] = useState<string>("");
+
+  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("event") || "";
+  });
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' } | null>(null);
   const [actionNote, setActionNote] = useState("");
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
@@ -194,6 +208,31 @@ export default function BudgetComparisonPage() {
     }
     return sorted;
   }, [filteredData, sortBy]);
+
+  const didScrollToCard = useRef(false);
+  useEffect(() => {
+    if (didScrollToCard.current || !sortedData.length || !urlCollaboratorId || !urlFunctionId) return;
+    const idx = sortedData.findIndex(
+      r => r.collaboratorId === urlCollaboratorId && r.functionId === urlFunctionId
+    );
+    if (idx >= 0) {
+      didScrollToCard.current = true;
+      const cardKey = `${urlCollaboratorId}-${urlFunctionId}`;
+      setHighlightCardId(cardKey);
+      setExpandedCards(prev => {
+        const next = new Set(Array.from(prev));
+        next.add(idx);
+        return next;
+      });
+      setTimeout(() => {
+        const el = document.querySelector(`[data-card-id="${cardKey}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+      setTimeout(() => setHighlightCardId(""), 4000);
+    }
+  }, [sortedData, urlCollaboratorId, urlFunctionId]);
 
   const usedFunctionIds = useMemo(() => {
     const ids = new Set(comparisonData.map(r => r.functionId).filter(Boolean));
@@ -515,10 +554,13 @@ export default function BudgetComparisonPage() {
                   };
                   const decidedStyle = statusStyles[itemRhStatus];
 
+                  const cardKey = `${row.collaboratorId}-${row.functionId}`;
                   return (
                     <div
                       key={idx}
+                      data-card-id={cardKey}
                       className={`rounded-lg border overflow-hidden transition-all ${
+                        highlightCardId === cardKey ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
                         isDecided
                           ? `${decidedStyle.bg} ${decidedStyle.border} opacity-80`
                           : selectedItems.has(idx)
