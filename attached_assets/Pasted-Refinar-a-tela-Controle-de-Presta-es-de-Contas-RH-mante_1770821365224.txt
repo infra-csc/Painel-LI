@@ -1,0 +1,138 @@
+Refinar a tela “Controle de Prestações de Contas – RH”
+mantendo layout e estrutura atual,
+apenas com melhorias de clareza, contexto e hierarquia visual.
+
+Não alterar fluxo.
+Não alterar regras de negócio.
+Apenas ajustes de UX e comunicação.
+
+--------------------------------------------------
+1. MELHORAR O BANNER SUPERIOR
+
+Substituir o texto genérico:
+
+“34 itens dependendo do RH”
+
+Por resumo contextual dividido por tipo:
+
+Exemplo:
+⚠️ 1 prestação aguardando análise
+📝 33 planejamentos pendentes
+
+Exibir abaixo:
+Tempo médio aguardando análise.
+
+Botão:
+“Ver pendências”
+
+Objetivo:
+Remover sensação de número genérico e tornar a informação acionável.
+
+--------------------------------------------------
+2. MELHORAR TEXTO DOS STATUS
+
+Substituir badge:
+
+“Recebida”
+
+Por:
+
+“Prestação recebida”
+
+Evitar termos genéricos.
+Sempre usar “Prestação” quando se referir ao realizado.
+
+--------------------------------------------------
+3. EXIBIR RESPONSABILIDADE ATUAL NO STATUS
+
+Abaixo do tempo (“Há 5 dias”),
+exibir pequeno texto cinza indicando responsabilidade atual:
+
+Exemplos:
+- “Aguardando envio do responsável”
+- “Aguardando análise do RH”
+
+Objetivo:
+Eliminar dúvida operacional sobre quem deve agir.
+
+--------------------------------------------------
+4. MELHORAR DESTAQUE DO TEMPO NO STATUS
+
+Aumentar levemente contraste e peso do texto:
+
+Exemplo:
+“HÁ 5 DIAS”
+
+Aplicar escalonamento visual:
+
+0–3 dias → neutro
+4–15 dias → amarelo suave
++15 dias → vermelho suave com ícone ⚠️
+
+--------------------------------------------------
+5. APRIMORAR BLOCO DE DIFERENÇA FINANCEIRA
+
+No card expandido:
+
+Se houver economia:
+- Fundo verde suave
+- Ícone de seta para baixo ou check
+- Texto:
+  “Diferença: R$ 105,00 (economia)”
+
+Se houver gasto acima do planejado:
+- Fundo vermelho suave
+- Ícone de alerta
+- Texto:
+  “Diferença: R$ 105,00 acima do planejado”
+
+Se igual:
+- Fundo neutro
+- Texto:
+  “Sem diferença em relação ao planejado”
+
+--------------------------------------------------
+6. MELHORAR TIMELINE NO EXPANDIDO
+
+Manter timeline visível apenas no expandido.
+
+Ajustes:
+- Exibir data pequena abaixo de cada etapa quando disponível.
+- Manter cores por fase:
+  Azul → Planejado
+  Roxo → Prestação
+  Verde → Aprovação
+- Etapa atual com destaque mais evidente.
+
+--------------------------------------------------
+7. AGRUPAMENTO POR EVENTO — INFORMAÇÃO MAIS CLARA
+
+Ao lado do nome do evento, exibir:
+
+“21 prestações • 3 aguardando análise”
+
+Em vez de apenas:
+“21 prestações”
+
+Objetivo:
+Evitar expandir desnecessariamente.
+
+--------------------------------------------------
+8. AJUSTES VISUAIS FINOS
+
+- Aumentar contraste do nome do colaborador.
+- Reduzir levemente saturação do fundo amarelo.
+- Manter borda lateral colorida por status.
+- Diminuir sombra do card expandido para não competir com o conteúdo.
+
+--------------------------------------------------
+OBJETIVO FINAL
+
+Transformar a tela em um painel claro, acionável e autoexplicativo,
+onde o RH:
+- entende rapidamente o que exige ação
+- identifica responsabilidade atual
+- visualiza impacto financeiro com clareza
+- prioriza por tempo de inatividade
+
+Sem alterar estrutura ou fluxo atual.
