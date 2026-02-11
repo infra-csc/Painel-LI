@@ -393,9 +393,9 @@ export default function RhControlPage() {
     iconColor: string; badgeCls: string; cardBorder: string;
   }> = {
     planejamento_pendente: {
-      label: "Planejamento pendente",
-      shortLabel: "Plan. pendente",
-      description: "Existe escalação, mas o RH ainda não criou o planejado",
+      label: "Aguardando escalação",
+      shortLabel: "Ag. escalação",
+      description: "Falta confirmar um colaborador na escalação",
       icon: ClipboardList,
       color: "text-amber-700 dark:text-amber-300",
       bg: "bg-amber-50 dark:bg-amber-950/30",
@@ -405,9 +405,9 @@ export default function RhControlPage() {
       cardBorder: "border-amber-200 dark:border-amber-800",
     },
     aguardando_prestacao: {
-      label: "Aguardando prestação",
-      shortLabel: "Aguardando",
-      description: "Planejado criado — aguardando o responsável da função preencher a prestação de contas",
+      label: "Aguardando realizado",
+      shortLabel: "Ag. realizado",
+      description: "Planejado criado — aguardando o responsável da função preencher o realizado",
       icon: Clock,
       color: "text-slate-700 dark:text-slate-300",
       bg: "bg-slate-50 dark:bg-slate-900/40",
@@ -417,9 +417,9 @@ export default function RhControlPage() {
       cardBorder: "border-gray-200 dark:border-gray-700",
     },
     prestacao_recebida: {
-      label: "Prestação recebida",
-      shortLabel: "Prest. recebida",
-      description: "O responsável enviou a prestação de contas — aguardando análise do RH",
+      label: "Realizado recebido",
+      shortLabel: "Realizado receb.",
+      description: "O responsável enviou o realizado — aguardando análise do RH",
       icon: Send,
       color: "text-blue-700 dark:text-blue-300",
       bg: "bg-blue-50 dark:bg-blue-950/30",
@@ -431,7 +431,7 @@ export default function RhControlPage() {
     devolvida_para_ajuste: {
       label: "Devolvida para ajuste",
       shortLabel: "Devolvida",
-      description: "O RH devolveu a prestação — aguardando o responsável da função corrigir e reenviar",
+      description: "O RH devolveu o realizado — aguardando o responsável da função corrigir e reenviar",
       icon: RotateCcw,
       color: "text-orange-700 dark:text-orange-300",
       bg: "bg-orange-50 dark:bg-orange-950/30",
@@ -443,7 +443,7 @@ export default function RhControlPage() {
     aprovada_faturamento: {
       label: "Aprovada para faturamento",
       shortLabel: "Aprovada",
-      description: "O RH aprovou esta prestação — pronta para faturamento",
+      description: "O RH aprovou — pronta para faturamento",
       icon: CheckCircle,
       color: "text-emerald-700 dark:text-emerald-300",
       bg: "bg-emerald-50 dark:bg-emerald-950/30",
@@ -455,7 +455,7 @@ export default function RhControlPage() {
     recusada: {
       label: "Recusada",
       shortLabel: "Recusada",
-      description: "O RH recusou esta prestação — não será faturada",
+      description: "O RH recusou — não será faturada",
       icon: Ban,
       color: "text-red-700 dark:text-red-300",
       bg: "bg-red-50 dark:bg-red-950/30",
@@ -532,7 +532,7 @@ export default function RhControlPage() {
   const STEP_TOOLTIPS = [
     "Equipe definida e confirmada para o evento",
     "Valores planejados pelo RH",
-    "Valores realizados enviados pelo responsável da função",
+    "Valores realizados preenchidos pelo responsável da função",
     "Análise final do RH para liberação de pagamento",
   ];
 
@@ -542,7 +542,7 @@ export default function RhControlPage() {
     const steps = [
       { label: "Escalação", color: "bg-cyan-500", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-400" },
       { label: "Planejado", color: "bg-blue-500", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-400" },
-      { label: "Prestação", color: "bg-purple-500", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-400" },
+      { label: "Realizado", color: "bg-purple-500", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-400" },
       { label: "Aprovação", color: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-400" },
     ];
     return (
@@ -613,10 +613,10 @@ export default function RhControlPage() {
       return { label: "Ir para Planejado", path: buildNavPath("/budget-planned", item), icon: ArrowRight };
     }
     if (item.status === "prestacao_recebida") {
-      return { label: "Analisar prestação", path: buildNavPath("/budget-comparison", item), icon: Eye };
+      return { label: "Analisar realizado", path: buildNavPath("/budget-comparison", item), icon: Eye };
     }
     if (item.status === "devolvida_para_ajuste") {
-      return { label: "Ver prestação", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
+      return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
     }
     if (item.status === "aguardando_prestacao") {
       return { label: "Ver planejado", path: buildNavPath("/budget-planned", item), icon: ExternalLink };
@@ -781,7 +781,7 @@ export default function RhControlPage() {
                   {item.actual ? (
                     <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] uppercase text-purple-400 font-bold tracking-wider">Prestação</p>
+                        <p className="text-[9px] uppercase text-purple-400 font-bold tracking-wider">Realizado</p>
                         <span className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
                       </div>
                       <div className="space-y-0.5 text-[10px]">
@@ -802,7 +802,7 @@ export default function RhControlPage() {
                     <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
                       <div className="text-center">
                         <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                        <p className="text-[9px] text-gray-400">Prestação não preenchida</p>
+                        <p className="text-[9px] text-gray-400">Realizado não preenchido</p>
                       </div>
                     </div>
                   )}
@@ -852,7 +852,7 @@ export default function RhControlPage() {
                 }`}
               >
                 <navTarget.icon className="w-3.5 h-3.5" />
-                {item.status === "prestacao_recebida" ? "Analisar prestação" : navTarget.label}
+                {item.status === "prestacao_recebida" ? "Analisar realizado" : navTarget.label}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -871,7 +871,7 @@ export default function RhControlPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Controle de Prestações de Contas</h1>
-            <p className="text-sm text-gray-500">Fluxo: Escalação → Planejado → Prestação de Contas → Aprovação</p>
+            <p className="text-sm text-gray-500">Fluxo: Escalação → Planejado → Realizado → Aprovação</p>
           </div>
         </div>
       </div>
@@ -987,24 +987,36 @@ export default function RhControlPage() {
       </div>
 
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex justify-center">
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm h-9 px-5 shadow-sm gap-2"
-            onClick={() => {
-              setFilterStatus("rh_action");
-              setShowConcluded(false);
-              setTimeout(() => {
-                document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }, 100);
-            }}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Ver pendências
-            <span className="bg-white/20 text-white text-xs font-bold rounded-full min-w-[22px] h-5 flex items-center justify-center px-1.5">
-              {rhActionCount}
-            </span>
-          </Button>
-        </div>
+        <button
+          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 transition-colors group"
+          onClick={() => {
+            setFilterStatus("rh_action");
+            setShowConcluded(false);
+            setTimeout(() => {
+              document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 100);
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+                {rhActionCount} {rhActionCount === 1 ? 'item aguardando' : 'itens aguardando'} ação do RH
+              </p>
+              <p className="text-[11px] text-indigo-500 dark:text-indigo-400">
+                {rhReceivedCount > 0 ? `${rhReceivedCount} realizado${rhReceivedCount !== 1 ? 's' : ''} para analisar` : ''}
+                {rhReceivedCount > 0 && rhPlanPendingCount > 0 ? ' · ' : ''}
+                {rhPlanPendingCount > 0 ? `${rhPlanPendingCount} para planejar` : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-indigo-600 dark:text-indigo-300 group-hover:underline">Ver pendências</span>
+            <ArrowRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </button>
       )}
 
       <div className="space-y-2">
@@ -1108,9 +1120,9 @@ export default function RhControlPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="planejamento_pendente">Planejamento pendente</SelectItem>
-                <SelectItem value="aguardando_prestacao">Aguardando prestação</SelectItem>
-                <SelectItem value="prestacao_recebida">Prestação recebida</SelectItem>
+                <SelectItem value="planejamento_pendente">Aguardando escalação</SelectItem>
+                <SelectItem value="aguardando_prestacao">Aguardando realizado</SelectItem>
+                <SelectItem value="prestacao_recebida">Realizado recebido</SelectItem>
                 <SelectItem value="devolvida_para_ajuste">Devolvida para ajuste</SelectItem>
                 <SelectItem value="aprovada_faturamento">Aprovada para faturamento</SelectItem>
                 <SelectItem value="recusada">Recusada</SelectItem>
@@ -1155,11 +1167,11 @@ export default function RhControlPage() {
       ) : filteredItems.length === 0 ? (
         <div id="rh-listing" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
           <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Nenhuma prestação encontrada</p>
+          <p className="text-gray-500 font-medium">Nenhum item encontrado</p>
           <p className="text-sm text-gray-400 mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
-             showConcluded ? "Nenhuma prestação concluída ainda." :
-             "Todas as prestações estão em dia. Use o filtro 'Concluídos' para ver itens finalizados."}
+             showConcluded ? "Nenhum item concluído ainda." :
+             "Todos os itens estão em dia. Use o filtro 'Concluídos' para ver itens finalizados."}
           </p>
           {hasActiveFilters && (
             <Button
@@ -1181,7 +1193,7 @@ export default function RhControlPage() {
                 Por evento
               </h2>
               <span className="text-[10px] text-gray-400 font-medium">
-                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} prestaç{filteredItems.length === 1 ? 'ão' : 'ões'}
+                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -1208,7 +1220,7 @@ export default function RhControlPage() {
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
                         <span className="text-[10px] text-gray-400">
-                          {group.items.length} prestaç{group.items.length === 1 ? 'ão' : 'ões'}
+                          {group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}
                         </span>
                         {group.actionNeeded > 0 && (
                           <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
