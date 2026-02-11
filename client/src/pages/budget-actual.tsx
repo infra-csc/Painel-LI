@@ -1020,9 +1020,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className="h-8 text-xs"
+                                className={`h-8 text-xs ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekdayLunch}
                                 onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
+                                disabled={itemDays.weekdays === 0}
                               />
                               <div className="flex items-center gap-1.5 mt-1">
                                 <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
@@ -1049,9 +1050,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className="h-8 text-xs"
+                                className={`h-8 text-xs ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekdayDinner}
                                 onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
+                                disabled={itemDays.weekdays === 0}
                               />
                               <div className="flex items-center gap-1.5 mt-1">
                                 <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
@@ -1094,9 +1096,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className="h-8 text-xs"
+                                className={`h-8 text-xs ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekendLunch}
                                 onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
+                                disabled={itemDays.weekends === 0}
                               />
                               <div className="flex items-center gap-1.5 mt-1">
                                 <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
@@ -1123,9 +1126,10 @@ export default function BudgetActualPage() {
                                 )}
                               </div>
                               <CurrencyInput
-                                className="h-8 text-xs"
+                                className={`h-8 text-xs ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 value={editFormData.weekendDinner}
                                 onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
+                                disabled={itemDays.weekends === 0}
                               />
                               <div className="flex items-center gap-1.5 mt-1">
                                 <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
