@@ -368,10 +368,28 @@ export default function BudgetActualPage() {
 
   const openEditModal = (item: BudgetActual) => {
     setEditingItem(item);
+    const days = getItemDayCounts(item);
+    const storedSubtotalDiarias = item.dailyQuantity * item.dailyValue;
+    const totalDays = days.weekdays + days.weekends;
+
+    let valorUtil = 5000;
+    let valorFds = 10000;
+
+    if (totalDays === 0 || storedSubtotalDiarias === 0) {
+      // no days or no value, use defaults
+    } else if (days.weekdays === 0) {
+      valorFds = Math.round(storedSubtotalDiarias / days.weekends);
+    } else if (days.weekends === 0) {
+      valorUtil = Math.round(storedSubtotalDiarias / days.weekdays);
+    } else {
+      const totalWeightedDays = days.weekdays + days.weekends * 2;
+      valorUtil = Math.round(storedSubtotalDiarias / totalWeightedDays);
+      valorFds = valorUtil * 2;
+    }
 
     setEditFormData({
-      valorDiariaUtil: 5000,
-      valorDiariaFds: 10000,
+      valorDiariaUtil: valorUtil,
+      valorDiariaFds: valorFds,
       weekdayLunch: item.weekdayLunch,
       weekdayDinner: item.weekdayDinner,
       weekendLunch: item.weekendLunch,
