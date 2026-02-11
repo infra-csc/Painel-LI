@@ -506,14 +506,17 @@ export default function RhControlPage() {
     if (item.status === "planejamento_pendente") {
       return { label: "Ir para Planejado", path: buildNavPath("/budget-planned", item), icon: ArrowRight };
     }
-    if (item.status === "prestacao_recebida" || item.status === "devolvida_para_ajuste") {
-      return { label: "Analisar prestação", path: buildNavPath("/budget-actual", item), icon: Eye };
+    if (item.status === "prestacao_recebida") {
+      return { label: "Analisar prestação", path: buildNavPath("/budget-comparison", item), icon: Eye };
+    }
+    if (item.status === "devolvida_para_ajuste") {
+      return { label: "Ver prestação", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
     }
     if (item.status === "aguardando_prestacao") {
-      return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
+      return { label: "Ver planejado", path: buildNavPath("/budget-planned", item), icon: ExternalLink };
     }
     if (item.status === "aprovada_faturamento" || item.status === "recusada") {
-      return { label: "Ver detalhes", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
+      return { label: "Ver detalhes", path: buildNavPath("/budget-comparison", item), icon: ExternalLink };
     }
     return null;
   };
