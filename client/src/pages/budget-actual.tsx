@@ -88,8 +88,8 @@ export default function BudgetActualPage() {
   });
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
   const [editFormData, setEditFormData] = useState<{
-    dailyQuantity: number;
-    dailyValue: number;
+    valorDiariaUtil: number;
+    valorDiariaFds: number;
     weekdayLunch: number;
     weekdayDinner: number;
     weekendLunch: number;
@@ -368,9 +368,29 @@ export default function BudgetActualPage() {
 
   const openEditModal = (item: BudgetActual) => {
     setEditingItem(item);
+    const days = getItemDayCounts(item);
+
+    const subtotalDiarias = item.dailyQuantity * item.dailyValue;
+    let valorUtil = 5000;
+    let valorFds = 10000;
+
+    if (days.weekdays > 0 && days.weekends === 0) {
+      valorUtil = days.weekdays > 0 ? Math.round(subtotalDiarias / days.weekdays) : 5000;
+    } else if (days.weekdays === 0 && days.weekends > 0) {
+      valorFds = days.weekends > 0 ? Math.round(subtotalDiarias / days.weekends) : 10000;
+    } else if (days.weekdays > 0 && days.weekends > 0) {
+      const defaultSubtotal = days.weekdays * 5000 + days.weekends * 10000;
+      if (defaultSubtotal === subtotalDiarias) {
+      } else {
+        const scale = subtotalDiarias / defaultSubtotal;
+        valorUtil = Math.round(5000 * scale);
+        valorFds = Math.round(10000 * scale);
+      }
+    }
+
     setEditFormData({
-      dailyQuantity: item.dailyQuantity,
-      dailyValue: item.dailyValue,
+      valorDiariaUtil: valorUtil,
+      valorDiariaFds: valorFds,
       weekdayLunch: item.weekdayLunch,
       weekdayDinner: item.weekdayDinner,
       weekendLunch: item.weekendLunch,
@@ -381,13 +401,26 @@ export default function BudgetActualPage() {
 
   const saveEdit = () => {
     if (!editingItem || !editFormData) return;
-    const totalValue = (editFormData.dailyQuantity * editFormData.dailyValue) +
-      editFormData.weekdayLunch + editFormData.weekdayDinner +
-      editFormData.weekendLunch + editFormData.weekendDinner +
-      editFormData.mobility;
+    const days = getItemDayCounts(editingItem);
+    const subtotalDiariasUtil = days.weekdays * editFormData.valorDiariaUtil;
+    const subtotalDiariasFds = days.weekends * editFormData.valorDiariaFds;
+    const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
+    const qtdDiarias = days.weekdays + days.weekends;
+    const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
+    const totalValue = subtotalDiarias + editFormData.weekdayLunch + editFormData.weekdayDinner +
+      editFormData.weekendLunch + editFormData.weekendDinner + editFormData.mobility;
     updateMutation.mutate({
       id: editingItem.id,
-      data: { ...editFormData, totalValue },
+      data: {
+        dailyQuantity: qtdDiarias,
+        dailyValue,
+        weekdayLunch: editFormData.weekdayLunch,
+        weekdayDinner: editFormData.weekdayDinner,
+        weekendLunch: editFormData.weekendLunch,
+        weekendDinner: editFormData.weekendDinner,
+        mobility: editFormData.mobility,
+        totalValue,
+      },
     });
   };
 
@@ -814,8 +847,11 @@ export default function BudgetActualPage() {
           </DialogHeader>
 
           {editingItem && editFormData && (() => {
-            const modalTotal = (editFormData.dailyQuantity * editFormData.dailyValue) +
-              editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
+            const itemDays = getItemDayCounts(editingItem);
+            const subtotalDiariasUtil = itemDays.weekdays * editFormData.valorDiariaUtil;
+            const subtotalDiariasFds = itemDays.weekends * editFormData.valorDiariaFds;
+            const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
+            const modalTotal = subtotalDiarias + editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
               editFormData.weekendLunch + editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
@@ -825,7 +861,6 @@ export default function BudgetActualPage() {
             const plannedTotal = planned ? planned.totalValue : 0;
             const hasDivergence = planned && plannedTotal !== modalTotal;
             const difference = modalTotal - plannedTotal;
-            const itemDays = getItemDayCounts(editingItem);
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
             const PRef = ({ value }: { value: number }) => (
@@ -902,49 +937,60 @@ export default function BudgetActualPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
-                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.dailyQuantity * editFormData.dailyValue)}</span>
+                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
                       </div>
                     </div>
-                    <div className="p-4">
+                    <div className="p-4 space-y-3">
                       {planned && (
-                        <div className="text-[10px] text-gray-400 tabular-nums mb-3">
-                          Valor planejado: {planned.dailyQuantity} × {formatCurrency(planned.dailyValue)} = {formatCurrency(plannedDailySubtotal)}
+                        <div className="text-[10px] text-gray-400 tabular-nums mb-1">
+                          Valor planejado: {formatCurrency(plannedDailySubtotal)}
                         </div>
                       )}
-                      <div className="flex items-end gap-3">
-                        <div className={`flex-1 ${planned && editFormData.dailyQuantity !== planned.dailyQuantity ? 'bg-amber-50/40 rounded-lg p-2 -m-2' : ''}`}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Quantidade</label>
-                            {planned && editFormData.dailyQuantity !== planned.dailyQuantity && (
-                              <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                            )}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                          <Briefcase className="w-3.5 h-3.5 text-blue-500" />
+                          <div>
+                            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Dias Úteis</div>
+                            <div className="text-[10px] text-gray-400">{itemDays.weekdays} dias</div>
                           </div>
-                          <Input
-                            type="number" className="h-9 text-sm"
-                            value={editFormData.dailyQuantity}
-                            onChange={e => setEditFormData({...editFormData, dailyQuantity: parseInt(e.target.value) || 0})}
-                          />
-                          {planned && <span className="text-[10px] text-gray-400 block mt-0.5">Valor planejado: {planned.dailyQuantity}</span>}
                         </div>
-                        <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">&times;</div>
-                        <div className={`flex-1 ${planned && editFormData.dailyValue !== planned.dailyValue ? 'bg-amber-50/40 rounded-lg p-2 -m-2' : ''}`}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Valor unitário (R$)</label>
-                            {planned && editFormData.dailyValue !== planned.dailyValue && (
-                              <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 font-medium">R$</span>
                           <CurrencyInput
-                            className="h-9 text-sm"
-                            value={editFormData.dailyValue}
-                            onChange={v => setEditFormData({...editFormData, dailyValue: v})}
+                            className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekdays === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.valorDiariaUtil}
+                            onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
+                            disabled={itemDays.weekdays === 0}
                           />
-                          {planned && <PRef value={planned.dailyValue} />}
+                          <span className="text-[10px] text-gray-400">/dia</span>
                         </div>
-                        <div className="text-gray-300 dark:text-gray-600 text-base pb-1.5">=</div>
-                        <div className="bg-blue-50/80 dark:bg-blue-950/20 rounded-lg px-4 py-2 text-right min-w-[110px]">
-                          <div className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.dailyQuantity * editFormData.dailyValue)}</div>
-                          {planned && <div className="text-[10px] text-gray-400 tabular-nums">Valor planejado: {formatCurrency(plannedDailySubtotal)}</div>}
+                        <div className="text-right min-w-[90px]">
+                          <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasUtil)}</span>
+                        </div>
+                      </div>
+
+                      <Separator className="my-1" />
+
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                          <Sun className="w-3.5 h-3.5 text-amber-500" />
+                          <div>
+                            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Fim de Semana</div>
+                            <div className="text-[10px] text-gray-400">{itemDays.weekends} dias</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 font-medium">R$</span>
+                          <CurrencyInput
+                            className={`h-9 text-sm w-24 text-center font-medium ${itemDays.weekends === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.valorDiariaFds}
+                            onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
+                            disabled={itemDays.weekends === 0}
+                          />
+                          <span className="text-[10px] text-gray-400">/dia</span>
+                        </div>
+                        <div className="text-right min-w-[90px]">
+                          <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasFds)}</span>
                         </div>
                       </div>
                     </div>
@@ -980,9 +1026,9 @@ export default function BudgetActualPage() {
                         <div>
                           <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Por dia</label>
                           <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 text-xs text-gray-400 tabular-nums">
-                            {editFormData.dailyQuantity > 0 ? formatCurrency(Math.round(editFormData.mobility / editFormData.dailyQuantity)) : 'R$ 0,00'}
+                            {(itemDays.weekdays + itemDays.weekends) > 0 ? formatCurrency(Math.round(editFormData.mobility / (itemDays.weekdays + itemDays.weekends))) : 'R$ 0,00'}
                           </div>
-                          {planned && editFormData.dailyQuantity > 0 && (
+                          {planned && (itemDays.weekdays + itemDays.weekends) > 0 && (
                             <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">
                               Valor planejado: {formatCurrency(Math.round(planned.mobility / (planned.dailyQuantity || 1)))}/dia
                             </span>
