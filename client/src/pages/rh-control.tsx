@@ -1,13 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import {
@@ -15,7 +11,7 @@ import {
   FileText, ChevronDown, ChevronUp, MessageSquare,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
-  Send, CircleDot, Ban
+  Send, CircleDot, Ban, ExternalLink
 } from "lucide-react";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
@@ -86,11 +82,7 @@ export default function RhControlPage() {
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
-  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return'; item: PrestacaoItem } | null>(null);
-  const [actionNote, setActionNote] = useState("");
-  const { toast } = useToast();
   const { user } = useAuth();
-  const qc = useQueryClient();
   const [, navigate] = useLocation();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -113,39 +105,6 @@ export default function RhControlPage() {
   });
 
   const isLoading = loadingPlanned || loadingActual || loadingInclusions;
-
-  const rhActionMutation = useMutation({
-    mutationFn: async ({ itemIds, action, comment }: { itemIds: string[]; action: string; comment: string }) => {
-      const res = await apiRequest("POST", `/api/budget-actual/rh-action`, {
-        itemIds,
-        action,
-        comment,
-        actionBy: user?.id,
-      });
-      return res.json();
-    },
-    onSuccess: (_, variables) => {
-      const labels: Record<string, { title: string; cls: string }> = {
-        aprovado: { title: "Prestação aprovada para faturamento", cls: "bg-emerald-50 border-emerald-200 text-emerald-800" },
-        rejeitado: { title: "Prestação recusada", cls: "bg-red-50 border-red-200 text-red-800" },
-        devolvido: { title: "Prestação devolvida para ajuste", cls: "bg-amber-50 border-amber-200 text-amber-800" },
-      };
-      const info = labels[variables.action];
-      toast({ title: info?.title || "Ação realizada", className: info?.cls });
-      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
-      setActionModal(null);
-      setActionNote("");
-    },
-  });
-
-  const handleAction = () => {
-    if (!actionModal) return;
-    const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
-    const rhAction = actionMap[actionModal.type];
-    const actualId = actionModal.item.actual?.id;
-    if (!actualId) return;
-    rhActionMutation.mutate({ itemIds: [actualId], action: rhAction, comment: actionNote });
-  };
 
   const getCollaboratorName = (id?: string | null) =>
     id ? collaborators?.find(c => c.id === id)?.fullName || "-" : "-";
@@ -518,12 +477,18 @@ export default function RhControlPage() {
     );
   };
 
-  const getPrimaryAction = (item: PrestacaoItem) => {
+  const getNavigationTarget = (item: PrestacaoItem): { label: string; path: string; icon: any } | null => {
     if (item.status === "planejamento_pendente") {
-      return { label: "Criar planejado", onClick: () => navigate("/budget-planned"), icon: ArrowRight };
+      return { label: "Ir para Planejado", path: `/budget-planned?event=${item.event.id}`, icon: ArrowRight };
     }
-    if (item.status === "prestacao_recebida") {
-      return { label: "Analisar prestação", onClick: () => setActionModal({ type: 'approve', item }), icon: Eye, isAnalyze: true };
+    if (item.status === "prestacao_recebida" || item.status === "devolvida_para_ajuste") {
+      return { label: "Analisar prestação", path: `/budget-actual?event=${item.event.id}`, icon: Eye };
+    }
+    if (item.status === "aguardando_prestacao") {
+      return { label: "Ver realizado", path: `/budget-actual?event=${item.event.id}`, icon: ExternalLink };
+    }
+    if (item.status === "aprovada_faturamento" || item.status === "recusada") {
+      return { label: "Ver detalhes", path: `/budget-actual?event=${item.event.id}`, icon: ExternalLink };
     }
     return null;
   };
@@ -532,7 +497,7 @@ export default function RhControlPage() {
     const config = statusConfig[item.status];
     const isExpanded = expandedCards.has(item.id);
     const isResubmitted = item.actual?.resubmitted;
-    const primaryAction = getPrimaryAction(item);
+    const navTarget = getNavigationTarget(item);
     const needsRhAction = item.status === "prestacao_recebida";
 
     return (
@@ -587,11 +552,11 @@ export default function RhControlPage() {
                 {timeInStatus(item.lastActivityDate)}
               </span>
             </div>
-            {needsRhAction && primaryAction && (
+            {needsRhAction && navTarget && (
               <Button
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
-                onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+                onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
               >
                 <Eye className="w-3 h-3 mr-1" /> Analisar
               </Button>
@@ -696,41 +661,19 @@ export default function RhControlPage() {
               </div>
             )}
 
-            {item.status === "prestacao_recebida" && (
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3"
-                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'approve', item }); }}
-                >
-                  <CheckCircle className="w-3.5 h-3.5 mr-1" /> Aprovar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-orange-600 border-orange-300 hover:bg-orange-50 text-xs h-8 px-3"
-                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'return', item }); }}
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Devolver
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 border-red-300 hover:bg-red-50 text-xs h-8 px-3"
-                  onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'reject', item }); }}
-                >
-                  <XCircle className="w-3.5 h-3.5 mr-1" /> Recusar
-                </Button>
-              </div>
-            )}
-
-            {item.status === "planejamento_pendente" && (
+            {navTarget && (
               <button
-                onClick={() => navigate("/budget-planned")}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                onClick={() => navigate(navTarget.path)}
+                className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                  item.status === "planejamento_pendente"
+                    ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    : item.status === "prestacao_recebida"
+                    ? "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                    : "border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30"
+                }`}
               >
-                <ClipboardList className="w-3.5 h-3.5" />
-                Criar planejado
+                <navTarget.icon className="w-3.5 h-3.5" />
+                {navTarget.label}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1007,76 +950,6 @@ export default function RhControlPage() {
         </div>
       )}
 
-      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {actionModal?.type === 'approve' && <><CheckCircle className="w-5 h-5 text-emerald-600" /> Aprovar para faturamento</>}
-              {actionModal?.type === 'reject' && <><XCircle className="w-5 h-5 text-red-600" /> Recusar prestação</>}
-              {actionModal?.type === 'return' && <><RotateCcw className="w-5 h-5 text-orange-600" /> Devolver para ajuste</>}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            {actionModal && (
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Prestação de contas</p>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                  {getCollaboratorName(actionModal.item.collaboratorId)}
-                </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {actionModal.item.event.name} · {getFunctionName(actionModal.item.functionId)}
-                </p>
-                {actionModal.item.planned && actionModal.item.actual && (
-                  <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <div>
-                      <span className="text-[9px] uppercase text-blue-400 font-semibold">Planejado</span>
-                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">{fmt(actionModal.item.planned.totalValue)}</p>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase text-purple-400 font-semibold">Prestação</span>
-                      <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{fmt(actionModal.item.actual.totalValue)}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            <div>
-              <label className="text-sm text-gray-600 dark:text-gray-300">
-                Comentário {actionModal?.type === 'return' || actionModal?.type === 'reject' ? '(recomendado)' : '(opcional)'}
-              </label>
-              <p className="text-[10px] text-gray-400 mb-1.5">Este comentário será visível para o responsável da função</p>
-              <Textarea
-                value={actionNote}
-                onChange={e => setActionNote(e.target.value)}
-                placeholder={
-                  actionModal?.type === 'approve' ? 'Adicionar um comentário...' :
-                  actionModal?.type === 'reject' ? 'Informe o motivo da recusa...' :
-                  'Informe o que precisa ser corrigido...'
-                }
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
-            <Button
-              onClick={handleAction}
-              disabled={rhActionMutation.isPending}
-              className={
-                actionModal?.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' :
-                actionModal?.type === 'reject' ? 'bg-red-600 hover:bg-red-700' :
-                'bg-orange-600 hover:bg-orange-700'
-              }
-            >
-              {rhActionMutation.isPending ? 'Processando...' :
-                actionModal?.type === 'approve' ? 'Aprovar' :
-                actionModal?.type === 'reject' ? 'Recusar' : 'Devolver'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
