@@ -394,7 +394,7 @@ export default function RhControlPage() {
   }> = {
     planejamento_pendente: {
       label: "Aguardando planejamento",
-      shortLabel: "Ag. planejamento",
+      shortLabel: "Planejamento",
       description: "Escalação confirmada — RH precisa criar o planejamento de valores",
       icon: ClipboardList,
       color: "text-amber-700 dark:text-amber-300",
@@ -418,7 +418,7 @@ export default function RhControlPage() {
     },
     prestacao_recebida: {
       label: "Análise pendente",
-      shortLabel: "Análise pendente",
+      shortLabel: "Comparativo",
       description: "Realizado recebido — RH precisa analisar o comparativo para aprovar ou recusar",
       icon: Send,
       color: "text-blue-700 dark:text-blue-300",
