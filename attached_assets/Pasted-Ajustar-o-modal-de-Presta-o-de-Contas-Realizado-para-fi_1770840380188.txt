@@ -1,0 +1,129 @@
+Ajustar o modal de Prestação de Contas (Realizado) para ficar mais claro, comparativo e visualmente mais profissional.
+
+1️⃣ Melhorar Header do Modal
+
+Reorganizar o topo do modal com melhor hierarquia visual.
+
+Estrutura:
+
+Esquerda
+
+Nome do colaborador (mais forte)
+
+Abaixo: função + tipo (Freela / Casa)
+
+Centro (texto leve informativo)
+
+“Realizado com base no planejado”
+
+Direita
+Badge de status comparativo:
+
+🟢 “Dentro do planejado”
+
+🟡 “Difere do planejado”
+
+🔴 “Acima do planejado”
+
+Esse badge deve mudar automaticamente conforme a diferença total.
+
+2️⃣ Transformar comparação de Diárias em bloco visual
+
+Substituir texto solto por bloco comparativo estruturado:
+
+Antes (texto simples):
+
+Valor planejado: 3 × R$ 273,33 = R$ 819,99
+
+Novo formato:
+
+Bloco comparativo:
+
+Planejado
+3 × R$ 273,33 = R$ 819,99
+
+Realizado
+3 × R$ 83,33 = R$ 249,99
+
+Abaixo disso:
+
+Economia de R$ 570,00 (-69%)
+
+Ou se acima:
+Acréscimo de R$ 120,00 (+14%)
+
+Esse resumo deve atualizar automaticamente.
+
+3️⃣ Destacar melhor Impacto no Orçamento (Rodapé)
+
+Transformar essa área em um bloco visual forte.
+
+Se economia:
+
+Fundo verde claro
+Ícone de seta para baixo
+Texto:
+
+Economia no orçamento
+
+R$ 410,01
+(-44,1%)
+
+Se acima:
+
+Fundo vermelho claro
+Ícone de alerta
+Texto:
+
+Acima do orçamento
+
+R$ 210,00
+(+22%)
+
+Evitar muito texto. Ser mais visual.
+
+4️⃣ Melhorar visual dos campos alterados
+
+Quando um valor for diferente do planejado:
+
+Adicionar borda levemente amarela
+
+Badge pequeno “Alterado”
+
+Tooltip ao passar mouse:
+“Valor diferente do planejado”
+
+Não exagerar na cor. Manter elegante.
+
+5️⃣ Melhorar leitura da multiplicação automática
+
+Abaixo dos campos:
+
+Quantidade: 3
+Valor unitário: 83,33
+
+Adicionar mini resumo automático:
+
+3 diárias × R$ 83,33 = R$ 249,99
+
+Isso reduz esforço mental do RH.
+
+6️⃣ Ajuste de microcopy
+
+Trocar textos longos por mensagens mais objetivas.
+
+Exemplo:
+
+Antes:
+“Você está registrando o que realmente aconteceu no evento...”
+
+Depois:
+“Informe os valores realmente executados.”
+
+Resultado esperado
+
+Modal mais claro
+Comparativo mais evidente
+Impacto visual imediato
+Melhor percepção financeira
+Menos esforço cognitivo

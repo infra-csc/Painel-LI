@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -908,8 +908,7 @@ export default function BudgetActualPage() {
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const planned = getPlannedRef(editingItem);
-            const plannedDailySubtotal = planned ? planned.dailyQuantity * planned.dailyValue : 0;
-            const plannedSubDiarias = plannedDailySubtotal;
+            const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility : 0;
             let plannedValorUtil = 0;
             let plannedValorFds = 0;
             if (planned && plannedSubDiarias > 0) {
@@ -923,48 +922,56 @@ export default function BudgetActualPage() {
                 plannedValorFds = Math.round((plannedSubDiarias - itemDays.weekdays * plannedValorUtil) / itemDays.weekends);
               }
             }
-            const plannedAlimentacao = planned ? planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner : 0;
             const plannedTotal = planned ? planned.totalValue : 0;
             const rawDifference = modalTotal - plannedTotal;
             const hasDivergence = planned && Math.abs(rawDifference) > 1;
             const difference = Math.abs(rawDifference) <= 1 ? 0 : rawDifference;
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-            const PRef = ({ value }: { value: number }) => (
-              <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(value)}</span>
-            );
-
             const pctChange = plannedTotal > 0 ? ((modalTotal - plannedTotal) / plannedTotal * 100) : 0;
+
+            const diffDiarias = subtotalDiarias - plannedSubDiarias;
+            const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiarias - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
+
+            const isFieldChanged = (current: number, plannedVal: number) => planned && current !== plannedVal;
+
+            const statusBadge = !planned ? null : !hasDivergence
+              ? { label: 'Dentro do planejado', bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="w-3 h-3" /> }
+              : difference > 0
+                ? { label: 'Acima do planejado', bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800', icon: <TrendingUp className="w-3 h-3" /> }
+                : { label: 'Abaixo do planejado', bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', icon: <TrendingDown className="w-3 h-3" /> };
 
             return (
               <>
-                <div className="bg-white dark:bg-gray-800 px-6 py-3.5 border-b border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{getCollaboratorName(editingItem.collaboratorId)}</h2>
-                      <div className="flex items-center gap-1.5 mt-1">
+                <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                         <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5">{getFunctionName(editingItem.functionId)}</Badge>
                         <Badge className={`text-[10px] h-[18px] px-1.5 ${editingItem.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                         </Badge>
-                        <Badge className={`text-[10px] h-[18px] px-1.5 font-normal ${isFromPlanned ? 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-50' : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
-                          {isFromPlanned ? 'Enviado do Planejado' : 'Criado no Realizado'}
-                        </Badge>
                       </div>
                     </div>
                     {planned && (
-                      <Badge className={`text-[10px] h-[18px] px-2 font-normal ${hasDivergence ? 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50' : 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50'}`}>
-                        {hasDivergence ? 'Difere do planejado' : 'Conforme planejado'}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className="text-[10px] text-gray-400">Realizado com base no planejado</span>
+                        {statusBadge && (
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border}`}>
+                            {statusBadge.icon}
+                            {statusBadge.label}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   <p className="text-[11px] text-gray-400 mt-2">
-                    Você está registrando o que realmente aconteceu no evento. Os valores planejados aparecem como base comparativa.
+                    Informe os valores realmente executados.
                   </p>
                   {rhComment && (
                     <div className="mt-2.5 p-2.5 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
                       <div className="flex items-start gap-2">
-                        <span className="text-xs mt-0.5">💬</span>
+                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
                         <div>
                           <span className="text-[9px] uppercase text-orange-500 font-semibold tracking-wider">Comentário do RH</span>
                           <p className="text-[11px] text-orange-700 dark:text-orange-300 mt-0.5">{rhComment}</p>
@@ -974,7 +981,7 @@ export default function BudgetActualPage() {
                   )}
                 </div>
 
-                <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-5 bg-gray-50/80 dark:bg-gray-900">
+                <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-4 bg-gray-50/80 dark:bg-gray-900">
 
                   {(itemDays.startDate || itemDays.endDate) && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
@@ -984,9 +991,6 @@ export default function BudgetActualPage() {
                           {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} a ${fmt(itemDays.endDate)}` :
                            itemDays.startDate ? `Início: ${fmt(itemDays.startDate)}` : `Fim: ${fmt(itemDays.endDate!)}`}
                         </span>
-                        {getItemInclusion(editingItem) && (
-                          <Badge variant="outline" className="text-[9px] h-[16px] px-1 text-gray-400 border-gray-200">Escalação</Badge>
-                        )}
                       </div>
                       <div className="flex items-center gap-3 text-[10px] text-gray-400">
                         {itemDays.weekdays > 0 && <span>{itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
@@ -1002,26 +1006,51 @@ export default function BudgetActualPage() {
                         <Calendar className="w-3.5 h-3.5 text-blue-500" />
                         <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Diárias</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
-                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
-                      </div>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {planned && (
-                        <div className="text-[10px] text-gray-400 tabular-nums mb-1">
-                          Valor planejado: {formatCurrency(plannedDailySubtotal)}
+                        <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                          <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
+                            <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800">
+                              <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-1">Planejado</div>
+                              <div className="text-xs font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedSubDiarias)}</div>
+                              <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">
+                                {itemDays.weekdays > 0 && <span>{itemDays.weekdays} × {formatCurrency(plannedValorUtil)}</span>}
+                                {itemDays.weekdays > 0 && itemDays.weekends > 0 && <span> + </span>}
+                                {itemDays.weekends > 0 && <span>{itemDays.weekends} × {formatCurrency(plannedValorFds)}</span>}
+                              </div>
+                            </div>
+                            <div className="px-3 py-2 bg-blue-50/30 dark:bg-blue-950/10">
+                              <div className="text-[9px] uppercase text-blue-500 font-semibold tracking-wider mb-1">Realizado</div>
+                              <div className="text-xs font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(subtotalDiarias)}</div>
+                              <div className="text-[10px] text-blue-400 mt-0.5 tabular-nums">
+                                {itemDays.weekdays > 0 && <span>{itemDays.weekdays} × {formatCurrency(editFormData.valorDiariaUtil)}</span>}
+                                {itemDays.weekdays > 0 && itemDays.weekends > 0 && <span> + </span>}
+                                {itemDays.weekends > 0 && <span>{itemDays.weekends} × {formatCurrency(editFormData.valorDiariaFds)}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          {Math.abs(diffDiarias) > 1 && (
+                            <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffDiarias < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
+                              <span className={`text-[11px] font-medium tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {diffDiarias < 0 ? 'Economia' : 'Acréscimo'} de {formatCurrency(Math.abs(diffDiarias))}
+                                {plannedSubDiarias > 0 && <span className="ml-1 text-[10px]">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
+
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 min-w-[120px]">
                           <Briefcase className="w-3.5 h-3.5 text-blue-500" />
                           <div>
                             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Dias Úteis</div>
-                            <div className="text-[10px] text-gray-400">{itemDays.weekdays} dias</div>
+                            <div className="text-[10px] text-gray-400">{itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia' : 'dias'}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-2 ${isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) ? 'bg-amber-50/60 dark:bg-amber-950/20 rounded-lg px-2 py-1 border border-amber-200/60 dark:border-amber-800/40' : ''}`}>
                           <div>
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-400 font-medium">R$</span>
@@ -1033,11 +1062,19 @@ export default function BudgetActualPage() {
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
-                            {planned && <PRef value={plannedValorUtil} />}
+                            {isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                <span className="text-[9px] text-gray-400 tabular-nums">plan: {formatCurrency(plannedValorUtil)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-right min-w-[90px]">
                           <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasUtil)}</span>
+                          {itemDays.weekdays > 0 && (
+                            <div className="text-[10px] text-gray-400 tabular-nums">{itemDays.weekdays} × {formatCurrency(editFormData.valorDiariaUtil)}</div>
+                          )}
                         </div>
                       </div>
 
@@ -1048,10 +1085,10 @@ export default function BudgetActualPage() {
                           <Sun className="w-3.5 h-3.5 text-amber-500" />
                           <div>
                             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Fim de Semana</div>
-                            <div className="text-[10px] text-gray-400">{itemDays.weekends} dias</div>
+                            <div className="text-[10px] text-gray-400">{itemDays.weekends} {itemDays.weekends === 1 ? 'dia' : 'dias'}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-2 ${isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) ? 'bg-amber-50/60 dark:bg-amber-950/20 rounded-lg px-2 py-1 border border-amber-200/60 dark:border-amber-800/40' : ''}`}>
                           <div>
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-400 font-medium">R$</span>
@@ -1063,11 +1100,19 @@ export default function BudgetActualPage() {
                               />
                               <span className="text-[10px] text-gray-400">/dia</span>
                             </div>
-                            {planned && <PRef value={plannedValorFds} />}
+                            {isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                <span className="text-[9px] text-gray-400 tabular-nums">plan: {formatCurrency(plannedValorFds)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-right min-w-[90px]">
                           <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasFds)}</span>
+                          {itemDays.weekends > 0 && (
+                            <div className="text-[10px] text-gray-400 tabular-nums">{itemDays.weekends} × {formatCurrency(editFormData.valorDiariaFds)}</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1079,18 +1124,15 @@ export default function BudgetActualPage() {
                         <Car className="w-3.5 h-3.5 text-purple-500" />
                         <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Mobilidade</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
-                        <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</span>
-                      </div>
+                      <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</span>
                     </div>
                     <div className="p-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className={`${planned && editFormData.mobility !== planned.mobility ? 'bg-amber-50/40 rounded-lg p-2 -m-2' : ''}`}>
+                        <div className={`${isFieldChanged(editFormData.mobility, planned?.mobility ?? 0) ? 'bg-amber-50/40 dark:bg-amber-950/20 rounded-lg p-2 -m-2 border border-amber-200/60 dark:border-amber-800/40' : ''}`}>
                           <div className="flex items-center gap-1.5 mb-1">
                             <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Total do período (R$)</label>
-                            {planned && editFormData.mobility !== planned.mobility && (
-                              <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                            {isFieldChanged(editFormData.mobility, planned?.mobility ?? 0) && (
+                              <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                             )}
                           </div>
                           <CurrencyInput
@@ -1098,18 +1140,15 @@ export default function BudgetActualPage() {
                             value={editFormData.mobility}
                             onChange={v => setEditFormData({...editFormData, mobility: v})}
                           />
-                          {planned && <PRef value={planned.mobility} />}
+                          {planned && (
+                            <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.mobility)}</span>
+                          )}
                         </div>
                         <div>
                           <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Por dia</label>
                           <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 text-xs text-gray-400 tabular-nums">
                             {(itemDays.weekdays + itemDays.weekends) > 0 ? formatCurrency(Math.round(editFormData.mobility / (itemDays.weekdays + itemDays.weekends))) : 'R$ 0,00'}
                           </div>
-                          {planned && (itemDays.weekdays + itemDays.weekends) > 0 && (
-                            <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">
-                              Valor planejado: {formatCurrency(Math.round(planned.mobility / (planned.dailyQuantity || 1)))}/dia
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -1121,10 +1160,7 @@ export default function BudgetActualPage() {
                         <Utensils className="w-3.5 h-3.5 text-orange-500" />
                         <span className="text-[11px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wide">Alimentação</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
-                        <span className="text-sm font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                      </div>
+                      <span className="text-sm font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                     </div>
                     <div className="p-4">
                       <div className="grid grid-cols-2 gap-3">
@@ -1134,12 +1170,12 @@ export default function BudgetActualPage() {
                             <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-300">Dias Úteis</span>
                           </div>
                           <div className="space-y-2.5">
-                            <div className={`${planned && editFormData.weekdayLunch !== planned.weekdayLunch ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5' : ''}`}>
+                            <div className={`${isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <Sun className="w-2.5 h-2.5 text-amber-400" />
                                 <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
-                                {planned && editFormData.weekdayLunch !== planned.weekdayLunch && (
-                                  <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                {isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) && (
+                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 )}
                               </div>
                               <CurrencyInput
@@ -1148,28 +1184,19 @@ export default function BudgetActualPage() {
                                 onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                                 disabled={itemDays.weekdays === 0}
                               />
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
-                                {itemDays.weekdays > 0 ? (
-                                  <CurrencyInput
-                                    className="h-6 text-[10px] flex-1"
-                                    value={Math.round(editFormData.weekdayLunch / itemDays.weekdays)}
-                                    onChange={perDay => setEditFormData({...editFormData, weekdayLunch: perDay * itemDays.weekdays})}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">sem dias úteis</span>
-                                )}
-                              </div>
+                              {itemDays.weekdays > 0 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayLunch)}</div>
+                              )}
                               {planned && (
-                                <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekdayLunch)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayLunch / itemDays.weekdays))}/dia)` : ''}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekdayLunch)}</span>
                               )}
                             </div>
-                            <div className={`${planned && editFormData.weekdayDinner !== planned.weekdayDinner ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5' : ''}`}>
+                            <div className={`${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <Moon className="w-2.5 h-2.5 text-indigo-400" />
                                 <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
-                                {planned && editFormData.weekdayDinner !== planned.weekdayDinner && (
-                                  <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                {isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) && (
+                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 )}
                               </div>
                               <CurrencyInput
@@ -1178,29 +1205,17 @@ export default function BudgetActualPage() {
                                 onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                                 disabled={itemDays.weekdays === 0}
                               />
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <label className="text-[9px] text-blue-400 whitespace-nowrap">/dia:</label>
-                                {itemDays.weekdays > 0 ? (
-                                  <CurrencyInput
-                                    className="h-6 text-[10px] flex-1"
-                                    value={Math.round(editFormData.weekdayDinner / itemDays.weekdays)}
-                                    onChange={perDay => setEditFormData({...editFormData, weekdayDinner: perDay * itemDays.weekdays})}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">sem dias úteis</span>
-                                )}
-                              </div>
+                              {itemDays.weekdays > 0 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayDinner)}</div>
+                              )}
                               {planned && (
-                                <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekdayDinner)}{itemDays.weekdays > 0 ? ` (${formatCurrency(Math.round(planned.weekdayDinner / itemDays.weekdays))}/dia)` : ''}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekdayDinner)}</span>
                               )}
                             </div>
                           </div>
                           <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
                             <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider">Subtotal</span>
-                            <div className="text-right">
-                              <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
-                              {planned && <div className="text-[9px] text-gray-400 tabular-nums">Valor planejado: {formatCurrency(planned.weekdayLunch + planned.weekdayDinner)}</div>}
-                            </div>
+                            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
                           </div>
                         </div>
 
@@ -1210,12 +1225,12 @@ export default function BudgetActualPage() {
                             <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-300">Fins de Semana</span>
                           </div>
                           <div className="space-y-2.5">
-                            <div className={`${planned && editFormData.weekendLunch !== planned.weekendLunch ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5' : ''}`}>
+                            <div className={`${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <Sun className="w-2.5 h-2.5 text-amber-400" />
                                 <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
-                                {planned && editFormData.weekendLunch !== planned.weekendLunch && (
-                                  <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                {isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) && (
+                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 )}
                               </div>
                               <CurrencyInput
@@ -1224,28 +1239,19 @@ export default function BudgetActualPage() {
                                 onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                                 disabled={itemDays.weekends === 0}
                               />
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
-                                {itemDays.weekends > 0 ? (
-                                  <CurrencyInput
-                                    className="h-6 text-[10px] flex-1"
-                                    value={Math.round(editFormData.weekendLunch / itemDays.weekends)}
-                                    onChange={perDay => setEditFormData({...editFormData, weekendLunch: perDay * itemDays.weekends})}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">sem fins de semana</span>
-                                )}
-                              </div>
+                              {itemDays.weekends > 0 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))} = {formatCurrency(editFormData.weekendLunch)}</div>
+                              )}
                               {planned && (
-                                <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekendLunch)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendLunch / itemDays.weekends))}/dia)` : ''}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekendLunch)}</span>
                               )}
                             </div>
-                            <div className={`${planned && editFormData.weekendDinner !== planned.weekendDinner ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5' : ''}`}>
+                            <div className={`${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <Moon className="w-2.5 h-2.5 text-indigo-400" />
                                 <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
-                                {planned && editFormData.weekendDinner !== planned.weekendDinner && (
-                                  <Badge className="text-[8px] h-[14px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                                {isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) && (
+                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
                                 )}
                               </div>
                               <CurrencyInput
@@ -1254,29 +1260,17 @@ export default function BudgetActualPage() {
                                 onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                                 disabled={itemDays.weekends === 0}
                               />
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <label className="text-[9px] text-amber-500 whitespace-nowrap">/dia:</label>
-                                {itemDays.weekends > 0 ? (
-                                  <CurrencyInput
-                                    className="h-6 text-[10px] flex-1"
-                                    value={Math.round(editFormData.weekendDinner / itemDays.weekends)}
-                                    onChange={perDay => setEditFormData({...editFormData, weekendDinner: perDay * itemDays.weekends})}
-                                  />
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">sem fins de semana</span>
-                                )}
-                              </div>
+                              {itemDays.weekends > 0 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))} = {formatCurrency(editFormData.weekendDinner)}</div>
+                              )}
                               {planned && (
-                                <span className="text-[10px] text-gray-400 tabular-nums block mt-0.5">Valor planejado: {formatCurrency(planned.weekendDinner)}{itemDays.weekends > 0 ? ` (${formatCurrency(Math.round(planned.weekendDinner / itemDays.weekends))}/dia)` : ''}</span>
+                                <span className="text-[9px] text-gray-400 tabular-nums block mt-0.5">plan: {formatCurrency(planned.weekendDinner)}</span>
                               )}
                             </div>
                           </div>
                           <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
                             <span className="text-[9px] text-amber-500 font-medium uppercase tracking-wider">Subtotal</span>
-                            <div className="text-right">
-                              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
-                              {planned && <div className="text-[9px] text-gray-400 tabular-nums">Valor planejado: {formatCurrency(planned.weekendLunch + planned.weekendDinner)}</div>}
-                            </div>
+                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
                           </div>
                         </div>
                       </div>
@@ -1285,6 +1279,30 @@ export default function BudgetActualPage() {
                 </div>
 
                 <div className="px-6 py-3.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                  {planned && Math.abs(difference) > 1 && (
+                    <div className={`rounded-lg p-3 mb-3 flex items-center gap-3 ${difference < 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'}`}>
+                      {difference < 0 ? (
+                        <TrendingDown className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                      ) : (
+                        <TrendingUp className="w-5 h-5 text-red-500 flex-shrink-0" />
+                      )}
+                      <div className="flex-1">
+                        <div className={`text-[11px] font-semibold ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                          {difference < 0 ? 'Economia no orçamento' : 'Acima do orçamento'}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-base font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                          {formatCurrency(Math.abs(difference))}
+                        </div>
+                        {plannedTotal > 0 && (
+                          <div className={`text-[10px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                            ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1">
                       {planned ? (
@@ -1299,21 +1317,6 @@ export default function BudgetActualPage() {
                               <div className="text-base font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                             </div>
                           </div>
-                          {Math.abs(difference) > 1 && (
-                            <>
-                              <Separator />
-                              <div className="px-3 py-2 text-center">
-                                <span className={`text-[11px] font-medium tabular-nums ${difference > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                  {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
-                                </span>
-                                {plannedTotal > 0 && (
-                                  <span className={`text-[10px] tabular-nums ml-1 ${difference > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
-                                    ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
-                                  </span>
-                                )}
-                              </div>
-                            </>
-                          )}
                         </div>
                       ) : (
                         <div>
