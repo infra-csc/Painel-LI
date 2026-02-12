@@ -479,8 +479,20 @@ export default function Scaling() {
       return;
     }
 
-    // Preparar dados para exportação com TODAS as informações
-    const exportData = scalingInclusions.map(inclusion => {
+    const activeInclusions = scalingInclusions.filter(inclusion => 
+      inclusion.status !== "cancelado" && !inclusion.deletedAt
+    );
+
+    if (activeInclusions.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Não há escalações ativas para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = activeInclusions.map(inclusion => {
       const event = events?.find(e => e.id === inclusion.eventId);
       const func = functions?.find(f => f.id === inclusion.functionId);
       const collaborator = collaborators?.find(c => c.id === inclusion.collaboratorId);
@@ -636,7 +648,7 @@ export default function Scaling() {
 
     toast({
       title: "Sucesso",
-      description: `Arquivo ${fileName} exportado com sucesso com ${exportData.length} escalações!`,
+      description: `Arquivo ${fileName} exportado com ${exportData.length} escalações ativas!`,
     });
   };
 
