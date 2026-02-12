@@ -608,23 +608,20 @@ export default function BudgetActualPage() {
             );
           })()}
 
-          {/* Bloco financeiro - oculto temporariamente para publicação */}
-          {false && (
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-gray-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalRealizado)}</div>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
-                    <span className={`text-[11px] tabular-nums font-medium ${diffLabel.color}`}>
-                      {diffLabel.text}
-                    </span>
-                  </div>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-gray-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalRealizado)}</div>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
+                  <span className={`text-[11px] tabular-nums font-medium ${diffLabel.color}`}>
+                    {diffLabel.text}
+                  </span>
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
