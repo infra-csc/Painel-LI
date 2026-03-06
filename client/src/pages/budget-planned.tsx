@@ -792,7 +792,7 @@ export default function BudgetPlannedPage() {
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden ${
+                      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden flex flex-col ${
                         highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
                         isSelected ? 'ring-2 ring-green-500 border-green-300' : 
                         isSent ? 'border-indigo-200 dark:border-indigo-800 opacity-75' :
@@ -869,7 +869,7 @@ export default function BudgetPlannedPage() {
                       
                       {/* Corpo do Card - Colapsável */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 text-sm space-y-1">
+                        <div className="px-4 py-3 text-sm space-y-1 flex-1">
                           {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
                             <div className="flex items-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
