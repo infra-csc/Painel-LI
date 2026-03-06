@@ -118,6 +118,9 @@ export default function Scaling() {
   // Filtrar teamInclusions baseado nas permissões de visualização
   const userFunctionIds = allFunctionManagers?.filter(m => m.userId === user?.id).map(m => m.functionId) || [];
   const filteredTeamInclusions = teamInclusions?.filter(ti => {
+    // Ocultar escalações vinculadas a eventos excluídos
+    const linkedEvent = events?.find(e => e.id === ti.eventId);
+    if (!linkedEvent || linkedEvent.status === 'excluído') return false;
     // Administradores veem todas as inclusões (verificando diferentes formatos de role)
     if (user?.role === 'administrador' || user?.role === 'admin' || user?.role === 'administrator') return true;
     // Usuários "Logística Interna" (production) veem todas as inclusões
