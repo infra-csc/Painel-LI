@@ -80,11 +80,21 @@ function getEntityName(entityType: string, entityData: any): string {
     case 'team_inclusion':
       return `Inclusão #${entityData.inclusionNumber}` || 'Inclusão de Equipe';
     case 'ticket':
-      return entityData.purchaseOrderNumber || 'Passagem';
+      return entityData.purchaseOrderNumber || `Passagem #${entityData.id?.slice(0, 8)}` || 'Passagem';
+    case 'accommodation':
+      return entityData.reservationNumber || `Hospedagem #${entityData.id?.slice(0, 8)}` || 'Hospedagem';
     case 'financial':
       return `Financeiro #${entityData.id?.slice(0, 8)}` || 'Registro Financeiro';
     case 'comment':
       return `Comentário em ${entityData.phase}` || 'Comentário';
+    case 'budget_planned':
+      return entityData.collaboratorName || `Planejamento #${entityData.id?.slice(0, 8)}` || 'Planejamento';
+    case 'budget_actual':
+      return entityData.collaboratorName || `Prestação #${entityData.id?.slice(0, 8)}` || 'Prestação de Contas';
+    case 'budget_comparison':
+      return entityData.collaboratorName || `Comparativo #${entityData.id?.slice(0, 8)}` || 'Comparativo';
+    case 'system_settings':
+      return 'Configurações do Sistema';
     default:
       return entityType;
   }
@@ -1320,6 +1330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("🔧 Updates to apply:", updates);
       const inclusion = await storage.updateTeamInclusion(id, updates);
       console.log("✅ [EDIT DEBUG] Team inclusion updated successfully:", inclusion.id, "- New status:", inclusion.status);
+      await createAuditLog('update', 'team_inclusion', id, inclusion, userId, user?.name || 'Sistema', currentInclusion, req);
       res.json(inclusion);
     } catch (error) {
       console.error("❌ Error updating team inclusion:", error);
@@ -1407,6 +1418,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticketData = insertTicketSchema.parse(req.body);
       console.log("✅ Dados validados:", JSON.stringify(ticketData, null, 2));
       const ticket = await storage.createTicket(ticketData);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'ticket', ticket.id, ticket, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(ticket);
     } catch (error) {
       console.error("❌ Erro na validação:", error);
@@ -1421,9 +1435,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+        updatedBy: req.body.updatedBy || null
       };
+      const prev = await storage.getTicket(id);
       const ticket = await storage.updateTicket(id, updates);
+      const actorId = req.session?.userId || req.body.updatedBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'ticket', id, ticket, actorId, actor?.name || 'Sistema', prev, req);
       res.json(ticket);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar passagem" });
@@ -1446,6 +1464,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accommodationData = insertAccommodationSchema.parse(req.body);
       console.log("✅ Dados de hospedagem validados:", JSON.stringify(accommodationData, null, 2));
       const accommodation = await storage.createAccommodation(accommodationData);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'accommodation', accommodation.id, accommodation, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(accommodation);
     } catch (error) {
       console.error("❌ Erro na validação de hospedagem:", error);
@@ -1460,9 +1481,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates = { 
         ...req.body, 
         updatedAt: new Date(),
-        updatedBy: req.body.updatedBy || null // frontend deve enviar o ID do usuário que está editando
+        updatedBy: req.body.updatedBy || null
       };
+      const prev = await storage.getAccommodation(id);
       const accommodation = await storage.updateAccommodation(id, updates);
+      const actorId = req.session?.userId || req.body.updatedBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'accommodation', id, accommodation, actorId, actor?.name || 'Sistema', prev, req);
       res.json(accommodation);
     } catch (error) {
       res.status(400).json({ message: "Erro ao atualizar hospedagem" });
@@ -2043,6 +2068,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertBudgetActualSchema.parse(req.body);
       const actual = await storage.createBudgetActual(data);
+      const actorId = req.session?.userId || req.body.createdBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'budget_actual', actual.id, actual, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(actual);
     } catch (error) {
       console.error("Error creating budget actual:", error);
@@ -2054,6 +2082,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { eventId } = req.params;
       const planned = await storage.getBudgetPlanned(eventId);
+      const actorId = req.session?.userId || req.body.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
       
       const duplicated = await Promise.all(
         planned.map(async (p) => {
@@ -2079,7 +2109,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return await storage.createBudgetActual(actualData);
         })
       );
-      
+
+      await createAuditLog('create', 'budget_actual', eventId, { eventId, count: duplicated.length }, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(duplicated);
     } catch (error) {
       console.error("Error duplicating from planned:", error);
@@ -2113,6 +2144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: req.body.userId,
       };
       const duplicated = await storage.createBudgetActual(duplicateData);
+      const actorId = req.session?.userId || req.body.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'budget_actual', duplicated.id, duplicated, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(duplicated);
     } catch (error) {
       console.error("Error duplicating budget actual:", error);
@@ -2122,7 +2156,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
+      const prev = await storage.getBudgetActualById(req.params.id);
       const actual = await storage.updateBudgetActual(req.params.id, req.body);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'budget_actual', req.params.id, actual, actorId, actor?.name || 'Sistema', prev, req);
       res.json(actual);
     } catch (error) {
       console.error("Error updating budget actual:", error);
@@ -2132,7 +2170,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/budget-actual/:id", async (req, res) => {
     try {
+      const prev = await storage.getBudgetActualById(req.params.id);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
       await storage.deleteBudgetActual(req.params.id);
+      await createAuditLog('delete', 'budget_actual', req.params.id, prev, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting budget actual:", error);
@@ -2280,6 +2322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvalObservation,
         approvedAt: new Date(),
       });
+      const actorId = req.session?.userId || approvedBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('approve', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error approving budget comparison:", error);
@@ -2296,6 +2341,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rejectionReason,
         approvedAt: new Date(),
       });
+      const actorId = req.session?.userId || approvedBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('reject', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error rejecting budget comparison:", error);
@@ -2311,6 +2359,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvedBy,
         returnReason,
       });
+      const actorId = req.session?.userId || approvedBy;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'budget_comparison', req.params.id, comparison, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(comparison);
     } catch (error) {
       console.error("Error returning budget comparison:", error);
@@ -2328,6 +2379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Ação inválida" });
       }
 
+      const actor = actionBy ? await storage.getUser(actionBy) : null;
+      const actorId = req.session?.userId || actionBy;
       const results = [];
       for (const id of itemIds) {
         const updated = await storage.updateBudgetActual(id, {
@@ -2342,6 +2395,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.push(updated);
       }
 
+      const logAction = action === 'aprovado' ? 'approve' : action === 'rejeitado' ? 'reject' : 'update';
+      await createAuditLog(logAction, 'budget_actual', itemIds[0], { itemIds, action, comment, count: results.length }, actorId, actor?.name || 'Sistema', undefined, req);
       res.json({ updated: results.length, items: results });
     } catch (error) {
       console.error("Error performing RH action:", error);

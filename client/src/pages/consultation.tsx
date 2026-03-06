@@ -61,8 +61,10 @@ const ENTITY_CONFIG: Record<string, { label: string; icon: any; color: string }>
   system_settings:{ label: "Configurações",   icon: Settings,   color: "text-purple-600" },
   function:       { label: "Função",          icon: Activity,   color: "text-indigo-600" },
   collaborator:   { label: "Colaborador",     icon: UserCheck,  color: "text-teal-600" },
-  ticket:         { label: "Passagem",        icon: FileText,   color: "text-orange-600" },
-  financial:      { label: "Financeiro",      icon: DollarSign, color: "text-emerald-600" },
+  ticket:            { label: "Passagem",          icon: FileText,   color: "text-orange-600" },
+  accommodation:     { label: "Hospedagem",         icon: FileText,   color: "text-sky-600" },
+  budget_comparison: { label: "Comparativo",        icon: FileText,   color: "text-rose-600" },
+  financial:         { label: "Financeiro",          icon: DollarSign, color: "text-emerald-600" },
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -336,6 +338,8 @@ export default function SystemLogsPage() {
               <SelectItem value="function">Funções</SelectItem>
               <SelectItem value="collaborator">Colaboradores</SelectItem>
               <SelectItem value="ticket">Passagens</SelectItem>
+              <SelectItem value="accommodation">Hospedagens</SelectItem>
+              <SelectItem value="budget_comparison">Comparativo</SelectItem>
               <SelectItem value="financial">Financeiro</SelectItem>
             </SelectContent>
           </Select>
