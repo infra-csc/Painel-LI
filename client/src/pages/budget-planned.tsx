@@ -279,21 +279,24 @@ export default function BudgetPlannedPage() {
       const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
       const override = budgetOverrides[inclusion.id];
       
-      // Usar workDays da escalação quando disponível (datas exatas de trabalho)
+      // Calcular dias reais a partir do intervalo de datas (igual ao que a escalação mostra)
       let weekdays = 0;
       let weekends = 0;
       let qtdDiarias: number;
 
-      if (inclusion.workDays && inclusion.workDays.length > 0) {
-        // workDays é a fonte de verdade: conta os dias reais selecionados na escalação
-        for (const dateStr of inclusion.workDays) {
-          const dateOnly = String(dateStr).substring(0, 10); // garante formato YYYY-MM-DD
-          const d = new Date(dateOnly + 'T12:00:00'); // meio-dia evita fuso horário
-          const day = d.getDay();
+      if (inclusion.scheduleStartDate && inclusion.scheduleEndDate) {
+        // Usar intervalo completo start→end: mesma lógica que o "Período de Trabalho" na escalação
+        const startD = new Date(inclusion.scheduleStartDate + 'T12:00:00');
+        const endD = new Date(inclusion.scheduleEndDate + 'T12:00:00');
+        const cur = new Date(startD);
+        while (cur <= endD) {
+          const day = cur.getDay();
           if (day === 0 || day === 6) weekends++;
           else weekdays++;
+          cur.setDate(cur.getDate() + 1);
         }
-        qtdDiarias = override?.qtdDiarias ?? inclusion.workDays.length;
+        const totalFromRange = weekdays + weekends;
+        qtdDiarias = override?.qtdDiarias ?? totalFromRange;
       } else {
         qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
         const result = countWeekdaysAndWeekends(inclusion.scheduleStartDate, qtdDiarias);
