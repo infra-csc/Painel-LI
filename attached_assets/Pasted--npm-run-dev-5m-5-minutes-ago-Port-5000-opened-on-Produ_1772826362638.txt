@@ -1,0 +1,244 @@
+
+
+npm run dev
+5m
+ • 
+5 minutes ago
+Port :5000 opened on
+Production
+Status
+Infra published 5 minutes ago
+Visibility
+Public
+Domain
+https://Logistica-Interna.replit.app
+Type
+Autoscale
+(1 vCPU / 2 GiB RAM / 1 Max)
+See all usage
+Database
+Production database connected
+ac896bec
+IE
+infraestrutura2
+Infra
+published about 5 hours ago
+3357ec7e
+IE
+infraestrutura2
+Infra
+published 22 days ago
+9cd5d591
+IE
+infraestrutura2
+Infra
+published 23 days ago
+c989d6bf
+IE
+infraestrutura2
+Infra
+published 28 days ago
+cedd1060
+IE
+infraestrutura2
+Infra
+published 28 days ago
+0369eed9
+IE
+infraestrutura2
+Infra
+published 28 days ago
+b2167b49
+IE
+infraestrutura2
+Infra
+published 28 days ago
+25f0d22d
+IE
+infraestrutura2
+Infra
+published 29 days ago
+37f69267
+IE
+infraestrutura2
+Infra
+published 30 days ago
+cd3d3ec5
+IE
+infraestrutura2
+Infra
+published 30 days ago
+8c84f501
+IE
+infraestrutura2
+Infra
+published 30 days ago
+2ba53e8f
+IE
+infraestrutura2
+Infra
+published about 1 month ago
+b77498e1
+IE
+infraestrutura2
+Infra
+published about 1 month ago
+5606061e
+IE
+infraestrutura2
+Infra
+published about 1 month ago
+6a874f3b
+IE
+infraestrutura2
+Infra
+published 2 months ago
+79e8d958
+IE
+infraestrutura2
+Infra
+published 3 months ago
+98d41110
+IE
+infraestrutura2
+Infra
+published 4 months ago
+ac4e2d9c
+IE
+infraestrutura2
+Infra
+published 4 months ago
+ef3f50ac
+IE
+infraestrutura2
+Infra
+published 4 months ago
+c436b7f9
+IE
+infraestrutura2
+Infra
+published 4 months ago
+9f39dc9f
+IE
+infraestrutura2
+Infra
+published 4 months ago
+ef7e8bcc
+IE
+infraestrutura2
+Infra
+published 4 months ago
+c291755d
+IE
+infraestrutura2
+Infra
+published 4 months ago
+3208e8c1
+IE
+infraestrutura2
+Infra
+published 4 months ago
+19702a67
+IE
+infraestrutura2
+Infra
+published 4 months ago
+82bacf47
+IE
+infraestrutura2
+Infra
+published 4 months ago
+0d31a68d
+IE
+infraestrutura2
+Infra
+published 4 months ago
+cb63a36f
+IE
+infraestrutura2
+Infra
+published 4 months ago
+164fd0d9
+IE
+infraestrutura2
+Infra
+published 4 months ago
+67f6a600
+IE
+infraestrutura2
+Infra
+published 4 months ago
+f3c4b282
+IE
+infraestrutura2
+Infra
+published 4 months ago
+eba5c40f
+IE
+infraestrutura2
+Infra
+published 4 months ago
+7b837033
+IE
+infraestrutura2
+Infra
+published 4 months ago
+ef3de4b8
+IE
+infraestrutura2
+Infra
+published 4 months ago
+2dd42a5f
+IE
+infraestrutura2
+Infra
+published 4 months ago
+f06e1627
+IE
+infraestrutura2
+Infra
+published 4 months ago
+4f746b33
+IE
+infraestrutura2
+Infra
+published 4 months ago
+81efb5ee
+IE
+infraestrutura2
+Infra
+published 5 months ago
+d12211ee
+IE
+infraestrutura2
+Infra
+published 5 months ago
+3bbadb1e
+IE
+infraestrutura2
+Infra
+published 5 months ago
+Your development database has been upgraded. The previous Neon development database will be removed soon. Learn more
+Databases
+Development Database
+30.53MB / 20GB
+Production Database
+32.44MB / 100GB
+Billing Period
+Renews monthly, 28 de mar.
+Hours of Compute Used
+4,31 hours
+Search through the text contents of your App
+Enter a search query above to see results.
+Improve filter display to prevent text truncation
+melhore o uso da pagina esta alinhado para a esquerda e ficou estranho
+
+basicamernte tudo o que ocorre no sistesema na consulta geral
+
+mas os dados anteriores não vão aparecer?
+
+não precisa, só reavalie que esta funcionando como um log completo
+
+filtro cortando o nome
+
+quero implantar apenas isso sobre os logs mas não excluindo o que estava antes, os logs antigos, pode mudar daqui pra frente mas os logs que ja estavam em produçlão não sumir
