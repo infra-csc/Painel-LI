@@ -869,7 +869,7 @@ export default function BudgetPlannedPage() {
                       
                       {/* Corpo do Card - Colapsável */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 text-sm space-y-1 flex-1">
+                        <div className="px-4 py-3 text-sm flex-1 flex flex-col">
                           {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
                             <div className="flex items-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -878,7 +878,7 @@ export default function BudgetPlannedPage() {
                               </span>
                             </div>
                           )}
-                          <div className="py-1">
+                          <div className="py-1 flex-1">
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-3.5 h-3.5 text-blue-500" />
