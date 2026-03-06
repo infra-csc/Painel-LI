@@ -630,9 +630,7 @@ export default function BudgetPlannedPage() {
 
             {/* Timeline de Progresso do Planejado */}
             {(() => {
-              const currentStep = stats.total === 0 ? 0
-                : stats.enviados < stats.total ? 1
-                : 2;
+              const currentStep = 1;
               const steps = [
                 { label: "Escalação", desc: "Inclusões confirmadas" },
                 { label: "Planejamento (RH)", desc: "Defina os valores previstos" },

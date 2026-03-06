@@ -536,80 +536,52 @@ export default function BudgetActualPage() {
       ) : (
         <>
           {(() => {
-            const eventItems = budgetActual?.filter(a => a.eventId === selectedEventId) || [];
-            const allApproved = eventItems.length > 0 && eventItems.every(i => i.rhStatus === "aprovado");
-            const anyDevolvido = eventItems.some(i => i.rhStatus === "devolvido");
-            const anyRejeitado = eventItems.some(i => i.rhStatus === "rejeitado");
-            const allSent = eventItems.length > 0 && eventItems.every(i => i.sentForReview);
-            const anySent = eventItems.some(i => i.sentForReview);
-
-            let currentStep = 0;
-            if (allApproved) {
-              currentStep = 3;
-            } else if (allSent || anySent) {
-              currentStep = 2;
-            } else if (anyDevolvido || anyRejeitado) {
-              currentStep = 1;
-            } else {
-              const hasEdited = eventItems.some(i => i.updatedAt && i.createdAt && new Date(i.updatedAt).getTime() > new Date(i.createdAt).getTime() + 1000);
-              currentStep = hasEdited ? 1 : 0;
-            }
-
+            const currentStep = 2;
             const steps = [
-              { label: "Preencher valores", desc: "Informe o realizado" },
-              { label: "Enviar ao RH", desc: "Envie para análise" },
-              { label: "Análise do RH", desc: "Aguarde aprovação" },
-              { label: "Aprovado", desc: "Prestação concluída" },
+              { label: "Escalação", desc: "Inclusões confirmadas" },
+              { label: "Planejamento (RH)", desc: "Valores previstos definidos" },
+              { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
+              { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
             ];
-
-            const diffLabel = totalDifference === 0
-              ? { text: "Dentro do planejado", color: "text-gray-500" }
-              : totalDifference < 0
-                ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-emerald-600" }
-                : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-red-500" };
-
             return (
-              <div className="space-y-3">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5">
-                  <div className="flex items-center justify-between">
-                    {steps.map((step, i) => {
-                      const isDone = i < currentStep;
-                      const isActive = i === currentStep;
-                      const isLast = i === steps.length - 1;
-                      return (
-                        <div key={i} className="flex items-center flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                              isDone ? 'bg-emerald-500 text-white' :
-                              isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
-                              'bg-gray-100 dark:bg-gray-700 text-gray-400'
-                            }`}>
-                              {isDone ? (
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (i + 1)}
-                            </div>
-                            <div className="min-w-0">
-                              <div className={`text-[11px] font-medium leading-tight ${
-                                isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                                isActive ? 'text-purple-700 dark:text-purple-300' :
-                                'text-gray-400'
-                              }`}>{step.label}</div>
-                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
-                            </div>
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5">
+                <div className="flex items-center justify-between">
+                  {steps.map((step, i) => {
+                    const isDone = i < currentStep;
+                    const isActive = i === currentStep;
+                    const isLast = i === steps.length - 1;
+                    return (
+                      <div key={i} className="flex items-center flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                            isDone ? 'bg-emerald-500 text-white' :
+                            isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                          }`}>
+                            {isDone ? (
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (i + 1)}
                           </div>
-                          {!isLast && (
-                            <div className={`flex-1 h-[2px] mx-3 rounded ${
-                              isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
-                            }`} />
-                          )}
+                          <div className="min-w-0">
+                            <div className={`text-[11px] font-medium leading-tight ${
+                              isDone ? 'text-emerald-600 dark:text-emerald-400' :
+                              isActive ? 'text-purple-700 dark:text-purple-300' :
+                              'text-gray-400'
+                            }`}>{step.label}</div>
+                            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        {!isLast && (
+                          <div className={`flex-1 h-[2px] mx-3 rounded ${
+                            isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
+                          }`} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-
               </div>
             );
           })()}
