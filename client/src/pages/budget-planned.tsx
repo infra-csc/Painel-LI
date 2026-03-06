@@ -311,11 +311,12 @@ export default function BudgetPlannedPage() {
         weekends = result.weekends;
       }
 
-      const defaultDailyValue = systemSettings?.default_daily_value ?? 5000;
-      const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValue;
+      const defaultDailyValueWeekday = systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000;
+      const defaultDailyValueWeekend = systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 10000;
+      const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValueWeekday;
       const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue;
-      const valorDiariaFds = override?.valorDiariaFds ?? inclusionDailyValue;
+      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+      const valorDiariaFds = override?.valorDiariaFds ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;

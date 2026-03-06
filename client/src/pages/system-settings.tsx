@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +14,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { isAdmin } from "@/lib/permissions";
 
 const formSchema = z.object({
-  default_daily_value: z.string().min(1, "Obrigatório"),
+  default_daily_value_weekday: z.string().min(1, "Obrigatório"),
+  default_daily_value_weekend: z.string().min(1, "Obrigatório"),
   default_mobility: z.string().min(1, "Obrigatório"),
   default_weekday_lunch: z.string().min(1, "Obrigatório"),
   default_weekday_dinner: z.string().min(1, "Obrigatório"),
@@ -33,7 +34,7 @@ export default function SystemSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading } = useQuery<Record<string, number>>({
+  const { data: settings } = useQuery<Record<string, number>>({
     queryKey: ["/api/system-settings"],
     queryFn: async () => {
       const res = await fetch("/api/system-settings", { credentials: "include" });
@@ -44,7 +45,8 @@ export default function SystemSettingsPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      default_daily_value: "50.00",
+      default_daily_value_weekday: "50.00",
+      default_daily_value_weekend: "100.00",
       default_mobility: "25.00",
       default_weekday_lunch: "35.00",
       default_weekday_dinner: "40.00",
@@ -56,7 +58,8 @@ export default function SystemSettingsPage() {
   useEffect(() => {
     if (settings) {
       form.reset({
-        default_daily_value: centavosToReais(settings.default_daily_value ?? 5000),
+        default_daily_value_weekday: centavosToReais(settings.default_daily_value_weekday ?? settings.default_daily_value ?? 5000),
+        default_daily_value_weekend: centavosToReais(settings.default_daily_value_weekend ?? settings.default_daily_value ?? 10000),
         default_mobility: centavosToReais(settings.default_mobility ?? 2500),
         default_weekday_lunch: centavosToReais(settings.default_weekday_lunch ?? 3500),
         default_weekday_dinner: centavosToReais(settings.default_weekday_dinner ?? 4000),
@@ -125,17 +128,29 @@ export default function SystemSettingsPage() {
               </CardTitle>
               <CardDescription>Valor padrão por diária quando não há configuração específica por função</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="default_daily_value"
+                name="default_daily_value_weekday"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor da Diária (R$)</FormLabel>
+                    <FormLabel>Diária — Dia Útil (R$)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" min="0" placeholder="50.00" {...field} className="max-w-xs" />
+                      <Input type="number" step="0.01" min="0" placeholder="50.00" {...field} />
                     </FormControl>
-                    <FormDescription>Aplicado quando a escalação não define um valor específico</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="default_daily_value_weekend"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Diária — Fim de Semana (R$)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" min="0" placeholder="100.00" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
