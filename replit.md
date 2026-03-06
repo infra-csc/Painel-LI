@@ -49,6 +49,14 @@ Preferred communication style: Simple, everyday language.
 - **Default view**: Hides concluded items (aprovada/recusada); "Concluídos" filter shows them
 - **Business rules**: Events without escalações don't appear in Planejado or RH Control
 
+## System Settings (Configurações)
+- **Table**: `system_settings` — key-value store for global default values
+- **Keys**: `default_daily_value`, `default_mobility`, `default_weekday_lunch`, `default_weekday_dinner`, `default_weekend_lunch`, `default_weekend_dinner`
+- **Values stored in centavos** (integers): e.g. `2500` = R$25,00
+- **API**: `GET /api/system-settings` returns object with defaults; `PUT /api/system-settings` updates (admin only, receives values in reais, stores in centavos)
+- **Architecture**: Global defaults → used as fallback in budget-planned.tsx calculations → `budget_planned` stores its own independent copy → existing events unaffected
+- **Access**: Admin-only page at `/system-settings`, shown in sidebar under "Sistema"
+
 ## Authentication & Authorization
 - **User Roles**: Administrator, Production Area, Function Area, Purchasing, Financial
 - **Session Management**: Server-side session handling with secure authentication

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison,
+  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -19,7 +19,8 @@ import {
   type FunctionValue, type InsertFunctionValue,
   type BudgetPlanned, type InsertBudgetPlanned,
   type BudgetActual, type InsertBudgetActual,
-  type BudgetComparison, type InsertBudgetComparison
+  type BudgetComparison, type InsertBudgetComparison,
+  type SystemSetting
 } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
@@ -135,6 +136,10 @@ export interface IStorage {
   getAllBudgetComparisons(): Promise<BudgetComparison[]>;
   createBudgetComparison(comparison: InsertBudgetComparison): Promise<BudgetComparison>;
   updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison>;
+
+  // System Settings
+  getSystemSettings(): Promise<SystemSetting[]>;
+  upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting>;
 }
 
 export class MemStorage implements IStorage {
@@ -762,6 +767,9 @@ export class MemStorage implements IStorage {
   async getAllBudgetComparisons(): Promise<BudgetComparison[]> { return []; }
   async createBudgetComparison(comparison: InsertBudgetComparison): Promise<BudgetComparison> { throw new Error("Not implemented"); }
   async updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison> { throw new Error("Not implemented"); }
+
+  async getSystemSettings(): Promise<SystemSetting[]> { return []; }
+  async upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting> { throw new Error("Not implemented"); }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1453,6 +1461,26 @@ export class DatabaseStorage implements IStorage {
   async updateBudgetComparison(id: string, comparison: Partial<InsertBudgetComparison>): Promise<BudgetComparison> {
     const [updated] = await db.update(budgetComparison).set({ ...comparison, updatedAt: new Date() }).where(eq(budgetComparison.id, id)).returning();
     return updated;
+  }
+
+  async getSystemSettings(): Promise<SystemSetting[]> {
+    return await db.select().from(systemSettings);
+  }
+
+  async upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting> {
+    const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
+    if (existing.length > 0) {
+      const [updated] = await db.update(systemSettings)
+        .set({ value, updatedAt: new Date(), updatedBy: updatedBy ?? null })
+        .where(eq(systemSettings.key, key))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(systemSettings)
+        .values({ key, value, updatedBy: updatedBy ?? null })
+        .returning();
+      return created;
+    }
   }
 }
 

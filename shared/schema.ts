@@ -445,6 +445,23 @@ export const insertBudgetActualSchema = createInsertSchema(budgetActual).omit({
   updatedAt: true,
 });
 
+// System Settings - global default values for budget calculations
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+export const insertSystemSettingsSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingsSchema>;
+
 export const insertBudgetComparisonSchema = createInsertSchema(budgetComparison).omit({
   id: true,
   createdAt: true,

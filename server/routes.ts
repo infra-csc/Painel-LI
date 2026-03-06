@@ -2323,6 +2323,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── System Settings ──────────────────────────────────────────────
+  app.get("/api/system-settings", async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettings();
+      const defaults: Record<string, number> = {
+        default_mobility: 2500,
+        default_weekday_lunch: 3500,
+        default_weekday_dinner: 4000,
+        default_weekend_lunch: 4000,
+        default_weekend_dinner: 4500,
+        default_daily_value: 5000,
+      };
+      const result: Record<string, number> = { ...defaults };
+      for (const s of settings) {
+        result[s.key] = parseInt(s.value, 10);
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching system settings:", error);
+      res.status(500).json({ message: "Erro ao buscar configurações" });
+    }
+  });
+
+  app.put("/api/system-settings", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ message: "Apenas administradores podem alterar configurações" });
+
+    try {
+      const allowed = ["default_mobility", "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner", "default_daily_value"];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) {
+          const val = Math.round(parseFloat(req.body[key]) * 100);
+          await storage.upsertSystemSetting(key, String(val), req.session.userId);
+        }
+      }
+      res.json({ message: "Configurações salvas com sucesso" });
+    } catch (error) {
+      console.error("Error updating system settings:", error);
+      res.status(500).json({ message: "Erro ao salvar configurações" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

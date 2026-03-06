@@ -132,6 +132,13 @@ export default function BudgetPlannedPage() {
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
   const { data: functionValues, isLoading: isLoadingFunctionValues } = useQuery<FunctionValue[]>({ queryKey: ["/api/function-values"] });
+  const { data: systemSettings } = useQuery<Record<string, number>>({
+    queryKey: ["/api/system-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/system-settings", { credentials: "include" });
+      return res.json();
+    },
+  });
 
   const { data: existingActuals } = useQuery<any[]>({
     queryKey: ["/api/budget-actual", selectedEventId],
@@ -304,7 +311,8 @@ export default function BudgetPlannedPage() {
         weekends = result.weekends;
       }
 
-      const inclusionDailyValue = inclusion.dailyValue ?? 5000;
+      const defaultDailyValue = systemSettings?.default_daily_value ?? 5000;
+      const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValue;
       const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
       const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue;
       const valorDiariaFds = override?.valorDiariaFds ?? inclusionDailyValue;
@@ -313,11 +321,11 @@ export default function BudgetPlannedPage() {
       const subtotalDiariasFds = weekends * valorDiariaFds;
       const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
       
-      const mobilidade = override?.mobilidade ?? fv?.mobility ?? 2500;
-      const unitAlmocoSemana = fv?.weekdayLunch || 3500;
-      const unitJantarSemana = fv?.weekdayDinner || 4000;
-      const unitAlmocoFds = fv?.weekendLunch || 4000;
-      const unitJantarFds = fv?.weekendDinner || 4500;
+      const mobilidade = override?.mobilidade ?? fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+      const unitAlmocoSemana = fv?.weekdayLunch || (systemSettings?.default_weekday_lunch ?? 3500);
+      const unitJantarSemana = fv?.weekdayDinner || (systemSettings?.default_weekday_dinner ?? 4000);
+      const unitAlmocoFds = fv?.weekendLunch || (systemSettings?.default_weekend_lunch ?? 4000);
+      const unitJantarFds = fv?.weekendDinner || (systemSettings?.default_weekend_dinner ?? 4500);
       const almocoSemana = override?.almocoSemana ?? (unitAlmocoSemana * weekdays);
       const jantarSemana = override?.jantarSemana ?? (unitJantarSemana * weekdays);
       const almocoFds = override?.almocoFds ?? (unitAlmocoFds * weekends);
@@ -353,7 +361,7 @@ export default function BudgetPlannedPage() {
         hasOverride: !!override,
       };
     });
-  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides]);
+  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings]);
 
   const totalGeral = useMemo(() => {
     return calculatedBudgets.reduce((sum, b) => sum + b.totalFinal, 0);

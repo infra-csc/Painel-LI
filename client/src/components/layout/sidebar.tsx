@@ -69,6 +69,10 @@ const menuGroups = [
   {
     title: "Gestão",
     items: ["approval", "consultation", "admin-users"]
+  },
+  {
+    title: "Sistema",
+    items: ["system-settings"]
   }
 ];
 
@@ -184,6 +188,13 @@ export default function Sidebar() {
       label: "Controle RH",
       icon: Shield,
       permission: "canAccessScreen5" as const,
+    },
+    {
+      id: "system-settings",
+      path: "/system-settings",
+      label: "Configurações",
+      icon: Settings,
+      permission: "canAccessAdminUsers" as const,
     },
   ];
 

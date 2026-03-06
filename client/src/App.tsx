@@ -25,6 +25,7 @@ import BudgetPlanned from "@/pages/budget-planned";
 import BudgetActual from "@/pages/budget-actual";
 import BudgetComparison from "@/pages/budget-comparison";
 import RhControl from "@/pages/rh-control";
+import SystemSettings from "@/pages/system-settings";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -124,6 +125,11 @@ function Router() {
             <Route path="/rh-control">
               <ProtectedRoute permission="canAccessScreen5">
                 <RhControl />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/system-settings">
+              <ProtectedRoute permission="canAccessAdminUsers">
+                <SystemSettings />
               </ProtectedRoute>
             </Route>
             <Route component={NotFound} />
