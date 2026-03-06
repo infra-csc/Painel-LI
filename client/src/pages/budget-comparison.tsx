@@ -370,8 +370,10 @@ export default function BudgetComparisonPage() {
             const actual = budgetActual ?? [];
             const allApproved = actual.length > 0 && actual.every(a => a.rhStatus === 'aprovado');
             const anySent = actual.some(a => a.sentForReview);
-            const currentStep = allApproved ? 3
-              : anySent ? 2
+            const hasActual = actual.length > 0;
+            const currentStep = allApproved ? 4
+              : anySent ? 3
+              : hasActual ? 2
               : planned.length > 0 ? 1
               : 0;
             const steps = [
