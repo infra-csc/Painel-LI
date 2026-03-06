@@ -339,6 +339,8 @@ export default function SystemLogsPage() {
               <SelectItem value="ticket">Passagens</SelectItem>
               <SelectItem value="accommodation">Hospedagens</SelectItem>
               <SelectItem value="budget_comparison">Comparativo</SelectItem>
+              <SelectItem value="system_settings">Configurações</SelectItem>
+              <SelectItem value="financial">Financeiro</SelectItem>
             </SelectContent>
           </Select>
 
