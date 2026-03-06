@@ -280,9 +280,10 @@ export default function BudgetPlannedPage() {
       const override = budgetOverrides[inclusion.id];
       
       const qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
-      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? 5000;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? 5000;
-      const valorDiariaFds = override?.valorDiariaFds ?? 10000;
+      const inclusionDailyValue = inclusion.dailyValue ?? 5000;
+      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
+      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue;
+      const valorDiariaFds = override?.valorDiariaFds ?? inclusionDailyValue;
       
       // Usar workDays da escalação quando disponível (datas exatas de trabalho)
       let weekdays = 0;
@@ -455,12 +456,13 @@ export default function BudgetPlannedPage() {
     });
 
     const fv = getFunctionValue(budget.inclusion.functionId);
+    const inclusionDailyValue = budget.inclusion.dailyValue ?? 5000;
     const defaultVals: BudgetEdit = {
       inclusionId: budget.inclusion.id,
       qtdDiarias: budget.qtdDiarias,
-      valorDiaria: fv?.dailyValue ?? 5000,
-      valorDiariaUtil: 5000,
-      valorDiariaFds: 10000,
+      valorDiaria: fv?.dailyValue ?? inclusionDailyValue,
+      valorDiariaUtil: inclusionDailyValue,
+      valorDiariaFds: inclusionDailyValue,
       mobilidade: (fv?.mobility ?? 2500) * budget.qtdDiarias,
       almocoSemana: (fv?.weekdayLunch || 3500) * budget.weekdays,
       jantarSemana: (fv?.weekdayDinner || 4000) * budget.weekdays,
