@@ -1,0 +1,117 @@
+Quero reprojetar visualmente a tela de Eventos, pois o layout atual ficou com aparência muito básica e pouco profissional.
+
+O objetivo é criar uma tela mais moderna, limpa e empresarial, semelhante a dashboards de produtos SaaS modernos.
+
+Importante:
+Não quero exageros visuais, mas sim melhor hierarquia, espaçamento e clareza visual.
+
+Problemas atuais que precisam ser corrigidos
+
+A tabela ocupa muito espaço e parece pesada.
+
+Falta hierarquia visual entre título, filtros e conteúdo.
+
+O número do evento ocupa espaço desnecessário.
+
+A leitura da lista de eventos não é fluida.
+
+Falta destaque visual no nome do evento.
+
+Nova estrutura da tela
+1. Cabeçalho mais elegante
+
+Estrutura:
+
+Eventos
+Gerencie os eventos do sistema
+
+Botão principal à direita:
+
+Criar Evento
+
+O botão deve ter destaque, mas manter estilo corporativo.
+
+2. Área de filtros mais limpa
+
+Deixar os filtros com melhor espaçamento e alinhamento.
+
+Estrutura:
+
+🔎 Buscar evento ou cidade
+[ Status ▼ ]
+[ Período ▼ ]
+
+Remover bordas pesadas e deixar visual mais leve.
+
+3. Redesenhar a lista de eventos
+
+Em vez de uma tabela pesada, criar uma lista visual mais moderna.
+
+Cada evento deve aparecer como uma linha mais espaçada, com melhor hierarquia.
+
+Estrutura da linha:
+
+Nome do Evento (destaque visual)
+Cidade • Período
+
+Status badge à direita
+
+Ações (ícones discretos)
+
+Exemplo visual esperado:
+
+Pedro Teste 3
+Brasília • 19–22 nov 2025
+
+[Concluído] ✏️ 🗑️
+
+Outro exemplo:
+
+Banco do Brasil – Macapá 2025
+Macapá • 16 set 2025
+
+[Concluído] ✏️
+
+4. Melhorar o status
+
+Status deve ter badges suaves:
+
+Planejado
+Em andamento
+Concluído
+Cancelado
+
+Cores suaves e corporativas.
+
+5. Melhorar legibilidade
+
+Aplicar:
+
+• mais espaço entre linhas
+• hover suave na linha
+• separadores leves
+• tipografia mais clara
+
+6. Destacar o nome do evento
+
+O nome do evento deve ser o elemento principal da linha.
+
+Cidade e período ficam como informação secundária.
+
+7. Remover elementos desnecessários
+
+Remover:
+
+coluna N°
+linhas muito compactadas
+bordas excessivas
+
+Resultado esperado
+
+Uma tela mais próxima de sistemas modernos como:
+
+• Linear
+• Stripe Dashboard
+• Notion tables
+
+Interface mais limpa, clara e profissional
