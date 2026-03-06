@@ -1,363 +1,316 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Plus, Edit, Trash2, Search, X } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Search, X } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import type { Event } from "@shared/schema";
-import { format } from "date-fns";
+import { format, isThisMonth, isThisYear, startOfMonth, endOfMonth, addMonths, startOfYear, endOfYear } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getEventStatus(event: Event): string {
+  if (event.status === "excluído") return "excluído";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDate = new Date(event.endDate);
+  endDate.setHours(0, 0, 0, 0);
+  const startDate = new Date(event.startDate);
+  startDate.setHours(0, 0, 0, 0);
+  if (endDate < today) return "concluído";
+  if (startDate <= today) return "em andamento";
+  return event.status;
+}
+
+function formatPeriod(startDateStr: string, endDateStr: string): string {
+  try {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    const sameDay = start.toDateString() === end.toDateString();
+
+    if (sameDay) return format(start, "dd MMM yyyy", { locale: ptBR });
+    if (sameMonth) {
+      return `${format(start, "dd", { locale: ptBR })}–${format(end, "dd MMM yyyy", { locale: ptBR })}`;
+    }
+    return `${format(start, "dd MMM", { locale: ptBR })} – ${format(end, "dd MMM yyyy", { locale: ptBR })}`;
+  } catch {
+    return `${startDateStr} – ${endDateStr}`;
+  }
+}
+
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  planejado:      { label: "Planejado",      className: "bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800" },
+  "em andamento": { label: "Em andamento",   className: "bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800" },
+  concluído:      { label: "Concluído",      className: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800" },
+  excluído:       { label: "Excluído",       className: "bg-red-50 text-red-600 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-400 dark:ring-red-800" },
+};
+
+function getPeriodRange(period: string): { start: Date | null; end: Date | null } {
+  const now = new Date();
+  if (period === "this_month") return { start: startOfMonth(now), end: endOfMonth(now) };
+  if (period === "next_month") { const nm = addMonths(now, 1); return { start: startOfMonth(nm), end: endOfMonth(nm) }; }
+  if (period === "last_month") { const lm = addMonths(now, -1); return { start: startOfMonth(lm), end: endOfMonth(lm) }; }
+  if (period === "this_year") return { start: startOfYear(now), end: endOfYear(now) };
+  return { start: null, end: null };
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [startDateFilter, setStartDateFilter] = useState("");
-  const [endDateFilter, setEndDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
-  });
+  const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
 
-  // Filter and sort events
-  const filteredAndSortedEvents = useMemo(() => {
+  const filteredEvents = useMemo(() => {
     if (!events) return [];
-    
-    let filtered = [...events];
-    
-    // Apply search filter (by name)
+    let list = [...events];
+
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(event => 
-        event.name.toLowerCase().includes(term) ||
-        event.location.toLowerCase().includes(term)
-      );
+      const t = searchTerm.toLowerCase();
+      list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    
-    // Apply status filter
+
     if (statusFilter !== "all") {
-      filtered = filtered.filter(event => {
-        const eventStatus = getEventStatus(event);
-        return eventStatus === statusFilter;
-      });
+      list = list.filter(e => getEventStatus(e) === statusFilter);
     }
-    
-    // Apply date filters - show events that occur within the selected date range
-    // An event is shown if it overlaps with the filter range
-    if (startDateFilter || endDateFilter) {
-      filtered = filtered.filter(event => {
-        const eventStartDate = new Date(event.startDate);
-        const eventEndDate = new Date(event.endDate);
-        eventStartDate.setHours(0, 0, 0, 0);
-        eventEndDate.setHours(0, 0, 0, 0);
-        
-        // If only start date is set, show events that end on or after this date
-        if (startDateFilter && !endDateFilter) {
-          const filterStartDate = new Date(startDateFilter);
-          filterStartDate.setHours(0, 0, 0, 0);
-          return eventEndDate >= filterStartDate;
-        }
-        
-        // If only end date is set, show events that start on or before this date
-        if (!startDateFilter && endDateFilter) {
-          const filterEndDate = new Date(endDateFilter);
-          filterEndDate.setHours(0, 0, 0, 0);
-          return eventStartDate <= filterEndDate;
-        }
-        
-        // If both dates are set, show events that overlap with the range
-        if (startDateFilter && endDateFilter) {
-          const filterStartDate = new Date(startDateFilter);
-          const filterEndDate = new Date(endDateFilter);
-          filterStartDate.setHours(0, 0, 0, 0);
-          filterEndDate.setHours(0, 0, 0, 0);
-          // Event overlaps if: event ends >= filter start AND event starts <= filter end
-          return eventEndDate >= filterStartDate && eventStartDate <= filterEndDate;
-        }
-        
-        return true;
-      });
+
+    if (periodFilter !== "all") {
+      const { start, end } = getPeriodRange(periodFilter);
+      if (start && end) {
+        list = list.filter(e => {
+          const evStart = new Date(e.startDate); evStart.setHours(0, 0, 0, 0);
+          const evEnd = new Date(e.endDate); evEnd.setHours(0, 0, 0, 0);
+          return evEnd >= start && evStart <= end;
+        });
+      }
     }
-    
-    // Sort by eventNumber descending (latest first)
-    return filtered.sort((a, b) => b.eventNumber - a.eventNumber);
-  }, [events, searchTerm, statusFilter, startDateFilter, endDateFilter]);
+
+    return list.sort((a, b) => b.eventNumber - a.eventNumber);
+  }, [events, searchTerm, statusFilter, periodFilter]);
 
   const deleteEventMutation = useMutation({
-    mutationFn: async (eventToDelete: Event) => {
-      // Soft delete - update status to "excluído"
-      const response = await apiRequest("PUT", `/api/events/${eventToDelete.id}`, {
-        status: "excluído",
-      });
+    mutationFn: async (event: Event) => {
+      const response = await apiRequest("PUT", `/api/events/${event.id}`, { status: "excluído" });
       return response.json();
     },
     onSuccess: async () => {
-      // Force refetch to ensure UI updates
       await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       await queryClient.refetchQueries({ queryKey: ["/api/events"] });
-      toast({
-        title: "Sucesso",
-        description: "Evento marcado como excluído com sucesso!",
-      });
+      toast({ title: "Evento excluído", description: "O evento foi marcado como excluído." });
     },
     onError: () => {
-      toast({
-        title: "Erro",
-        description: "Erro ao marcar evento como excluído.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Não foi possível excluir o evento.", variant: "destructive" });
     },
   });
 
-  const handleOpenModal = (event?: Event) => {
-    if (event) {
-      setEditingEvent(event);
-    } else {
-      setEditingEvent(null);
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingEvent(null);
-  };
-
+  const handleOpenModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
+  const handleCloseModal = () => { setIsModalOpen(false); setEditingEvent(null); };
   const handleDelete = (event: Event) => {
-    if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`)) {
+    if (confirm(`Excluir o evento "${event.name}"? Ele ficará visível na lista como excluído.`)) {
       deleteEventMutation.mutate(event);
     }
   };
-
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status) {
-      case "planejado":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-      case "concluído":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-      case "excluído":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
-    }
-  };
-
-  const getEventStatus = (event: Event): string => {
-    // If already excluded, keep as excluded
-    if (event.status === "excluído") {
-      return "excluído";
-    }
-    
-    // Check if event has ended (endDate has passed)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endDate = new Date(event.endDate);
-    endDate.setHours(0, 0, 0, 0);
-    
-    if (endDate < today) {
-      return "concluído";
-    }
-    
-    return event.status;
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "dd/MM/yyyy");
-    } catch {
-      return dateString;
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("all");
-    setStartDateFilter("");
-    setEndDateFilter("");
-  };
-
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setPeriodFilter("all"); };
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || periodFilter !== "all";
 
   return (
     <>
-      <div className="space-y-6">
-        <Card className="border-border">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    Gerenciamento de Eventos
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Gerencie os eventos do sistema
-                  </p>
-                </div>
-                <Button onClick={() => handleOpenModal()} data-testid="button-add-event">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Evento
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Filters Section */}
-              <div className="mb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Search by name */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                      data-testid="input-search-event"
-                    />
-                  </div>
+      <div className="p-6 space-y-6">
 
-                  {/* Status filter */}
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger data-testid="select-status-filter">
-                      <SelectValue placeholder="Todos os status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      <SelectItem value="planejado">Planejado</SelectItem>
-                      <SelectItem value="concluído">Concluído</SelectItem>
-                      <SelectItem value="excluído">Excluído</SelectItem>
-                    </SelectContent>
-                  </Select>
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Eventos</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Gerencie os eventos do sistema</p>
+          </div>
+          <Button
+            onClick={() => handleOpenModal()}
+            data-testid="button-add-event"
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Criar Evento
+          </Button>
+        </div>
 
-                  {/* Start date filter */}
-                  <div>
-                    <Input
-                      type="date"
-                      placeholder="Data início (de)"
-                      value={startDateFilter}
-                      onChange={(e) => setStartDateFilter(e.target.value)}
-                      data-testid="input-start-date-filter"
-                    />
-                  </div>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Buscar evento ou cidade..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-event"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-                  {/* End date filter */}
-                  <div>
-                    <Input
-                      type="date"
-                      placeholder="Data fim (até)"
-                      value={endDateFilter}
-                      onChange={(e) => setEndDateFilter(e.target.value)}
-                      data-testid="input-end-date-filter"
-                    />
-                  </div>
-                </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter} data-testid="select-status-filter">
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="planejado">Planejado</SelectItem>
+              <SelectItem value="em andamento">Em andamento</SelectItem>
+              <SelectItem value="concluído">Concluído</SelectItem>
+              <SelectItem value="excluído">Excluído</SelectItem>
+            </SelectContent>
+          </Select>
 
-                {/* Clear filters button */}
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      {filteredAndSortedEvents.length} evento(s) encontrado(s)
-                    </p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={clearFilters}
-                      data-testid="button-clear-filters"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Limpar filtros
-                    </Button>
-                  </div>
-                )}
-              </div>
+          <Select value={periodFilter} onValueChange={setPeriodFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os períodos</SelectItem>
+              <SelectItem value="this_month">Este mês</SelectItem>
+              <SelectItem value="next_month">Próximo mês</SelectItem>
+              <SelectItem value="last_month">Mês anterior</SelectItem>
+              <SelectItem value="this_year">Este ano</SelectItem>
+            </SelectContent>
+          </Select>
 
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-500 gap-1.5" data-testid="button-clear-filters">
+              <X className="w-3.5 h-3.5" />
+              Limpar
+            </Button>
+          )}
+
+          {hasActiveFilters && (
+            <span className="text-sm text-gray-400 ml-auto">
+              {filteredEvents.length} evento{filteredEvents.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Table */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                <TableHead className="w-16 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide pl-5">Nº</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Evento</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cidade</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Período</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-right pr-5">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Carregando eventos...
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nº</TableHead>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>Local</TableHead>
-                        <TableHead>Data Início</TableHead>
-                        <TableHead>Data Fim</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAndSortedEvents.map((event) => {
-                        const displayStatus = getEventStatus(event);
-                        return (
-                          <TableRow key={event.id} className={displayStatus === "excluído" ? "opacity-60" : ""}>
-                            <TableCell className="font-medium">{event.eventNumber}</TableCell>
-                            <TableCell>{event.name}</TableCell>
-                            <TableCell>{event.location}</TableCell>
-                            <TableCell>{formatDate(event.startDate)}</TableCell>
-                            <TableCell>{formatDate(event.endDate)}</TableCell>
-                            <TableCell>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(displayStatus)}`}>
-                                {displayStatus}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleOpenModal(event)}
-                                  disabled={displayStatus === "excluído"}
-                                  data-testid={`button-edit-event-${event.id}`}
-                                >
-                                  <Edit className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDelete(event)}
-                                  disabled={displayStatus === "excluído"}
-                                  className="text-destructive hover:text-destructive"
-                                  data-testid={`button-delete-event-${event.id}`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {(!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                            {hasActiveFilters 
-                              ? "Nenhum evento encontrado com os filtros aplicados."
-                              : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."
-                            }
-                          </TableCell>
-                        </TableRow>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={i} className="border-gray-100 dark:border-gray-800">
+                    <TableCell className="pl-5"><Skeleton className="h-4 w-8" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                    <TableCell className="pr-5"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : filteredEvents.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <Calendar className="w-9 h-9 text-gray-300 dark:text-gray-600" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                        {hasActiveFilters ? "Nenhum evento encontrado com esses filtros" : "Nenhum evento cadastrado ainda"}
+                      </p>
+                      {!hasActiveFilters && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Clique em "Criar Evento" para começar</p>
                       )}
-                    </TableBody>
-                  </Table>
-                </div>
+                      {hasActiveFilters && (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} className="mt-1 text-gray-500">Limpar filtros</Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredEvents.map((event) => {
+                  const displayStatus = getEventStatus(event);
+                  const statusCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["planejado"];
+                  const isDeleted = displayStatus === "excluído";
+
+                  return (
+                    <TableRow
+                      key={event.id}
+                      className={`border-gray-100 dark:border-gray-800 transition-colors ${isDeleted ? "opacity-50" : "hover:bg-gray-50/70 dark:hover:bg-gray-800/40"}`}
+                    >
+                      <TableCell className="pl-5 text-sm text-gray-400 dark:text-gray-500 tabular-nums">
+                        {event.eventNumber}
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                        {event.name}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600 dark:text-gray-400">
+                        {event.location}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        {formatPeriod(event.startDate, event.endDate)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusCfg.className}`}>
+                          {statusCfg.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="pr-5">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenModal(event)}
+                            disabled={isDeleted}
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            data-testid={`button-edit-event-${event.id}`}
+                            title="Editar evento"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(event)}
+                            disabled={isDeleted}
+                            className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
+                            data-testid={`button-delete-event-${event.id}`}
+                            title="Excluir evento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </TableBody>
+          </Table>
+        </div>
+
       </div>
-      <EventModal 
-        open={isModalOpen} 
-        onClose={handleCloseModal} 
-        event={editingEvent}
-      />
+
+      <EventModal open={isModalOpen} onClose={handleCloseModal} event={editingEvent} />
     </>
   );
 }
