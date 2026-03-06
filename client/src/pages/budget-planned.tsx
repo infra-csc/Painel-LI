@@ -284,10 +284,21 @@ export default function BudgetPlannedPage() {
       const valorDiariaUtil = override?.valorDiariaUtil ?? 5000;
       const valorDiariaFds = override?.valorDiariaFds ?? 10000;
       
-      const { weekdays, weekends } = countWeekdaysAndWeekends(
-        inclusion.scheduleStartDate,
-        qtdDiarias
-      );
+      // Usar workDays da escalação quando disponível (datas exatas de trabalho)
+      let weekdays = 0;
+      let weekends = 0;
+      if (inclusion.workDays && inclusion.workDays.length > 0) {
+        for (const dateStr of inclusion.workDays) {
+          const d = new Date(dateStr + 'T00:00:00');
+          const day = d.getDay();
+          if (day === 0 || day === 6) weekends++;
+          else weekdays++;
+        }
+      } else {
+        const result = countWeekdaysAndWeekends(inclusion.scheduleStartDate, qtdDiarias);
+        weekdays = result.weekdays;
+        weekends = result.weekends;
+      }
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;
