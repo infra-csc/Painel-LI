@@ -102,7 +102,7 @@ export interface IStorage {
   createComment(comment: InsertComment): Promise<Comment>;
   
   // System Logs
-  getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]>;
+  getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string }): Promise<SystemLog[]>;
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
   
   // Team Inclusion Logs
@@ -1308,17 +1308,8 @@ export class DatabaseStorage implements IStorage {
   }
   
   // System Logs
-  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number }): Promise<SystemLog[]> {
-    let query = db.select().from(systemLogs);
-    
-    // Apply filters if provided
-    if (filters?.days) {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - filters.days);
-      // This would need proper date filtering in production
-    }
-    
-    const logs = await query;
+  async getSystemLogs(filters?: { entityType?: string; action?: string; days?: number; search?: string; userId?: string }): Promise<SystemLog[]> {
+    const logs = await db.select().from(systemLogs);
     
     let filteredLogs = logs;
     
@@ -1334,9 +1325,21 @@ export class DatabaseStorage implements IStorage {
         cutoffDate.setDate(cutoffDate.getDate() - filters.days);
         filteredLogs = filteredLogs.filter(log => log.createdAt && new Date(log.createdAt) >= cutoffDate);
       }
+      if (filters.userId) {
+        filteredLogs = filteredLogs.filter(log => log.userId === filters.userId);
+      }
+      if (filters.search) {
+        const term = filters.search.toLowerCase();
+        filteredLogs = filteredLogs.filter(log =>
+          (log.entityName || '').toLowerCase().includes(term) ||
+          (log.userName || '').toLowerCase().includes(term) ||
+          (log.details || '').toLowerCase().includes(term) ||
+          (log.action || '').toLowerCase().includes(term) ||
+          (log.entityType || '').toLowerCase().includes(term)
+        );
+      }
     }
     
-    // Sort by creation time, newest first
     return filteredLogs.sort((a, b) => {
       if (!a.createdAt || !b.createdAt) return 0;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

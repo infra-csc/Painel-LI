@@ -1,0 +1,161 @@
+reciso reestruturar completamente a tela de Logs de Auditoria do Sistema para que ela funcione como uma consulta geral de tudo que acontece no sistema.
+
+Hoje ela mostra apenas algumas ações básicas, mas eu preciso que ela registre todas as atividades relevantes do sistema.
+
+Objetivo
+
+Transformar essa tela em um Log Geral do Sistema, onde seja possível visualizar todas as alterações e ações realizadas.
+
+Tipos de eventos que devem ser registrados
+
+O log deve registrar ações como:
+
+Usuários
+
+login
+
+logout
+
+criação de usuário
+
+edição de usuário
+
+alteração de senha
+
+alteração de permissões
+
+Eventos
+
+criação de evento
+
+edição de evento
+
+alteração de data
+
+cancelamento
+
+Escalações
+
+inclusão de colaborador
+
+remoção de colaborador
+
+alteração de função
+
+alteração de valores financeiros
+
+Financeiro
+
+alteração de diárias
+
+alteração de alimentação
+
+alteração de mobilidade
+
+alteração de orçamento planejado
+
+alteração de valores padrão
+
+Sistema
+
+alteração de configurações
+
+alterações administrativas
+
+importações/exportações
+
+integrações
+
+Estrutura do log
+
+Cada registro deve conter:
+
+Data e hora
+
+Usuário que realizou a ação
+
+Tipo de ação
+
+Módulo / entidade afetada
+
+Descrição da alteração
+
+Campos alterados (antes → depois)
+
+Exemplo:
+
+Usuário: Admin Sistema
+Ação: Alteração de Orçamento
+Entidade: Escalação
+Data: 06/03/2026 16:25
+
+Alterações:
+Diária: 50 → 60
+Almoço: 30 → 35
+Melhorias na interface
+
+Melhorar a tela de consulta com:
+
+Filtros avançados
+
+Usuário
+
+Tipo de ação
+
+Módulo
+
+Entidade
+
+Período
+
+ID do evento
+
+ID do usuário
+
+Busca
+
+Campo de busca para encontrar rapidamente logs.
+
+Agrupamento
+
+Possibilidade de agrupar por:
+
+evento
+
+usuário
+
+tipo de ação
+
+Visualização detalhada
+
+Ao clicar no registro, abrir um detalhe completo da alteração.
+
+Performance
+
+Garantir que:
+
+logs sejam paginados
+
+consultas sejam rápidas mesmo com muitos registros
+
+uso de indexação no banco
+
+Segurança
+
+Garantir que:
+
+apenas administradores possam acessar essa tela
+
+logs não possam ser alterados ou excluídos
+
+No final
+
+Mostre:
+
+Estrutura recomendada da tabela de auditoria
+
+Ajustes necessários no backend
+
+Ajustes necessários no frontend
+
+Como registrar logs automaticamente nas operações do sistema

@@ -1194,6 +1194,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const inclusionData = insertTeamInclusionSchema.parse(cleanedData);
       const inclusion = await storage.createTeamInclusion(inclusionData);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'team_inclusion', inclusion.id, inclusion, actorId, actor?.name || 'Sistema', undefined, req);
       res.json(inclusion);
     } catch (error) {
       console.error("Error creating team inclusion:", error);
@@ -1332,11 +1335,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.session?.userId || null;
       
       // Soft delete - marca como excluído ao invés de deletar permanentemente
+      const prevInclusion = await storage.getTeamInclusion(id);
       const inclusion = await storage.updateTeamInclusion(id, {
         deletedAt: new Date(),
         deletedBy: userId,
       });
-      
+      const actor = userId ? await storage.getUser(userId) : null;
+      await createAuditLog('delete', 'team_inclusion', id, prevInclusion, userId || undefined, actor?.name || 'Sistema', undefined, req);
       res.json({ message: "Inclusão removida com sucesso", inclusion });
     } catch (error) {
       console.error("Error deleting team inclusion:", error);
@@ -1789,7 +1794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Parse query parameters for filtering
-      const { entityType, action, days, page = '1', limit = '50' } = req.query;
+      const { entityType, action, days, search, userId: filterUserId, page = '1', limit = '50' } = req.query;
       
       // Build filters object
       const filters: any = {};
@@ -1801,6 +1806,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (days) {
         filters.days = parseInt(days as string, 10);
+      }
+      if (search) {
+        filters.search = search as string;
+      }
+      if (filterUserId) {
+        filters.userId = filterUserId as string;
       }
 
       // Get logs with filters
@@ -1960,6 +1971,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertBudgetPlannedSchema.parse(req.body);
       const planned = await storage.createBudgetPlanned(data);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'budget_planned', planned.id, planned, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(201).json(planned);
     } catch (error) {
       console.error("Error creating budget planned:", error);
@@ -1969,7 +1983,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/budget-planned/:id", async (req, res) => {
     try {
+      const prev = await storage.getBudgetPlannedById(req.params.id);
       const planned = await storage.updateBudgetPlanned(req.params.id, req.body);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'budget_planned', req.params.id, planned, actorId, actor?.name || 'Sistema', prev, req);
       res.json(planned);
     } catch (error) {
       console.error("Error updating budget planned:", error);
@@ -1979,7 +1997,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/budget-planned/:id", async (req, res) => {
     try {
+      const prev = await storage.getBudgetPlannedById(req.params.id);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
       await storage.deleteBudgetPlanned(req.params.id);
+      await createAuditLog('delete', 'budget_planned', req.params.id, prev, actorId, actor?.name || 'Sistema', undefined, req);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting budget planned:", error);
@@ -2129,6 +2151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? items.filter((i: any) => itemIds.includes(i.id))
         : items;
 
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+
       for (const item of toUpdate) {
         const wasRejectedOrReturned = item.rhStatus === 'rejeitado' || item.rhStatus === 'devolvido';
         await storage.updateBudgetActual(item.id, {
@@ -2138,6 +2163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      await createAuditLog('send_review', 'budget_actual', eventId, { eventId, count: toUpdate.length }, actorId, actor?.name || 'Sistema', undefined, req);
       res.json({ updated: toUpdate.length });
     } catch (error) {
       console.error("Error sending for review:", error);
@@ -2361,6 +2387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.upsertSystemSetting(key, String(val), req.session.userId);
         }
       }
+      await createAuditLog('update', 'system_settings', 'global', req.body, req.session.userId, user.name || 'Sistema', undefined, req);
       res.json({ message: "Configurações salvas com sucesso" });
     } catch (error) {
       console.error("Error updating system settings:", error);

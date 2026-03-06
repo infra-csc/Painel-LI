@@ -1,13 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye, Calendar, User, Settings, ChevronDown, ChevronRight, Filter } from "lucide-react";
+import {
+  Search, Calendar, User, ChevronDown, ChevronRight, Filter,
+  Activity, ShieldAlert, Clock, LogIn, LogOut, UserPlus, UserCheck,
+  Edit, Trash2, Plus, Send, CheckCircle, XCircle, RotateCcw,
+  DollarSign, Users, Settings, FileText, X
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -31,475 +33,409 @@ interface SystemLog {
 
 interface LogsResponse {
   logs: SystemLog[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
+  pagination: { page: number; limit: number; total: number; pages: number };
 }
 
-export default function SystemLogsPage() {
-  const { user, isLoading: authLoading } = useAuth();
-  const [filters, setFilters] = useState({
-    entityType: "all",
-    action: "all",
-    days: "30",
-  });
-  const [page, setPage] = useState(1);
-  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+// ─── Config maps ─────────────────────────────────────────────────────────────
 
-  // Check if user can access this screen (admin only)
-  if (!hasPermission(user, 'canAccessScreen6')) {
-    return (
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Acesso Negado</h3>
-        <p className="text-muted-foreground">Você não tem permissão para acessar os logs do sistema. Apenas administradores podem acessar esta funcionalidade.</p>
-      </div>
-    );
+const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+  create:       { label: "Criação",       icon: Plus,        color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
+  update:       { label: "Alteração",     icon: Edit,        color: "text-blue-700 dark:text-blue-300",       bg: "bg-blue-100 dark:bg-blue-900/40" },
+  delete:       { label: "Exclusão",      icon: Trash2,      color: "text-red-700 dark:text-red-300",         bg: "bg-red-100 dark:bg-red-900/40" },
+  login:        { label: "Login",         icon: LogIn,       color: "text-purple-700 dark:text-purple-300",   bg: "bg-purple-100 dark:bg-purple-900/40" },
+  logout:       { label: "Logout",        icon: LogOut,      color: "text-gray-700 dark:text-gray-300",       bg: "bg-gray-100 dark:bg-gray-900/40" },
+  approve:      { label: "Aprovação",     icon: CheckCircle, color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
+  reject:       { label: "Rejeição",      icon: XCircle,     color: "text-red-700 dark:text-red-300",         bg: "bg-red-100 dark:bg-red-900/40" },
+  send_review:  { label: "Envio p/ RH",   icon: Send,        color: "text-amber-700 dark:text-amber-300",     bg: "bg-amber-100 dark:bg-amber-900/40" },
+  reset_password:{ label: "Reset Senha",  icon: RotateCcw,   color: "text-orange-700 dark:text-orange-300",   bg: "bg-orange-100 dark:bg-orange-900/40" },
+  activate:     { label: "Ativação",      icon: UserCheck,   color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
+  deactivate:   { label: "Desativação",   icon: UserPlus,    color: "text-gray-700 dark:text-gray-300",       bg: "bg-gray-100 dark:bg-gray-900/40" },
+};
+
+const ENTITY_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
+  user:           { label: "Usuário",         icon: User,       color: "text-violet-600" },
+  event:          { label: "Evento",          icon: Calendar,   color: "text-blue-600" },
+  team_inclusion: { label: "Inclusão Equipe", icon: Users,      color: "text-cyan-600" },
+  budget_planned: { label: "Orçamento Plan.", icon: DollarSign, color: "text-green-600" },
+  budget_actual:  { label: "Prestação Contas",icon: FileText,   color: "text-amber-600" },
+  system_settings:{ label: "Configurações",   icon: Settings,   color: "text-purple-600" },
+  function:       { label: "Função",          icon: Activity,   color: "text-indigo-600" },
+  collaborator:   { label: "Colaborador",     icon: UserCheck,  color: "text-teal-600" },
+  ticket:         { label: "Passagem",        icon: FileText,   color: "text-orange-600" },
+  financial:      { label: "Financeiro",      icon: DollarSign, color: "text-emerald-600" },
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "Nome", email: "E-mail", role: "Perfil", status: "Status",
+  area: "Área", password: "Senha",
+  eventName: "Evento", startDate: "Início", endDate: "Fim", location: "Local",
+  collaboratorId: "Colaborador", functionId: "Função", dailyValue: "Valor Diária",
+  mobility: "Mobilidade", weekdayLunch: "Almoço Útil", weekdayDinner: "Jantar Útil",
+  weekendLunch: "Almoço FDS", weekendDinner: "Jantar FDS", totalValue: "Total",
+  dailyQuantity: "Qtd Diárias", costAssistance: "Ajuda de Custo",
+  default_daily_value_weekday: "Diária Dia Útil", default_daily_value_weekend: "Diária FDS",
+  default_mobility: "Mobilidade Padrão", default_weekday_lunch: "Almoço Útil Padrão",
+  default_weekday_dinner: "Jantar Útil Padrão", default_weekend_lunch: "Almoço FDS Padrão",
+  default_weekend_dinner: "Jantar FDS Padrão",
+  sentForReview: "Enviado p/ RH", rhStatus: "Status RH",
+  scheduleStartDate: "Início Previsto", scheduleEndDate: "Fim Previsto",
+  count: "Qtd. Itens", eventId: "Evento ID",
+};
+
+const CURRENCY_FIELDS = new Set([
+  "dailyValue", "mobility", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
+  "totalValue", "costAssistance",
+  "default_daily_value_weekday", "default_daily_value_weekend",
+  "default_mobility", "default_weekday_lunch", "default_weekday_dinner",
+  "default_weekend_lunch", "default_weekend_dinner",
+]);
+
+function formatFieldValue(key: string, value: any): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (CURRENCY_FIELDS.has(key) && typeof value === "number") {
+    return `R$ ${(value / 100).toFixed(2).replace(".", ",")}`;
   }
+  return String(value);
+}
 
-  // Build query URL with parameters
-  const queryUrl = useMemo(() => {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: "20",
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([_, value]) => value !== "all")
-      ),
-    });
-    return `/api/system-logs?${params}`;
-  }, [filters, page]);
+// ─── Diff renderer ────────────────────────────────────────────────────────────
 
-  const { data: logsResponse, isLoading, error } = useQuery<LogsResponse>({
-    queryKey: [queryUrl],
-    enabled: !authLoading && !!user, // Only run query when auth is loaded and user is authenticated
-  });
+function DiffBlock({ log }: { log: SystemLog }) {
+  if (!log.previousData && !log.newData) return null;
+  try {
+    const prev = log.previousData ? JSON.parse(log.previousData) : null;
+    const curr = log.newData ? JSON.parse(log.newData) : null;
+    const sensitiveKeys = new Set(["password", "resetToken", "resetTokenExpiry"]);
 
-  const toggleExpanded = (logId: string) => {
-    const newExpanded = new Set(expandedLogs);
-    if (newExpanded.has(logId)) {
-      newExpanded.delete(logId);
-    } else {
-      newExpanded.add(logId);
-    }
-    setExpandedLogs(newExpanded);
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString("pt-BR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
-
-  const getActionBadgeVariant = (action: string) => {
-    const variants: { [key: string]: "default" | "secondary" | "destructive" | "outline" } = {
-      create: "default",
-      update: "secondary",
-      delete: "destructive",
-      approve: "default",
-      reject: "destructive",
-      login: "outline",
-      reset_password: "secondary",
-    };
-    return variants[action] || "outline";
-  };
-
-  const getEntityTypeLabel = (entityType: string) => {
-    const labels: { [key: string]: string } = {
-      user: "Usuário",
-      event: "Evento",
-      function: "Função",
-      collaborator: "Colaborador",
-      team_inclusion: "Inclusão de Equipe",
-      ticket: "Passagem",
-      financial: "Financeiro",
-      comment: "Comentário",
-    };
-    return labels[entityType] || entityType;
-  };
-
-  const getActionLabel = (action: string) => {
-    const labels: { [key: string]: string } = {
-      create: "Criação",
-      update: "Atualização",
-      delete: "Exclusão",
-      approve: "Aprovação",
-      reject: "Rejeição",
-      login: "Login",
-      reset_password: "Reset de Senha",
-    };
-    return labels[action] || action;
-  };
-
-  const renderDataDiff = (log: SystemLog) => {
-    if (!log.previousData && !log.newData) return null;
-
-    try {
-      const previous = log.previousData ? JSON.parse(log.previousData) : null;
-      const current = log.newData ? JSON.parse(log.newData) : null;
-
-      if (!previous && current) {
-        // Creation
-        return (
-          <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
-            <h5 className="font-medium text-green-800 dark:text-green-200 mb-2">Dados Criados:</h5>
-            <pre className="text-xs text-green-700 dark:text-green-300 whitespace-pre-wrap overflow-x-auto">
-              {JSON.stringify(current, null, 2)}
-            </pre>
-          </div>
-        );
-      }
-
-      if (previous && !current) {
-        // Deletion
-        return (
-          <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
-            <h5 className="font-medium text-red-800 dark:text-red-200 mb-2">Dados Removidos:</h5>
-            <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap overflow-x-auto">
-              {JSON.stringify(previous, null, 2)}
-            </pre>
-          </div>
-        );
-      }
-
-      if (previous && current) {
-        // Update
-        return (
-          <div className="mt-2 space-y-3">
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
-              <h5 className="font-medium text-red-800 dark:text-red-200 mb-2">Dados Anteriores:</h5>
-              <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap overflow-x-auto">
-                {JSON.stringify(previous, null, 2)}
-              </pre>
-            </div>
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
-              <h5 className="font-medium text-green-800 dark:text-green-200 mb-2">Dados Atuais:</h5>
-              <pre className="text-xs text-green-700 dark:text-green-300 whitespace-pre-wrap overflow-x-auto">
-                {JSON.stringify(current, null, 2)}
-              </pre>
-            </div>
-          </div>
-        );
-      }
-    } catch (error) {
+    if (prev && curr) {
+      const changedKeys = Object.keys({ ...prev, ...curr }).filter(
+        (k) => !sensitiveKeys.has(k) && JSON.stringify(prev[k]) !== JSON.stringify(curr[k])
+      );
+      if (changedKeys.length === 0) return null;
       return (
-        <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-yellow-200 dark:border-yellow-800">
-          <p className="text-xs text-yellow-700 dark:text-yellow-300">Erro ao exibir dados: {String(error)}</p>
+        <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Campos alterados
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {changedKeys.map((key) => (
+              <div key={key} className="grid grid-cols-3 gap-2 px-3 py-2 text-xs">
+                <span className="font-medium text-gray-600 dark:text-gray-400">{FIELD_LABELS[key] || key}</span>
+                <span className="text-red-600 dark:text-red-400 line-through">{formatFieldValue(key, prev[key])}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatFieldValue(key, curr[key])}</span>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
 
+    const data = curr || prev;
+    const isCreation = !prev && !!curr;
+    return (
+      <div className={`mt-3 rounded-lg border overflow-hidden ${isCreation ? "border-emerald-200 dark:border-emerald-800" : "border-red-200 dark:border-red-800"}`}>
+        <div className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${isCreation ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"}`}>
+          {isCreation ? "Dados criados" : "Dados removidos"}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+          {Object.entries(data || {})
+            .filter(([k]) => !sensitiveKeys.has(k) && data[k] !== null && data[k] !== undefined)
+            .map(([key, val]) => (
+              <div key={key} className="flex gap-3 px-3 py-1.5 text-xs">
+                <span className="font-medium text-gray-500 dark:text-gray-400 w-32 shrink-0">{FIELD_LABELS[key] || key}</span>
+                <span className="text-gray-700 dark:text-gray-300">{formatFieldValue(key, val)}</span>
+              </div>
+            ))}
+        </div>
+      </div>
+    );
+  } catch {
     return null;
-  };
+  }
+}
+
+// ─── Log Card ────────────────────────────────────────────────────────────────
+
+function LogCard({ log }: { log: SystemLog }) {
+  const [open, setOpen] = useState(false);
+  const hasDiff = !!(log.previousData || log.newData);
+
+  const actionCfg = ACTION_CONFIG[log.action] || { label: log.action, icon: Activity, color: "text-gray-600", bg: "bg-gray-100" };
+  const entityCfg = ENTITY_CONFIG[log.entityType] || { label: log.entityType, icon: FileText, color: "text-gray-500" };
+  const ActionIcon = actionCfg.icon;
+  const EntityIcon = entityCfg.icon;
+
+  const dt = new Date(log.createdAt);
+  const dateStr = dt.toLocaleDateString("pt-BR");
+  const timeStr = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <>
-      <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Logs de Auditoria do Sistema
-            </CardTitle>
-            <p className="text-muted-foreground text-sm">
-              Registro completo de todas as atividades realizadas no sistema pelos usuários.
-            </p>
-          </CardHeader>
-          
-          <CardContent>
-            {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tipo de Entidade</label>
-                <Select
-                  value={filters.entityType}
-                  onValueChange={(value) => {
-                    setFilters(prev => ({ ...prev, entityType: value }));
-                    setPage(1);
-                  }}
-                  data-testid="select-entity-type"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as Entidades</SelectItem>
-                    <SelectItem value="user">Usuário</SelectItem>
-                    <SelectItem value="event">Evento</SelectItem>
-                    <SelectItem value="function">Função</SelectItem>
-                    <SelectItem value="collaborator">Colaborador</SelectItem>
-                    <SelectItem value="team_inclusion">Inclusão de Equipe</SelectItem>
-                    <SelectItem value="ticket">Passagem</SelectItem>
-                    <SelectItem value="financial">Financeiro</SelectItem>
-                    <SelectItem value="comment">Comentário</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+    <div className={`bg-white dark:bg-gray-800 border rounded-xl overflow-hidden transition-all ${open ? "border-gray-300 dark:border-gray-600 shadow-sm" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"}`}>
+      <div
+        className={`flex items-start gap-3 px-4 py-3 ${hasDiff ? "cursor-pointer" : ""}`}
+        onClick={() => hasDiff && setOpen(!open)}
+      >
+        {/* Action icon */}
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${actionCfg.bg}`}>
+          <ActionIcon className={`w-4 h-4 ${actionCfg.color}`} />
+        </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Ação</label>
-                <Select
-                  value={filters.action}
-                  onValueChange={(value) => {
-                    setFilters(prev => ({ ...prev, action: value }));
-                    setPage(1);
-                  }}
-                  data-testid="select-action"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as Ações</SelectItem>
-                    <SelectItem value="create">Criação</SelectItem>
-                    <SelectItem value="update">Atualização</SelectItem>
-                    <SelectItem value="delete">Exclusão</SelectItem>
-                    <SelectItem value="approve">Aprovação</SelectItem>
-                    <SelectItem value="reject">Rejeição</SelectItem>
-                    <SelectItem value="login">Login</SelectItem>
-                    <SelectItem value="reset_password">Reset de Senha</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Main content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-semibold ${actionCfg.color} ${actionCfg.bg} px-2 py-0.5 rounded-full`}>
+              {actionCfg.label}
+            </span>
+            <span className={`text-xs font-medium flex items-center gap-1 ${entityCfg.color}`}>
+              <EntityIcon className="w-3 h-3" />
+              {entityCfg.label}
+            </span>
+            <span className="text-xs text-gray-400">#{log.logNumber}</span>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Período</label>
-                <Select
-                  value={filters.days}
-                  onValueChange={(value) => {
-                    setFilters(prev => ({ ...prev, days: value }));
-                    setPage(1);
-                  }}
-                  data-testid="select-days"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Últimas 24 horas</SelectItem>
-                    <SelectItem value="7">Últimos 7 dias</SelectItem>
-                    <SelectItem value="30">Últimos 30 dias</SelectItem>
-                    <SelectItem value="90">Últimos 90 dias</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="mt-1.5 flex items-center gap-4 flex-wrap text-xs text-gray-500 dark:text-gray-400">
+            <span className="flex items-center gap-1">
+              <User className="w-3 h-3" />
+              {log.userName || "Sistema"}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {dateStr} às {timeStr}
+            </span>
+            {log.entityName && (
+              <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-xs">
+                {log.entityName}
+              </span>
+            )}
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Ações</label>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFilters({ entityType: "all", action: "all", days: "30" });
-                    setPage(1);
-                  }}
-                  className="w-full"
-                  data-testid="button-clear-filters"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Limpar Filtros
+          {log.details && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{log.details}</p>
+          )}
+        </div>
+
+        {/* Expand */}
+        {hasDiff && (
+          <div className="shrink-0 text-gray-400">
+            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </div>
+        )}
+      </div>
+
+      {/* Expanded detail */}
+      {open && hasDiff && (
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+          <DiffBlock log={log} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function SystemLogsPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, setFilters] = useState({ entityType: "all", action: "all", days: "30" });
+  const [page, setPage] = useState(1);
+
+  const debounceSearch = useCallback((val: string) => {
+    setSearch(val);
+    const t = setTimeout(() => setDebouncedSearch(val), 400);
+    return () => clearTimeout(t);
+  }, []);
+
+  const queryUrl = useMemo(() => {
+    const params = new URLSearchParams({ page: page.toString(), limit: "25" });
+    if (filters.entityType !== "all") params.set("entityType", filters.entityType);
+    if (filters.action !== "all") params.set("action", filters.action);
+    if (filters.days) params.set("days", filters.days);
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    return `/api/system-logs?${params}`;
+  }, [filters, page, debouncedSearch]);
+
+  const { data: logsResponse, isLoading } = useQuery<LogsResponse>({
+    queryKey: [queryUrl],
+    enabled: !authLoading && !!user,
+  });
+
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setFilters({ entityType: "all", action: "all", days: "30" });
+    setPage(1);
+  };
+
+  const hasActiveFilters = filters.entityType !== "all" || filters.action !== "all" || filters.days !== "30" || debouncedSearch;
+
+  if (!hasPermission(user, "canAccessScreen6")) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
+          <ShieldAlert className="w-8 h-8 text-red-500" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Acesso restrito</h2>
+        <p className="text-gray-500 dark:text-gray-400 max-w-xs">Apenas administradores podem acessar os logs do sistema.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center">
+          <Activity className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Consulta Geral</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Histórico completo de atividades do sistema</p>
+        </div>
+        {logsResponse && (
+          <div className="ml-auto text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
+            {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
+          </div>
+        )}
+      </div>
+
+      {/* Search + Filters bar */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+        <div className="flex flex-wrap gap-3">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por usuário, entidade, ação..."
+              value={search}
+              onChange={(e) => debounceSearch(e.target.value)}
+              className="pl-9 pr-8"
+            />
+            {search && (
+              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Entity type */}
+          <Select value={filters.entityType} onValueChange={(v) => { setFilters(f => ({ ...f, entityType: v })); setPage(1); }}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Módulo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os módulos</SelectItem>
+              <SelectItem value="user">Usuários</SelectItem>
+              <SelectItem value="event">Eventos</SelectItem>
+              <SelectItem value="team_inclusion">Inclusão de Equipe</SelectItem>
+              <SelectItem value="budget_planned">Orçamento Planejado</SelectItem>
+              <SelectItem value="budget_actual">Prestação de Contas</SelectItem>
+              <SelectItem value="system_settings">Configurações</SelectItem>
+              <SelectItem value="function">Funções</SelectItem>
+              <SelectItem value="collaborator">Colaboradores</SelectItem>
+              <SelectItem value="ticket">Passagens</SelectItem>
+              <SelectItem value="financial">Financeiro</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Action */}
+          <Select value={filters.action} onValueChange={(v) => { setFilters(f => ({ ...f, action: v })); setPage(1); }}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Ação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as ações</SelectItem>
+              <SelectItem value="create">Criação</SelectItem>
+              <SelectItem value="update">Alteração</SelectItem>
+              <SelectItem value="delete">Exclusão</SelectItem>
+              <SelectItem value="login">Login</SelectItem>
+              <SelectItem value="logout">Logout</SelectItem>
+              <SelectItem value="send_review">Envio p/ RH</SelectItem>
+              <SelectItem value="approve">Aprovação</SelectItem>
+              <SelectItem value="reject">Rejeição</SelectItem>
+              <SelectItem value="reset_password">Reset de Senha</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Period */}
+          <Select value={filters.days} onValueChange={(v) => { setFilters(f => ({ ...f, days: v })); setPage(1); }}>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Últimas 24h</SelectItem>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="365">Último ano</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" onClick={clearFilters} className="text-gray-500 hover:text-gray-700 gap-1.5">
+              <X className="w-4 h-4" />
+              Limpar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex gap-3">
+              <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-64" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : logsResponse?.logs.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center py-16 gap-3">
+          <Search className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+          <p className="text-gray-500 dark:text-gray-400 font-medium">Nenhum registro encontrado</p>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-500">
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logsResponse?.logs.map((log) => (
+            <LogCard key={log.id} log={log} />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {logsResponse && logsResponse.pagination.pages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Página {logsResponse.pagination.page} de {logsResponse.pagination.pages}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page <= 1}>«</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}>‹ Anterior</Button>
+            {Array.from({ length: Math.min(5, logsResponse.pagination.pages) }).map((_, i) => {
+              const n = Math.max(1, Math.min(page - 2, logsResponse.pagination.pages - 4)) + i;
+              if (n > logsResponse.pagination.pages) return null;
+              return (
+                <Button key={n} variant={n === page ? "default" : "outline"} size="sm" onClick={() => setPage(n)} className="w-9 h-9 p-0">
+                  {n}
                 </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Resultados */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">
-                Registros de Atividade
-                {logsResponse && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    ({logsResponse.pagination.total} total)
-                  </span>
-                )}
-              </CardTitle>
-            </div>
-          </CardHeader>
-          
-          <CardContent>
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4 mb-4">
-                <p className="text-red-800 dark:text-red-200">
-                  Erro ao carregar logs: {error instanceof Error ? error.message : "Erro desconhecido"}
-                </p>
-              </div>
-            )}
-
-            {isLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-48" />
-                      </div>
-                      <Skeleton className="h-6 w-20" />
-                    </div>
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                ))}
-              </div>
-            ) : logsResponse?.logs.length === 0 ? (
-              <div className="text-center py-8">
-                <Search className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">Nenhum log encontrado com os filtros aplicados.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {logsResponse?.logs.map((log) => (
-                  <Collapsible key={log.id}>
-                    <div className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant={getActionBadgeVariant(log.action)} data-testid={`badge-action-${log.action}`}>
-                              {getActionLabel(log.action)}
-                            </Badge>
-                            <Badge variant="outline" data-testid={`badge-entity-${log.entityType}`}>
-                              {getEntityTypeLabel(log.entityType)}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              #{log.logNumber}
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">Data/Hora</p>
-                              <p className="text-muted-foreground" data-testid={`text-datetime-${log.id}`}>
-                                {formatDateTime(log.createdAt)}
-                              </p>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">Usuário</p>
-                              <p className="text-muted-foreground" data-testid={`text-user-${log.id}`}>
-                                {log.userName || "Sistema"}
-                              </p>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">Entidade</p>
-                              <p className="text-muted-foreground truncate" data-testid={`text-entity-${log.id}`}>
-                                {log.entityName}
-                              </p>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">Descrição</p>
-                              <p className="text-muted-foreground" data-testid={`text-details-${log.id}`}>
-                                {log.details}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {(log.previousData || log.newData) && (
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleExpanded(log.id)}
-                              data-testid={`button-expand-${log.id}`}
-                            >
-                              {expandedLogs.has(log.id) ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </CollapsibleTrigger>
-                        )}
-                      </div>
-                      
-                      <CollapsibleContent>
-                        {renderDataDiff(log)}
-                        
-                        {(log.ipAddress || log.userAgent) && (
-                          <div className="mt-3 pt-3 border-t border-border">
-                            <h5 className="font-medium text-sm mb-2">Informações Técnicas:</h5>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              {log.ipAddress && (
-                                <div>
-                                  <span className="font-medium">IP:</span> {log.ipAddress}
-                                </div>
-                              )}
-                              {log.userAgent && (
-                                <div className="truncate">
-                                  <span className="font-medium">User Agent:</span> {log.userAgent}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                ))}
-              </div>
-            )}
-
-            {/* Paginação */}
-            {logsResponse && logsResponse.pagination.pages > 1 && (
-              <div className="flex items-center justify-between mt-6">
-                <div className="text-sm text-muted-foreground">
-                  Página {logsResponse.pagination.page} de {logsResponse.pagination.pages}
-                  {" "} • {logsResponse.pagination.total} registros
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(page - 1)}
-                    disabled={page <= 1}
-                    data-testid="button-prev-page"
-                  >
-                    Anterior
-                  </Button>
-                  
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, logsResponse.pagination.pages) }).map((_, i) => {
-                      const pageNum = Math.max(1, page - 2) + i;
-                      if (pageNum > logsResponse.pagination.pages) return null;
-                      
-                      return (
-                        <Button
-                          key={pageNum}
-                          variant={pageNum === page ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPage(pageNum)}
-                          className="w-8 h-8 p-0"
-                          data-testid={`button-page-${pageNum}`}
-                        >
-                          {pageNum}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(page + 1)}
-                    disabled={page >= logsResponse.pagination.pages}
-                    data-testid="button-next-page"
-                  >
-                    Próxima
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-    </>
+              );
+            })}
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= logsResponse.pagination.pages}>Próxima ›</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(logsResponse.pagination.pages)} disabled={page >= logsResponse.pagination.pages}>»</Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
