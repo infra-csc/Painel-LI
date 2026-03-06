@@ -1522,13 +1522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/all-comments", async (req, res) => {
     try {
-      // Get all comments - this endpoint should get comments for all team inclusions
-      const teamInclusions = await storage.getTeamInclusions();
-      let allComments: any[] = [];
-      for (const inclusion of teamInclusions) {
-        const comments = await storage.getComments(inclusion.id);
-        allComments = allComments.concat(comments);
-      }
+      const allComments = await storage.getAllComments();
       res.json(allComments);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar todos os comentários" });
