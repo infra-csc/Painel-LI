@@ -364,6 +364,65 @@ export default function BudgetComparisonPage() {
 
       {selectedEventId && selectedEvent && (
         <>
+          {/* Timeline de Progresso */}
+          {(() => {
+            const planned = budgetPlanned ?? [];
+            const actual = budgetActual ?? [];
+            const allApproved = actual.length > 0 && actual.every(a => a.rhStatus === 'aprovado');
+            const anySent = actual.some(a => a.sentForReview);
+            const currentStep = allApproved ? 3
+              : anySent ? 2
+              : planned.length > 0 ? 1
+              : 0;
+            const steps = [
+              { label: "Escalação", desc: "Inclusões confirmadas" },
+              { label: "Planejamento (RH)", desc: "Valores previstos definidos" },
+              { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
+              { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
+            ];
+            return (
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5">
+                <div className="flex items-center justify-between">
+                  {steps.map((step, i) => {
+                    const isDone = i < currentStep;
+                    const isActive = i === currentStep;
+                    const isLast = i === steps.length - 1;
+                    return (
+                      <div key={i} className="flex items-center flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                            isDone ? 'bg-emerald-500 text-white' :
+                            isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                          }`}>
+                            {isDone ? (
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (i + 1)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={`text-[11px] font-medium leading-tight ${
+                              isDone ? 'text-emerald-600 dark:text-emerald-400' :
+                              isActive ? 'text-purple-700 dark:text-purple-300' :
+                              'text-gray-400'
+                            }`}>{step.label}</div>
+                            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                          </div>
+                        </div>
+                        {!isLast && (
+                          <div className={`flex-1 h-[2px] mx-3 rounded ${
+                            isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
+                          }`} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {budgetActual && budgetActual.length > 0 && (() => {
             const totalActualItems = budgetActual.length;
             const sentCount = budgetActual.filter(a => a.sentForReview && a.rhStatus === 'pendente').length;
