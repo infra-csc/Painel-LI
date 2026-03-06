@@ -1040,10 +1040,6 @@ export default function BudgetPlannedPage() {
                       <Car className="w-4 h-4 text-purple-600" />
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Mobilidade</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-gray-400 uppercase tracking-wider">Subtotal</span>
-                      <div className="text-sm font-bold text-purple-600">{formatCurrency(editingBudget.mobilidade)}</div>
-                    </div>
                   </div>
                   <div className="p-4">
                     <div className="flex items-center justify-between gap-4">
