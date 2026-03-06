@@ -46,7 +46,7 @@ export default function SystemSettingsPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       default_daily_value_weekday: "50.00",
-      default_daily_value_weekend: "100.00",
+      default_daily_value_weekend: "50.00",
       default_mobility: "25.00",
       default_weekday_lunch: "35.00",
       default_weekday_dinner: "40.00",
@@ -59,7 +59,7 @@ export default function SystemSettingsPage() {
     if (settings) {
       form.reset({
         default_daily_value_weekday: centavosToReais(settings.default_daily_value_weekday ?? settings.default_daily_value ?? 5000),
-        default_daily_value_weekend: centavosToReais(settings.default_daily_value_weekend ?? settings.default_daily_value ?? 10000),
+        default_daily_value_weekend: centavosToReais(settings.default_daily_value_weekend ?? settings.default_daily_value ?? 5000),
         default_mobility: centavosToReais(settings.default_mobility ?? 2500),
         default_weekday_lunch: centavosToReais(settings.default_weekday_lunch ?? 3500),
         default_weekday_dinner: centavosToReais(settings.default_weekday_dinner ?? 4000),

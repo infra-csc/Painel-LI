@@ -2335,7 +2335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         default_weekend_dinner: 4500,
         default_daily_value: 5000,
         default_daily_value_weekday: 5000,
-        default_daily_value_weekend: 10000,
+        default_daily_value_weekend: 5000,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
