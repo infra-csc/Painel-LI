@@ -921,13 +921,19 @@ export default function BudgetPlannedPage() {
           </DialogHeader>
           
           {editingBudget && editingBudgetInfo && (() => {
+            const noWeekdays = editingBudgetInfo.weekdays === 0;
+            const noWeekends = editingBudgetInfo.weekends === 0;
             const subtotalDiariasUtil = editingBudgetInfo.weekdays * editingBudget.valorDiariaUtil;
             const subtotalDiariasFds = editingBudgetInfo.weekends * editingBudget.valorDiariaFds;
             const totalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
+            const effectiveAlmocoSemana = noWeekdays ? 0 : editingBudget.almocoSemana;
+            const effectiveJantarSemana = noWeekdays ? 0 : editingBudget.jantarSemana;
+            const effectiveAlmocoFds = noWeekends ? 0 : editingBudget.almocoFds;
+            const effectiveJantarFds = noWeekends ? 0 : editingBudget.jantarFds;
             const modalTotal = totalDiarias + 
-              editingBudget.mobilidade + editingBudget.almocoSemana + editingBudget.jantarSemana + 
-              editingBudget.almocoFds + editingBudget.jantarFds;
-            const totalAlimentacao = editingBudget.almocoSemana + editingBudget.jantarSemana + editingBudget.almocoFds + editingBudget.jantarFds;
+              editingBudget.mobilidade + effectiveAlmocoSemana + effectiveJantarSemana + 
+              effectiveAlmocoFds + effectiveJantarFds;
+            const totalAlimentacao = effectiveAlmocoSemana + effectiveJantarSemana + effectiveAlmocoFds + effectiveJantarFds;
             const diff = modalTotal - originalModalTotal;
             const hasChanges = diff !== 0;
 
@@ -997,7 +1003,8 @@ export default function BudgetPlannedPage() {
                         <span className="text-xs text-gray-400 font-medium">R$</span>
                         <Input 
                           type="number" step="1" className="h-9 text-sm w-24 text-center font-medium"
-                          value={editingBudget.valorDiariaUtil / 100} 
+                          value={noWeekdays ? 0 : editingBudget.valorDiariaUtil / 100}
+                          disabled={noWeekdays}
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaUtil: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                         <span className="text-[10px] text-gray-400">/dia</span>
@@ -1021,7 +1028,8 @@ export default function BudgetPlannedPage() {
                         <span className="text-xs text-gray-400 font-medium">R$</span>
                         <Input 
                           type="number" step="1" className="h-9 text-sm w-24 text-center font-medium"
-                          value={editingBudget.valorDiariaFds / 100} 
+                          value={noWeekends ? 0 : editingBudget.valorDiariaFds / 100}
+                          disabled={noWeekends}
                           onChange={e => setEditingBudget({...editingBudget, valorDiariaFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                         />
                         <span className="text-[10px] text-gray-400">/dia</span>
@@ -1094,7 +1102,8 @@ export default function BudgetPlannedPage() {
                             <span className="text-xs text-gray-400">R$</span>
                             <Input 
                               type="number" step="1" className="h-8 text-sm w-24 text-center"
-                              value={Math.round(editingBudget.almocoSemana / 100)} 
+                              value={noWeekdays ? 0 : Math.round(editingBudget.almocoSemana / 100)}
+                              disabled={noWeekdays}
                               onChange={e => setEditingBudget({...editingBudget, almocoSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
                             <span className="text-[10px] text-gray-400">total</span>
@@ -1109,7 +1118,8 @@ export default function BudgetPlannedPage() {
                             <span className="text-xs text-gray-400">R$</span>
                             <Input 
                               type="number" step="1" className="h-8 text-sm w-24 text-center"
-                              value={Math.round(editingBudget.jantarSemana / 100)} 
+                              value={noWeekdays ? 0 : Math.round(editingBudget.jantarSemana / 100)}
+                              disabled={noWeekdays}
                               onChange={e => setEditingBudget({...editingBudget, jantarSemana: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
                             <span className="text-[10px] text-gray-400">total</span>
@@ -1136,7 +1146,8 @@ export default function BudgetPlannedPage() {
                             <span className="text-xs text-gray-400">R$</span>
                             <Input 
                               type="number" step="1" className="h-8 text-sm w-24 text-center"
-                              value={Math.round(editingBudget.almocoFds / 100)} 
+                              value={noWeekends ? 0 : Math.round(editingBudget.almocoFds / 100)}
+                              disabled={noWeekends}
                               onChange={e => setEditingBudget({...editingBudget, almocoFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
                             <span className="text-[10px] text-gray-400">total</span>
@@ -1151,7 +1162,8 @@ export default function BudgetPlannedPage() {
                             <span className="text-xs text-gray-400">R$</span>
                             <Input 
                               type="number" step="1" className="h-8 text-sm w-24 text-center"
-                              value={Math.round(editingBudget.jantarFds / 100)} 
+                              value={noWeekends ? 0 : Math.round(editingBudget.jantarFds / 100)}
+                              disabled={noWeekends}
                               onChange={e => setEditingBudget({...editingBudget, jantarFds: Math.round(parseFloat(e.target.value) * 100) || 0})}
                             />
                             <span className="text-[10px] text-gray-400">total</span>
