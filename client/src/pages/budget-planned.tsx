@@ -279,27 +279,32 @@ export default function BudgetPlannedPage() {
       const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
       const override = budgetOverrides[inclusion.id];
       
-      const qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
-      const inclusionDailyValue = inclusion.dailyValue ?? 5000;
-      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue;
-      const valorDiariaFds = override?.valorDiariaFds ?? inclusionDailyValue;
-      
       // Usar workDays da escalação quando disponível (datas exatas de trabalho)
       let weekdays = 0;
       let weekends = 0;
+      let qtdDiarias: number;
+
       if (inclusion.workDays && inclusion.workDays.length > 0) {
+        // workDays é a fonte de verdade: conta os dias reais selecionados na escalação
         for (const dateStr of inclusion.workDays) {
-          const d = new Date(dateStr + 'T00:00:00');
+          const dateOnly = String(dateStr).substring(0, 10); // garante formato YYYY-MM-DD
+          const d = new Date(dateOnly + 'T12:00:00'); // meio-dia evita fuso horário
           const day = d.getDay();
           if (day === 0 || day === 6) weekends++;
           else weekdays++;
         }
+        qtdDiarias = override?.qtdDiarias ?? inclusion.workDays.length;
       } else {
+        qtdDiarias = override?.qtdDiarias ?? inclusion.dailyRates ?? 0;
         const result = countWeekdaysAndWeekends(inclusion.scheduleStartDate, qtdDiarias);
         weekdays = result.weekdays;
         weekends = result.weekends;
       }
+
+      const inclusionDailyValue = inclusion.dailyValue ?? 5000;
+      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
+      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue;
+      const valorDiariaFds = override?.valorDiariaFds ?? inclusionDailyValue;
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;
