@@ -682,7 +682,6 @@ export default function Closure() {
             </div>
           )}
         </div>
-      </div>
 
       <CollaboratorModal 
         open={showEmergencyModal} 

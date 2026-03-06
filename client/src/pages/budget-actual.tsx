@@ -474,6 +474,11 @@ export default function BudgetActualPage() {
     }, 0);
   }, [filteredItems, budgetPlanned]);
   const totalDifference = totalRealizado - totalPlanejado;
+  const diffLabel = totalDifference === 0
+    ? { text: "Dentro do planejado", color: "text-gray-500" }
+    : totalDifference < 0
+      ? { text: `- ${formatCurrency(Math.abs(totalDifference))} abaixo do planejado`, color: "text-emerald-600" }
+      : { text: `+ ${formatCurrency(totalDifference)} acima do planejado`, color: "text-red-500" };
 
   const hasAnyEditable = useMemo(() => {
     if (!budgetActual) return true;
@@ -964,7 +969,7 @@ export default function BudgetActualPage() {
               ) : (
                 <>
                   <div className="text-[11px] text-gray-400">
-                    Selecione execuções ou envie todas para revisão
+                    Selecione prestações ou envie todas para revisão
                   </div>
                   <Button
                     size="sm"
