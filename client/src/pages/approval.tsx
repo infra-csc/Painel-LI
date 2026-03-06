@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -605,7 +606,7 @@ export default function Approval() {
                               {formatDate(inclusion.scheduleStartDate || '')} - {formatDate(inclusion.scheduleEndDate || '')}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {inclusion.dailyRates} diárias × {formatCurrency(inclusion.dailyValue / 100)}
+                              {formatDiarias(inclusion.dailyRates)} × {formatCurrency(inclusion.dailyValue / 100)}
                             </div>
                             {inclusion.actualStartDate && (
                               <>
@@ -614,7 +615,7 @@ export default function Approval() {
                                   {formatDate(inclusion.actualStartDate || '')} - {formatDate(inclusion.actualEndDate || inclusion.scheduleEndDate || '')}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {financial?.actualDailyRates || inclusion.dailyRates} diárias
+                                  {formatDiarias(financial?.actualDailyRates || inclusion.dailyRates)}
                                   {financial?.actualDailyRates && financial.actualDailyRates !== inclusion.dailyRates && (
                                     <span className={`ml-2 font-medium ${
                                       financial.actualDailyRates > inclusion.dailyRates ? 'text-red-600' : 'text-green-600'

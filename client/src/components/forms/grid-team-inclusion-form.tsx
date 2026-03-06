@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1434,7 +1435,7 @@ export default function GridTeamInclusionForm() {
                       return (
                         <div key={index} className="flex justify-between">
                           <span>
-                            {functionName} - {range.dailyRate} diária(s)
+                            {functionName} - {formatDiarias(range.dailyRate)}
                           </span>
                           <span>
                             {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDiarias } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -466,7 +467,7 @@ export default function TeamInclusionForm() {
                       ))}
                     </div>
                     <div className="text-sm text-muted-foreground pt-2 border-t">
-                      Total: {dailyRatesByDate.reduce((sum, entry) => sum + entry.dailyRates, 0)} diárias 
+                      Total: {formatDiarias(dailyRatesByDate.reduce((sum, entry) => sum + entry.dailyRates, 0))} 
                       em {dailyRatesByDate.length} {dailyRatesByDate.length === 1 ? 'linha' : 'linhas'} de escalação
                     </div>
                   </div>

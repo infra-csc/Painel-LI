@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatDias, formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -506,7 +507,7 @@ export default function Closure() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
                           <div>
                             <Label className="text-xs text-muted-foreground">Diárias Realizadas</Label>
-                            <p className="font-medium">{financial.actualDailyRates || 0} diárias</p>
+                            <p className="font-medium">{formatDiarias(financial.actualDailyRates || 0)}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Valor das Diárias</Label>
@@ -576,7 +577,7 @@ export default function Closure() {
                               })()}
                               <div>
                                 <Label className="text-xs text-muted-foreground">Diárias Planejadas</Label>
-                                <p className="font-medium">{inclusion.dailyRates} diárias</p>
+                                <p className="font-medium">{formatDiarias(inclusion.dailyRates)}</p>
                               </div>
                             </div>
                           </div>
@@ -634,7 +635,7 @@ export default function Closure() {
                               />
                               {data.actualStartDate && data.actualEndDate && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Calculado automaticamente: {calculateDailyRates(data.actualStartDate, data.actualEndDate)} dias
+                                  Calculado automaticamente: {formatDias(calculateDailyRates(data.actualStartDate, data.actualEndDate))}
                                 </p>
                               )}
                             </div>

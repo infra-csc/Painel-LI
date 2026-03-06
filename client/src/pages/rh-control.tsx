@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { formatDias } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,7 +69,7 @@ function timeInStatus(date: Date | string | null | undefined): string {
   if (diffH < 24) return `Há ${diffH}h`;
   const diffD = Math.floor(diffH / 24);
   if (diffD === 1) return "Há 1 dia";
-  return `Há ${diffD} dias`;
+  return `Há ${formatDias(diffD)}`;
 }
 
 type UrgencyLevel = "neutral" | "low" | "medium" | "critical";

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
@@ -1083,7 +1084,7 @@ export default function Scaling() {
                                   {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
                                 </div>
                                 <div className="text-xs text-muted-foreground font-medium">
-                                  {inclusion.dailyRates} diárias
+                                  {formatDiarias(inclusion.dailyRates)}
                                 </div>
                               </td>
                               <td className="px-3 py-4">
@@ -1197,7 +1198,7 @@ export default function Scaling() {
                                   {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
                                 </div>
                                 <div className="text-xs text-muted-foreground font-medium">
-                                  {inclusion.dailyRates} diárias
+                                  {formatDiarias(inclusion.dailyRates)}
                                 </div>
                               </td>
                               <td className="px-3 py-4">

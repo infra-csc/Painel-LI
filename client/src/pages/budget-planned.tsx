@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { formatDias, formatDiarias, formatDiasUteis, formatFds } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -866,12 +867,12 @@ export default function BudgetPlannedPage() {
                             <div className="ml-6 mt-0.5 space-y-0.5">
                               {budget.weekdays > 0 && (
                                 <div className="text-[11px] text-gray-400">
-                                  {budget.weekdays} dias úteis × {formatCurrency(budget.valorDiariaUtil)}
+                                  {formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}
                                 </div>
                               )}
                               {budget.weekends > 0 && (
                                 <div className="text-[11px] text-gray-400">
-                                  {budget.weekends} fins de semana × {formatCurrency(budget.valorDiariaFds)}
+                                  {formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}
                                 </div>
                               )}
                             </div>
@@ -960,7 +961,7 @@ export default function BudgetPlannedPage() {
                         {editingBudgetInfo.period}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {editingBudget.qtdDiarias} dias ({editingBudgetInfo.weekdays} úteis + {editingBudgetInfo.weekends} fds)
+                        {formatDias(editingBudget.qtdDiarias)} ({editingBudgetInfo.weekdays} úteis + {editingBudgetInfo.weekends} fds)
                       </span>
                     </div>
                   </div>
@@ -996,7 +997,7 @@ export default function BudgetPlannedPage() {
                         <Briefcase className="w-3.5 h-3.5 text-blue-500" />
                         <div>
                           <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Dias Úteis</div>
-                          <div className="text-[10px] text-gray-400">{editingBudgetInfo.weekdays} dias</div>
+                          <div className="text-[10px] text-gray-400">{formatDias(editingBudgetInfo.weekdays)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1021,7 +1022,7 @@ export default function BudgetPlannedPage() {
                         <Sun className="w-3.5 h-3.5 text-amber-500" />
                         <div>
                           <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Fim de Semana</div>
-                          <div className="text-[10px] text-gray-400">{editingBudgetInfo.weekends} dias</div>
+                          <div className="text-[10px] text-gray-400">{formatDias(editingBudgetInfo.weekends)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1054,7 +1055,7 @@ export default function BudgetPlannedPage() {
                       <div className="flex items-center gap-2 min-w-[140px]">
                         <div>
                           <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Valor por dia</div>
-                          <div className="text-[10px] text-gray-400">{editingBudget.qtdDiarias} dias</div>
+                          <div className="text-[10px] text-gray-400">{formatDias(editingBudget.qtdDiarias)}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

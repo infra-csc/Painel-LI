@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { formatDias, formatDiasUteis, formatFds } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -867,12 +868,12 @@ export default function BudgetActualPage() {
                           <div className="ml-1 space-y-0.5">
                             {cardDays.weekdays > 0 && (
                               <div className="text-[11px] text-gray-400">
-                                {cardDays.weekdays} dias úteis × {formatCurrency(cardValorUtil)}
+                                {formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}
                               </div>
                             )}
                             {cardDays.weekends > 0 && (
                               <div className="text-[11px] text-gray-400">
-                                {cardDays.weekends} fins de semana × {formatCurrency(cardValorFds)}
+                                {formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}
                               </div>
                             )}
                           </div>
@@ -1091,7 +1092,7 @@ export default function BudgetActualPage() {
                       <div className="flex items-center gap-3 text-[10px] text-gray-400">
                         {itemDays.weekdays > 0 && <span>{itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
                         {itemDays.weekends > 0 && <span>{itemDays.weekends} {itemDays.weekends === 1 ? 'fim de semana' : 'fins de semana'}</span>}
-                        <span className="font-medium text-gray-500">{itemDays.weekdays + itemDays.weekends} dias</span>
+                        <span className="font-medium text-gray-500">{formatDias(itemDays.weekdays + itemDays.weekends)}</span>
                       </div>
                     </div>
                   )}

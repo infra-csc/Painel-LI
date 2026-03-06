@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatDiarias } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -606,7 +607,7 @@ export default function TeamInclusionTable() {
                           : "Não definidas"}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {inclusion.dailyRates} diárias
+                        {formatDiarias(inclusion.dailyRates)}
                       </div>
                     </td>
                     <td className="px-3 py-4">
