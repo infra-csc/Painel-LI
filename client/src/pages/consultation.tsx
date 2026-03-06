@@ -334,13 +334,11 @@ export default function SystemLogsPage() {
               <SelectItem value="team_inclusion">Inclusão de Equipe</SelectItem>
               <SelectItem value="budget_planned">Orçamento Planejado</SelectItem>
               <SelectItem value="budget_actual">Prestação de Contas</SelectItem>
-              <SelectItem value="system_settings">Configurações</SelectItem>
               <SelectItem value="function">Funções</SelectItem>
               <SelectItem value="collaborator">Colaboradores</SelectItem>
               <SelectItem value="ticket">Passagens</SelectItem>
               <SelectItem value="accommodation">Hospedagens</SelectItem>
               <SelectItem value="budget_comparison">Comparativo</SelectItem>
-              <SelectItem value="financial">Financeiro</SelectItem>
             </SelectContent>
           </Select>
 
