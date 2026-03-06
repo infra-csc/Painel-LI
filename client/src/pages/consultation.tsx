@@ -365,7 +365,7 @@ export default function SystemLogsPage() {
 
           {/* Period */}
           <Select value={filters.days} onValueChange={(v) => { setFilters(f => ({ ...f, days: v })); setPage(1); }}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
