@@ -218,17 +218,17 @@ export default function BudgetPlannedPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
-  const countWeekdaysAndWeekends = (startDate: string | null, endDate: string | null): { weekdays: number; weekends: number } => {
-    if (!startDate || !endDate) return { weekdays: 0, weekends: 0 };
+  const countWeekdaysAndWeekends = (startDate: string | null, qtdDiarias: number): { weekdays: number; weekends: number } => {
+    if (!startDate || qtdDiarias <= 0) return { weekdays: 0, weekends: 0 };
     const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return { weekdays: 0, weekends: 0 };
-    
+    if (isNaN(start.getTime())) return { weekdays: 0, weekends: 0 };
+
     let weekdays = 0;
     let weekends = 0;
     const current = new Date(start);
-    
-    while (current <= end) {
+    let daysLeft = qtdDiarias;
+
+    while (daysLeft > 0) {
       const day = current.getDay();
       if (day === 0 || day === 6) {
         weekends++;
@@ -236,8 +236,9 @@ export default function BudgetPlannedPage() {
         weekdays++;
       }
       current.setDate(current.getDate() + 1);
+      daysLeft--;
     }
-    
+
     return { weekdays, weekends };
   };
 
@@ -284,8 +285,8 @@ export default function BudgetPlannedPage() {
       const valorDiariaFds = override?.valorDiariaFds ?? 10000;
       
       const { weekdays, weekends } = countWeekdaysAndWeekends(
-        inclusion.scheduleStartDate, 
-        inclusion.scheduleEndDate
+        inclusion.scheduleStartDate,
+        qtdDiarias
       );
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
