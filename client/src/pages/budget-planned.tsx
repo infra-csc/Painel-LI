@@ -631,14 +631,13 @@ export default function BudgetPlannedPage() {
             {/* Timeline de Progresso do Planejado */}
             {(() => {
               const currentStep = stats.total === 0 ? 0
-                : stats.enviados === 0 ? 1
-                : stats.enviados < stats.total ? 2
-                : 3;
+                : stats.enviados < stats.total ? 1
+                : 2;
               const steps = [
-                { label: "Criar planejamento", desc: "Defina os valores previstos" },
-                { label: "Enviar para realizado", desc: "Envie para a equipe" },
-                { label: "Prestação em andamento", desc: "Aguarde o preenchimento" },
-                { label: "Concluído", desc: "Processo finalizado" },
+                { label: "Escalação", desc: "Inclusões confirmadas" },
+                { label: "Planejamento (RH)", desc: "Defina os valores previstos" },
+                { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
+                { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
               ];
               return (
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5 mb-4">
