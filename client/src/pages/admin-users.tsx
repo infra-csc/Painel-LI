@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import UserEditModal from "@/components/modals/user-edit-modal";
+import ResetPasswordModal from "@/components/modals/reset-password-modal";
 import type { User } from "@shared/schema";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
   const [page, setPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -130,10 +132,16 @@ export default function AdminUsers() {
     onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 
-  const handleResetPassword = (userId: string) => {
-    const pwd = window.prompt("Digite a nova senha (mínimo 6 caracteres):");
-    if (pwd && pwd.length >= 6) resetPasswordMutation.mutate({ userId, newPassword: pwd });
-    else if (pwd) toast({ title: "Erro", description: "Senha muito curta", variant: "destructive" });
+  const handleResetPassword = (u: User) => {
+    setResetPwdUser(u);
+  };
+
+  const handleConfirmResetPassword = (newPassword: string) => {
+    if (!resetPwdUser) return;
+    resetPasswordMutation.mutate(
+      { userId: resetPwdUser.id, newPassword },
+      { onSuccess: () => setResetPwdUser(null) }
+    );
   };
 
   const handleApprove = (userId: string, status: "approved" | "rejected") => {
@@ -395,7 +403,7 @@ export default function AdminUsers() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <button
-                                      onClick={() => handleResetPassword(u.id)}
+                                      onClick={() => handleResetPassword(u)}
                                       className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                                       data-testid={`button-reset-pwd-${u.id}`}
                                     >
@@ -476,6 +484,15 @@ export default function AdminUsers() {
           isOpen={editingUser !== null}
           onClose={() => setEditingUser(null)}
           user={editingUser}
+        />
+
+        {/* Reset Password Modal */}
+        <ResetPasswordModal
+          isOpen={resetPwdUser !== null}
+          onClose={() => setResetPwdUser(null)}
+          userName={resetPwdUser?.name ?? ""}
+          isPending={resetPasswordMutation.isPending}
+          onConfirm={handleConfirmResetPassword}
         />
       </div>
     </TooltipProvider>
