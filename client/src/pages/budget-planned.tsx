@@ -1130,7 +1130,7 @@ export default function BudgetPlannedPage() {
               }
             };
 
-            const inputCls = "h-9 text-sm w-24 text-center font-medium border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 rounded-lg";
+            const inputCls = "h-9 text-sm w-[82px] text-right font-medium border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 rounded-lg";
             
             return (
             <>
@@ -1147,7 +1147,7 @@ export default function BudgetPlannedPage() {
                     <p className="text-xs text-gray-400 mt-0.5">Orçamento Planejado — <span className="text-gray-500 font-medium">{editingBudgetInfo.functionName}</span></p>
 
                     {/* Metadados */}
-                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
                       <Badge className={`text-[10px] h-5 px-2 rounded-md font-semibold ${
                         editingBudgetInfo.type === 'Casa'
                           ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300'
@@ -1195,7 +1195,7 @@ export default function BudgetPlannedPage() {
                       <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">Diárias</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-indigo-400 uppercase tracking-wider">Subtotal</div>
+                      <div className="text-[10px] text-indigo-400 tracking-wider">Subtotal</div>
                       <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(totalDiarias)}</div>
                     </div>
                   </div>
@@ -1259,7 +1259,7 @@ export default function BudgetPlannedPage() {
                       <span className="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-violet-400 uppercase tracking-wider">Total</div>
+                      <div className="text-[10px] text-violet-400 tracking-wider">Total</div>
                       <div className="text-sm font-bold text-violet-600 dark:text-violet-400">{formatCurrency(editingBudget.mobilidade)}</div>
                     </div>
                   </div>
@@ -1291,7 +1291,7 @@ export default function BudgetPlannedPage() {
 
                 {/* ── BLOCO: Alimentação ── */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50 dark:bg-orange-950/30 border-b border-orange-100 dark:border-orange-900/50">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-orange-100 dark:border-orange-900/50" style={{ background: "#fffbf5" }}>
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-orange-100 dark:bg-orange-900/60 flex items-center justify-center">
                         <Utensils className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
@@ -1299,7 +1299,7 @@ export default function BudgetPlannedPage() {
                       <span className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-orange-400 uppercase tracking-wider">Subtotal</div>
+                      <div className="text-[10px] text-orange-400 tracking-wider">Subtotal</div>
                       <div className="text-sm font-bold text-orange-600 dark:text-orange-400">{formatCurrency(totalAlimentacao)}</div>
                     </div>
                   </div>
@@ -1323,7 +1323,7 @@ export default function BudgetPlannedPage() {
                           />
                           <span className="text-[10px] text-gray-400">total</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 ml-auto">
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 ml-auto">
                           {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.almocoSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
                         </span>
                       </div>
@@ -1339,7 +1339,7 @@ export default function BudgetPlannedPage() {
                           />
                           <span className="text-[10px] text-gray-400">total</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 ml-auto">
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 ml-auto">
                           {editingBudgetInfo.weekdays > 0 ? formatCurrency(Math.round(editingBudget.jantarSemana / editingBudgetInfo.weekdays)) : 'R$ 0'}/dia
                         </span>
                       </div>
@@ -1367,7 +1367,7 @@ export default function BudgetPlannedPage() {
                           />
                           <span className="text-[10px] text-gray-400">total</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 ml-auto">
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 ml-auto">
                           {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.almocoFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
                         </span>
                       </div>
@@ -1383,7 +1383,7 @@ export default function BudgetPlannedPage() {
                           />
                           <span className="text-[10px] text-gray-400">total</span>
                         </div>
-                        <span className="text-[10px] text-gray-400 ml-auto">
+                        <span className="text-[10px] text-gray-300 dark:text-gray-600 ml-auto">
                           {editingBudgetInfo.weekends > 0 ? formatCurrency(Math.round(editingBudget.jantarFds / editingBudgetInfo.weekends)) : 'R$ 0'}/dia
                         </span>
                       </div>
