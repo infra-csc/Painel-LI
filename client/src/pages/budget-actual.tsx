@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -591,7 +592,7 @@ export default function BudgetActualPage() {
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
                             isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
                             isActive ? 'bg-violet-600 text-white shadow-lg shadow-violet-300 dark:shadow-violet-900/50 ring-4 ring-violet-100 dark:ring-violet-900/40' :
-                            'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                            'bg-gray-100 dark:bg-gray-700 text-gray-300 dark:text-gray-500'
                           }`}>
                             {isDone ? (
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -627,20 +628,20 @@ export default function BudgetActualPage() {
               <div>
                 <p className="text-violet-200 text-xs font-semibold uppercase tracking-widest mb-1">Total Realizado</p>
                 <div className="text-3xl font-black text-white tabular-nums">{formatCurrency(totalRealizado)}</div>
-                <div className="text-violet-200 text-xs mt-1 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</div>
+                <div className="text-white/80 text-xs mt-1 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
                   totalDifference === 0
                     ? 'bg-white/20 text-white'
                     : totalDifference < 0
-                      ? 'bg-emerald-400/30 text-emerald-100'
+                      ? 'bg-white/15 text-white'
                       : 'bg-red-400/30 text-red-100'
                 }`}>
-                  {totalDifference < 0 && <TrendingDown className="w-3.5 h-3.5" />}
+                  {totalDifference < 0 && <TrendingDown className="w-3.5 h-3.5 text-emerald-300" />}
                   {totalDifference > 0 && <TrendingUp className="w-3.5 h-3.5" />}
                   {totalDifference === 0 && <CheckCircle2 className="w-3.5 h-3.5" />}
-                  <span>{diffLabel.text}</span>
+                  <span className={totalDifference < 0 ? 'text-emerald-300' : ''}>{diffLabel.text}</span>
                 </div>
                 <div className="text-violet-200 text-xs">{filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}</div>
               </div>
@@ -836,7 +837,16 @@ export default function BudgetActualPage() {
                     <div className="flex items-center gap-3">
                       {/* Checkbox / Lock */}
                       {isItemLocked ? (
-                        <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-default" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="text-xs">
+                              Prestação bloqueada para edição
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : isItemEditable ? (
                         <button onClick={() => toggleSelect(item.id)} className="flex-shrink-0">
                           <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
