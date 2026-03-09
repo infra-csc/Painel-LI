@@ -4,7 +4,7 @@ import {
   Search, Calendar, User, ChevronDown, ChevronRight, Filter,
   Activity, ShieldAlert, Clock, LogIn, LogOut, UserPlus, UserCheck,
   Edit, Trash2, Plus, Send, CheckCircle, XCircle, RotateCcw,
-  DollarSign, Users, Settings, FileText, X
+  DollarSign, Users, Settings, FileText, X, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,8 +68,11 @@ const ENTITY_CONFIG: Record<string, { label: string; icon: any; color: string }>
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  name: "Nome", email: "E-mail", role: "Perfil", status: "Status",
-  area: "Área", password: "Senha",
+  id: "ID", name: "Nome", email: "E-mail", role: "Perfil", status: "Status",
+  area: "Área", password: "Senha", isActive: "Ativo",
+  mustChangePassword: "Forçar troca de senha",
+  createdAt: "Criado em", updatedAt: "Atualizado em",
+  userId: "ID do usuário", createdBy: "Criado por", updatedBy: "Atualizado por",
   eventName: "Evento", startDate: "Início", endDate: "Fim", location: "Local",
   collaboratorId: "Colaborador", functionId: "Função", dailyValue: "Valor Diária",
   mobility: "Mobilidade", weekdayLunch: "Almoço Útil", weekdayDinner: "Jantar Útil",
@@ -79,9 +82,10 @@ const FIELD_LABELS: Record<string, string> = {
   default_mobility: "Mobilidade Padrão", default_weekday_lunch: "Almoço Útil Padrão",
   default_weekday_dinner: "Jantar Útil Padrão", default_weekend_lunch: "Almoço FDS Padrão",
   default_weekend_dinner: "Jantar FDS Padrão",
-  sentForReview: "Enviado p/ RH", rhStatus: "Status RH",
+  sentForReview: "Enviado p/ RH", rhStatus: "Status RH", rhActionAt: "Ação RH em", rhActionBy: "Ação RH por",
   scheduleStartDate: "Início Previsto", scheduleEndDate: "Fim Previsto",
-  count: "Qtd. Itens", eventId: "Evento ID",
+  count: "Qtd. Itens", eventId: "Evento ID", collaboratorType: "Tipo", observations: "Observações",
+  plannedId: "ID Planejado",
 };
 
 const CURRENCY_FIELDS = new Set([
@@ -92,11 +96,19 @@ const CURRENCY_FIELDS = new Set([
   "default_weekend_lunch", "default_weekend_dinner",
 ]);
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+
 function formatFieldValue(key: string, value: any): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (CURRENCY_FIELDS.has(key) && typeof value === "number") {
     return `R$ ${(value / 100).toFixed(2).replace(".", ",")}`;
+  }
+  if (typeof value === "string" && ISO_DATE_RE.test(value)) {
+    try {
+      const d = new Date(value);
+      return d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    } catch { /* fall through */ }
   }
   return String(value);
 }
@@ -117,7 +129,7 @@ function DiffBlock({ log }: { log: SystemLog }) {
       if (changedKeys.length === 0) return null;
       return (
         <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="bg-slate-50 dark:bg-gray-800 px-3 py-1.5 text-[11px] font-semibold text-gray-500 dark:text-gray-400 tracking-wide border-b border-gray-100 dark:border-gray-700">
             Campos alterados
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -297,8 +309,29 @@ export default function SystemLogsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Histórico completo de atividades do sistema</p>
         </div>
         {logsResponse && (
-          <div className="ml-auto text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
-            {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
+          <div className="ml-auto flex items-center gap-2">
+            <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full">
+              {logsResponse.pagination.total.toLocaleString("pt-BR")} registros
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => {
+                const rows = logsResponse.logs.map(l => [
+                  l.logNumber, l.action, l.entityType, l.entityName, l.userName,
+                  new Date(l.createdAt).toLocaleString("pt-BR"), l.details || ""
+                ].join(";")).join("\n");
+                const header = "Nº;Ação;Módulo;Entidade;Usuário;Data;Detalhes\n";
+                const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `logs-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click(); URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="w-3.5 h-3.5" /> Exportar
+            </Button>
           </div>
         )}
       </div>
@@ -385,6 +418,37 @@ export default function SystemLogsPage() {
           )}
         </div>
       </div>
+
+      {/* Active filter pills */}
+      {hasActiveFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-gray-400 font-medium">Filtros ativos:</span>
+          {debouncedSearch && (
+            <span className="flex items-center gap-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+              <Search className="w-2.5 h-2.5" /> "{debouncedSearch}"
+              <button onClick={() => { setSearch(""); setDebouncedSearch(""); }} className="ml-0.5 hover:text-indigo-900"><X className="w-2.5 h-2.5" /></button>
+            </span>
+          )}
+          {filters.entityType !== "all" && (
+            <span className="flex items-center gap-1 text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+              {ENTITY_CONFIG[filters.entityType]?.label || filters.entityType}
+              <button onClick={() => setFilters(f => ({ ...f, entityType: "all" }))} className="ml-0.5 hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
+            </span>
+          )}
+          {filters.action !== "all" && (
+            <span className="flex items-center gap-1 text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+              {ACTION_CONFIG[filters.action]?.label || filters.action}
+              <button onClick={() => setFilters(f => ({ ...f, action: "all" }))} className="ml-0.5 hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
+            </span>
+          )}
+          {filters.days !== "30" && (
+            <span className="flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+              {filters.days === "1" ? "Últimas 24h" : filters.days === "7" ? "Últimos 7 dias" : filters.days === "90" ? "Últimos 90 dias" : "Último ano"}
+              <button onClick={() => setFilters(f => ({ ...f, days: "30" }))} className="ml-0.5 hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Results */}
       {isLoading ? (
