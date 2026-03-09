@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -772,23 +772,51 @@ export default function BudgetActualPage() {
               const getStatusBadge = () => {
                 if (item.sentForReview) {
                   if (item.rhStatus === "aprovado") {
-                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-green-50 text-green-600 border border-green-200 hover:bg-green-50">Aprovado</Badge>;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        <CheckCheck className="w-2.5 h-2.5" /> Aprovado
+                      </span>
+                    );
                   }
                   if (item.rhStatus === "devolvido") {
-                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Devolvido</Badge>;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                        <AlertCircle className="w-2.5 h-2.5" /> Devolvido
+                      </span>
+                    );
                   }
                   if (item.rhStatus === "rejeitado") {
-                    return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-red-50 text-red-600 border border-red-200 hover:bg-red-50">Recusado</Badge>;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200">
+                        <AlertCircle className="w-2.5 h-2.5" /> Recusado
+                      </span>
+                    );
                   }
-                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50">Enviado para revisão</Badge>;
+                  return (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                      <Clock className="w-2.5 h-2.5" /> Em revisão
+                    </span>
+                  );
                 }
                 if (isDuplicated) {
-                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50">Duplicado</Badge>;
+                  return (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+                      <Copy className="w-2.5 h-2.5" /> Duplicado
+                    </span>
+                  );
                 }
                 if (hasBeenEdited) {
-                  return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-50">Salvo {formatDateTime(item.updatedAt!)}</Badge>;
+                  return (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Salvo {formatDateTime(item.updatedAt!)}
+                    </span>
+                  );
                 }
-                return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50">Não preenchido</Badge>;
+                return (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                    Não preenchido
+                  </span>
+                );
               };
 
               const collabName = getCollaboratorName(item.collaboratorId);
@@ -879,40 +907,79 @@ export default function BudgetActualPage() {
                     const planned = getPlannedRef(item);
                     const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
                     const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
-                    const diffBadge = (actual: number, plan: number) => {
+                    const diffInline = (actual: number, plan: number) => {
                       if (!planned) return null;
                       const d = actual - plan;
-                      if (d === 0) return null;
-                      return <span className={`text-[10px] tabular-nums font-medium ml-1 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : ''}{formatCurrency(d)}</span>;
+                      if (Math.abs(d) <= 1) return null;
+                      return (
+                        <span className={`text-[10px] tabular-nums font-bold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}
+                        </span>
+                      );
                     };
                     return (
-                      <div className="px-4 pb-3 border-t border-gray-100 dark:border-gray-700/60 pt-3">
+                      <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-xl p-3 border border-blue-100 dark:border-blue-900/40">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Diárias</span>
+                          {/* ── Painel Esquerdo: Diárias ── */}
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-2xl p-3 border border-blue-100 dark:border-blue-900/40">
+                            <div className="flex items-center gap-1.5 mb-2.5">
+                              <div className="w-5 h-5 rounded-lg bg-blue-500 flex items-center justify-center">
+                                <Calendar className="w-3 h-3 text-white" />
+                              </div>
+                              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
                             </div>
-                            <div className="text-sm font-bold text-gray-800 dark:text-gray-200 tabular-nums">{formatCurrency(cardSubtotalDiarias)}{diffBadge(cardSubtotalDiarias, plannedDiarias)}</div>
-                            <div className="text-[10px] text-gray-400 mt-1 space-y-0.5">
-                              {cardDays.weekdays > 0 && <div>{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-                              {cardDays.weekends > 0 && <div>{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                              {diffInline(cardSubtotalDiarias, plannedDiarias)}
+                            </div>
+                            {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && (
+                              <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>
+                            )}
+                            <div className="mt-2 space-y-0.5">
+                              {cardDays.weekdays > 0 && (
+                                <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">
+                                  {formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}
+                                </div>
+                              )}
+                              {cardDays.weekends > 0 && (
+                                <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">
+                                  {formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            <div className="bg-orange-50/50 dark:bg-orange-950/20 rounded-xl px-3 py-2 border border-orange-100 dark:border-orange-900/40 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <Utensils className="w-3 h-3 text-orange-400" />
-                                <span className="text-[11px] text-gray-600 dark:text-gray-400">Alimentação</span>
+
+                          {/* ── Painel Direito: Alimentação + Mobilidade empilhados ── */}
+                          <div className="space-y-2.5">
+                            <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-2xl p-3 border border-orange-100 dark:border-orange-900/40">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <div className="w-5 h-5 rounded-lg bg-orange-400 flex items-center justify-center">
+                                  <Utensils className="w-3 h-3 text-white" />
+                                </div>
+                                <span className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
                               </div>
-                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(totalAlimentacao)}{diffBadge(totalAlimentacao, plannedAlim)}</span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                                {diffInline(totalAlimentacao, plannedAlim)}
+                              </div>
+                              {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>
+                              )}
                             </div>
-                            <div className="bg-violet-50/50 dark:bg-violet-950/20 rounded-xl px-3 py-2 border border-violet-100 dark:border-violet-900/40 flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <Car className="w-3 h-3 text-violet-400" />
-                                <span className="text-[11px] text-gray-600 dark:text-gray-400">Mobilidade</span>
+                            <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-2xl p-3 border border-violet-100 dark:border-violet-900/40">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <div className="w-5 h-5 rounded-lg bg-violet-500 flex items-center justify-center">
+                                  <Car className="w-3 h-3 text-white" />
+                                </div>
+                                <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
                               </div>
-                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(item.mobility)}{diffBadge(item.mobility, planned?.mobility ?? 0)}</span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(item.mobility)}</span>
+                                {diffInline(item.mobility, planned?.mobility ?? 0)}
+                              </div>
+                              {planned && Math.abs(item.mobility - (planned?.mobility ?? 0)) > 1 && (
+                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1120,21 +1187,44 @@ export default function BudgetActualPage() {
                   )}
                 </div>
 
-                <div className="max-h-[56vh] overflow-y-auto px-6 py-5 space-y-4 bg-gray-50/80 dark:bg-gray-900">
+                {/* ── Read-only warning banner ── */}
+                {isReadOnly && (
+                  <div className="flex items-center gap-2.5 px-6 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
+                    <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                      Valores enviados para revisão — somente leitura
+                    </span>
+                  </div>
+                )}
 
+                <div className="max-h-[52vh] overflow-y-auto px-6 py-5 space-y-4 bg-gray-50/80 dark:bg-gray-900">
+
+                  {/* ── Period pill ── */}
                   {(itemDays.startDate || itemDays.endDate) && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[11px] text-gray-500">
-                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} a ${fmt(itemDays.endDate)}` :
+                        <div className="w-7 h-7 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                        </div>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} → ${fmt(itemDays.endDate)}` :
                            itemDays.startDate ? `Início: ${fmt(itemDays.startDate)}` : `Fim: ${fmt(itemDays.endDate!)}`}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                        {itemDays.weekdays > 0 && <span>{itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}</span>}
-                        {itemDays.weekends > 0 && <span>{itemDays.weekends} {itemDays.weekends === 1 ? 'fim de semana' : 'fins de semana'}</span>}
-                        <span className="font-medium text-gray-500">{formatDias(itemDays.weekdays + itemDays.weekends)}</span>
+                      <div className="flex items-center gap-2">
+                        {itemDays.weekdays > 0 && (
+                          <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                            {itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}
+                          </span>
+                        )}
+                        {itemDays.weekends > 0 && (
+                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                            {itemDays.weekends} {itemDays.weekends === 1 ? 'fim de sem.' : 'fins de sem.'}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                          {formatDias(itemDays.weekdays + itemDays.weekends)}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -1328,161 +1418,116 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/60 dark:bg-orange-950/30 border-b border-orange-100 dark:border-orange-900/40">
+                  {/* ── Alimentação 2×2 Grid ── */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 border-b border-orange-100 dark:border-orange-900/40">
                       <div className="flex items-center gap-2">
-                        <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-[11px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wide">Alimentação</span>
-                      </div>
-                      <span className="text-sm font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      {planned && (() => {
-                        const plannedAlim = planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner;
-                        const diffAlim = totalAlimentacao - plannedAlim;
-                        const pctAlim = plannedAlim > 0 ? (diffAlim / plannedAlim * 100) : 0;
-                        return (
-                          <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
-                            <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
-                              <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800">
-                                <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-1">Planejado</div>
-                                <div className="text-xs font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedAlim)}</div>
-                                <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">
-                                  {planned.weekdayLunch + planned.weekdayDinner > 0 && <span>Úteis: {formatCurrency(planned.weekdayLunch + planned.weekdayDinner)}</span>}
-                                  {planned.weekdayLunch + planned.weekdayDinner > 0 && planned.weekendLunch + planned.weekendDinner > 0 && <span> + </span>}
-                                  {planned.weekendLunch + planned.weekendDinner > 0 && <span>FDS: {formatCurrency(planned.weekendLunch + planned.weekendDinner)}</span>}
-                                </div>
-                              </div>
-                              <div className="px-3 py-2 bg-orange-50/30 dark:bg-orange-950/10">
-                                <div className="text-[9px] uppercase text-orange-500 font-semibold tracking-wider mb-1">Realizado</div>
-                                <div className="text-xs font-bold text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</div>
-                                <div className="text-[10px] text-orange-400 mt-0.5 tabular-nums">
-                                  {editFormData.weekdayLunch + editFormData.weekdayDinner > 0 && <span>Úteis: {formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>}
-                                  {editFormData.weekdayLunch + editFormData.weekdayDinner > 0 && editFormData.weekendLunch + editFormData.weekendDinner > 0 && <span> + </span>}
-                                  {editFormData.weekendLunch + editFormData.weekendDinner > 0 && <span>FDS: {formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>}
-                                </div>
-                              </div>
-                            </div>
-                            {Math.abs(diffAlim) > 1 && (
-                              <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffAlim < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
-                                <span className={`text-[11px] font-medium tabular-nums ${diffAlim < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {diffAlim > 0 ? '+' : '-'}{formatCurrency(Math.abs(diffAlim))}
-                                  {plannedAlim > 0 && <span className="ml-1 text-[10px]">({diffAlim > 0 ? '+' : ''}{pctAlim.toFixed(0)}%)</span>}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-blue-50/30 dark:bg-blue-950/10 rounded-lg p-3 border border-blue-100/80 dark:border-blue-900/40">
-                          <div className="flex items-center gap-1.5 mb-2.5">
-                            <Briefcase className="w-3 h-3 text-blue-400" />
-                            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-300">Dias Úteis</span>
-                          </div>
-                          <div className="space-y-2.5">
-                            <div className={`${isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <Sun className="w-2.5 h-2.5 text-amber-400" />
-                                <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
-                                {isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) && (
-                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                                )}
-                              </div>
-                              <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                value={editFormData.weekdayLunch}
-                                onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
-                                disabled={itemDays.weekdays === 0 || isReadOnly}
-                              />
-                              {itemDays.weekdays > 0 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayLunch / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayLunch)}</div>
-                              )}
-                              {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekdayLunch)}</span>
-                              )}
-                            </div>
-                            <div className={`${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <Moon className="w-2.5 h-2.5 text-indigo-400" />
-                                <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
-                                {isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) && (
-                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                                )}
-                              </div>
-                              <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                value={editFormData.weekdayDinner}
-                                onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
-                                disabled={itemDays.weekdays === 0 || isReadOnly}
-                              />
-                              {itemDays.weekdays > 0 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekdays} × {formatCurrency(Math.round(editFormData.weekdayDinner / itemDays.weekdays))} = {formatCurrency(editFormData.weekdayDinner)}</div>
-                              )}
-                              {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekdayDinner)}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="mt-2 pt-1.5 border-t border-blue-100/60 dark:border-blue-800/40 flex items-center justify-between">
-                            <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider">Subtotal</span>
-                            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
-                          </div>
+                        <div className="w-6 h-6 rounded-lg bg-orange-400 flex items-center justify-center">
+                          <Utensils className="w-3.5 h-3.5 text-white" />
                         </div>
+                        <span className="text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {planned && (() => {
+                          const plannedAlim = planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner;
+                          const diffAlim = totalAlimentacao - plannedAlim;
+                          if (Math.abs(diffAlim) <= 1) return null;
+                          return (
+                            <span className={`text-[10px] font-bold tabular-nums ${diffAlim < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {diffAlim > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffAlim))}
+                            </span>
+                          );
+                        })()}
+                        <span className="text-sm font-black text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      </div>
+                    </div>
 
-                        <div className="bg-amber-50/30 dark:bg-amber-950/10 rounded-lg p-3 border border-amber-100/80 dark:border-amber-900/40">
-                          <div className="flex items-center gap-1.5 mb-2.5">
-                            <Sun className="w-3 h-3 text-amber-400" />
-                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-300">Fins de Semana</span>
-                          </div>
-                          <div className="space-y-2.5">
-                            <div className={`${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <Sun className="w-2.5 h-2.5 text-amber-400" />
-                                <label className="text-[10px] font-medium text-gray-500">Almoço Total (R$)</label>
-                                {isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) && (
-                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                                )}
-                              </div>
-                              <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                value={editFormData.weekendLunch}
-                                onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
-                                disabled={itemDays.weekends === 0 || isReadOnly}
-                              />
-                              {itemDays.weekends > 0 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendLunch / itemDays.weekends))} = {formatCurrency(editFormData.weekendLunch)}</div>
-                              )}
-                              {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekendLunch)}</span>
-                              )}
-                            </div>
-                            <div className={`${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'bg-amber-50/40 rounded-lg p-1.5 -mx-1.5 border border-amber-200/50' : ''}`}>
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <Moon className="w-2.5 h-2.5 text-indigo-400" />
-                                <label className="text-[10px] font-medium text-gray-500">Jantar Total (R$)</label>
-                                {isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) && (
-                                  <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
-                                )}
-                              </div>
-                              <CurrencyInput
-                                className={`h-8 text-xs ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                value={editFormData.weekendDinner}
-                                onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
-                                disabled={itemDays.weekends === 0 || isReadOnly}
-                              />
-                              {itemDays.weekends > 0 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">{itemDays.weekends} × {formatCurrency(Math.round(editFormData.weekendDinner / itemDays.weekends))} = {formatCurrency(editFormData.weekendDinner)}</div>
-                              )}
-                              {planned && (
-                                <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.weekendDinner)}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="mt-2 pt-1.5 border-t border-amber-100/60 dark:border-amber-800/40 flex items-center justify-between">
-                            <span className="text-[9px] text-amber-500 font-medium uppercase tracking-wider">Subtotal</span>
-                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
-                          </div>
+                    {/* 2×2 Grid: Columns = Dias Úteis / Fins de Semana; Rows = Almoço / Jantar */}
+                    <div className="p-3">
+                      {/* Column headers */}
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
+                        <div />
+                        <div className="text-center">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                            <Briefcase className="w-2.5 h-2.5" /> Dias Úteis
+                          </span>
+                        </div>
+                        <div className="text-center">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            <Sun className="w-2.5 h-2.5" /> Fins de Sem.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 1: Almoço */}
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
+                        <div className="flex items-center gap-1">
+                          <Sun className="w-3 h-3 text-amber-400" />
+                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Almoço</span>
+                        </div>
+                        <div className={`rounded-xl p-2 border ${isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50'}`}>
+                          <CurrencyInput
+                            className={`h-8 text-xs text-center w-full ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.weekdayLunch}
+                            onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
+                            disabled={itemDays.weekdays === 0 || isReadOnly}
+                          />
+                          {isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) && (
+                            <div className="text-[9px] text-gray-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekdayLunch)}</div>
+                          )}
+                        </div>
+                        <div className={`rounded-xl p-2 border ${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50'}`}>
+                          <CurrencyInput
+                            className={`h-8 text-xs text-center w-full ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.weekendLunch}
+                            onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
+                            disabled={itemDays.weekends === 0 || isReadOnly}
+                          />
+                          {isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) && (
+                            <div className="text-[9px] text-gray-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekendLunch)}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Row 2: Jantar */}
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
+                        <div className="flex items-center gap-1">
+                          <Moon className="w-3 h-3 text-indigo-400" />
+                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400">Jantar</span>
+                        </div>
+                        <div className={`rounded-xl p-2 border ${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50'}`}>
+                          <CurrencyInput
+                            className={`h-8 text-xs text-center w-full ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.weekdayDinner}
+                            onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
+                            disabled={itemDays.weekdays === 0 || isReadOnly}
+                          />
+                          {isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) && (
+                            <div className="text-[9px] text-gray-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekdayDinner)}</div>
+                          )}
+                        </div>
+                        <div className={`rounded-xl p-2 border ${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'border-amber-300 bg-amber-50/60 dark:bg-amber-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50'}`}>
+                          <CurrencyInput
+                            className={`h-8 text-xs text-center w-full ${itemDays.weekends === 0 || isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.weekendDinner}
+                            onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
+                            disabled={itemDays.weekends === 0 || isReadOnly}
+                          />
+                          {isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) && (
+                            <div className="text-[9px] text-gray-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekendDinner)}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Subtotal row */}
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center">Subtotal</span>
+                        <div className="text-center">
+                          <span className="text-xs font-black text-blue-600 dark:text-blue-300 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-xs font-black text-amber-600 dark:text-amber-300 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
                         </div>
                       </div>
                     </div>
@@ -1490,58 +1535,67 @@ export default function BudgetActualPage() {
                 </div>
 
                 {/* ── Modal Footer ── */}
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1">
-                      {planned ? (
-                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                          <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
-                            <div className="px-4 py-3 text-center">
-                              <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Planejado</div>
-                              <div className="text-base font-black text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedTotal)}</div>
-                            </div>
-                            <div className="px-4 py-3 text-center bg-violet-50/50 dark:bg-violet-950/20">
-                              <div className="text-[9px] uppercase text-violet-500 font-bold tracking-widest mb-1">Realizado</div>
-                              <div className="text-base font-black text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
-                            </div>
+                <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                  {/* 3-column totals bar */}
+                  {planned ? (
+                    <div className="grid grid-cols-3 divide-x divide-gray-200 dark:divide-gray-700">
+                      <div className="px-4 py-3 text-center">
+                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Planejado</div>
+                        <div className="text-sm font-black text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedTotal)}</div>
+                      </div>
+                      <div className="px-4 py-3 text-center bg-violet-50/50 dark:bg-violet-950/20">
+                        <div className="text-[9px] uppercase text-violet-500 font-bold tracking-widest mb-1">Realizado</div>
+                        <div className="text-sm font-black text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
+                      </div>
+                      <div className={`px-4 py-3 text-center ${Math.abs(difference) <= 1 ? 'bg-gray-50/60' : difference < 0 ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-red-50/60 dark:bg-red-950/20'}`}>
+                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Diferença</div>
+                        {Math.abs(difference) <= 1 ? (
+                          <div className="text-sm font-black text-gray-400 tabular-nums">—</div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                            <span className={`text-sm font-black tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                              {difference > 0 ? '+' : '−'}{formatCurrency(Math.abs(difference))}
+                            </span>
                           </div>
-                          {Math.abs(difference) > 1 && (
-                            <div className={`px-4 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 flex items-center justify-center gap-2 ${difference < 0 ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-red-50/60 dark:bg-red-950/20'}`}>
-                              {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
-                              <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                                {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
-                              </span>
-                              {plannedTotal > 0 && (
-                                <span className={`text-[11px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                                  ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da prestação</div>
-                          <div className="text-2xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
-                        </div>
-                      )}
+                        )}
+                        {plannedTotal > 0 && Math.abs(difference) > 1 && (
+                          <div className={`text-[10px] tabular-nums font-semibold ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                            {difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      {isReadOnly ? (
-                        <Button variant="outline" className="h-10 px-6 text-sm rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Fechar</Button>
-                      ) : (
-                        <>
-                          <Button
-                            onClick={saveEdit}
-                            disabled={updateMutation.isPending}
-                            className="h-10 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-md shadow-violet-200 dark:shadow-violet-900/30"
-                          >
-                            {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
-                          </Button>
-                          <Button variant="ghost" className="h-8 px-4 text-xs text-gray-400 hover:text-gray-600 rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
-                        </>
-                      )}
+                  ) : (
+                    <div className="px-6 py-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase text-gray-400 font-semibold tracking-wider">Total da prestação</div>
+                        <div className="text-xl font-black text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
+                      </div>
                     </div>
+                  )}
+
+                  {/* Action row */}
+                  <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-end gap-3">
+                    {isReadOnly ? (
+                      <Button variant="ghost" className="h-10 px-6 text-sm rounded-xl text-gray-600 hover:text-gray-800 hover:bg-gray-100" onClick={() => { setEditingItem(null); setEditFormData(null); }}>
+                        Fechar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="ghost" className="h-9 px-4 text-sm text-gray-400 hover:text-gray-600 rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={saveEdit}
+                          disabled={updateMutation.isPending}
+                          className="h-10 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-md shadow-violet-200 dark:shadow-violet-900/30"
+                        >
+                          <CheckCheck className="w-4 h-4 mr-2" />
+                          {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </>
