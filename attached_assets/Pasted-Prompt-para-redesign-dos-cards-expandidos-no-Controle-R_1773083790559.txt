@@ -1,0 +1,44 @@
+Prompt para redesign dos cards expandidos no Controle RH:
+
+Redesign dos cards de colaborador no estado expandido, mantendo visual limpo e hierarquia clara. Existem três variações: card com comparativo financeiro, card só com stepper (pendente), e card com realizado zerado.
+Estrutura do card expandido — geral:
+
+Card branco com sombra suave, border-radius 12px, sem bordas coloridas laterais
+Header do card: avatar com iniciais + nome bold + info secundária em cinza + badge de etapa + tempo pendente — tudo em uma linha limpa
+Chevron de colapso animado no canto direito, botão de ação primária ao lado
+
+Stepper de progresso:
+
+Linha horizontal com 4 etapas: Escalação, Planejado, Realizado, Aprovação
+Etapas concluídas: ícone de check em círculo sólido colorido + label em bold + data em cinza abaixo
+Etapa atual: círculo com anel pulsante suave em roxo/azul + label em bold colorido
+Etapas futuras: círculo vazio cinza + label "Pendente" em cinza claro
+Linha conectora: verde/azul entre concluídas, cinza claro entre pendentes
+Largura total do stepper, bem espaçado, sem parecer comprimido
+
+Card com comparativo financeiro (ex: Aroldo):
+
+Faixa "Diferença apurada" com fundo cinza muito claro (#f1f5f9), valor da diferença à direita em verde bold se economia, vermelho se estouro, percentual em cinza menor abaixo
+Dois painéis lado a lado: "PLANEJADO" e "REALIZADO" com label em cinza small-caps, valor total em fonte grande bold, itens de custo abaixo em lista com label à esquerda e valor à direita em cinza
+Linha separadora sutil entre os dois painéis (sem caixa, sem borda colorida)
+Botão "Analisar comparativo →" em largura total, azul sólido, no rodapé do card
+
+Card só com stepper (ex: Wagner — pendente no planejado):
+
+Mostrar apenas o stepper com a etapa atual em destaque
+Sem painéis financeiros (nada a mostrar ainda)
+Botão "Ir para Planejado →" em largura total, azul sólido
+Visual mais compacto, sem espaço vazio desnecessário
+
+Card com realizado zerado / sem diferença (ex: Naiara):
+
+Faixa "Diferença apurada" com valor "R$ 0,00" em cinza neutro (sem destaque verde ou vermelho)
+Dois painéis com valores idênticos, indicando que está dentro do planejado
+Botão "Ver planejado →" em largura total, outline/ghost style (não azul sólido, pois não é ação urgente)
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul só nos botões de ação e etapa atual
+Sem múltiplas cores competindo; diferença financeira é a única informação colorida em destaque
+Transição suave de expand/collapse com altura animada

@@ -553,14 +553,14 @@ export default function RhControlPage() {
     const step = getTimelineStep(item);
     const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
     const steps = [
-      { label: "Escalação", color: "bg-cyan-500", text: "text-cyan-600 dark:text-cyan-400", line: "bg-cyan-400" },
-      { label: "Planejado", color: "bg-blue-500", text: "text-blue-600 dark:text-blue-400", line: "bg-blue-400" },
-      { label: "Realizado", color: "bg-purple-500", text: "text-purple-600 dark:text-purple-400", line: "bg-purple-400" },
-      { label: "Aprovação", color: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", line: "bg-emerald-400" },
+      { label: "Escalação" },
+      { label: "Planejado" },
+      { label: "Realizado" },
+      { label: "Aprovação" },
     ];
     return (
       <TooltipProvider delayDuration={200}>
-        <div className="flex items-start gap-0 w-full">
+        <div className="flex items-start w-full px-1 py-1">
           {steps.map((s, i) => {
             const isCompleted = isConcluded ? true : i < step;
             const isCurrent = !isConcluded && i === step;
@@ -568,30 +568,41 @@ export default function RhControlPage() {
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
             return (
-              <div key={s.label} className="flex items-start flex-1">
+              <div key={s.label} className="flex items-start flex-1 min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex flex-col items-center gap-0 flex-shrink-0 min-w-[56px] cursor-default">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                        isCompleted ? `${s.color} shadow-sm` :
-                        isCurrent ? `border-2 border-current ${s.text} bg-white dark:bg-gray-800 shadow-sm` :
-                        'bg-gray-200 dark:bg-gray-700'
-                      }`}>
-                        {isCompleted && <CheckCircle className="w-3 h-3 text-white" />}
-                        {isCurrent && <CircleDot className="w-3 h-3" />}
+                    <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
+                      {/* Circle */}
+                      <div className="relative flex items-center justify-center">
+                        {isCurrent && (
+                          <span className="absolute w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 animate-ping opacity-60" />
+                        )}
+                        <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                          isCompleted
+                            ? 'bg-blue-600 shadow-sm shadow-blue-200 dark:shadow-blue-900'
+                            : isCurrent
+                            ? 'bg-white dark:bg-gray-800 border-2 border-blue-500'
+                            : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                        }`}>
+                          {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                          {isCurrent && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                        </div>
                       </div>
-                      <span className={`text-[9px] font-semibold whitespace-nowrap mt-1 ${
-                        isCompleted || isCurrent ? s.text : 'text-gray-300 dark:text-gray-500'
+                      {/* Label */}
+                      <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
+                        isCompleted ? 'text-blue-600 dark:text-blue-400' :
+                        isCurrent ? 'text-blue-600 dark:text-blue-400' :
+                        'text-slate-300 dark:text-slate-600'
                       }`}>{s.label}</span>
+                      {/* Date */}
                       {(isCompleted || isCurrent) && dateStr ? (
-                        <span className="text-[8px] text-gray-400 dark:text-gray-500 whitespace-nowrap">{dateStr}</span>
+                        <span className="text-[9px] text-slate-400 whitespace-nowrap">{dateStr}</span>
                       ) : isFuture ? (
-                        <span className="text-[8px] text-gray-300 dark:text-gray-600 whitespace-nowrap italic">Pendente</span>
+                        <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Pendente</span>
                       ) : null}
+                      {/* Responsible */}
                       {(isCompleted || isCurrent) && responsibleName ? (
-                        <span className="text-[8px] text-gray-500 dark:text-gray-400 whitespace-nowrap mt-0.5 max-w-[80px] truncate">
-                          {responsibleName}
-                        </span>
+                        <span className="text-[9px] text-slate-400 whitespace-nowrap mt-0.5 max-w-[72px] truncate">{responsibleName}</span>
                       ) : null}
                     </div>
                   </TooltipTrigger>
@@ -600,9 +611,10 @@ export default function RhControlPage() {
                     <p className="text-gray-400">{STEP_TOOLTIPS[i]}</p>
                   </TooltipContent>
                 </Tooltip>
+                {/* Connector */}
                 {i < steps.length - 1 && (
-                  <div className={`h-0.5 flex-1 mx-0.5 mt-2.5 rounded-full transition-all ${
-                    isCompleted ? s.line : 'bg-gray-200 dark:bg-gray-700'
+                  <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${
+                    isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'
                   }`} />
                 )}
               </div>
@@ -721,84 +733,118 @@ export default function RhControlPage() {
 
         {/* Expanded body */}
         {isExpanded && (
-          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-3 space-y-3">
-            <div className="px-2 py-2 rounded-lg bg-slate-50 dark:bg-gray-900/30">
+          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-4 space-y-4">
+
+            {/* Stepper */}
+            <div className="rounded-lg bg-slate-50 dark:bg-gray-900/30 px-3 py-3">
               {renderTimeline(item)}
             </div>
 
-            {item.planned && (
-              <>
-                {item.actual && (() => {
-                  const diff = item.actual.totalValue - item.planned.totalValue;
-                  const isNegative = diff < 0;
-                  const isZero = diff === 0;
-                  const pct = item.planned.totalValue > 0 ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1) : "0";
-                  return (
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/20 px-4 py-3 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Diferença apurada</span>
-                      <div className="text-right">
-                        <p className={`text-base font-bold tabular-nums ${isZero ? "text-slate-400" : isNegative ? "text-emerald-600" : "text-red-600"}`}>
-                          {isZero ? "R$ 0,00" : `${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
-                        </p>
-                        {!isZero && (
-                          <p className="text-[10px] text-slate-400">{isNegative ? `Economia de ${pct}%` : `+${pct}% do planejado`}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
+            {/* Financial panels — only when planned exists */}
+            {item.planned && (() => {
+              const hasActual = !!item.actual;
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Planejado</p>
-                    <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-1.5">{fmt(item.planned.totalValue)}</p>
-                    <div className="space-y-0.5 text-[10px] text-slate-400">
-                      <div className="flex justify-between"><span>Diárias</span><span className="tabular-nums">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
-                      <div className="flex justify-between"><span>Alimentação</span><span className="tabular-nums">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                      <div className="flex justify-between"><span>Mobilidade</span><span className="tabular-nums">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+              if (!hasActual) {
+                /* Variation: stepper-only (no financial data yet) */
+                return null;
+              }
+
+              const diff = item.actual!.totalValue - item.planned.totalValue;
+              const isNegative = diff < 0;
+              const isZero = diff === 0;
+              const pct = item.planned.totalValue > 0
+                ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1)
+                : "0";
+
+              return (
+                <div className="space-y-3">
+                  {/* Diff strip */}
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-900/30 px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400 font-medium">Diferença apurada</span>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold tabular-nums ${
+                        isZero ? 'text-slate-400' : isNegative ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {isZero ? 'R$ 0,00' : `${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
+                      </span>
+                      {!isZero && (
+                        <p className="text-[9px] text-slate-400">
+                          {isNegative ? `economia de ${pct}%` : `+${pct}% do planejado`}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {item.actual ? (
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Realizado</p>
-                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-1.5">{fmt(item.actual.totalValue)}</p>
-                      <div className="space-y-0.5 text-[10px] text-slate-400">
-                        <div className="flex justify-between"><span>Diárias</span><span className="tabular-nums">{item.actual.dailyQuantity}× {fmt(item.actual.dailyValue)}</span></div>
-                        <div className="flex justify-between"><span>Alimentação</span><span className="tabular-nums">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                        <div className="flex justify-between"><span>Mobilidade</span><span className="tabular-nums">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
+                  {/* Two panels */}
+                  <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    {/* Planejado */}
+                    <div className="p-3">
+                      <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Planejado</p>
+                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-2">{fmt(item.planned.totalValue)}</p>
+                      <div className="space-y-1 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Diárias</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Alimentação</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Mobilidade</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.planned.mobility + item.planned.transport)}</span>
+                        </div>
                       </div>
-                      {item.actual.changeReason && (
-                        <p className="text-[9px] text-slate-400 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 italic">{item.actual.changeReason}</p>
+                    </div>
+
+                    {/* Realizado */}
+                    <div className="p-3">
+                      <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Realizado</p>
+                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-2">{fmt(item.actual!.totalValue)}</p>
+                      <div className="space-y-1 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Diárias</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Alimentação</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Mobilidade</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.actual!.mobility + item.actual!.transport)}</span>
+                        </div>
+                      </div>
+                      {item.actual!.changeReason && (
+                        <p className="text-[9px] text-slate-400 italic mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                          {item.actual!.changeReason}
+                        </p>
                       )}
                     </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-3 flex items-center justify-center">
-                      <div className="text-center">
-                        <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                        <p className="text-[10px] text-slate-400">Realizado não preenchido</p>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </>
-            )}
+              );
+            })()}
 
+            {/* RH comment */}
             {item.actual?.rhComment && (
               <div className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-700">
                 <p className="text-[10px] font-semibold text-slate-400 mb-1">Comentário do RH</p>
                 <p className="text-xs text-slate-600 dark:text-slate-300">{item.actual.rhComment}</p>
                 {item.actual.rhActionAt && (
-                  <p className="text-[10px] text-slate-400 mt-1">{formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}
+                  </p>
                 )}
               </div>
             )}
 
+            {/* Action button */}
             {navTarget && (
               <button
                 onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  needsRhAction
+                className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                  item.status === "prestacao_recebida" || item.status === "planejamento_pendente"
                     ? "bg-blue-600 hover:bg-blue-700 text-white"
                     : "border border-gray-200 dark:border-gray-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700"
                 }`}
