@@ -12,8 +12,20 @@ import {
   FileText, ChevronDown, ChevronUp, MessageSquare,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
-  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp
+  Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp, Check
 } from "lucide-react";
+
+const RH_AVATAR_COLORS = [
+  'bg-sky-500','bg-violet-500','bg-emerald-500','bg-orange-500',
+  'bg-pink-500','bg-indigo-500','bg-amber-600','bg-teal-500','bg-rose-500','bg-cyan-500',
+];
+function avatarColorRh(name: string) {
+  const idx = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % RH_AVATAR_COLORS.length;
+  return RH_AVATAR_COLORS[idx];
+}
+function initialsRh(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
 type PrestacaoStatus =
@@ -628,16 +640,16 @@ export default function RhControlPage() {
     return null;
   };
 
-  const getLeftBorderColor = (status: PrestacaoStatus): string => {
-    switch (status) {
-      case "prestacao_recebida": return "border-l-4 border-l-blue-500";
-      case "planejamento_pendente": return "border-l-4 border-l-amber-400";
-      case "aguardando_prestacao": return "border-l-4 border-l-slate-300";
-      case "devolvida_para_ajuste": return "border-l-4 border-l-orange-400";
-      case "aprovada_faturamento": return "border-l-4 border-l-emerald-500";
-      case "recusada": return "border-l-4 border-l-red-500";
-      default: return "";
+  const getLeftBorderStyle = (item: PrestacaoItem): { border: string; bg: string } => {
+    if (CONCLUDED_STATUSES.includes(item.status)) {
+      if (item.status === "aprovada_faturamento") return { border: "border-l-4 border-l-emerald-400", bg: "" };
+      return { border: "border-l-4 border-l-red-400", bg: "" };
     }
+    const days = getDiffDays(item.lastActivityDate);
+    if (days > 30) return { border: "border-l-4 border-l-red-500", bg: "bg-red-50/20 dark:bg-red-950/10" };
+    if (days > 7)  return { border: "border-l-4 border-l-amber-400", bg: "bg-amber-50/20 dark:bg-amber-950/10" };
+    if (days > 0)  return { border: "border-l-4 border-l-sky-400", bg: "" };
+    return { border: "border-l-4 border-l-gray-200 dark:border-l-gray-700", bg: "" };
   };
 
   const renderPrestacaoCard = (item: PrestacaoItem) => {
@@ -646,76 +658,99 @@ export default function RhControlPage() {
     const isResubmitted = item.actual?.resubmitted;
     const navTarget = getNavigationTarget(item);
     const needsRhAction = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
-    const urgency = getUrgencyLevel(item.lastActivityDate);
+    const days = getDiffDays(item.lastActivityDate);
+    const borderStyle = getLeftBorderStyle(item);
+    const colName = item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'A Definir';
+
+    const urgencyTimeBadge = () => {
+      const t = timeInStatus(item.lastActivityDate);
+      if (days > 30) return (
+        <span className="flex items-center gap-0.5 text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
+          <AlertTriangle className="w-2.5 h-2.5" /> {t}
+        </span>
+      );
+      if (days > 7) return (
+        <span className="flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+          <Clock className="w-2.5 h-2.5" /> {t}
+        </span>
+      );
+      if (days > 0) return (
+        <span className="flex items-center gap-0.5 text-[9px] font-medium text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+          <Clock className="w-2.5 h-2.5" /> {t}
+        </span>
+      );
+      return <span className="text-[9px] text-gray-400">{t}</span>;
+    };
 
     return (
       <div
         key={item.id}
-        className={`rounded-lg border overflow-hidden transition-all bg-white dark:bg-gray-800 ${getLeftBorderColor(item.status)} ${config.cardBorder}`}
+        className={`rounded-xl border overflow-hidden transition-all ${borderStyle.bg} ${borderStyle.border} border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-sm`}
       >
+        {/* Card header — clickable */}
         <div
-          className={`px-4 py-3 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors ${
-            needsRhAction ? 'bg-blue-50/20 dark:bg-blue-950/10' : ''
-          }`}
+          className="flex items-center gap-3 px-4 py-3 cursor-pointer group"
           onClick={() => toggleExpand(item.id)}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'Colaborador a definir'}
+          {/* Avatar */}
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black flex-shrink-0 shadow-sm ${avatarColorRh(colName)}`}>
+            {initialsRh(colName)}
+          </div>
+
+          {/* Name + meta */}
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                {colName}
+              </span>
+              {item.collaboratorId && item.planned?.collaboratorType && (
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                  {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                 </span>
-                {item.collaboratorId && item.planned?.collaboratorType && (
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400' : 'bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400'}`}>
-                    {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                  </span>
-                )}
-                {isResubmitted && (
-                  <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-800 text-[9px] font-semibold text-violet-700 dark:text-violet-400">
-                    <RotateCcw className="w-2.5 h-2.5" /> Reenviado
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
-                {item.event.name} · {getFunctionName(item.functionId)}
-              </p>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap border ${config.badgeCls}`}>
-                  <config.icon className="w-2.5 h-2.5" />
-                  {config.shortLabel}
-                </div>
-                <span className={`text-[10px] font-semibold flex items-center gap-1 ${
-                  urgency === "critical" ? "text-red-600 dark:text-red-400" :
-                  urgency === "medium" ? "text-orange-600 dark:text-orange-400" :
-                  urgency === "low" ? "text-amber-600 dark:text-amber-400" :
-                  "text-gray-400"
-                }`}>
-                  {urgency === "critical" && <AlertTriangle className="w-2.5 h-2.5" />}
-                  {timeInStatus(item.lastActivityDate)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
-              {needsRhAction && navTarget && !isExpanded && (
-                <Button
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] h-7 px-3"
-                  onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
-                >
-                  <Eye className="w-3 h-3 mr-1" /> {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
-                </Button>
               )}
-              {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              {isResubmitted && (
+                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-[9px] font-semibold text-violet-700">
+                  <RotateCcw className="w-2.5 h-2.5" /> Reenviado
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-400 truncate">
+              {item.event.name} · {getFunctionName(item.functionId)}
+            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${config.badgeCls}`}>
+                <config.icon className="w-2.5 h-2.5" />
+                {config.shortLabel}
+              </div>
+              {urgencyTimeBadge()}
+            </div>
+          </div>
+
+          {/* Right side */}
+          <div className="flex items-center gap-2 shrink-0">
+            {needsRhAction && navTarget && !isExpanded && (
+              <button
+                className={`flex items-center gap-1.5 text-[10px] font-bold h-7 px-3 rounded-xl text-white shadow-sm transition-all ${
+                  item.status === "prestacao_recebida"
+                    ? "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
+                    : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+                }`}
+                onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
+              >
+                <Eye className="w-3 h-3" />
+                {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
+              </button>
+            )}
+            <div className={`w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
             </div>
           </div>
         </div>
 
+        {/* Expanded body */}
         {isExpanded && (
-          <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3 space-y-3 bg-gray-50/30 dark:bg-gray-900/20">
-            <div className="py-1.5 px-2 rounded bg-gray-50/80 dark:bg-gray-900/40">
+          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-3 space-y-3 bg-gray-50/40 dark:bg-gray-900/20">
+            <div className="py-2 px-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
               {renderTimeline(item)}
             </div>
 
@@ -730,47 +765,29 @@ export default function RhControlPage() {
                     : "0";
                   return (
                     <div className={`rounded-xl border-2 p-4 text-center ${
-                      isZero
-                        ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                        : isNegative
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700"
-                        : "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700"
+                      isZero ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                      : isNegative ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-700"
+                      : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-700"
                     }`}>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 dark:text-gray-500 mb-1.5">
-                        Diferença apurada
-                      </p>
+                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-1.5">Diferença apurada</p>
                       <div className="flex items-center justify-center gap-2 mb-1">
-                        {!isZero && (
-                          isNegative
-                            ? <TrendingDown className="w-5 h-5 text-emerald-500" />
-                            : <TrendingUp className="w-5 h-5 text-red-500" />
-                        )}
-                        <p className={`text-2xl font-extrabold tabular-nums ${
-                          isZero ? "text-gray-400" :
-                          isNegative ? "text-emerald-700 dark:text-emerald-300" :
-                          "text-red-700 dark:text-red-300"
-                        }`}>
-                          {isZero ? "R$ 0,00" : `${isNegative ? '- ' : '+ '}${fmt(Math.abs(diff))}`}
+                        {!isZero && (isNegative ? <TrendingDown className="w-5 h-5 text-emerald-500" /> : <TrendingUp className="w-5 h-5 text-red-500" />)}
+                        <p className={`text-2xl font-black tabular-nums ${isZero ? "text-gray-400" : isNegative ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}`}>
+                          {isZero ? "R$ 0,00" : `${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
                         </p>
                       </div>
-                      <p className={`text-xs font-semibold ${
-                        isZero ? "text-gray-400" :
-                        isNegative ? "text-emerald-600 dark:text-emerald-400" :
-                        "text-red-600 dark:text-red-400"
-                      }`}>
-                        {isZero ? "Valores idênticos ao planejado" :
-                         isNegative ? `Economia de ${pct}% em relação ao planejado` :
-                         `Acima do planejado (+${pct}%)`}
+                      <p className={`text-xs font-semibold ${isZero ? "text-gray-400" : isNegative ? "text-emerald-600" : "text-red-600"}`}>
+                        {isZero ? "Valores idênticos ao planejado" : isNegative ? `Economia de ${pct}%` : `Acima do planejado (+${pct}%)`}
                       </p>
                     </div>
                   );
                 })()}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
+                  <div className="rounded-xl border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-[9px] uppercase text-blue-400 font-bold tracking-wider">Planejado</p>
-                      <span className="text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span>
+                      <span className="text-sm font-black tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span>
                     </div>
                     <div className="space-y-0.5 text-[10px]">
                       <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-blue-600/70">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
@@ -780,10 +797,10 @@ export default function RhControlPage() {
                   </div>
 
                   {item.actual ? (
-                    <div className="rounded-lg border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
+                    <div className="rounded-xl border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[9px] uppercase text-purple-400 font-bold tracking-wider">Realizado</p>
-                        <span className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
+                        <span className="text-sm font-black tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
                       </div>
                       <div className="space-y-0.5 text-[10px]">
                         <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-purple-600/70">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
@@ -791,16 +808,14 @@ export default function RhControlPage() {
                         <div className="flex justify-between"><span className="text-gray-400">Mobilidade</span><span className="tabular-nums text-purple-600/70">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
                       </div>
                       {item.actual.changeReason && (
-                        <div className="mt-2 p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                          <div className="flex items-start gap-1">
-                            <MessageSquare className="w-2.5 h-2.5 text-gray-400 mt-0.5 shrink-0" />
-                            <p className="text-[9px] text-gray-500 dark:text-gray-400">{item.actual.changeReason}</p>
-                          </div>
+                        <div className="mt-2 p-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-start gap-1">
+                          <MessageSquare className="w-2.5 h-2.5 text-gray-400 mt-0.5 shrink-0" />
+                          <p className="text-[9px] text-gray-500 dark:text-gray-400">{item.actual.changeReason}</p>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
+                    <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
                       <div className="text-center">
                         <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1" />
                         <p className="text-[9px] text-gray-400">Realizado não preenchido</p>
@@ -812,31 +827,18 @@ export default function RhControlPage() {
             )}
 
             {item.actual?.rhComment && (
-              <div className={`p-2 rounded-md border ${
-                item.status === 'aprovada_faturamento' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
-                item.status === 'recusada' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
-                'bg-orange-50/60 dark:bg-orange-950/20 border-orange-100 dark:border-orange-800'
+              <div className={`p-2.5 rounded-xl border flex items-start gap-1.5 ${
+                item.status === 'aprovada_faturamento' ? 'bg-emerald-50/60 border-emerald-100 dark:border-emerald-800' :
+                item.status === 'recusada' ? 'bg-red-50/60 border-red-100 dark:border-red-800' :
+                'bg-orange-50/60 border-orange-100 dark:border-orange-800'
               }`}>
-                <div className="flex items-start gap-1.5">
-                  <MessageSquare className={`w-3 h-3 mt-0.5 shrink-0 ${
-                    item.status === 'aprovada_faturamento' ? 'text-emerald-400' :
-                    item.status === 'recusada' ? 'text-red-400' : 'text-orange-400'
-                  }`} />
-                  <div>
-                    <span className={`text-[9px] uppercase font-medium tracking-wider ${
-                      item.status === 'aprovada_faturamento' ? 'text-emerald-500' :
-                      item.status === 'recusada' ? 'text-red-500' : 'text-orange-500'
-                    }`}>Comentário do RH</span>
-                    <p className={`text-[10px] mt-0.5 ${
-                      item.status === 'aprovada_faturamento' ? 'text-emerald-700 dark:text-emerald-300' :
-                      item.status === 'recusada' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'
-                    }`}>{item.actual.rhComment}</p>
-                    {item.actual.rhActionAt && (
-                      <span className="text-[9px] text-gray-400 mt-1 block">
-                        {formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}
-                      </span>
-                    )}
-                  </div>
+                <MessageSquare className={`w-3 h-3 mt-0.5 shrink-0 ${item.status === 'aprovada_faturamento' ? 'text-emerald-400' : item.status === 'recusada' ? 'text-red-400' : 'text-orange-400'}`} />
+                <div>
+                  <span className={`text-[9px] uppercase font-bold tracking-wider ${item.status === 'aprovada_faturamento' ? 'text-emerald-500' : item.status === 'recusada' ? 'text-red-500' : 'text-orange-500'}`}>Comentário do RH</span>
+                  <p className={`text-[10px] mt-0.5 ${item.status === 'aprovada_faturamento' ? 'text-emerald-700 dark:text-emerald-300' : item.status === 'recusada' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'}`}>{item.actual.rhComment}</p>
+                  {item.actual.rhActionAt && (
+                    <span className="text-[9px] text-gray-400 mt-1 block">{formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}</span>
+                  )}
                 </div>
               </div>
             )}
@@ -844,12 +846,12 @@ export default function RhControlPage() {
             {navTarget && (
               <button
                 onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
                   item.status === "prestacao_recebida"
-                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                    ? "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md shadow-sky-200 dark:shadow-sky-900/30"
                     : item.status === "planejamento_pendente"
-                    ? "border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                    : "border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30"
+                    ? "bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white shadow-md shadow-amber-100"
+                    : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50"
                 }`}
               >
                 <navTarget.icon className="w-3.5 h-3.5" />
@@ -863,123 +865,107 @@ export default function RhControlPage() {
     );
   };
 
+  const totalItems = prestacaoItems.length;
+  const concludedCount = (statusCounts.aprovada_faturamento || 0) + (statusCounts.recusada || 0);
+  const progressPct = totalItems > 0 ? Math.round(concludedCount / totalItems * 100) : 0;
+
   return (
     <div className="space-y-5 max-w-6xl mx-auto pb-24">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-100 dark:bg-indigo-900/40 p-2.5 rounded-lg">
-            <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-indigo-900 dark:text-indigo-100">Controle de Prestações de Contas</h1>
-            <p className="text-sm text-gray-500">Fluxo: Escalação → Planejado → Realizado → Aprovação</p>
-          </div>
+      {/* ── Page header ── */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-md shadow-sky-200 dark:shadow-sky-900/40">
+          <Shield className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-xl font-black text-gray-900 dark:text-gray-100">Controle de Prestações de Contas</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Fluxo: Escalação → Planejado → Realizado → Aprovação</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-3">
-          <p className="text-[9px] uppercase tracking-wider font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1.5">
-            <Shield className="w-3 h-3" />
-            Pendências do RH
-          </p>
+      {/* ── Metric cards ── */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Pendências do RH */}
+        <div className="rounded-2xl border-2 border-red-200 dark:border-red-800 bg-gradient-to-br from-red-50 to-amber-50/40 dark:from-red-950/30 dark:to-amber-950/10 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-red-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">Pendências do RH</span>
+            {rhActionCount > 0 && (
+              <span className="ml-auto text-[9px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">{rhActionCount}</span>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {(["planejamento_pendente", "prestacao_recebida"] as PrestacaoStatus[]).map(status => {
-              const config = statusConfig[status];
+              const cfg = statusConfig[status];
               const count = statusCounts[status] || 0;
               const isActive = filterStatus === status;
               return (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-lg border p-2.5 text-left transition-all relative ${
-                    isActive
-                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
-                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
-                  }`}
+                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-xl border p-3 text-left transition-all relative group ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
                 >
-                  {count > 0 && !isActive && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-                  )}
-                  <div className="flex items-center justify-between mb-0.5">
-                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
-                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
-                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                    </span>
-                  </div>
-                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
-                    {config.shortLabel}
+                  {count > 0 && !isActive && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-pulse">{count}</span>}
+                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
+                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
+                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
                   </span>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/20 p-3">
-          <p className="text-[9px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
-            <Clock className="w-3 h-3" />
-            Em andamento
-          </p>
+        {/* Em andamento */}
+        <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-sky-50/40 dark:from-blue-950/30 dark:to-sky-950/10 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-blue-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Em Andamento</span>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {(["aguardando_prestacao", "devolvida_para_ajuste"] as PrestacaoStatus[]).map(status => {
-              const config = statusConfig[status];
+              const cfg = statusConfig[status];
               const count = statusCounts[status] || 0;
               const isActive = filterStatus === status;
               return (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${
-                    isActive
-                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
-                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
-                  }`}
+                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-xl border p-3 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
-                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
-                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                    </span>
-                  </div>
-                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
-                    {config.shortLabel}
+                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
+                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
+                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
                   </span>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 p-3">
-          <p className="text-[9px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500 mb-2 flex items-center gap-1.5">
-            <CheckCircle className="w-3 h-3" />
-            Finalizadas
-          </p>
+        {/* Finalizadas */}
+        <div className="rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/10 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Finalizadas</span>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {(["aprovada_faturamento", "recusada"] as PrestacaoStatus[]).map(status => {
-              const config = statusConfig[status];
+              const cfg = statusConfig[status];
               const count = statusCounts[status] || 0;
               const isActive = filterStatus === status;
               return (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${
-                    isActive
-                      ? `${config.bg} ${config.border} ring-2 ring-offset-1`
-                      : `bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-gray-200`
-                  }`}
+                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={`rounded-xl border p-3 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <config.icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
-                    <span className={`text-xl font-bold tabular-nums ${isActive ? config.color : 'text-gray-800 dark:text-gray-200'}`}>
-                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                    </span>
-                  </div>
-                  <span className={`text-[9px] font-medium uppercase tracking-wider leading-tight block ${isActive ? config.color : 'text-gray-400'}`}>
-                    {config.shortLabel}
+                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
+                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
+                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
                   </span>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
                 </button>
               );
             })}
@@ -987,134 +973,124 @@ export default function RhControlPage() {
         </div>
       </div>
 
+      {/* ── Pending action alert ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between px-5 py-4 rounded-lg border-l-4 border-l-indigo-500 border border-gray-200 dark:border-gray-700 bg-indigo-50/40 dark:bg-indigo-950/20">
-          <div className="flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
-              <ClipboardList className="w-[18px] h-[18px] text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                Pendências do RH
-              </p>
-              <div className="flex flex-col gap-0.5 mt-0.5">
-                {rhPlanPendingCount > 0 && (
-                  <p className="text-[13px] tracking-wide">
-                    <span className="font-bold text-amber-600 dark:text-amber-400">{rhPlanPendingCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">planejamento{rhPlanPendingCount !== 1 ? 's' : ''} aguardando ação</span>
-                  </p>
-                )}
-                {rhReceivedCount > 0 && (
-                  <p className="text-[13px] tracking-wide">
-                    <span className="font-bold text-blue-500 dark:text-blue-400">{rhReceivedCount}</span> <span className="font-medium text-gray-600 dark:text-gray-300">análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}</span>
-                  </p>
+        <div className="rounded-2xl border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 px-5 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
+                <ClipboardList className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-gray-900 dark:text-gray-100">Pendências aguardando ação do RH</p>
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                  {rhPlanPendingCount > 0 && (
+                    <span className="text-[11px] text-gray-600 dark:text-gray-300">
+                      <span className="font-bold text-amber-600">{rhPlanPendingCount}</span> planejamento{rhPlanPendingCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {rhReceivedCount > 0 && (
+                    <span className="text-[11px] text-gray-600 dark:text-gray-300">
+                      <span className="font-bold text-blue-600">{rhReceivedCount}</span> análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                {totalItems > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <span className="text-[9px] font-bold text-gray-400 whitespace-nowrap">{progressPct}% concluído</span>
+                  </div>
                 )}
               </div>
             </div>
+            <button
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 dark:shadow-sky-900/30 transition-all shrink-0"
+              onClick={() => {
+                setFilterStatus("rh_action");
+                setShowConcluded(false);
+                setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+              }}
+            >
+              Ver pendências ({rhActionCount})
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0"
-            onClick={() => {
-              setFilterStatus("rh_action");
-              setShowConcluded(false);
-              setTimeout(() => {
-                document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }, 100);
-            }}
-          >
-            Ver pendências ({rhActionCount})
-          </button>
         </div>
       )}
 
-      <div className="space-y-2">
+      {/* ── Search + filters ── */}
+      <div className="space-y-2.5">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
             <Input
               placeholder="Buscar por colaborador..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="h-8 pl-8 text-xs"
+              className="h-9 pl-9 text-xs rounded-xl border-gray-200 dark:border-gray-700"
             />
           </div>
+
+          {/* Concluídos switch */}
           <button
-            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-2 transition-colors ${
-              showConcluded
-                ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
+            className={`h-9 px-3 text-xs rounded-xl border flex items-center gap-2 transition-all ${
+              showConcluded ? 'bg-sky-50 border-sky-300 text-sky-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
             }`}
             onClick={() => setShowConcluded(!showConcluded)}
           >
-            <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center transition-colors ${
-              showConcluded
-                ? 'bg-indigo-600 border-indigo-600'
-                : 'border-gray-300 dark:border-gray-600'
-            }`}>
-              {showConcluded && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+            <div className={`w-8 h-4.5 rounded-full relative transition-all flex items-center ${showConcluded ? 'bg-sky-500' : 'bg-gray-200 dark:bg-gray-600'}`} style={{height:'18px'}}>
+              <div className={`w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-4' : 'translate-x-0.5'}`} />
             </div>
-            Mostrar concluídos
-            {(statusCounts.aprovada_faturamento + statusCounts.recusada) > 0 && (
-              <span className={`text-[9px] rounded-full min-w-[16px] h-4 flex items-center justify-center font-bold px-1 ${
-                showConcluded ? 'bg-indigo-200 text-indigo-700' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {statusCounts.aprovada_faturamento + statusCounts.recusada}
+            Concluídos
+            {concludedCount > 0 && (
+              <span className={`text-[9px] rounded-full min-w-[18px] h-4.5 flex items-center justify-center font-bold px-1 ${showConcluded ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-500'}`} style={{height:'18px'}}>
+                {concludedCount}
               </span>
             )}
           </button>
+
           <Button
             variant="outline"
             size="sm"
-            className={`h-8 text-xs gap-1.5 ${hasActiveFilters ? 'border-indigo-300 text-indigo-700 bg-indigo-50' : ''}`}
+            className={`h-9 text-xs gap-1.5 rounded-xl ${hasActiveFilters ? 'border-sky-300 text-sky-700 bg-sky-50' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="w-3.5 h-3.5" />
             Filtros
             {hasActiveFilters && (
-              <span className="bg-indigo-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              <span className="bg-sky-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {[filterEvent !== "all", filterFunction !== "all", filterCollaborator !== "all", filterStatus !== "all"].filter(Boolean).length}
               </span>
             )}
           </Button>
           {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-gray-400 hover:text-gray-600"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}
-            >
+            <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400 hover:text-gray-600 rounded-xl"
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
               Limpar
             </Button>
           )}
         </div>
 
         {showFilters && (
-          <div className="flex items-center gap-2 px-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={filterEvent} onValueChange={setFilterEvent}>
-              <SelectTrigger className="h-8 text-xs w-48 border-gray-200">
-                <SelectValue placeholder="Evento" />
-              </SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-48 border-gray-200 rounded-xl"><SelectValue placeholder="Evento" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => (
-                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                ))}
+                {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="h-8 text-xs w-40 border-gray-200">
-                <SelectValue placeholder="Função" />
-              </SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-40 border-gray-200 rounded-xl"><SelectValue placeholder="Função" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as funções</SelectItem>
-                {usedFunctionIds.map(fid => (
-                  <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>
-                ))}
+                {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterCollaborator} onValueChange={setFilterCollaborator}>
-              <SelectTrigger className="h-8 text-xs w-48 border-gray-200">
-                <SelectValue placeholder="Colaborador" />
-              </SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-48 border-gray-200 rounded-xl"><SelectValue placeholder="Colaborador" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os colaboradores</SelectItem>
                 <SelectItem value="definido">Com colaborador</SelectItem>
@@ -1122,9 +1098,7 @@ export default function RhControlPage() {
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as PrestacaoStatus)}>
-              <SelectTrigger className="h-8 text-xs w-52 border-gray-200">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-52 border-gray-200 rounded-xl"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="planejamento_pendente">Aguardando planejamento</SelectItem>
@@ -1140,97 +1114,91 @@ export default function RhControlPage() {
       </div>
 
       {isRhFilterActive && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-          <Shield className="w-3.5 h-3.5 text-blue-500" />
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800">
+          <Shield className="w-3.5 h-3.5 text-sky-500" />
+          <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
             Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-6 text-[10px] text-blue-500 hover:text-blue-700"
-            onClick={() => setFilterStatus("all")}
-          >
+          <Button variant="ghost" size="sm" className="ml-auto h-6 text-[10px] text-sky-500 hover:text-sky-700" onClick={() => setFilterStatus("all")}>
             Limpar filtro
           </Button>
         </div>
       )}
 
+      {/* ── Content ── */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-6">
-              <div className="animate-pulse space-y-3">
-                <div className="h-4 bg-gray-200 rounded w-56"></div>
-                <div className="h-3 bg-gray-100 rounded w-80"></div>
-                <div className="flex gap-2">
-                  <div className="h-6 bg-gray-100 rounded w-20"></div>
-                  <div className="h-6 bg-gray-100 rounded w-16"></div>
+            <div key={i} className="rounded-2xl border border-gray-200 bg-white dark:bg-gray-800 p-6 animate-pulse">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 bg-gray-200 rounded-xl" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-40" />
+                  <div className="h-3 bg-gray-100 rounded w-56" />
                 </div>
               </div>
             </div>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div id="rh-listing" className="rounded-xl border border-gray-200 bg-white dark:bg-gray-800 p-12 text-center">
-          <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Nenhum item encontrado</p>
-          <p className="text-sm text-gray-400 mt-1">
+        <div id="rh-listing" className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
+            <Shield className="w-6 h-6 text-gray-300 dark:text-gray-500" />
+          </div>
+          <p className="font-bold text-gray-500 dark:text-gray-400">Nenhum item encontrado</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
              showConcluded ? "Nenhum item concluído ainda." :
-             "Todos os itens estão em dia. Use o filtro 'Concluídos' para ver itens finalizados."}
+             "Todos os itens estão em dia. Use 'Concluídos' para ver os finalizados."}
           </p>
           {hasActiveFilters && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 text-xs"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}
-            >
+            <Button variant="outline" size="sm" className="mt-3 text-xs rounded-xl"
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
               Limpar filtros
             </Button>
           )}
         </div>
       ) : (
-        <div id="rh-listing" className="space-y-2">
+        <div id="rh-listing" className="space-y-3">
+          {/* Section header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-indigo-500" />
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                Por evento
-              </h2>
-              <span className="text-[10px] text-gray-400 font-medium">
-                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
+              <Calendar className="w-4 h-4 text-sky-500" />
+              <h2 className="text-sm font-black text-gray-800 dark:text-gray-200">Por evento</h2>
+              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''}
+              </span>
+              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={expandAllEvents}>
-                Expandir tudo
-              </Button>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400" onClick={collapseAllEvents}>
-                Recolher tudo
-              </Button>
+              <button className="text-[10px] text-sky-500 hover:text-sky-700 font-semibold px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors" onClick={expandAllEvents}>Expandir tudo</button>
+              <span className="text-gray-300">·</span>
+              <button className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors" onClick={collapseAllEvents}>Recolher tudo</button>
             </div>
           </div>
 
+          {/* Event groups */}
           {eventGroups.map(group => {
             const isOpen = expandedEvents.has(group.event.id);
+            const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             return (
-              <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
+              <div key={group.event.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                    <div className={`w-7 h-7 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+                    </div>
                     <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
-                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                        <span className="text-[10px] text-gray-400">
-                          {group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}
-                        </span>
+                      <p className="text-sm font-black text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="text-[10px] text-gray-400">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
                         {group.actionNeeded > 0 && (
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                             {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
                           </span>
                         )}
@@ -1238,32 +1206,19 @@ export default function RhControlPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {group.actionNeeded > 0 && (
-                      <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-[9px] font-bold text-blue-700 dark:text-blue-300">
-                        {group.actionNeeded}
-                      </span>
-                    )}
-                    {(() => {
-                      const statuses = group.items.reduce((acc, i) => {
-                        acc[i.status] = (acc[i.status] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>);
-                      return (
-                        <div className="flex items-center gap-0.5">
-                          {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-500" title={`${statuses.prestacao_recebida} recebida(s)`} /> : null}
-                          {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-500" title={`${statuses.planejamento_pendente} plan. pendente`} /> : null}
-                          {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-500" title={`${statuses.devolvida_para_ajuste} devolvida(s)`} /> : null}
-                          {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-400" title={`${statuses.aguardando_prestacao} aguardando`} /> : null}
-                          {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-500" title={`${statuses.aprovada_faturamento} aprovada(s)`} /> : null}
-                          {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-500" title={`${statuses.recusada} recusada(s)`} /> : null}
-                        </div>
-                      );
-                    })()}
+                    <div className="flex items-center gap-1">
+                      {statuses.prestacao_recebida ? <span className="w-2.5 h-2.5 rounded-full bg-blue-500" title={`${statuses.prestacao_recebida} p/ análise`} /> : null}
+                      {statuses.planejamento_pendente ? <span className="w-2.5 h-2.5 rounded-full bg-amber-400" title={`${statuses.planejamento_pendente} planejamento`} /> : null}
+                      {statuses.devolvida_para_ajuste ? <span className="w-2.5 h-2.5 rounded-full bg-orange-400" title={`${statuses.devolvida_para_ajuste} devolvida(s)`} /> : null}
+                      {statuses.aguardando_prestacao ? <span className="w-2.5 h-2.5 rounded-full bg-slate-400" title={`${statuses.aguardando_prestacao} aguardando`} /> : null}
+                      {statuses.aprovada_faturamento ? <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title={`${statuses.aprovada_faturamento} aprovada(s)`} /> : null}
+                      {statuses.recusada ? <span className="w-2.5 h-2.5 rounded-full bg-red-500" title={`${statuses.recusada} recusada(s)`} /> : null}
+                    </div>
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-gray-50/30 dark:bg-gray-900/20">
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2.5 space-y-2 bg-gray-50/40 dark:bg-gray-900/20">
                     {group.items.map(item => renderPrestacaoCard(item))}
                   </div>
                 )}

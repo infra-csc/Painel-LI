@@ -1,0 +1,48 @@
+Prompt para redesign da tela "Controle de Prestações de Contas":
+
+Redesign completo do painel de controle de RH para gestão de prestações de contas de colaboradores em eventos, com identidade visual em azul ardósia (#0ea5e9) para o módulo Controle RH.
+Cards de métricas (topo):
+
+Três cards lado a lado: "Pendências do RH" (vermelho/âmbar), "Em Andamento" (azul) e "Finalizadas" (verde)
+Cada card com fundo levemente colorido, ícone grande à esquerda e contadores internos organizados em mini colunas com label abaixo
+Pontos de notificação vermelhos substituídos por badges numéricos inline com animação pulse
+Hover nos cards com elevação suave e tooltip com descrição de cada métrica
+
+Banner de pendências:
+
+Redesenhar como alert card com borda esquerda colorida (âmbar), ícone de clipboard, texto descritivo em duas linhas e botão "Ver pendências (48)" em azul sólido à direita
+Adicionar mini barra de progresso abaixo mostrando % concluído do total de prestações
+
+Barra de busca e filtros:
+
+Campo de busca com ícone e placeholder estilizado, largura maior
+Toggle "Mostrar concluídos" como switch elegante em vez de checkbox
+Botão "Filtros" com ícone e contador de filtros ativos em badge
+
+Seção "Por evento":
+
+Header da seção com ícone de calendário, título, contador de eventos e itens em badges separados, botões "Expandir tudo / Recolher tudo" como links discretos
+Grupo de evento (ex: "Running Lad - 2021") como accordion com header estilizado: nome do evento em bold, contador de itens, badge "X pendentes" em âmbar e mini indicadores coloridos (dots) de status no canto direito
+
+Cards de colaborador:
+
+Avatar circular com iniciais coloridas à esquerda (cor baseada no status)
+Nome em bold, evento + função em cinza abaixo
+Badges de etapa atual com cores distintas por fase: Planejamento (âmbar), Comparativo (azul), Realizado (roxo), Aprovado (verde)
+Badge de tempo pendente ("Há 25 dias") com cor baseada em urgência: verde < 7 dias, âmbar 7–30 dias, vermelho > 30 dias — com ícone de relógio
+Borda esquerda do card colorida conforme status/urgência
+Botão de ação ("Analisar", "Planejar") com ícone e gradiente suave, alinhado à direita
+Chevron de expansão animado, com micro-preview ao expandir mostrando resumo financeiro inline
+
+Indicadores visuais de urgência:
+
+Cards com pendência > 30 dias: borda esquerda vermelha + fundo levemente avermelhado
+Cards com pendência 7–30 dias: borda âmbar + fundo amarelo suave
+Cards recentes (< 7 dias): borda azul neutra
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Sidebar com item ativo em azul ardósia, fundo branco, cards com border-radius 14px e sombra suave
+Cores de fase: Planejamento (#f59e0b), Comparativo (#3b82f6), Realizado (#8b5cf6), Aprovado (#10b981), Recusado (#ef4444)
+Micro-animações no hover dos cards e transições ao expandir grupos de eventos
