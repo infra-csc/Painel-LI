@@ -1,270 +1,363 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar, Plus, Pencil, Trash2, Search, X } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Search, X } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import type { Event } from "@shared/schema";
-import { format, addMonths, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-function getEventStatus(event: Event): string {
-  if (event.status === "excluído") return "excluído";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end = new Date(event.endDate); end.setHours(0, 0, 0, 0);
-  const start = new Date(event.startDate); start.setHours(0, 0, 0, 0);
-  if (end < today) return "concluído";
-  if (start <= today) return "em andamento";
-  return event.status;
-}
-
-function formatPeriod(startStr: string, endStr: string): string {
-  try {
-    const s = new Date(startStr);
-    const e = new Date(endStr);
-    const sameDay = s.toDateString() === e.toDateString();
-    const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
-    if (sameDay) return format(s, "dd MMM yyyy", { locale: ptBR });
-    if (sameMonth) return `${format(s, "dd")}–${format(e, "dd MMM yyyy", { locale: ptBR })}`;
-    return `${format(s, "dd MMM", { locale: ptBR })} – ${format(e, "dd MMM yyyy", { locale: ptBR })}`;
-  } catch { return `${startStr} – ${endStr}`; }
-}
-
-function getPeriodRange(p: string) {
-  const now = new Date();
-  if (p === "this_month")  return { start: startOfMonth(now),           end: endOfMonth(now) };
-  if (p === "next_month")  { const nm = addMonths(now, 1); return { start: startOfMonth(nm), end: endOfMonth(nm) }; }
-  if (p === "last_month")  { const lm = addMonths(now, -1); return { start: startOfMonth(lm), end: endOfMonth(lm) }; }
-  if (p === "this_year")   return { start: startOfYear(now),            end: endOfYear(now) };
-  return { start: null, end: null };
-}
-
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  planejado:      { label: "Planejado",      cls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200/80 dark:bg-blue-950/60 dark:text-blue-300 dark:ring-blue-800" },
-  "em andamento": { label: "Em andamento",   cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-800" },
-  concluído:      { label: "Concluído",      cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800" },
-  excluído:       { label: "Excluído",       cls: "bg-gray-100 text-gray-400 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700" },
-};
+import { format } from "date-fns";
 
 export default function Events() {
-  const [isModalOpen, setIsModalOpen]   = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-  const [searchTerm, setSearchTerm]     = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-
-  const filtered = useMemo(() => {
-    if (!events) return [];
-    let list = [...events];
-    if (searchTerm.trim()) {
-      const t = searchTerm.toLowerCase();
-      list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
-    }
-    if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (periodFilter !== "all") {
-      const { start, end } = getPeriodRange(periodFilter);
-      if (start && end) list = list.filter(e => {
-        const es = new Date(e.startDate); es.setHours(0,0,0,0);
-        const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
-        return ee >= start && es <= end;
-      });
-    }
-    return list.sort((a, b) => b.eventNumber - a.eventNumber);
-  }, [events, searchTerm, statusFilter, periodFilter]);
-
-  const deleteMutation = useMutation({
-    mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
-      toast({ title: "Evento excluído", description: "O evento foi marcado como excluído." });
-    },
-    onError: () => toast({ title: "Erro", description: "Não foi possível excluir o evento.", variant: "destructive" }),
+  const { data: events, isLoading } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
   });
 
-  const openModal  = (ev?: Event) => { setEditingEvent(ev ?? null); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setEditingEvent(null); };
-  const handleDelete = (ev: Event) => {
-    if (confirm(`Excluir "${ev.name}"? O evento continuará visível como excluído.`)) deleteMutation.mutate(ev);
+  // Filter and sort events
+  const filteredAndSortedEvents = useMemo(() => {
+    if (!events) return [];
+    
+    let filtered = [...events];
+    
+    // Apply search filter (by name)
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(event => 
+        event.name.toLowerCase().includes(term) ||
+        event.location.toLowerCase().includes(term)
+      );
+    }
+    
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(event => {
+        const eventStatus = getEventStatus(event);
+        return eventStatus === statusFilter;
+      });
+    }
+    
+    // Apply date filters - show events that occur within the selected date range
+    // An event is shown if it overlaps with the filter range
+    if (startDateFilter || endDateFilter) {
+      filtered = filtered.filter(event => {
+        const eventStartDate = new Date(event.startDate);
+        const eventEndDate = new Date(event.endDate);
+        eventStartDate.setHours(0, 0, 0, 0);
+        eventEndDate.setHours(0, 0, 0, 0);
+        
+        // If only start date is set, show events that end on or after this date
+        if (startDateFilter && !endDateFilter) {
+          const filterStartDate = new Date(startDateFilter);
+          filterStartDate.setHours(0, 0, 0, 0);
+          return eventEndDate >= filterStartDate;
+        }
+        
+        // If only end date is set, show events that start on or before this date
+        if (!startDateFilter && endDateFilter) {
+          const filterEndDate = new Date(endDateFilter);
+          filterEndDate.setHours(0, 0, 0, 0);
+          return eventStartDate <= filterEndDate;
+        }
+        
+        // If both dates are set, show events that overlap with the range
+        if (startDateFilter && endDateFilter) {
+          const filterStartDate = new Date(startDateFilter);
+          const filterEndDate = new Date(endDateFilter);
+          filterStartDate.setHours(0, 0, 0, 0);
+          filterEndDate.setHours(0, 0, 0, 0);
+          // Event overlaps if: event ends >= filter start AND event starts <= filter end
+          return eventEndDate >= filterStartDate && eventStartDate <= filterEndDate;
+        }
+        
+        return true;
+      });
+    }
+    
+    // Sort by eventNumber descending (latest first)
+    return filtered.sort((a, b) => b.eventNumber - a.eventNumber);
+  }, [events, searchTerm, statusFilter, startDateFilter, endDateFilter]);
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async (eventToDelete: Event) => {
+      // Soft delete - update status to "excluído"
+      const response = await apiRequest("PUT", `/api/events/${eventToDelete.id}`, {
+        status: "excluído",
+      });
+      return response.json();
+    },
+    onSuccess: async () => {
+      // Force refetch to ensure UI updates
+      await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
+      toast({
+        title: "Sucesso",
+        description: "Evento marcado como excluído com sucesso!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao marcar evento como excluído.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenModal = (event?: Event) => {
+    if (event) {
+      setEditingEvent(event);
+    } else {
+      setEditingEvent(null);
+    }
+    setIsModalOpen(true);
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setPeriodFilter("all"); };
-  const hasFilters = searchTerm || statusFilter !== "all" || periodFilter !== "all";
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingEvent(null);
+  };
+
+  const handleDelete = (event: Event) => {
+    if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`)) {
+      deleteEventMutation.mutate(event);
+    }
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case "planejado":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      case "concluído":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "excluído":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    }
+  };
+
+  const getEventStatus = (event: Event): string => {
+    // If already excluded, keep as excluded
+    if (event.status === "excluído") {
+      return "excluído";
+    }
+    
+    // Check if event has ended (endDate has passed)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(event.endDate);
+    endDate.setHours(0, 0, 0, 0);
+    
+    if (endDate < today) {
+      return "concluído";
+    }
+    
+    return event.status;
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), "dd/MM/yyyy");
+    } catch {
+      return dateString;
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setStartDateFilter("");
+    setEndDateFilter("");
+  };
+
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
 
   return (
     <>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
-
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">Eventos</h1>
-            <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">Gerencie os eventos do sistema</p>
-          </div>
-          <Button onClick={() => openModal()} className="gap-2 shadow-sm" data-testid="button-add-event">
-            <Plus className="w-4 h-4" />
-            Criar Evento
-          </Button>
-        </div>
-
-        {/* ── Filters ── */}
-        <div className="flex flex-wrap gap-2.5 items-center">
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Buscar evento ou cidade..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9 pr-8 h-9 text-sm"
-              data-testid="input-search-event"
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40 h-9 text-sm" data-testid="select-status-filter">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="planejado">Planejado</SelectItem>
-              <SelectItem value="em andamento">Em andamento</SelectItem>
-              <SelectItem value="concluído">Concluído</SelectItem>
-              <SelectItem value="excluído">Excluído</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-44 h-9 text-sm">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os períodos</SelectItem>
-              <SelectItem value="this_month">Este mês</SelectItem>
-              <SelectItem value="next_month">Próximo mês</SelectItem>
-              <SelectItem value="last_month">Mês anterior</SelectItem>
-              <SelectItem value="this_year">Este ano</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {hasFilters && (
-            <>
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-gray-500 gap-1.5 px-3" data-testid="button-clear-filters">
-                <X className="w-3.5 h-3.5" />
-                Limpar
-              </Button>
-              <span className="text-xs text-gray-400 ml-auto">
-                {filtered.length} evento{filtered.length !== 1 ? "s" : ""}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* ── List ── */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700/70 rounded-xl overflow-hidden shadow-sm">
-          {isLoading ? (
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between px-5 py-4">
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-52" />
-                    <Skeleton className="h-3 w-36" />
+      <div className="space-y-6">
+        <Card className="border-border">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Gerenciamento de Eventos
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Gerencie os eventos do sistema
+                  </p>
+                </div>
+                <Button onClick={() => handleOpenModal()} data-testid="button-add-event">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Evento
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Filters Section */}
+              <div className="mb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Search by name */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-search-event"
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                    <Skeleton className="h-7 w-7 rounded" />
-                    <Skeleton className="h-7 w-7 rounded" />
+
+                  {/* Status filter */}
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger data-testid="select-status-filter">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="planejado">Planejado</SelectItem>
+                      <SelectItem value="concluído">Concluído</SelectItem>
+                      <SelectItem value="excluído">Excluído</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Start date filter */}
+                  <div>
+                    <Input
+                      type="date"
+                      placeholder="Data início (de)"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      data-testid="input-start-date-filter"
+                    />
+                  </div>
+
+                  {/* End date filter */}
+                  <div>
+                    <Input
+                      type="date"
+                      placeholder="Data fim (até)"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      data-testid="input-end-date-filter"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-700" />
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                {hasFilters ? "Nenhum evento encontrado" : "Nenhum evento cadastrado"}
-              </p>
-              {!hasFilters && (
-                <p className="text-xs text-gray-400 dark:text-gray-500">Clique em "Criar Evento" para começar</p>
+
+                {/* Clear filters button */}
+                {hasActiveFilters && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {filteredAndSortedEvents.length} evento(s) encontrado(s)
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={clearFilters}
+                      data-testid="button-clear-filters"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Carregando eventos...
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nº</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Local</TableHead>
+                        <TableHead>Data Início</TableHead>
+                        <TableHead>Data Fim</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedEvents.map((event) => {
+                        const displayStatus = getEventStatus(event);
+                        return (
+                          <TableRow key={event.id} className={displayStatus === "excluído" ? "opacity-60" : ""}>
+                            <TableCell className="font-medium">{event.eventNumber}</TableCell>
+                            <TableCell>{event.name}</TableCell>
+                            <TableCell>{event.location}</TableCell>
+                            <TableCell>{formatDate(event.startDate)}</TableCell>
+                            <TableCell>{formatDate(event.endDate)}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(displayStatus)}`}>
+                                {displayStatus}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenModal(event)}
+                                  disabled={displayStatus === "excluído"}
+                                  data-testid={`button-edit-event-${event.id}`}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDelete(event)}
+                                  disabled={displayStatus === "excluído"}
+                                  className="text-destructive hover:text-destructive"
+                                  data-testid={`button-delete-event-${event.id}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {(!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                            {hasActiveFilters 
+                              ? "Nenhum evento encontrado com os filtros aplicados."
+                              : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."
+                            }
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
-              {hasFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-500 mt-1">Limpar filtros</Button>
-              )}
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-              {filtered.map(ev => {
-                const status = getEventStatus(ev);
-                const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG["planejado"];
-                const deleted = status === "excluído";
-                return (
-                  <li
-                    key={ev.id}
-                    className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${deleted ? "opacity-50" : "hover:bg-gray-50/80 dark:hover:bg-gray-800/40"}`}
-                  >
-                    {/* Text block */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium leading-snug truncate ${deleted ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
-                        {ev.name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500 truncate">
-                        {ev.location}
-                        <span className="mx-1.5 text-gray-300 dark:text-gray-700">•</span>
-                        {formatPeriod(ev.startDate, ev.endDate)}
-                      </p>
-                    </div>
-
-                    {/* Status */}
-                    <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
-                      {cfg.label}
-                    </span>
-
-                    {/* Actions */}
-                    <div className="shrink-0 flex items-center gap-0.5">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openModal(ev)}
-                        disabled={deleted}
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        data-testid={`button-edit-event-${ev.id}`}
-                        title="Editar"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(ev)}
-                        disabled={deleted}
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-                        data-testid={`button-delete-event-${ev.id}`}
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
+            </CardContent>
+          </Card>
       </div>
-
-      <EventModal open={isModalOpen} onClose={closeModal} event={editingEvent} />
+      <EventModal 
+        open={isModalOpen} 
+        onClose={handleCloseModal} 
+        event={editingEvent}
+      />
     </>
   );
 }
