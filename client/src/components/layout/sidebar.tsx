@@ -24,6 +24,21 @@ function initials(name: string) {
 }
 
 // ─── Nav config ─────────────────────────────────────────────────────────────
+type GroupTheme = {
+  label: string;
+  iconDefault: string;
+  activeBg: string;
+  activeBorder: string;
+  activeText: string;
+};
+
+const groupThemes: Record<string, GroupTheme> = {
+  Cadastros:   { label: "#6366f1", iconDefault: "rgba(99,102,241,0.70)",  activeBg: "#eef2ff", activeBorder: "#6366f1", activeText: "#4f46e5" },
+  Operacional: { label: "#f97316", iconDefault: "rgba(249,115,22,0.70)",  activeBg: "#fff7ed", activeBorder: "#f97316", activeText: "#ea580c" },
+  Financeiro:  { label: "#10b981", iconDefault: "rgba(16,185,129,0.70)",  activeBg: "#ecfdf5", activeBorder: "#10b981", activeText: "#059669" },
+  Gestão:      { label: "#8b5cf6", iconDefault: "rgba(139,92,246,0.70)",  activeBg: "#f5f3ff", activeBorder: "#8b5cf6", activeText: "#7c3aed" },
+};
+
 const menuGroups = [
   { title: "Cadastros",   items: ["user-registration", "events", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
@@ -68,7 +83,7 @@ export default function Sidebar() {
   const userName = user?.name || "Usuário";
 
   // ── Nav item ─────────────────────────────────────────────────────────────
-  function NavItem({ tab }: { tab: typeof tabs[0] }) {
+  function NavItem({ tab, theme }: { tab: typeof tabs[0]; theme: GroupTheme }) {
     const Icon = tab.icon;
     const isActive = location === tab.path;
 
@@ -77,23 +92,35 @@ export default function Sidebar() {
         <button
           onClick={() => setMobileOpen(false)}
           data-testid={`sidebar-${tab.id}`}
+          style={isActive ? { background: theme.activeBg } : undefined}
           className={cn(
             "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
             isCompact && "justify-center px-0",
             isActive
-              ? "bg-[#eff6ff] text-[#2563eb]"
-              : "text-[#64748b] hover:bg-[#f1f5f9] hover:text-slate-800"
+              ? "text-[#1e293b]"
+              : "text-[#1e293b] hover:bg-[#f8fafc]"
           )}
         >
-          {/* Active left accent bar */}
+          {/* Active left accent bar — module color */}
           {isActive && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#2563eb] rounded-r-full" />
+            <span
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+              style={{ background: theme.activeBorder }}
+            />
           )}
-          <Icon className={cn(
-            "flex-shrink-0 w-[18px] h-[18px] transition-colors duration-150",
-            isActive ? "text-[#2563eb]" : "text-[#64748b]"
-          )} />
-          {!isCompact && <span className="truncate leading-tight">{tab.label}</span>}
+          {/* Icon — module color (dimmed default, full on active) */}
+          <Icon
+            className="flex-shrink-0 w-[18px] h-[18px] transition-colors duration-150"
+            style={{ color: isActive ? theme.activeText : theme.iconDefault }}
+          />
+          {!isCompact && (
+            <span
+              className="truncate leading-tight font-medium"
+              style={isActive ? { color: theme.activeText } : undefined}
+            >
+              {tab.label}
+            </span>
+          )}
         </button>
       </Link>
     );
@@ -195,12 +222,15 @@ export default function Sidebar() {
             {menuGroups.map((group, idx) => {
               const groupTabs = getGroupTabs(group.items);
               if (groupTabs.length === 0) return null;
+              const theme = groupThemes[group.title] ?? groupThemes["Cadastros"];
 
               return (
                 <div key={group.title} className={cn(idx > 0 && "mt-5")}>
                   {!isCompact ? (
-                    /* Group label — indigo tint for personality */
-                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest px-3 mb-1.5 select-none">
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-widest px-3 mb-1.5 select-none"
+                      style={{ color: theme.label }}
+                    >
                       {group.title}
                     </p>
                   ) : (
@@ -209,7 +239,7 @@ export default function Sidebar() {
                   <ul className="space-y-0.5">
                     {groupTabs.map(tab => (
                       <li key={tab.id}>
-                        <NavItem tab={tab} />
+                        <NavItem tab={tab} theme={theme} />
                       </li>
                     ))}
                   </ul>
