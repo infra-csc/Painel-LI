@@ -1173,9 +1173,9 @@ export default function BudgetActualPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-violet-200 mt-1.5">
-                        {isReadOnly ? 'Valores enviados para revisão — somente leitura' : 'Informe os valores realmente executados'}
-                      </p>
+                      {!isReadOnly && (
+                        <p className="text-xs text-violet-200 mt-1.5">Informe os valores realmente executados</p>
+                      )}
                     </div>
                     {planned && statusBadge && (
                       <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border} flex-shrink-0 mr-8`}>
@@ -1449,7 +1449,7 @@ export default function BudgetActualPage() {
                             </span>
                           );
                         })()}
-                        <span className="text-sm font-black text-orange-700 dark:text-orange-300 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                        <span className="text-sm font-black text-orange-700 dark:text-orange-300 tabular-nums border-l border-orange-200 dark:border-orange-800 pl-2 ml-0.5">{formatCurrency(totalAlimentacao)}</span>
                       </div>
                     </div>
 
