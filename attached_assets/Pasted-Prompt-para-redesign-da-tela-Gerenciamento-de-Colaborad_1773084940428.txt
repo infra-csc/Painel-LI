@@ -1,0 +1,68 @@
+Prompt para redesign da tela "Gerenciamento de Colaboradores":
+
+Redesign da tela de listagem e aprovação de colaboradores, mantendo visual limpo, tabela legível e ações de aprovação claras sem poluição visual.
+Header:
+
+Título bold, subtítulo em cinza
+Contadores "3 pendentes" e "581 aprovados" como pills inline: pendentes em âmbar e aprovados em verde — discretos, não chamativas
+Botões "Importar Colaboradores" como outline/ghost e "Novo Colaborador" em azul sólido, ambos com ícone
+
+Filtros:
+
+Campo de busca largo com ícone de lupa interno
+Dropdowns "Todos os Status" e "Todos os Tipos" com largura consistente e ícone de chevron
+Adicionar pill de filtro ativo que aparece quando um filtro está selecionado, com botão X para limpar
+
+Tabela:
+
+Header com colunas em cinza small-caps, fundo #f8fafc, sem bordas laterais
+Linhas espaçadas (altura ~60px), zebra striping sutil
+Hover na linha com fundo #f0f9ff muito suave
+
+Coluna "Nome":
+
+Avatar circular com iniciais coloridas (cor gerada pelo nome) à esquerda
+Nome em bold, telefone em cinza menor abaixo — sem ocupar duas colunas separadas
+
+Coluna "Documento":
+
+CPF e RG empilhados, fonte monospace pequena em cinza médio
+Label "CPF" e "RG" em cinza claro antes do valor
+
+Coluna "Tipo":
+
+Badge simples: "Freela" em azul claro, "Casa" em verde claro — pill pequeno, sem destaque excessivo
+
+Coluna "Cidade":
+
+Texto simples em cinza, sem destaque
+
+Coluna "Status":
+
+Badge "Aprovado" em verde suave (#dcfce7 fundo, #16a34a texto)
+Badge "Pendente" em âmbar suave (#fef3c7 fundo, #d97706 texto)
+Badge "Rejeitado" em vermelho suave — sem verde/vermelho sólido que pesa visualmente
+
+Coluna "Ações" — colaboradores aprovados:
+
+Ícones de olho e editar em cinza, hover em azul, sem bordas
+Tooltip "Ver detalhes" e "Editar" no hover
+
+Coluna "Ações" — colaboradores pendentes:
+
+Linha com fundo âmbar muito claro (#fffbeb) para chamar atenção sutilmente
+Ícones de olho e editar iguais aos outros
+Botões "Aprovar" e "Rejeitar" compactos: "Aprovar" em verde outline (não sólido) e "Rejeitar" em vermelho outline — sólido só no hover
+Ou alternativamente: dois ícones de check (verde) e X (vermelho) com tooltip, para não pesar a linha
+
+Rodapé da tabela:
+
+Contador "Exibindo X de 584 colaboradores"
+Paginação simples com botões anterior/próximo e número de página atual
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul só para ações primárias
+Tabela sem bordas verticais, separadores horizontais finos
+Nomes em UPPERCASE apenas se vier do banco — idealmente title case para melhor legibilidade

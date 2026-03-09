@@ -1,0 +1,57 @@
+Aqui está o prompt para melhorar os modais de Adicionar/Editar Colaborador:
+
+Prompt para redesign dos modais "Adicionar Novo Colaborador" e "Editar Colaborador":
+
+Redesign de dois modais de formulário para cadastro e edição de colaboradores. Ambos compartilham a mesma estrutura — apenas o título e botão de confirmação mudam.
+Estrutura do modal:
+
+Largura ~600px, border-radius 16px, sombra profunda, backdrop blur no fundo
+Header: título bold à esquerda + botão X ghost no canto direito com hover em fundo cinza
+Divisor sutil abaixo do header
+Scroll interno suave se o conteúdo ultrapassar a altura da tela
+
+Organização dos campos em grid:
+
+Linha 1: "Nome Completo" (2/3 largura) + "CPF" (1/3 largura)
+Linha 2: "RG" (1/3 largura) + "Data de Nascimento" (1/3) + "Tipo" (1/3)
+Linha 3: "Telefone" (1/2) + "Cidade" (1/2)
+Linha 4: "Documento (CPF/RG)" em largura total
+
+Estilo dos inputs:
+
+Labels fixas acima dos campos em cinza pequeno, com asterisco vermelho discreto nos obrigatórios
+Inputs com borda #e2e8f0, foco com borda azul e glow suave, border-radius 8px, altura 44px
+Placeholder em cinza claro
+Campo CPF e RG com máscara visual (pontos e traços) e ícone de documento pequeno interno
+Campo de data com ícone de calendário à direita
+Campo "Tipo" como dropdown com ícones: "Freela" com ícone de pessoa, "Casa" com ícone de casa
+Campo "Cidade" com ícone de pin à esquerda
+Campo "Telefone" com ícone de telefone e máscara (XX) XXXXX-XXXX
+
+Área de upload de documento:
+
+Substituir o input nativo feio por uma zona de drag-and-drop elegante
+Borda tracejada arredondada (#e2e8f0), fundo #f8fafc
+Ícone de upload centralizado + texto "Arraste arquivos aqui ou clique para selecionar"
+Linha de info abaixo: "PDF, JPG, PNG · Máx. 5MB por arquivo" em cinza pequeno
+Quando arquivo selecionado: mostrar pill com nome do arquivo + ícone de X para remover
+
+Modal de edição — diferenças:
+
+Campos pré-preenchidos com dados existentes
+Nome do colaborador em destaque no subtítulo do header: "Editando: Diego Adan do Nascimento Sellari" em cinza abaixo do título
+Avatar circular com iniciais coloridas ao lado do título para identificação visual imediata
+
+Rodapé:
+
+"Cancelar" como ghost button
+"Salvar Colaborador" / "Atualizar Colaborador" em azul sólido com ícone de check
+Ambos com hover animado
+Nota discreta abaixo: "Campos marcados com * são obrigatórios" em cinza claro
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul (#2563eb) para foco e botão primário
+Sem cores desnecessárias — formulário limpo e profissional
+Validação visual inline: borda vermelha + ícone de erro + mensagem pequena abaixo do campo
