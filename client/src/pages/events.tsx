@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
-import { format, addMonths, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format } from "date-fns";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -37,18 +36,10 @@ function formatPeriod(startStr: string, endStr: string): string {
     if (s.toDateString() === e.toDateString()) return format(s, "dd/MM/yyyy");
     const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
     if (sameMonth) return `${format(s, "dd")}–${format(e, "dd/MM/yyyy")}`;
-    return `${format(s, "dd/MM", { locale: ptBR })} – ${format(e, "dd/MM/yyyy")}`;
+    return `${format(s, "dd/MM")} – ${format(e, "dd/MM/yyyy")}`;
   } catch { return `${startStr} – ${endStr}`; }
 }
 
-function getPeriodRange(p: string) {
-  const now = new Date();
-  if (p === "this_month")  return { start: startOfMonth(now), end: endOfMonth(now) };
-  if (p === "next_month")  { const nm = addMonths(now, 1); return { start: startOfMonth(nm), end: endOfMonth(nm) }; }
-  if (p === "last_month")  { const lm = addMonths(now, -1); return { start: startOfMonth(lm), end: endOfMonth(lm) }; }
-  if (p === "this_year")   return { start: startOfYear(now), end: endOfYear(now) };
-  return { start: null, end: null };
-}
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   planejado:      { label: "Planejado",      cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300" },
@@ -90,7 +81,8 @@ export default function Events() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("all");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { toast } = useToast();
@@ -134,12 +126,21 @@ export default function Events() {
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
     if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (periodFilter !== "all") {
-      const { start, end } = getPeriodRange(periodFilter);
-      if (start && end) list = list.filter(e => {
+    if (startDateFilter || endDateFilter) {
+      list = list.filter(e => {
         const es = new Date(e.startDate); es.setHours(0,0,0,0);
         const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
-        return ee >= start && es <= end;
+        if (startDateFilter && !endDateFilter) {
+          const fs = new Date(startDateFilter); fs.setHours(0,0,0,0);
+          return ee >= fs;
+        }
+        if (!startDateFilter && endDateFilter) {
+          const fe = new Date(endDateFilter); fe.setHours(0,0,0,0);
+          return es <= fe;
+        }
+        const fs = new Date(startDateFilter); fs.setHours(0,0,0,0);
+        const fe = new Date(endDateFilter);   fe.setHours(0,0,0,0);
+        return ee >= fs && es <= fe;
       });
     }
 
@@ -171,8 +172,8 @@ export default function Events() {
     if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`))
       deleteEventMutation.mutate(event);
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setPeriodFilter("all"); };
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || periodFilter !== "all";
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setStartDateFilter(""); setEndDateFilter(""); };
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
 
   return (
     <TooltipProvider>
@@ -245,18 +246,25 @@ export default function Events() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os períodos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os períodos</SelectItem>
-                      <SelectItem value="this_month">Este mês</SelectItem>
-                      <SelectItem value="next_month">Próximo mês</SelectItem>
-                      <SelectItem value="last_month">Mês anterior</SelectItem>
-                      <SelectItem value="this_year">Este ano</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={startDateFilter}
+                      onChange={e => setStartDateFilter(e.target.value)}
+                      className="w-full"
+                      title="Data início (de)"
+                      data-testid="input-start-date-filter"
+                    />
+                    <span className="text-muted-foreground text-sm shrink-0">até</span>
+                    <Input
+                      type="date"
+                      value={endDateFilter}
+                      onChange={e => setEndDateFilter(e.target.value)}
+                      className="w-full"
+                      title="Data fim (até)"
+                      data-testid="input-end-date-filter"
+                    />
+                  </div>
                 </div>
 
                 {hasActiveFilters && (
