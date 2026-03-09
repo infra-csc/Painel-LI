@@ -235,7 +235,7 @@ export default function Events() {
             <CardContent>
               {/* ── Filters ── */}
               <div className="mb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -265,39 +265,38 @@ export default function Events() {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex gap-2">
-                    <Select value={monthFilter} onValueChange={setMonthFilter}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Mês" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os meses</SelectItem>
-                        <SelectItem value="1">Janeiro</SelectItem>
-                        <SelectItem value="2">Fevereiro</SelectItem>
-                        <SelectItem value="3">Março</SelectItem>
-                        <SelectItem value="4">Abril</SelectItem>
-                        <SelectItem value="5">Maio</SelectItem>
-                        <SelectItem value="6">Junho</SelectItem>
-                        <SelectItem value="7">Julho</SelectItem>
-                        <SelectItem value="8">Agosto</SelectItem>
-                        <SelectItem value="9">Setembro</SelectItem>
-                        <SelectItem value="10">Outubro</SelectItem>
-                        <SelectItem value="11">Novembro</SelectItem>
-                        <SelectItem value="12">Dezembro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={yearFilter} onValueChange={setYearFilter}>
-                      <SelectTrigger className="w-28">
-                        <SelectValue placeholder="Ano" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {availableYears.map(y => (
-                          <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os meses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os meses</SelectItem>
+                      <SelectItem value="1">Janeiro</SelectItem>
+                      <SelectItem value="2">Fevereiro</SelectItem>
+                      <SelectItem value="3">Março</SelectItem>
+                      <SelectItem value="4">Abril</SelectItem>
+                      <SelectItem value="5">Maio</SelectItem>
+                      <SelectItem value="6">Junho</SelectItem>
+                      <SelectItem value="7">Julho</SelectItem>
+                      <SelectItem value="8">Agosto</SelectItem>
+                      <SelectItem value="9">Setembro</SelectItem>
+                      <SelectItem value="10">Outubro</SelectItem>
+                      <SelectItem value="11">Novembro</SelectItem>
+                      <SelectItem value="12">Dezembro</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={yearFilter} onValueChange={setYearFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os anos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os anos</SelectItem>
+                      {availableYears.map(y => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
                   <div className="relative">
                     <Input
