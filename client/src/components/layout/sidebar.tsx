@@ -78,16 +78,20 @@ export default function Sidebar() {
           onClick={() => setMobileOpen(false)}
           data-testid={`sidebar-${tab.id}`}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+            "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
             isCompact && "justify-center px-0",
             isActive
-              ? "bg-blue-600 text-white"
-              : "text-slate-400 hover:bg-[#1e3a5f] hover:text-white"
+              ? "bg-[#eff6ff] text-[#2563eb]"
+              : "text-[#64748b] hover:bg-[#f1f5f9] hover:text-slate-800"
           )}
         >
+          {/* Active left accent bar */}
+          {isActive && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#2563eb] rounded-r-full" />
+          )}
           <Icon className={cn(
             "flex-shrink-0 w-[18px] h-[18px] transition-colors duration-150",
-            isActive ? "text-white" : "text-slate-400"
+            isActive ? "text-[#2563eb]" : "text-[#64748b]"
           )} />
           {!isCompact && <span className="truncate leading-tight">{tab.label}</span>}
         </button>
@@ -110,23 +114,23 @@ export default function Sidebar() {
       <>
         {/* Mobile hamburger */}
         <button
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#0f172a] rounded-lg shadow-md border border-slate-700"
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-slate-200"
           onClick={() => setMobileOpen(v => !v)}
         >
-          {mobileOpen ? <X className="w-5 h-5 text-slate-300" /> : <Menu className="w-5 h-5 text-slate-300" />}
+          {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
         </button>
 
         {/* Mobile overlay */}
         {mobileOpen && (
-          <div className="lg:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setMobileOpen(false)} />
+          <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
         )}
 
-        {/* Re-expand tab when fully collapsed (desktop) */}
+        {/* Re-expand tab when fully collapsed */}
         {isCollapsed && !isFocusMode && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 w-5 h-12 bg-[#0f172a] border border-l-0 border-slate-700 rounded-r-lg items-center justify-center text-slate-400 hover:text-white transition-colors shadow-md"
+                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 w-5 h-12 bg-white border border-l-0 border-slate-200 rounded-r-lg items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
                 onClick={toggleCollapsed}
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -136,10 +140,10 @@ export default function Sidebar() {
           </Tooltip>
         )}
 
-        {/* ── Sidebar — full dark ── */}
+        {/* ── Sidebar — light, harmonized with all pages ── */}
         <aside className={cn(
           "fixed left-0 top-0 h-full z-40 flex flex-col transition-all duration-300 ease-in-out",
-          "bg-[#0f172a] border-r border-slate-800/60",
+          "bg-white border-r border-[#e2e8f0]",
           isCompact ? "w-16" : "w-60",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           (isCollapsed || isFocusMode) && "lg:-translate-x-full"
@@ -147,36 +151,35 @@ export default function Sidebar() {
 
           {/* ── Logo area ── */}
           <div className={cn(
-            "shrink-0 flex items-center border-b border-slate-800/60",
+            "shrink-0 flex items-center border-b border-[#e2e8f0]",
             isCompact ? "h-16 justify-center px-3" : "h-16 px-4 justify-between"
           )}>
             {isCompact ? (
-              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg select-none shadow-md">
+              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg select-none">
                 N
               </div>
             ) : (
-              <div className="flex-1 flex flex-col justify-center min-w-0 pr-2">
+              <div className="flex-1 flex items-center min-w-0 pr-2" style={{ minHeight: 32 }}>
                 <img
                   src={norteLogo}
                   alt="Norte"
-                  className="w-32 object-cover object-top"
+                  className="object-contain object-left"
                   style={{
+                    maxWidth: 140,
+                    minHeight: 32,
+                    maxHeight: 40,
                     clipPath: "inset(0 0 25% 0)",
-                    filter: "brightness(0) invert(1)",
                   }}
                 />
-                <span className="text-[10px] text-slate-500 mt-0.5 leading-none tracking-wide">
-                  nortemkt.com
-                </span>
               </div>
             )}
 
-            {/* Collapse chevron — visible on dark */}
+            {/* Collapse chevron */}
             {!isCompact && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors shrink-0"
+                    className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
                     onClick={toggleCollapsed}
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -196,11 +199,12 @@ export default function Sidebar() {
               return (
                 <div key={group.title} className={cn(idx > 0 && "mt-5")}>
                   {!isCompact ? (
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest px-3 mb-1.5 select-none">
+                    /* Group label — indigo tint for personality */
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest px-3 mb-1.5 select-none">
                       {group.title}
                     </p>
                   ) : (
-                    idx > 0 && <div className="border-t border-slate-700/60 mx-2 mb-3" />
+                    idx > 0 && <div className="border-t border-slate-100 mx-2 mb-3" />
                   )}
                   <ul className="space-y-0.5">
                     {groupTabs.map(tab => (
@@ -214,11 +218,8 @@ export default function Sidebar() {
             })}
           </nav>
 
-          {/* ── Footer — slightly darker ── */}
-          <div
-            className="border-t border-slate-800/60 px-2 py-3 space-y-2 shrink-0"
-            style={{ background: "#0a1628" }}
-          >
+          {/* ── Footer ── */}
+          <div className="border-t border-[#e2e8f0] px-2 py-3 space-y-2 shrink-0 bg-[#f8fafc]">
             {/* User info */}
             <div className={cn("flex items-center gap-2.5 px-1 min-w-0", isCompact && "justify-center px-0")}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm">
@@ -226,8 +227,8 @@ export default function Sidebar() {
               </div>
               {!isCompact && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-white truncate leading-tight">{user?.name}</p>
-                  <p className="text-[10px] text-slate-500 truncate leading-tight">{user?.email}</p>
+                  <p className="text-xs font-semibold text-slate-700 truncate leading-tight">{user?.name}</p>
+                  <p className="text-[10px] text-slate-400 truncate leading-tight">{user?.email}</p>
                 </div>
               )}
             </div>
@@ -238,7 +239,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={toggleCompact}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     {isCompact ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
                   </button>
@@ -252,7 +253,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={enterFocusMode}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     <Focus className="w-3.5 h-3.5" />
                   </button>
@@ -264,7 +265,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={toggleTheme}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700/60 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
                   </button>
@@ -281,7 +282,7 @@ export default function Sidebar() {
                 <button
                   onClick={logout}
                   className={cn(
-                    "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-red-900/30 hover:text-red-400 transition-colors duration-150",
+                    "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors duration-150",
                     isCompact && "justify-center px-0"
                   )}
                 >
