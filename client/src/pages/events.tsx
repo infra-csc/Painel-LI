@@ -81,8 +81,7 @@ export default function Events() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [startDateFilter, setStartDateFilter] = useState("");
-  const [endDateFilter, setEndDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { toast } = useToast();
@@ -126,21 +125,12 @@ export default function Events() {
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
     if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (startDateFilter || endDateFilter) {
+    if (dateFilter) {
+      const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
       list = list.filter(e => {
         const es = new Date(e.startDate); es.setHours(0,0,0,0);
         const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
-        if (startDateFilter && !endDateFilter) {
-          const fs = new Date(startDateFilter); fs.setHours(0,0,0,0);
-          return ee >= fs;
-        }
-        if (!startDateFilter && endDateFilter) {
-          const fe = new Date(endDateFilter); fe.setHours(0,0,0,0);
-          return es <= fe;
-        }
-        const fs = new Date(startDateFilter); fs.setHours(0,0,0,0);
-        const fe = new Date(endDateFilter);   fe.setHours(0,0,0,0);
-        return ee >= fs && es <= fe;
+        return selected >= es && selected <= ee;
       });
     }
 
@@ -154,7 +144,7 @@ export default function Events() {
     });
 
     return list;
-  }, [events, searchTerm, statusFilter, startDateFilter, endDateFilter, sortKey, sortDir]);
+  }, [events, searchTerm, statusFilter, dateFilter, sortKey, sortDir]);
 
   const deleteEventMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
@@ -172,8 +162,8 @@ export default function Events() {
     if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`))
       deleteEventMutation.mutate(event);
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setStartDateFilter(""); setEndDateFilter(""); };
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || startDateFilter || endDateFilter;
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setDateFilter(""); };
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || dateFilter;
 
   return (
     <TooltipProvider>
@@ -246,24 +236,23 @@ export default function Events() {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex items-center gap-2">
+                  <div className="relative">
                     <Input
                       type="date"
-                      value={startDateFilter}
-                      onChange={e => setStartDateFilter(e.target.value)}
+                      value={dateFilter}
+                      onChange={e => setDateFilter(e.target.value)}
                       className="w-full"
-                      title="Data início (de)"
-                      data-testid="input-start-date-filter"
+                      title="Filtrar por data (eventos que ocorrem nesta data)"
+                      data-testid="input-date-filter"
                     />
-                    <span className="text-muted-foreground text-sm shrink-0">até</span>
-                    <Input
-                      type="date"
-                      value={endDateFilter}
-                      onChange={e => setEndDateFilter(e.target.value)}
-                      className="w-full"
-                      title="Data fim (até)"
-                      data-testid="input-end-date-filter"
-                    />
+                    {dateFilter && (
+                      <button
+                        onClick={() => setDateFilter("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
