@@ -1178,7 +1178,7 @@ export default function BudgetActualPage() {
                       </p>
                     </div>
                     {planned && statusBadge && (
-                      <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border} flex-shrink-0`}>
+                      <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border} flex-shrink-0 mr-8`}>
                         {statusBadge.icon}
                         {statusBadge.label}
                       </div>
@@ -1217,7 +1217,7 @@ export default function BudgetActualPage() {
                           <Calendar className="w-3.5 h-3.5 text-gray-500" />
                         </div>
                         <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} → ${fmt(itemDays.endDate)}` :
+                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} até ${fmt(itemDays.endDate)}` :
                            itemDays.startDate ? `Início: ${fmt(itemDays.startDate)}` : `Fim: ${fmt(itemDays.endDate!)}`}
                         </span>
                       </div>
@@ -1348,7 +1348,7 @@ export default function BudgetActualPage() {
                           </div>
                         </div>
                         <div className="text-right min-w-[90px]">
-                          <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(subtotalDiariasFds)}</span>
+                          <span className={`text-sm font-bold tabular-nums ${itemDays.weekends === 0 ? 'text-gray-300 dark:text-gray-600' : 'text-gray-700 dark:text-gray-300'}`}>{formatCurrency(subtotalDiariasFds)}</span>
                           {itemDays.weekends > 0 && (
                             <div className="text-[10px] text-gray-400 tabular-nums">{itemDays.weekends} × {formatCurrency(editFormData.valorDiariaFds)}</div>
                           )}
