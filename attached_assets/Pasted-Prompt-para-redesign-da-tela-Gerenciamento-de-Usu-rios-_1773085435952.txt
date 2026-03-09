@@ -1,0 +1,61 @@
+Prompt para redesign da tela "Gerenciamento de Usuários":
+
+Redesign da tela de listagem de usuários do sistema, mantendo visual limpo, tabela legível e cards de métricas sem poluição de cores.
+Header:
+
+Título bold + botão "+ Novo Usuário" em azul sólido alinhado à direita (atualmente ausente mas necessário)
+Campo de busca com ícone de lupa interno, largura maior
+Contador "10 de 10 usuários" discreto à direita da busca em cinza
+
+Cards de métricas:
+
+Quatro cards brancos, sombra mínima, sem fundos coloridos nem bordas coloridas
+Cada card: ícone pequeno em cinza + label em cinza small-caps + número grande bold
+Cor aplicada APENAS no número: Total em preto, Pendentes em âmbar, Aprovados em verde, Inativos em cinza (não vermelho — inativo não é urgente)
+Cards sem bordas coloridas ao redor — o atual tem bordas coloridas em todo o card o que pesa visualmente
+
+Tabela:
+
+Header com colunas em cinza small-caps, fundo #f8fafc, sem bordas laterais
+Colunas: Usuário, E-mail, Função, Status, Data de Cadastro, Ações
+Linhas espaçadas (~60px), zebra striping sutil, hover com fundo #f0f9ff
+
+Coluna "Usuário":
+
+Avatar circular com iniciais, cor gerada pelo nome (não rosa fixo para todos)
+Nome em bold, área/subinfo em cinza menor abaixo
+Ícone de alerta (⚠) somente quando houver pendência — não em todo usuário "Teste"
+
+Coluna "E-mail":
+
+Texto em cinza médio, fonte monospace leve para melhor legibilidade de e-mails
+
+Coluna "Função":
+
+Badge com fundo muito claro e texto colorido: Administrador em roxo, Produção em azul, Área de Função em verde, RH em laranja
+Tamanho compacto, sem padding excessivo
+
+Coluna "Status":
+
+"Ativo": pill verde suave (#dcfce7 fundo, #16a34a texto)
+"Inativo": pill cinza neutro (#f1f5f9 fundo, #64748b texto) — sem vermelho, inativo não é erro
+"Pendente": pill âmbar suave
+
+Coluna "Ações":
+
+Ícone de editar em cinza, hover em azul
+Ícone de chave/senha em cinza, hover em âmbar
+Sem bordas nos ícones, tooltip no hover
+Linhas inativas com opacidade reduzida (75%) para indicar visualmente que estão desativadas
+
+Rodapé:
+
+Paginação simples: anterior / página atual / próximo
+Contador "Exibindo X de Y usuários"
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul só para ações primárias
+Cards sem bordas coloridas — cor só nos números e badges
+Avatars com cores variadas por usuário, não cor única para todos

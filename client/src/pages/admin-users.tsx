@@ -1,486 +1,483 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Edit, UserCheck, UserMinus, Key, Search, AlertCircle, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  Edit, Key, Search, AlertCircle, X, UserPlus, Users,
+  CheckCircle, XCircle, UserCheck, UserMinus,
+  ChevronLeft, ChevronRight
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useLocation } from "wouter";
 import UserEditModal from "@/components/modals/user-edit-modal";
 import type { User } from "@shared/schema";
 
+// ─── Avatar helpers ─────────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-orange-500",
+  "bg-pink-500", "bg-cyan-600", "bg-amber-500", "bg-rose-500",
+  "bg-indigo-500", "bg-teal-500",
+];
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// ─── Config ─────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 25;
+
+const ROLE_CFG: Record<string, { label: string; cls: string }> = {
+  admin:         { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
+  administrador: { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
+  administrator: { label: "Administrador", cls: "bg-violet-50 text-violet-700 ring-1 ring-violet-200" },
+  production:    { label: "Produção",      cls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200" },
+  function_area: { label: "Área de Função",cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
+  rh:            { label: "RH",            cls: "bg-orange-50 text-orange-700 ring-1 ring-orange-200" },
+  purchasing:    { label: "Compras",       cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200" },
+  financial:     { label: "Financeiro",    cls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200" },
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const cfg = ROLE_CFG[role] ?? { label: role, cls: "bg-slate-50 text-slate-600 ring-1 ring-slate-200" };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function StatusPill({ status, isActive }: { status: string; isActive: boolean | null }) {
+  if (status === "pending") {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pendente</span>;
+  }
+  if (status === "approved" && isActive !== false) {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">Ativo</span>;
+  }
+  if (status === "rejected") {
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-200">Rejeitado</span>;
+  }
+  // approved + isActive===false → Inativo (gray, NOT red)
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>;
+}
+
+// ─── Metric card ─────────────────────────────────────────────────────────────
+function MetricCard({
+  label, value, valueColor, active, onClick
+}: { label: string; value: number; valueColor: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left p-4 bg-white rounded-xl border shadow-sm transition-all hover:shadow-md ${
+        active ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-200"
+      }`}
+    >
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
+    </button>
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
-  const toggleActiveMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/toggle-active`);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Status da conta atualizado",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-    },
-  });
-
-  const resetPasswordMutation = useMutation({
-    mutationFn: async ({ userId, newPassword }: { userId: string, newPassword: string }) => {
-      const response = await apiRequest("POST", `/api/users/${userId}/reset-password`, { newPassword });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Senha resetada com sucesso. O usuário precisará trocar a senha no próximo login.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-    },
-  });
-
-  const handleResetPassword = (userId: string) => {
-    const newPassword = window.prompt("Digite a nova senha (mínimo 6 caracteres):");
-    if (newPassword && newPassword.length >= 6) {
-      resetPasswordMutation.mutate({ userId, newPassword });
-    } else if (newPassword) {
-      toast({ title: "Erro", description: "Senha muito curta", variant: "destructive" });
-    }
-  };
-
-  // Only allow admin access
-  const isAdmin = user?.role === 'admin' || user?.role === 'administrador' || user?.role === 'administrator';
+  const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.role === "administrator";
   if (!user || !isAdmin) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acesso Negado</h2>
-          <p className="text-gray-600">Você precisa ser administrador para acessar esta página.</p>
+          <h2 className="text-lg font-bold text-slate-800 mb-1">Acesso Negado</h2>
+          <p className="text-sm text-slate-500">Você precisa ser administrador para acessar esta página.</p>
         </div>
       </div>
     );
   }
 
-  const { data: users = [], isLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+  const { data: users = [], isLoading } = useQuery<User[]>({ queryKey: ["/api/users"] });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async (userId: string) => (await apiRequest("PATCH", `/api/users/${userId}/toggle-active`)).json(),
+    onSuccess: () => { toast({ title: "Sucesso", description: "Status da conta atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) =>
+      (await apiRequest("POST", `/api/users/${userId}/reset-password`, { newPassword })).json(),
+    onSuccess: () => { toast({ title: "Sucesso", description: "Senha resetada. O usuário deverá trocá-la no próximo login." }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
   });
 
   const approveUserMutation = useMutation({
-    mutationFn: async ({ userId, status, role }: { userId: string; status: 'approved' | 'rejected'; role?: string }) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/approval`, { status, role });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso",
-        description: "Status do usuário atualizado com sucesso",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar status do usuário",
-        variant: "destructive",
-      });
-    },
+    mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) =>
+      (await apiRequest("PATCH", `/api/users/${userId}/approval`, { status })).json(),
+    onSuccess: () => { toast({ title: "Sucesso", description: "Status do usuário atualizado" }); queryClient.invalidateQueries({ queryKey: ["/api/users"] }); },
+    onError: (e: Error) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 
-  const handleApproveUser = (userId: string, status: 'approved' | 'rejected') => {
-    const message = status === 'approved' ? 'aprovar' : 'rejeitar';
-    if (window.confirm(`Tem certeza que deseja ${message} este usuário?`)) {
-      approveUserMutation.mutate({ userId, status });
-    }
+  const handleResetPassword = (userId: string) => {
+    const pwd = window.prompt("Digite a nova senha (mínimo 6 caracteres):");
+    if (pwd && pwd.length >= 6) resetPasswordMutation.mutate({ userId, newPassword: pwd });
+    else if (pwd) toast({ title: "Erro", description: "Senha muito curta", variant: "destructive" });
   };
 
-  // Filter and sort users
-  const filteredUsers = users
-    .filter(user => {
-      // Status filter
-      if (statusFilter !== "all" && user.status !== statusFilter) return false;
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return user.name.toLowerCase().includes(query) || 
-               user.email.toLowerCase().includes(query);
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      // Pending first, then by date (newest first)
-      if (a.status === 'pending' && b.status !== 'pending') return -1;
-      if (a.status !== 'pending' && b.status === 'pending') return 1;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    });
-
-  const getStatusBadge = (status: string, isActive: boolean | null) => {
-    const variants = {
-      pending: "bg-yellow-100 text-yellow-800",
-      approved: isActive === false ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800", 
-      rejected: "bg-red-100 text-red-800",
-    };
-    
-    const labels = {
-      pending: "Pendente",
-      approved: isActive === false ? "Inativo" : "Ativo",
-      rejected: "Rejeitado",
-    };
-
-    return (
-      <Badge className={variants[status as keyof typeof variants] || "bg-gray-100 text-gray-800"}>
-        {labels[status as keyof typeof labels] || status}
-      </Badge>
-    );
+  const handleApprove = (userId: string, status: "approved" | "rejected") => {
+    const verb = status === "approved" ? "aprovar" : "rejeitar";
+    if (window.confirm(`Tem certeza que deseja ${verb} este usuário?`)) approveUserMutation.mutate({ userId, status });
   };
 
-  const getRoleBadge = (role: string) => {
-    const config = {
-      admin: { bg: "bg-purple-100 text-purple-800", label: "Administrador" },
-      production: { bg: "bg-blue-100 text-blue-800", label: "Produção" },
-      function_area: { bg: "bg-teal-100 text-teal-800", label: "Área de Função" },
-      purchasing: { bg: "bg-orange-100 text-orange-800", label: "Compras" },
-      financial: { bg: "bg-emerald-100 text-emerald-800", label: "Financeiro" },
-    };
-    const roleConfig = config[role as keyof typeof config] || { bg: "bg-gray-100 text-gray-800", label: role };
-    return <Badge className={roleConfig.bg}>{roleConfig.label}</Badge>;
-  };
+  // Counts (unfiltered)
+  const totalCount    = users.length;
+  const pendingCount  = users.filter(u => u.status === "pending").length;
+  const approvedCount = users.filter(u => u.status === "approved" && u.isActive !== false).length;
+  const inactiveCount = users.filter(u => u.status === "rejected" || u.isActive === false).length;
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  const filtered = useMemo(() => {
+    return users
+      .filter(u => {
+        if (statusFilter === "inactive") return u.status === "rejected" || u.isActive === false;
+        if (statusFilter !== "all" && u.status !== statusFilter) return false;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.status === "pending" && b.status !== "pending") return -1;
+        if (a.status !== "pending" && b.status === "pending") return 1;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+  }, [users, statusFilter, searchQuery]);
 
-  const getAvatarColor = (name: string) => {
-    const colors = [
-      "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", 
-      "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-red-500"
-    ];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const setFilter = (val: string) => { setStatusFilter(val); setPage(1); };
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/4"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-muted rounded"></div>
-            ))}
-          </div>
+      <div className="space-y-4 animate-pulse">
+        <div className="h-10 bg-slate-100 rounded-xl w-1/3" />
+        <div className="grid grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
         </div>
+        {[...Array(6)].map((_, i) => <div key={i} className="h-14 bg-slate-50 rounded-xl" />)}
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Gerenciamento de Usuários</h1>
-        
-        {/* Search */}
-        <div className="flex gap-4 mb-4 items-center">
+    <TooltipProvider>
+      <div className="space-y-5">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-base font-bold text-slate-800">Gerenciamento de Usuários</h1>
+            <p className="text-xs text-slate-400 mt-0.5">Aprove, edite e gerencie contas de acesso ao sistema</p>
+          </div>
+          <button
+            onClick={() => setLocation("/user-registration")}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+          >
+            <UserPlus className="w-3.5 h-3.5" /> Novo Usuário
+          </button>
+        </div>
+
+        {/* ── Metric cards ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard label="Total" value={totalCount} valueColor="text-slate-800" active={statusFilter === "all"} onClick={() => setFilter("all")} />
+          <MetricCard label="Pendentes" value={pendingCount} valueColor="text-amber-600" active={statusFilter === "pending"} onClick={() => setFilter("pending")} />
+          <MetricCard label="Aprovados" value={approvedCount} valueColor="text-emerald-600" active={statusFilter === "approved"} onClick={() => setFilter("approved")} />
+          <MetricCard label="Inativos" value={inactiveCount} valueColor="text-slate-400" active={statusFilter === "inactive"} onClick={() => setFilter("inactive")} />
+        </div>
+
+        {/* ── Search ── */}
+        <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               placeholder="Buscar por nome ou e-mail..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+              className="pl-9 h-9 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
               data-testid="input-search-users"
             />
             {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
+              <button onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
-          {(searchQuery || statusFilter !== 'all') && (
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              Limpar filtros
-            </Button>
+          {(searchQuery || statusFilter !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setFilter("all"); }}
+              className="flex items-center gap-1 h-9 px-3 text-xs text-slate-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+              <X className="w-3 h-3" /> Limpar
+            </button>
           )}
-          <div className="text-sm text-gray-500 ml-auto">
-            {filteredUsers.length} de {users.length} usuários
-          </div>
+          <span className="text-xs text-slate-400 ml-auto tabular-nums">
+            {filtered.length} de {users.length} usuários
+          </span>
         </div>
 
-        {/* Summary Cards - Clickable */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div 
-            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' : 'bg-white border-gray-200'}`}
-            onClick={() => setStatusFilter('all')}
-          >
-            <div className="text-sm font-medium text-gray-600">Total</div>
-            <div className="text-2xl font-bold text-gray-900">{users.length}</div>
-          </div>
-          <div 
-            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-yellow-300' : ''} bg-yellow-50 border-yellow-200`}
-            onClick={() => setStatusFilter('pending')}
-          >
-            <div className="text-sm font-medium text-yellow-600">Pendentes</div>
-            <div className="text-2xl font-bold text-yellow-900">
-              {users.filter(u => u.status === 'pending').length}
-            </div>
-          </div>
-          <div 
-            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'approved' ? 'ring-2 ring-green-300' : ''} bg-green-50 border-green-200`}
-            onClick={() => setStatusFilter('approved')}
-          >
-            <div className="text-sm font-medium text-green-600">Aprovados</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {users.filter(u => u.status === 'approved' && u.isActive !== false).length}
-            </div>
-          </div>
-          <div 
-            className={`p-4 rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md ${statusFilter === 'rejected' ? 'ring-2 ring-red-300' : ''} bg-red-50 border-red-200`}
-            onClick={() => setStatusFilter('rejected')}
-          >
-            <div className="text-sm font-medium text-red-600">Inativos/Rejeitados</div>
-            <div className="text-2xl font-bold text-red-900">
-              {users.filter(u => u.status === 'rejected' || u.isActive === false).length}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Usuário
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  E-mail
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Função
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Data de Cadastro
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="text-gray-500">
-                      {statusFilter === "all" ? "Nenhum usuário cadastrado" : `Nenhum usuário ${statusFilter === "pending" ? "pendente" : statusFilter === "approved" ? "aprovado" : "rejeitado"} encontrado`}
-                    </div>
-                  </td>
+        {/* ── Table ── */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-gray-100">
+                  <th className="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Usuário</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">E-mail</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Função</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cadastro</th>
+                  <th className="text-right px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ações</th>
                 </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr 
-                    key={user.id} 
-                    className={`hover:bg-gray-50 ${user.isActive === false ? 'bg-gray-100' : ''}`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full ${getAvatarColor(user.name)} flex items-center justify-center text-white text-sm font-medium`}>
-                          {getInitials(user.name)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium text-gray-900" data-testid={`text-user-name-${user.id}`}>
-                              {user.name}
-                            </div>
-                            {user.mustChangePassword && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Senha foi resetada pelo admin. Usuário deve trocar no próximo login.</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                          {user.area && (
-                            <div className="text-xs text-gray-500">{user.area}</div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900" data-testid={`text-user-email-${user.id}`}>
-                        {user.email}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getRoleBadge(user.role)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(user.status, user.isActive)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {new Date(user.createdAt || '').toLocaleDateString('pt-BR')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        {/* Edit button for all users */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setEditingUser(user)}
-                                className="text-gray-600 hover:text-gray-900"
-                                data-testid={`button-edit-${user.id}`}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Editar Usuário</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        {/* Pending users: approve/reject */}
-                        {user.status === 'pending' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleApproveUser(user.id, 'approved')}
-                              className="text-green-600 hover:text-green-900"
-                              data-testid={`button-approve-${user.id}`}
-                              disabled={approveUserMutation.isPending}
-                              title="Aprovar Usuário"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleApproveUser(user.id, 'rejected')}
-                              className="text-red-600 hover:text-red-900"
-                              data-testid={`button-reject-${user.id}`}
-                              disabled={approveUserMutation.isPending}
-                              title="Rejeitar Usuário"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-
-                        {/* Rejected users: reactivate */}
-                        {user.status === 'rejected' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleApproveUser(user.id, 'approved')}
-                            className="text-green-600 hover:text-green-900"
-                            data-testid={`button-reactivate-${user.id}`}
-                            disabled={approveUserMutation.isPending}
-                            title="Reativar Usuário"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                          </Button>
-                        )}
-
-                        {/* Approved users: reset password and toggle active */}
-                        {user.status === 'approved' && (
-                          <>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleResetPassword(user.id)}
-                                    className="text-blue-600 hover:text-blue-900"
-                                    data-testid={`button-reset-pwd-${user.id}`}
-                                  >
-                                    <Key className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Resetar Senha</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => toggleActiveMutation.mutate(user.id)}
-                                    className={user.isActive !== false ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900 ring-2 ring-green-500"}
-                                    data-testid={`button-toggle-active-${user.id}`}
-                                  >
-                                    {user.isActive !== false ? <UserMinus className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{user.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </>
-                        )}
-                      </div>
+              </thead>
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-slate-500">Nenhum usuário encontrado</p>
+                      <p className="text-xs text-slate-400 mt-1">Ajuste os filtros ou adicione um novo usuário.</p>
                     </td>
                   </tr>
-                ))
+                ) : (
+                  paginated.map((u, idx) => {
+                    const isInactive = u.isActive === false || u.status === "rejected";
+                    const isPending  = u.status === "pending";
+                    const isEven = idx % 2 === 1;
+                    const col = avatarColor(u.name);
+
+                    return (
+                      <tr
+                        key={u.id}
+                        className={`border-b border-gray-50 transition-colors ${
+                          isPending
+                            ? "bg-amber-50/40 hover:bg-amber-50/70"
+                            : isEven
+                            ? "bg-slate-50/40 hover:bg-blue-50/40"
+                            : "bg-white hover:bg-blue-50/40"
+                        } ${isInactive ? "opacity-75" : ""}`}
+                      >
+                        {/* Usuário */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ${col}`}>
+                              {initials(u.name)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-800 text-sm leading-tight" data-testid={`text-user-name-${u.id}`}>
+                                  {u.name}
+                                </span>
+                                {u.mustChangePassword && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>Deve trocar a senha no próximo login</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                              {u.area && <p className="text-[11px] text-slate-400 mt-0.5">{u.area}</p>}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* E-mail */}
+                        <td className="px-4 py-4">
+                          <span className="font-mono text-xs text-slate-500" data-testid={`text-user-email-${u.id}`}>
+                            {u.email}
+                          </span>
+                        </td>
+
+                        {/* Função */}
+                        <td className="px-4 py-4">
+                          <RoleBadge role={u.role} />
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-4">
+                          <StatusPill status={u.status} isActive={u.isActive} />
+                        </td>
+
+                        {/* Data de Cadastro */}
+                        <td className="px-4 py-4 text-xs text-slate-400 tabular-nums">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString("pt-BR") : "—"}
+                        </td>
+
+                        {/* Ações */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => setEditingUser(u)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  data-testid={`button-edit-${u.id}`}
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar Usuário</TooltipContent>
+                            </Tooltip>
+
+                            {/* Pending: approve / reject */}
+                            {isPending && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleApprove(u.id, "approved")}
+                                      disabled={approveUserMutation.isPending}
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
+                                      data-testid={`button-approve-${u.id}`}
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Aprovar</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleApprove(u.id, "rejected")}
+                                      disabled={approveUserMutation.isPending}
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                                      data-testid={`button-reject-${u.id}`}
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Rejeitar</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+
+                            {/* Rejected: reactivate */}
+                            {u.status === "rejected" && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleApprove(u.id, "approved")}
+                                    disabled={approveUserMutation.isPending}
+                                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
+                                    data-testid={`button-reactivate-${u.id}`}
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Reativar</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {/* Approved: reset password + toggle active */}
+                            {u.status === "approved" && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleResetPassword(u.id)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                                      data-testid={`button-reset-pwd-${u.id}`}
+                                    >
+                                      <Key className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Resetar Senha</TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => toggleActiveMutation.mutate(u.id)}
+                                      className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+                                        u.isActive !== false
+                                          ? "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                          : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                                      }`}
+                                      data-testid={`button-toggle-active-${u.id}`}
+                                    >
+                                      {u.isActive !== false
+                                        ? <UserMinus className="w-3.5 h-3.5" />
+                                        : <UserCheck className="w-3.5 h-3.5" />}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {u.isActive !== false ? "Desativar Usuário" : "Reativar Usuário"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Footer / Pagination ── */}
+          {filtered.length > 0 && (
+            <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                Exibindo{" "}
+                <span className="font-medium text-slate-600">
+                  {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}
+                </span>{" "}
+                de{" "}
+                <span className="font-medium text-slate-600">{filtered.length}</span> usuários
+              </p>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs text-slate-500 px-2 tabular-nums">{page} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
+
+        {/* User Edit Modal */}
+        <UserEditModal
+          isOpen={editingUser !== null}
+          onClose={() => setEditingUser(null)}
+          user={editingUser}
+        />
       </div>
-      
-      {/* User Edit Modal */}
-      <UserEditModal
-        isOpen={editingUser !== null}
-        onClose={() => setEditingUser(null)}
-        user={editingUser}
-      />
-    </div>
+    </TooltipProvider>
   );
 }
