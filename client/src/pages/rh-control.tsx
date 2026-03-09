@@ -662,163 +662,121 @@ export default function RhControlPage() {
     const borderStyle = getLeftBorderStyle(item);
     const colName = item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'A Definir';
 
-    const urgencyTimeBadge = () => {
-      const t = timeInStatus(item.lastActivityDate);
-      if (days > 30) return (
-        <span className="flex items-center gap-0.5 text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
-          <AlertTriangle className="w-2.5 h-2.5" /> {t}
-        </span>
-      );
-      if (days > 7) return (
-        <span className="flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-          <Clock className="w-2.5 h-2.5" /> {t}
-        </span>
-      );
-      if (days > 0) return (
-        <span className="flex items-center gap-0.5 text-[9px] font-medium text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
-          <Clock className="w-2.5 h-2.5" /> {t}
-        </span>
-      );
-      return <span className="text-[9px] text-gray-400">{t}</span>;
-    };
-
     return (
       <div
         key={item.id}
-        className={`rounded-xl border overflow-hidden transition-all ${borderStyle.bg} ${borderStyle.border} border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-sm`}
+        className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow transition-shadow"
       >
-        {/* Card header — clickable */}
+        {/* Card row */}
         <div
-          className="flex items-center gap-3 px-4 py-3 cursor-pointer group"
+          className="flex items-center gap-3 px-4 py-3 cursor-pointer"
           onClick={() => toggleExpand(item.id)}
         >
           {/* Avatar */}
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black flex-shrink-0 shadow-sm ${avatarColorRh(colName)}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ${avatarColorRh(colName)}`}>
             {initialsRh(colName)}
           </div>
 
           {/* Name + meta */}
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                {colName}
-              </span>
-              {item.collaboratorId && item.planned?.collaboratorType && (
-                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${item.planned.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
-                  {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                </span>
-              )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{colName}</span>
               {isResubmitted && (
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-[9px] font-semibold text-violet-700">
-                  <RotateCcw className="w-2.5 h-2.5" /> Reenviado
-                </span>
+                <span className="text-[9px] text-slate-400 font-medium">· Reenviado</span>
               )}
             </div>
-            <p className="text-[10px] text-gray-400 truncate">
+            <p className="text-[11px] text-slate-400 truncate mt-0.5">
               {item.event.name} · {getFunctionName(item.functionId)}
+              {item.planned?.collaboratorType && (
+                <span className="ml-1 text-slate-300">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
+              )}
             </p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${config.badgeCls}`}>
-                <config.icon className="w-2.5 h-2.5" />
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${config.badgeCls}`}>
                 {config.shortLabel}
-              </div>
-              {urgencyTimeBadge()}
+              </span>
+              {days > 30 ? (
+                <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5">
+                  <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400">{timeInStatus(item.lastActivityDate)}</span>
+              )}
             </div>
           </div>
 
-          {/* Right side */}
+          {/* Action button + chevron */}
           <div className="flex items-center gap-2 shrink-0">
-            {needsRhAction && navTarget && !isExpanded && (
+            {needsRhAction && navTarget && (
               <button
-                className={`flex items-center gap-1.5 text-[10px] font-bold h-7 px-3 rounded-xl text-white shadow-sm transition-all ${
-                  item.status === "prestacao_recebida"
-                    ? "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
-                    : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                }`}
+                className="text-[11px] font-semibold h-7 px-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                 onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
               >
-                <Eye className="w-3 h-3" />
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
               </button>
             )}
-            <div className={`w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </div>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         </div>
 
         {/* Expanded body */}
         {isExpanded && (
-          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-3 space-y-3 bg-gray-50/40 dark:bg-gray-900/20">
-            <div className="py-2 px-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-3 space-y-3">
+            <div className="px-2 py-2 rounded-lg bg-slate-50 dark:bg-gray-900/30">
               {renderTimeline(item)}
             </div>
 
             {item.planned && (
               <>
-                {item.actual && item.planned && (() => {
+                {item.actual && (() => {
                   const diff = item.actual.totalValue - item.planned.totalValue;
                   const isNegative = diff < 0;
                   const isZero = diff === 0;
-                  const pct = item.planned.totalValue > 0
-                    ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1)
-                    : "0";
+                  const pct = item.planned.totalValue > 0 ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1) : "0";
                   return (
-                    <div className={`rounded-xl border-2 p-4 text-center ${
-                      isZero ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                      : isNegative ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-700"
-                      : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-700"
-                    }`}>
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-1.5">Diferença apurada</p>
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        {!isZero && (isNegative ? <TrendingDown className="w-5 h-5 text-emerald-500" /> : <TrendingUp className="w-5 h-5 text-red-500" />)}
-                        <p className={`text-2xl font-black tabular-nums ${isZero ? "text-gray-400" : isNegative ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}`}>
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/20 px-4 py-3 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">Diferença apurada</span>
+                      <div className="text-right">
+                        <p className={`text-base font-bold tabular-nums ${isZero ? "text-slate-400" : isNegative ? "text-emerald-600" : "text-red-600"}`}>
                           {isZero ? "R$ 0,00" : `${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
                         </p>
+                        {!isZero && (
+                          <p className="text-[10px] text-slate-400">{isNegative ? `Economia de ${pct}%` : `+${pct}% do planejado`}</p>
+                        )}
                       </div>
-                      <p className={`text-xs font-semibold ${isZero ? "text-gray-400" : isNegative ? "text-emerald-600" : "text-red-600"}`}>
-                        {isZero ? "Valores idênticos ao planejado" : isNegative ? `Economia de ${pct}%` : `Acima do planejado (+${pct}%)`}
-                      </p>
                     </div>
                   );
                 })()}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-blue-100 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/20 p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[9px] uppercase text-blue-400 font-bold tracking-wider">Planejado</p>
-                      <span className="text-sm font-black tabular-nums text-blue-700 dark:text-blue-300">{fmt(item.planned.totalValue)}</span>
-                    </div>
-                    <div className="space-y-0.5 text-[10px]">
-                      <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-blue-600/70">{item.planned.dailyQuantity}x {fmt(item.planned.dailyValue)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-400">Alimentação</span><span className="tabular-nums text-blue-600/70">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-400">Mobilidade</span><span className="tabular-nums text-blue-600/70">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Planejado</p>
+                    <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-1.5">{fmt(item.planned.totalValue)}</p>
+                    <div className="space-y-0.5 text-[10px] text-slate-400">
+                      <div className="flex justify-between"><span>Diárias</span><span className="tabular-nums">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
+                      <div className="flex justify-between"><span>Alimentação</span><span className="tabular-nums">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                      <div className="flex justify-between"><span>Mobilidade</span><span className="tabular-nums">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
                     </div>
                   </div>
 
                   {item.actual ? (
-                    <div className="rounded-xl border border-purple-100 dark:border-purple-900 bg-purple-50/30 dark:bg-purple-950/20 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] uppercase text-purple-400 font-bold tracking-wider">Realizado</p>
-                        <span className="text-sm font-black tabular-nums text-purple-700 dark:text-purple-300">{fmt(item.actual.totalValue)}</span>
-                      </div>
-                      <div className="space-y-0.5 text-[10px]">
-                        <div className="flex justify-between"><span className="text-gray-400">Diárias</span><span className="tabular-nums text-purple-600/70">{item.actual.dailyQuantity}x {fmt(item.actual.dailyValue)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Alimentação</span><span className="tabular-nums text-purple-600/70">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Mobilidade</span><span className="tabular-nums text-purple-600/70">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Realizado</p>
+                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-1.5">{fmt(item.actual.totalValue)}</p>
+                      <div className="space-y-0.5 text-[10px] text-slate-400">
+                        <div className="flex justify-between"><span>Diárias</span><span className="tabular-nums">{item.actual.dailyQuantity}× {fmt(item.actual.dailyValue)}</span></div>
+                        <div className="flex justify-between"><span>Alimentação</span><span className="tabular-nums">{fmt(item.actual.weekdayLunch + item.actual.weekdayDinner + item.actual.weekendLunch + item.actual.weekendDinner)}</span></div>
+                        <div className="flex justify-between"><span>Mobilidade</span><span className="tabular-nums">{fmt(item.actual.mobility + item.actual.transport)}</span></div>
                       </div>
                       {item.actual.changeReason && (
-                        <div className="mt-2 p-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-start gap-1">
-                          <MessageSquare className="w-2.5 h-2.5 text-gray-400 mt-0.5 shrink-0" />
-                          <p className="text-[9px] text-gray-500 dark:text-gray-400">{item.actual.changeReason}</p>
-                        </div>
+                        <p className="text-[9px] text-slate-400 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 italic">{item.actual.changeReason}</p>
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 p-3 flex items-center justify-center">
+                    <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-3 flex items-center justify-center">
                       <div className="text-center">
                         <FileText className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                        <p className="text-[9px] text-gray-400">Realizado não preenchido</p>
+                        <p className="text-[10px] text-slate-400">Realizado não preenchido</p>
                       </div>
                     </div>
                   )}
@@ -827,34 +785,24 @@ export default function RhControlPage() {
             )}
 
             {item.actual?.rhComment && (
-              <div className={`p-2.5 rounded-xl border flex items-start gap-1.5 ${
-                item.status === 'aprovada_faturamento' ? 'bg-emerald-50/60 border-emerald-100 dark:border-emerald-800' :
-                item.status === 'recusada' ? 'bg-red-50/60 border-red-100 dark:border-red-800' :
-                'bg-orange-50/60 border-orange-100 dark:border-orange-800'
-              }`}>
-                <MessageSquare className={`w-3 h-3 mt-0.5 shrink-0 ${item.status === 'aprovada_faturamento' ? 'text-emerald-400' : item.status === 'recusada' ? 'text-red-400' : 'text-orange-400'}`} />
-                <div>
-                  <span className={`text-[9px] uppercase font-bold tracking-wider ${item.status === 'aprovada_faturamento' ? 'text-emerald-500' : item.status === 'recusada' ? 'text-red-500' : 'text-orange-500'}`}>Comentário do RH</span>
-                  <p className={`text-[10px] mt-0.5 ${item.status === 'aprovada_faturamento' ? 'text-emerald-700 dark:text-emerald-300' : item.status === 'recusada' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'}`}>{item.actual.rhComment}</p>
-                  {item.actual.rhActionAt && (
-                    <span className="text-[9px] text-gray-400 mt-1 block">{formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}</span>
-                  )}
-                </div>
+              <div className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-700">
+                <p className="text-[10px] font-semibold text-slate-400 mb-1">Comentário do RH</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{item.actual.rhComment}</p>
+                {item.actual.rhActionAt && (
+                  <p className="text-[10px] text-slate-400 mt-1">{formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}</p>
+                )}
               </div>
             )}
 
             {navTarget && (
               <button
                 onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                  item.status === "prestacao_recebida"
-                    ? "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md shadow-sky-200 dark:shadow-sky-900/30"
-                    : item.status === "planejamento_pendente"
-                    ? "bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white shadow-md shadow-amber-100"
-                    : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50"
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                  needsRhAction
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "border border-gray-200 dark:border-gray-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700"
                 }`}
               >
-                <navTarget.icon className="w-3.5 h-3.5" />
                 {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
@@ -870,203 +818,135 @@ export default function RhControlPage() {
   const progressPct = totalItems > 0 ? Math.round(concludedCount / totalItems * 100) : 0;
 
   return (
-    <div className="space-y-5 max-w-6xl mx-auto pb-24">
+    <div className="space-y-5 max-w-5xl mx-auto pb-24">
+
       {/* ── Page header ── */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-md shadow-sky-200 dark:shadow-sky-900/40">
-          <Shield className="w-5 h-5 text-white" />
-        </div>
+        <Shield className="w-5 h-5 text-slate-400" />
         <div>
-          <h1 className="text-xl font-black text-gray-900 dark:text-gray-100">Controle de Prestações de Contas</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Fluxo: Escalação → Planejado → Realizado → Aprovação</p>
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Controle de Prestações de Contas</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação</p>
         </div>
       </div>
 
       {/* ── Metric cards ── */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Pendências do RH */}
-        <div className="rounded-2xl border-2 border-red-200 dark:border-red-800 bg-gradient-to-br from-red-50 to-amber-50/40 dark:from-red-950/30 dark:to-amber-950/10 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-red-500" />
+        {[
+          {
+            label: "Pendências do RH",
+            icon: Shield,
+            statuses: ["planejamento_pendente", "prestacao_recebida"] as PrestacaoStatus[],
+            accent: true,
+          },
+          {
+            label: "Em andamento",
+            icon: Clock,
+            statuses: ["aguardando_prestacao", "devolvida_para_ajuste"] as PrestacaoStatus[],
+            accent: false,
+          },
+          {
+            label: "Finalizadas",
+            icon: CheckCircle,
+            statuses: ["aprovada_faturamento", "recusada"] as PrestacaoStatus[],
+            accent: false,
+          },
+        ].map(({ label, icon: Icon, statuses: cardStatuses, accent }) => (
+          <div key={label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Icon className="w-4 h-4 text-slate-400" />
+              <span className="text-xs font-medium text-slate-500">{label}</span>
+              {accent && rhActionCount > 0 && (
+                <span className="ml-auto text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">{rhActionCount}</span>
+              )}
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400">Pendências do RH</span>
-            {rhActionCount > 0 && (
-              <span className="ml-auto text-[9px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">{rhActionCount}</span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["planejamento_pendente", "prestacao_recebida"] as PrestacaoStatus[]).map(status => {
-              const cfg = statusConfig[status];
-              const count = statusCounts[status] || 0;
-              const isActive = filterStatus === status;
-              return (
-                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-xl border p-3 text-left transition-all relative group ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
-                >
-                  {count > 0 && !isActive && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-pulse">{count}</span>}
-                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
-                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
-                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Em andamento */}
-        <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-sky-50/40 dark:from-blue-950/30 dark:to-sky-950/10 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-blue-500" />
+            <div className="grid grid-cols-2 gap-2">
+              {cardStatuses.map(status => {
+                const cfg = statusConfig[status];
+                const count = statusCounts[status] || 0;
+                const isActive = filterStatus === status;
+                return (
+                  <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
+                    className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1` : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                  >
+                    <span className={`text-xl font-bold tabular-nums block mb-0.5 ${accent && count > 0 ? 'text-red-600' : 'text-slate-800 dark:text-slate-200'}`}>
+                      {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{cfg.shortLabel}</span>
+                  </button>
+                );
+              })}
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Em Andamento</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["aguardando_prestacao", "devolvida_para_ajuste"] as PrestacaoStatus[]).map(status => {
-              const cfg = statusConfig[status];
-              const count = statusCounts[status] || 0;
-              const isActive = filterStatus === status;
-              return (
-                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-xl border p-3 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
-                >
-                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
-                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
-                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Finalizadas */}
-        <div className="rounded-2xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/10 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Finalizadas</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["aprovada_faturamento", "recusada"] as PrestacaoStatus[]).map(status => {
-              const cfg = statusConfig[status];
-              const count = statusCounts[status] || 0;
-              const isActive = filterStatus === status;
-              return (
-                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-xl border p-3 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:shadow-sm hover:border-gray-200'}`}
-                >
-                  <cfg.icon className={`w-4 h-4 mb-1.5 ${cfg.iconColor}`} />
-                  <span className={`text-2xl font-black tabular-nums block ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
-                    {isLoading ? <span className="inline-block w-6 h-6 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className={`text-[9px] font-semibold uppercase tracking-wider ${isActive ? cfg.color : 'text-gray-400'}`}>{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ── Pending action alert ── */}
+      {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="rounded-2xl border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 px-5 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
-                <ClipboardList className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg border-l-2 border-l-amber-400 border border-amber-100 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
+            </p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden max-w-[160px]">
+                <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-black text-gray-900 dark:text-gray-100">Pendências aguardando ação do RH</p>
-                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                  {rhPlanPendingCount > 0 && (
-                    <span className="text-[11px] text-gray-600 dark:text-gray-300">
-                      <span className="font-bold text-amber-600">{rhPlanPendingCount}</span> planejamento{rhPlanPendingCount !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {rhReceivedCount > 0 && (
-                    <span className="text-[11px] text-gray-600 dark:text-gray-300">
-                      <span className="font-bold text-blue-600">{rhReceivedCount}</span> análise{rhReceivedCount !== 1 ? 's' : ''} pendente{rhReceivedCount !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-                {totalItems > 0 && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
-                    </div>
-                    <span className="text-[9px] font-bold text-gray-400 whitespace-nowrap">{progressPct}% concluído</span>
-                  </div>
-                )}
-              </div>
+              <span className="text-[10px] text-slate-400">{progressPct}% concluído</span>
             </div>
-            <button
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-sky-200 dark:shadow-sky-900/30 transition-all shrink-0"
-              onClick={() => {
-                setFilterStatus("rh_action");
-                setShowConcluded(false);
-                setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-              }}
-            >
-              Ver pendências ({rhActionCount})
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
+          <button
+            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors shrink-0"
+            onClick={() => {
+              setFilterStatus("rh_action");
+              setShowConcluded(false);
+              setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+            }}
+          >
+            Ver pendências
+          </button>
         </div>
       )}
 
       {/* ── Search + filters ── */}
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               placeholder="Buscar por colaborador..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="h-9 pl-9 text-xs rounded-xl border-gray-200 dark:border-gray-700"
+              className="h-8 pl-9 text-xs border-gray-200 dark:border-gray-700"
             />
           </div>
 
-          {/* Concluídos switch */}
           <button
-            className={`h-9 px-3 text-xs rounded-xl border flex items-center gap-2 transition-all ${
-              showConcluded ? 'bg-sky-50 border-sky-300 text-sky-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300'
+            className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors ${
+              showConcluded ? 'border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-gray-700 text-slate-500 hover:border-gray-300 bg-white dark:bg-gray-800'
             }`}
             onClick={() => setShowConcluded(!showConcluded)}
           >
-            <div className={`w-8 h-4.5 rounded-full relative transition-all flex items-center ${showConcluded ? 'bg-sky-500' : 'bg-gray-200 dark:bg-gray-600'}`} style={{height:'18px'}}>
-              <div className={`w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}>
+              <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
             </div>
             Concluídos
-            {concludedCount > 0 && (
-              <span className={`text-[9px] rounded-full min-w-[18px] h-4.5 flex items-center justify-center font-bold px-1 ${showConcluded ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-500'}`} style={{height:'18px'}}>
-                {concludedCount}
-              </span>
-            )}
+            {concludedCount > 0 && <span className="text-[9px] text-slate-400">({concludedCount})</span>}
           </button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className={`h-9 text-xs gap-1.5 rounded-xl ${hasActiveFilters ? 'border-sky-300 text-sky-700 bg-sky-50' : ''}`}
+          <Button variant="outline" size="sm"
+            className={`h-8 text-xs gap-1.5 ${hasActiveFilters ? 'border-blue-300 text-blue-700 bg-blue-50' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="w-3.5 h-3.5" />
             Filtros
             {hasActiveFilters && (
-              <span className="bg-sky-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              <span className="bg-blue-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {[filterEvent !== "all", filterFunction !== "all", filterCollaborator !== "all", filterStatus !== "all"].filter(Boolean).length}
               </span>
             )}
           </Button>
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-9 text-xs text-gray-400 hover:text-gray-600 rounded-xl"
+            <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-400 hover:text-slate-600"
               onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
               Limpar
             </Button>
@@ -1076,21 +956,21 @@ export default function RhControlPage() {
         {showFilters && (
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={filterEvent} onValueChange={setFilterEvent}>
-              <SelectTrigger className="h-8 text-xs w-48 border-gray-200 rounded-xl"><SelectValue placeholder="Evento" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-48 border-gray-200"><SelectValue placeholder="Evento" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
                 {events?.filter(e => eventIdsWithInclusions.has(e.id)).map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="h-8 text-xs w-40 border-gray-200 rounded-xl"><SelectValue placeholder="Função" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-40 border-gray-200"><SelectValue placeholder="Função" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as funções</SelectItem>
                 {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterCollaborator} onValueChange={setFilterCollaborator}>
-              <SelectTrigger className="h-8 text-xs w-48 border-gray-200 rounded-xl"><SelectValue placeholder="Colaborador" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-48 border-gray-200"><SelectValue placeholder="Colaborador" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os colaboradores</SelectItem>
                 <SelectItem value="definido">Com colaborador</SelectItem>
@@ -1098,7 +978,7 @@ export default function RhControlPage() {
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as PrestacaoStatus)}>
-              <SelectTrigger className="h-8 text-xs w-52 border-gray-200 rounded-xl"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs w-52 border-gray-200"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="planejamento_pendente">Aguardando planejamento</SelectItem>
@@ -1114,68 +994,56 @@ export default function RhControlPage() {
       </div>
 
       {isRhFilterActive && (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800">
-          <Shield className="w-3.5 h-3.5 text-sky-500" />
-          <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
-            Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
-          </span>
-          <Button variant="ghost" size="sm" className="ml-auto h-6 text-[10px] text-sky-500 hover:text-sky-700" onClick={() => setFilterStatus("all")}>
-            Limpar filtro
-          </Button>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-xs text-slate-500">
+          <Shield className="w-3.5 h-3.5 text-slate-400" />
+          Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
+          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => setFilterStatus("all")}>Limpar</button>
         </div>
       )}
 
       {/* ── Content ── */}
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-2xl border border-gray-200 bg-white dark:bg-gray-800 p-6 animate-pulse">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 bg-gray-200 rounded-xl" />
-                <div className="space-y-1.5 flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-40" />
-                  <div className="h-3 bg-gray-100 rounded w-56" />
-                </div>
+            <div key={i} className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 px-4 py-3 animate-pulse flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-gray-200 rounded w-32" />
+                <div className="h-2.5 bg-gray-100 rounded w-48" />
               </div>
             </div>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div id="rh-listing" className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
-            <Shield className="w-6 h-6 text-gray-300 dark:text-gray-500" />
-          </div>
-          <p className="font-bold text-gray-500 dark:text-gray-400">Nenhum item encontrado</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+        <div id="rh-listing" className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
+          <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm font-medium text-slate-500">Nenhum item encontrado</p>
+          <p className="text-xs text-slate-400 mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
              showConcluded ? "Nenhum item concluído ainda." :
-             "Todos os itens estão em dia. Use 'Concluídos' para ver os finalizados."}
+             "Todos os itens estão em dia. Ative 'Concluídos' para ver os finalizados."}
           </p>
           {hasActiveFilters && (
-            <Button variant="outline" size="sm" className="mt-3 text-xs rounded-xl"
+            <Button variant="outline" size="sm" className="mt-3 text-xs"
               onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
               Limpar filtros
             </Button>
           )}
         </div>
       ) : (
-        <div id="rh-listing" className="space-y-3">
+        <div id="rh-listing" className="space-y-2">
           {/* Section header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-sky-500" />
-              <h2 className="text-sm font-black text-gray-800 dark:text-gray-200">Por evento</h2>
-              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
-                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''}
-              </span>
-              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
-                {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Por evento</span>
+              <span className="text-[10px] text-slate-400">
+                {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              <button className="text-[10px] text-sky-500 hover:text-sky-700 font-semibold px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors" onClick={expandAllEvents}>Expandir tudo</button>
-              <span className="text-gray-300">·</span>
-              <button className="text-[10px] text-gray-400 hover:text-gray-600 font-semibold px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors" onClick={collapseAllEvents}>Recolher tudo</button>
+            <div className="flex items-center gap-3">
+              <button className="text-[10px] text-blue-600 hover:text-blue-800 font-medium" onClick={expandAllEvents}>Expandir tudo</button>
+              <button className="text-[10px] text-slate-400 hover:text-slate-600 font-medium" onClick={collapseAllEvents}>Recolher tudo</button>
             </div>
           </div>
 
@@ -1184,41 +1052,35 @@ export default function RhControlPage() {
             const isOpen = expandedEvents.has(group.event.id);
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             return (
-              <div key={group.event.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+              <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50/80 dark:hover:bg-gray-750 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-7 h-7 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-                    </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
-                      <p className="text-sm font-black text-gray-800 dark:text-gray-200 truncate">{group.event.name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className="text-[10px] text-gray-400">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{group.event.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}
                         {group.actionNeeded > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                            {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
-                          </span>
+                          <span className="ml-1.5 text-amber-600 font-semibold">{group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}</span>
                         )}
-                      </div>
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1">
-                      {statuses.prestacao_recebida ? <span className="w-2.5 h-2.5 rounded-full bg-blue-500" title={`${statuses.prestacao_recebida} p/ análise`} /> : null}
-                      {statuses.planejamento_pendente ? <span className="w-2.5 h-2.5 rounded-full bg-amber-400" title={`${statuses.planejamento_pendente} planejamento`} /> : null}
-                      {statuses.devolvida_para_ajuste ? <span className="w-2.5 h-2.5 rounded-full bg-orange-400" title={`${statuses.devolvida_para_ajuste} devolvida(s)`} /> : null}
-                      {statuses.aguardando_prestacao ? <span className="w-2.5 h-2.5 rounded-full bg-slate-400" title={`${statuses.aguardando_prestacao} aguardando`} /> : null}
-                      {statuses.aprovada_faturamento ? <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title={`${statuses.aprovada_faturamento} aprovada(s)`} /> : null}
-                      {statuses.recusada ? <span className="w-2.5 h-2.5 rounded-full bg-red-500" title={`${statuses.recusada} recusada(s)`} /> : null}
-                    </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-400" /> : null}
+                    {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-400" /> : null}
+                    {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-400" /> : null}
+                    {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-300" /> : null}
+                    {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-400" /> : null}
+                    {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-400" /> : null}
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2.5 space-y-2 bg-gray-50/40 dark:bg-gray-900/20">
+                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-slate-50/50 dark:bg-gray-900/20">
                     {group.items.map(item => renderPrestacaoCard(item))}
                   </div>
                 )}
