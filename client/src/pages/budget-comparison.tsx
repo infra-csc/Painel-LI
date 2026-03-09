@@ -273,7 +273,7 @@ export default function BudgetComparisonPage() {
         <div className={`flex items-center justify-between px-3 py-2 ${bgColor}`}>
           <div className="flex items-center gap-1.5">
             <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
-            <span className={`text-[10px] font-bold uppercase tracking-widest ${iconColor}`}>{title}</span>
+            <span className={`text-[10px] font-bold tracking-wide ${iconColor}`}>{title}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {hasAnyDiff && (
@@ -748,20 +748,6 @@ export default function BudgetComparisonPage() {
                       {/* Expanded body */}
                       {isExpanded && (
                         <div className="border-t-2 border-emerald-100 dark:border-emerald-900/60 bg-gray-50/60 dark:bg-gray-900/40">
-                          {/* Sub-header badges */}
-                          <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-                            <Badge variant="secondary" className="text-[9px] h-[16px] px-1.5">{getFunctionName(row.functionId)}</Badge>
-                            <Badge className={`text-[9px] h-[16px] px-1.5 ${row.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
-                              {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                            </Badge>
-                            {!p && <Badge className="text-[9px] h-[16px] px-1.5 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Sem planejado</Badge>}
-                            {hasDiff && !hasJustification && (
-                              <Badge className="text-[9px] h-[16px] px-1.5 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50 flex items-center gap-0.5">
-                                <AlertCircle className="w-2.5 h-2.5" /> Sem justificativa
-                              </Badge>
-                            )}
-                          </div>
-
                           <div className="p-4 space-y-3">
                             <CategoryBlock
                               title="Diárias"
@@ -900,7 +886,7 @@ export default function BudgetComparisonPage() {
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      className={`text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
+                      className={`text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-50'}`}
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -917,7 +903,7 @@ export default function BudgetComparisonPage() {
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      className={`text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
+                      className={`text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-50'}`}
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
