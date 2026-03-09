@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   BarChart3, CheckCircle, XCircle, RotateCcw,
   TrendingUp, TrendingDown, DollarSign,
@@ -347,7 +348,7 @@ export default function BudgetComparisonPage() {
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-gray-900 dark:text-gray-100">Comparativo Planejado × Realizado</h1>
+            <h1 className="text-lg font-black text-gray-900 dark:text-gray-100 whitespace-nowrap">Comparativo Planejado × Realizado</h1>
             <p className="text-xs text-gray-400 mt-0.5">Análise e aprovação do RH para faturamento</p>
           </div>
         </div>
@@ -503,12 +504,20 @@ export default function BudgetComparisonPage() {
               <p className={`text-2xl font-black tabular-nums ${totals.difference === 0 ? 'text-gray-500' : totals.difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
                 {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
               </p>
-              <p className={`text-[10px] mt-1 ${totals.difference === 0 ? 'text-gray-400' : totals.difference < 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia em relação ao previsto' : 'Acima do planejado'}
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <p className={`text-[10px] ${totals.difference === 0 ? 'text-gray-400' : totals.difference < 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia em relação ao previsto' : 'Acima do planejado'}
+                </p>
                 {totals.totalPlanned > 0 && totals.difference !== 0 && (
-                  <span className="ml-1 font-semibold">({Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%)</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    totals.difference < 0
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                  }`}>
+                    {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
+                  </span>
                 )}
-              </p>
+              </div>
             </div>
           </div>
 
@@ -886,29 +895,56 @@ export default function BudgetComparisonPage() {
               </p>
             </div>
             <div className="flex gap-2.5">
-              <Button
-                variant="outline"
-                className={`text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
-                onClick={() => setActionModal({ type: 'reject' })}
-                disabled={selectedItems.size === 0}
-              >
-                <XCircle className="w-4 h-4 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
-              </Button>
-              <Button
-                variant="outline"
-                className={`text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
-                onClick={() => setActionModal({ type: 'return' })}
-                disabled={selectedItems.size === 0}
-              >
-                <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
-              </Button>
-              <Button
-                className={`h-10 text-sm px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200 dark:shadow-emerald-900/30 text-white transition-all ${selectedItems.size > 0 ? 'animate-none' : 'opacity-40'}`}
-                onClick={() => setActionModal({ type: 'approve' })}
-                disabled={selectedItems.size === 0}
-              >
-                <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
+                      onClick={() => setActionModal({ type: 'reject' })}
+                      disabled={selectedItems.size === 0}
+                    >
+                      <XCircle className="w-4 h-4 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
+                    Rejeita a prestação — responsável não poderá editar novamente
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-40'}`}
+                      onClick={() => setActionModal({ type: 'return' })}
+                      disabled={selectedItems.size === 0}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
+                    Solicita correção — responsável pode editar e reenviar
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className={`h-10 text-sm px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200 dark:shadow-emerald-900/30 text-white transition-all ${selectedItems.size > 0 ? 'animate-none' : 'opacity-40'}`}
+                      onClick={() => setActionModal({ type: 'approve' })}
+                      disabled={selectedItems.size === 0}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
+                    Aprova e envia para faturamento
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
