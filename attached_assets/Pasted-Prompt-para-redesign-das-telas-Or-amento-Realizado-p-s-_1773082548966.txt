@@ -1,0 +1,83 @@
+Prompt para redesign das telas "Orçamento Realizado — pós envio para revisão":
+
+Redesign da tela de listagem e do modal de visualização somente leitura de prestação de contas já enviada para revisão, com foco em clareza comparativa entre planejado e realizado.
+Tela — Listagem pós-envio:
+
+Banner "Total Realizado" em gradiente roxo mais sofisticado, com três métricas visíveis: valor realizado em destaque grande, planejado em cinza abaixo e economia/divergência em badge colorido com ícone de seta (verde se abaixo, vermelho se acima do planejado)
+Card do colaborador redesenhado com layout em dois painéis: esquerdo para Diárias (com card interno em azul suave) e direito para Alimentação + Mobilidade empilhados
+Valores com divergência mostrados como: valor realizado bold + valor da diferença em vermelho/verde com sinal "-/+" ao lado
+Badges de status mais expressivos: "Enviado para revisão" em azul com ícone de relógio, "Divergência" em âmbar com ícone de alerta, "Bloqueado" em cinza com ícone de cadeado
+Footer com total realizado à esquerda e botão "Enviado para revisão" como status pill não clicável (somente leitura visual)
+
+Modal — Visualização somente leitura:
+
+Header com gradiente roxo (#7c3aed → #9333ea), avatar grande com iniciais, nome bold branco, badges de função/tipo/status em branco translúcido
+Badge "Abaixo do planejado" no canto superior direito com fundo branco semitransparente e texto colorido
+Aviso "Valores enviados para revisão — somente leitura" como banner discreto em amarelo claro abaixo do header
+Pill de período com ícone de calendário + quantidade de dias úteis e fins de semana como badges separados
+Para cada seção de custo: card com fundo colorido suave por categoria + comparativo PLANEJADO vs REALIZADO em duas colunas com tipografia clara
+Linha de diferença dentro do comparativo com fundo verde claro (economia) ou vermelho claro (estouro), valor e percentual em bold
+Campos "Alterado" indicados por badge âmbar pill ao lado do label do input, com o valor do planejado em cinza abaixo como referência
+Grid 2×2 de Alimentação (Dias Úteis / Fins de Semana × Almoço / Jantar) com subtotais por coluna em cores distintas (azul para úteis, laranja para fins de semana)
+Footer fixo com três colunas: "PLANEJADO R$ X" em cinza, "REALIZADO R$ X" em roxo bold, diferença percentual em verde/vermelho + botão "Fechar" em ghost style
+
+Indicadores visuais de divergência:
+
+Campos alterados: borda esquerda colorida (âmbar) + badge "Alterado" + valor original do planejado em cinza abaixo
+Economias por seção: fundo verde mint (#d1fae5) com ícone de check e texto "−R$ X (−Y%)"
+Estouros por seção: fundo vermelho claro (#fee2e2) com ícone de alerta e texto "+R$ X (+Y%)"
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Identidade roxa para o módulo, com cada categoria tendo cor própria (azul = diárias, laranja = alimentação, violeta = mobilidade, âmbar = ajuda)
+Modal com header colorido + corpo branco, border-radius 20px, largura 720px, backdrop blur
+
+
+
+Cole esse prompt que eu gero o código! 🚀melhorar as telas15:52Aqui está o prompt para melhorar as telas de Comparativo Planejado × Realizado:
+
+Prompt para redesign da tela "Comparativo Planejado × Realizado":
+
+Redesign completo do módulo de análise comparativa e aprovação de RH, com identidade visual em verde esmeralda (#10b981) para diferenciar dos módulos Planejado (azul) e Realizado (roxo).
+Tela 1 — Seleção de evento:
+
+Card centralizado com gradiente verde suave, ícone de gráfico animado e dropdown elegante de seleção de evento
+
+Tela 2 — Visão geral comparativa:
+
+Stepper com as 4 etapas, sendo as 3 primeiras com check verde e a etapa atual (Aprovação RH) em destaque com anel pulsante
+Pills de contagem ("1 para análise / 1 total") redesenhadas como badges com ícone e cor semântica
+Três cards de métricas lado a lado em layout igual mas com identidade própria: "Total Planejado" em azul índigo, "Total Realizado" em roxo, "Diferença" em verde (economia) ou vermelho (estouro) — cada um com mini sparkline ou ícone de tendência
+Nota de rodapé "Valores referentes apenas às execuções enviadas" como banner informativo sutil com ícone de info
+
+Seção "Detalhamento por Execução":
+
+Header com título + contador + botões "Expandir todos" e "Selecionar todos" mais estilizados
+Barra de busca e filtros com pills de filtro ativo coloridos
+Linha de colaborador colapsada: avatar com iniciais coloridas + nome bold + badges de função/tipo + três colunas à direita (Planejado em azul, Realizado em roxo, Diferença em verde/vermelho) + chevron animado
+
+Tabela comparativa expandida (por colaborador):
+
+Sub-header com badges de função, tipo e status de justificativa ("Sem justificativa" em âmbar com ícone de alerta)
+Cabeçalho fixo das três colunas com fundo levemente colorido: PLANEJADO em azul claro, REALIZADO em roxo claro, DIFERENÇA em cinza
+Seções (Diárias, Alimentação, Mobilidade) como grupos com fundo levemente distinto por categoria e ícone colorido no label
+Ícone de alerta (⚠) na coluna DIFERENÇA do header da seção quando há divergência
+Linhas com zebra striping sutil; valores com diferença positiva em vermelho bold e negativa (economia) em verde bold
+Linhas de Subtotal com fundo um tom mais escuro e texto bold
+Footer do card expandido: três colunas "TOTAL PLANEJADO / TOTAL REALIZADO / DIFERENÇA" em card com borda verde, valores em tipografia grande e label "Economia" ou "Estouro" em badge colorido
+
+Seção "Decisão do RH" (footer fixo da página):
+
+Card fixo no rodapé com sombra superior, título e subtítulo à esquerda
+Três botões de ação redesenhados: "Aprovar" em verde sólido com ícone de check, "Devolver" em âmbar outline com ícone de seta, "Recusar" em vermelho outline com ícone de X
+Botões desabilitados com opacidade reduzida e tooltip "Selecione itens acima"
+Ao selecionar colaboradores, botões ganham animação de ativação (pulse suave)
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Identidade verde esmeralda (#10b981) para o módulo Comparativo
+Colunas de dados com cores fixas: azul (#3b82f6) para planejado, roxo (#8b5cf6) para realizado, verde (#10b981) para economia, vermelho (#ef4444) para estouro
+Tabela com bordas arredondadas, sem linhas rígidas entre colunas, separadores em cinza suave
+Transição animada ao expandir/colapsar linhas de colaborador
