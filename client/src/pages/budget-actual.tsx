@@ -487,16 +487,24 @@ export default function BudgetActualPage() {
   }, [budgetActual, selectedEventId]);
   const allSentForReview = sentForReview;
 
+  // Avatar color helper
+  const avatarColorAct = (name: string) => {
+    const colors = ["bg-violet-500","bg-purple-500","bg-indigo-500","bg-rose-500","bg-emerald-500","bg-amber-500","bg-sky-500","bg-teal-500"];
+    return colors[(name.charCodeAt(0) || 0) % colors.length];
+  };
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
+
+      {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-lg">
-            <ClipboardCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-2.5 rounded-xl shadow-md shadow-violet-200 dark:shadow-violet-900/30">
+            <ClipboardCheck className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-purple-900 dark:text-purple-100">Orçamento Realizado</h1>
-            <p className="text-sm text-gray-500">Registro da prestação de contas — escalas enviadas do Planejado</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Realizado</h1>
+            <p className="text-xs text-gray-500">Prestação de contas — escalas enviadas do Planejado</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -507,27 +515,53 @@ export default function BudgetActualPage() {
       </div>
 
       {!selectedEventId ? (
-        <div className="rounded-xl border-2 border-dashed border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20 p-16 text-center">
-          <div className="bg-purple-100 dark:bg-purple-900/50 rounded-2xl p-5 w-fit mx-auto mb-5">
-            <ClipboardCheck className="w-14 h-14 text-purple-500 dark:text-purple-400" />
+        /* ── Tela 1: Seleção de evento ── */
+        <div className="rounded-2xl overflow-hidden border border-violet-100 dark:border-violet-900 shadow-sm">
+          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 dark:from-violet-950/40 dark:via-purple-950/30 dark:to-fuchsia-950/20 px-8 py-16 text-center">
+            <div className="relative w-24 h-24 mx-auto mb-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-200 dark:shadow-violet-900/40 flex items-center justify-center -rotate-3">
+                <ClipboardCheck className="w-10 h-10 text-white" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
+                <CheckCircle2 className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Selecione um evento</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8">
+              Registre a prestação de contas. Preencha os valores efetivamente gastos em cada escala.
+            </p>
+            <div className="max-w-sm mx-auto">
+              <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} accentColor="purple" />
+            </div>
+            {eventsWithPlanned && eventsWithPlanned.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs text-gray-400 mb-3">Eventos com orçamento planejado</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {eventsWithPlanned.slice(0, 5).map(ev => (
+                    <button key={ev.id} onClick={() => { setSelectedEventId(ev.id); setCollapsedCards(new Set()); }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-violet-400 hover:text-violet-600 transition-colors shadow-sm">
+                      <Calendar className="w-3 h-3" />
+                      {ev.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <h2 className="text-xl font-semibold text-purple-900 dark:text-purple-100 mb-2">Selecione um evento</h2>
-          <p className="text-purple-600/70 dark:text-purple-400/70 text-sm max-w-md mx-auto mb-6">
-            Registre a prestação de contas. Aqui você preenche os valores efetivamente gastos em cada escala enviada do planejado.
-          </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} accentColor="purple" />
         </div>
       ) : isLoading ? (
-        <div className="text-center py-16 text-gray-500">Carregando...</div>
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : filteredItems.length === 0 && !searchTerm && filterType === "all" ? (
-        <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
           <ClipboardCheck className="w-16 h-16 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma prestação disponível</h3>
+          <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">Nenhuma prestação disponível</h3>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
             Envie escalas do Planejado para iniciar o Realizado deste evento
           </p>
           <Link href="/budget-planned">
-            <Button className="bg-blue-600 hover:bg-blue-700">
+            <Button className="bg-indigo-600 hover:bg-indigo-700">
               <ArrowRight className="w-4 h-4 mr-2" />
               Ir para Planejado
             </Button>
@@ -535,47 +569,48 @@ export default function BudgetActualPage() {
         </div>
       ) : (
         <>
+          {/* ── Stepper ── */}
           {(() => {
             const currentStep = 2;
             const steps = [
               { label: "Escalação", desc: "Inclusões confirmadas" },
-              { label: "Planejamento (RH)", desc: "Valores previstos definidos" },
-              { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
-              { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
+              { label: "Planejamento RH", desc: "Valores previstos" },
+              { label: "Prestação", desc: "Resp. preenche realizado" },
+              { label: "Aprovação RH", desc: "Análise e aprovação" },
             ];
             return (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5">
-                <div className="flex items-center justify-between">
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-4">
+                <div className="flex items-center">
                   {steps.map((step, i) => {
                     const isDone = i < currentStep;
                     const isActive = i === currentStep;
                     const isLast = i === steps.length - 1;
                     return (
                       <div key={i} className="flex items-center flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                            isDone ? 'bg-emerald-500 text-white' :
-                            isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
+                            isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
+                            isActive ? 'bg-violet-600 text-white shadow-lg shadow-violet-300 dark:shadow-violet-900/50 ring-4 ring-violet-100 dark:ring-violet-900/40' :
                             'bg-gray-100 dark:bg-gray-700 text-gray-400'
                           }`}>
                             {isDone ? (
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                             ) : (i + 1)}
                           </div>
-                          <div className="min-w-0">
-                            <div className={`text-[11px] font-medium leading-tight ${
+                          <div className="text-center">
+                            <div className={`text-[11px] font-semibold leading-tight ${
                               isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                              isActive ? 'text-purple-700 dark:text-purple-300' :
+                              isActive ? 'text-violet-700 dark:text-violet-300' :
                               'text-gray-400'
                             }`}>{step.label}</div>
-                            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                            <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
-                          <div className={`flex-1 h-[2px] mx-3 rounded ${
-                            isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
+                          <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
+                            isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100 dark:bg-gray-700'
                           }`} />
                         )}
                       </div>
@@ -586,65 +621,76 @@ export default function BudgetActualPage() {
             );
           })()}
 
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4">
+          {/* ── Banner Total Realizado ── */}
+          <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-2xl px-6 py-5 shadow-lg shadow-violet-100 dark:shadow-violet-900/30">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-gray-400 text-[10px] font-medium uppercase tracking-wider mb-0.5">Total Realizado</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalRealizado)}</div>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-[11px] text-gray-400 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</span>
-                  <span className={`text-[11px] tabular-nums font-medium ${diffLabel.color}`}>
-                    {diffLabel.text}
-                  </span>
+                <p className="text-violet-200 text-xs font-semibold uppercase tracking-widest mb-1">Total Realizado</p>
+                <div className="text-3xl font-black text-white tabular-nums">{formatCurrency(totalRealizado)}</div>
+                <div className="text-violet-200 text-xs mt-1 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                  totalDifference === 0
+                    ? 'bg-white/20 text-white'
+                    : totalDifference < 0
+                      ? 'bg-emerald-400/30 text-emerald-100'
+                      : 'bg-red-400/30 text-red-100'
+                }`}>
+                  {totalDifference < 0 && <TrendingDown className="w-3.5 h-3.5" />}
+                  {totalDifference > 0 && <TrendingUp className="w-3.5 h-3.5" />}
+                  {totalDifference === 0 && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  <span>{diffLabel.text}</span>
                 </div>
+                <div className="text-violet-200 text-xs">{filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}</div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <Input
-                placeholder="Buscar colaborador..."
-                className="pl-9 h-8 text-xs"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="w-40 h-8 text-xs">
-                <SelectValue placeholder="Função" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas funções</SelectItem>
-                {functions?.map(f => (
-                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-28 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="casa">Casa</SelectItem>
-                <SelectItem value="freela">Freela</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-44 h-8 text-xs">
-                <ArrowUpDown className="w-3 h-3 mr-1" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="adjusted">Ajustadas primeiro</SelectItem>
-                <SelectItem value="value">Maior valor</SelectItem>
-                <SelectItem value="name">Nome A-Z</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="text-[11px] text-gray-400 ml-auto">
-              {filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}
+          {/* ── Filtros ── */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="relative flex-1 min-w-[180px] max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Input
+                  placeholder="Buscar colaborador..."
+                  className="pl-9 h-9 text-xs rounded-xl border-gray-200"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={filterFunction} onValueChange={setFilterFunction}>
+                <SelectTrigger className="w-40 h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Função" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas funções</SelectItem>
+                  {functions?.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-28 h-9 text-xs rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="casa">Casa</SelectItem>
+                  <SelectItem value="freela">Freela</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-44 h-9 text-xs rounded-xl">
+                  <ArrowUpDown className="w-3 h-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="adjusted">Ajustadas primeiro</SelectItem>
+                  <SelectItem value="value">Maior valor</SelectItem>
+                  <SelectItem value="name">Nome A-Z</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -745,24 +791,28 @@ export default function BudgetActualPage() {
                 return <Badge className="text-[10px] h-[18px] px-1.5 font-normal bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-50">Não preenchido</Badge>;
               };
 
+              const collabName = getCollaboratorName(item.collaboratorId);
+              const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+              const avatarBg = avatarColorAct(collabName);
+
               return (
-                <div key={item.id} data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-lg border overflow-hidden transition-all duration-500 ${
-                  highlightCardId === item.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
-                  isSelected ? 'ring-1 ring-purple-300 border-purple-200 dark:border-purple-700' : ''
-                } ${
-                  isCasa ? 'border-l-[3px] border-l-blue-400 border-gray-200 dark:border-gray-700' : 'border-l-[3px] border-l-orange-400 border-gray-200 dark:border-gray-700'
+                <div key={item.id} data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden transition-all duration-300 ${
+                  highlightCardId === item.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30' :
+                  isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50' :
+                  diverges ? 'border-amber-200 dark:border-amber-800/50' :
+                  'border-gray-200 dark:border-gray-700'
                 }`}>
-                  <div className="flex items-center justify-between px-4 py-2.5">
+
+                  {/* ── Card Header ── */}
+                  <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-3">
+                      {/* Checkbox / Lock */}
                       {isItemLocked ? (
                         <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       ) : isItemEditable ? (
-                        <button
-                          onClick={() => toggleSelect(item.id)}
-                          className="flex-shrink-0"
-                        >
+                        <button onClick={() => toggleSelect(item.id)} className="flex-shrink-0">
                           <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                            isSelected ? 'bg-purple-600 border-purple-600' : 'border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                            isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300 dark:border-gray-600 hover:border-violet-400'
                           }`}>
                             {isSelected && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -772,24 +822,25 @@ export default function BudgetActualPage() {
                           </div>
                         </button>
                       ) : null}
+                      {/* Avatar */}
+                      <div className={`w-9 h-9 rounded-xl ${avatarBg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                        <span className="text-white text-xs font-bold">{initials || '?'}</span>
+                      </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                            {getCollaboratorName(item.collaboratorId)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{collabName}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
                           <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
                             {getFunctionName(item.functionId)}
                           </Badge>
                           <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${
-                            isCasa
-                              ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50'
-                              : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
-                          }`}>
-                            {isCasa ? 'Casa' : 'Freela'}
-                          </Badge>
+                            isCasa ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
+                          }`}>{isCasa ? 'Casa' : 'Freela'}</Badge>
                           {getStatusBadge()}
+                          {diverges && (
+                            <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">
+                              Divergência
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -800,29 +851,30 @@ export default function BudgetActualPage() {
                             onClick={() => openEditModal(item)} title="Editar prestação">
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-                            onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar escala"
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-violet-500 hover:text-violet-700 hover:bg-violet-50"
+                            onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar"
                             disabled={duplicateMutation.isPending}>
                             <Copy className="w-3.5 h-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => setConfirmDeleteId(item.id)} title="Remover prestação">
+                            onClick={() => setConfirmDeleteId(item.id)} title="Remover">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </>
                       ) : (
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                          onClick={() => openEditModal(item)} title="Visualizar prestação">
+                          onClick={() => openEditModal(item)} title="Visualizar">
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
-                        onClick={() => toggleCollapse(item.id)} title={isCollapsed ? "Expandir" : "Recolher"}>
+                        onClick={() => toggleCollapse(item.id)}>
                         {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                       </Button>
                     </div>
                   </div>
 
+                  {/* ── Card Body ── */}
                   {!isCollapsed && (() => {
                     const planned = getPlannedRef(item);
                     const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
@@ -831,65 +883,68 @@ export default function BudgetActualPage() {
                       if (!planned) return null;
                       const d = actual - plan;
                       if (d === 0) return null;
-                      return <span className={`text-[10px] tabular-nums font-medium ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '-'}{formatCurrency(Math.abs(d))}</span>;
+                      return <span className={`text-[10px] tabular-nums font-medium ml-1 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : ''}{formatCurrency(d)}</span>;
                     };
                     return (
-                      <div className="px-4 pb-2 text-sm">
-                        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 gap-y-1 items-center">
-                          <Calendar className="w-3 h-3 text-blue-400" />
-                          <span className="text-gray-600 dark:text-gray-400">Diárias</span>
-                          <span className="font-semibold text-gray-700 dark:text-gray-300 text-right tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
-                          <span className="text-right">{diffBadge(cardSubtotalDiarias, plannedDiarias)}</span>
-
-                          <span />
-                          <div className="ml-1 space-y-0.5">
-                            {cardDays.weekdays > 0 && (
-                              <div className="text-[11px] text-gray-400">
-                                {formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}
-                              </div>
-                            )}
-                            {cardDays.weekends > 0 && (
-                              <div className="text-[11px] text-gray-400">
-                                {formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}
-                              </div>
-                            )}
+                      <div className="px-4 pb-3 border-t border-gray-100 dark:border-gray-700/60 pt-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-blue-50/50 dark:bg-blue-950/20 rounded-xl p-3 border border-blue-100 dark:border-blue-900/40">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Diárias</span>
+                            </div>
+                            <div className="text-sm font-bold text-gray-800 dark:text-gray-200 tabular-nums">{formatCurrency(cardSubtotalDiarias)}{diffBadge(cardSubtotalDiarias, plannedDiarias)}</div>
+                            <div className="text-[10px] text-gray-400 mt-1 space-y-0.5">
+                              {cardDays.weekdays > 0 && <div>{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                              {cardDays.weekends > 0 && <div>{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                            </div>
                           </div>
-                          <span />
-                          <span />
-
-                          <Utensils className="w-3 h-3 text-orange-400" />
-                          <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
-                          <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                          <span className="text-right">{diffBadge(totalAlimentacao, plannedAlim)}</span>
-
-                          <Car className="w-3 h-3 text-purple-400" />
-                          <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                          <span className="font-medium text-gray-600 dark:text-gray-400 text-right tabular-nums">{formatCurrency(item.mobility)}</span>
-                          <span className="text-right">{diffBadge(item.mobility, planned?.mobility ?? 0)}</span>
+                          <div className="space-y-2">
+                            <div className="bg-orange-50/50 dark:bg-orange-950/20 rounded-xl px-3 py-2 border border-orange-100 dark:border-orange-900/40 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Utensils className="w-3 h-3 text-orange-400" />
+                                <span className="text-[11px] text-gray-600 dark:text-gray-400">Alimentação</span>
+                              </div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(totalAlimentacao)}{diffBadge(totalAlimentacao, plannedAlim)}</span>
+                            </div>
+                            <div className="bg-violet-50/50 dark:bg-violet-950/20 rounded-xl px-3 py-2 border border-violet-100 dark:border-violet-900/40 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Car className="w-3 h-3 text-violet-400" />
+                                <span className="text-[11px] text-gray-600 dark:text-gray-400">Mobilidade</span>
+                              </div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">{formatCurrency(item.mobility)}{diffBadge(item.mobility, planned?.mobility ?? 0)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
                   })()}
 
-                  <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100 dark:border-gray-700">
-                    <span className="text-gray-400 text-[10px] uppercase tracking-wider font-medium">Total</span>
-                    <span className="font-bold text-base text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
-                  </div>
-
+                  {/* ── Card Footer: Total ── */}
                   {(() => {
                     const planned = getPlannedRef(item);
-                    if (!planned) return null;
-                    const diff = item.totalValue - planned.totalValue;
+                    const diff = planned ? item.totalValue - planned.totalValue : 0;
                     return (
-                      <div className="px-4 py-2 border-t border-dashed border-gray-100 dark:border-gray-700 flex items-center justify-between text-[11px]">
-                        <span className="text-gray-400">Planejado: <span className="tabular-nums font-medium text-gray-500">{formatCurrency(planned.totalValue)}</span></span>
-                        {diff === 0 ? (
-                          <span className="text-gray-400">Sem diferença</span>
-                        ) : (
-                          <span className={`tabular-nums font-medium ${diff < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {diff > 0 ? '+' : '-'} {formatCurrency(Math.abs(diff))}
-                          </span>
-                        )}
+                      <div className={`flex items-center justify-between px-4 py-2.5 border-t ${
+                        planned && Math.abs(diff) > 1
+                          ? diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40'
+                            : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40'
+                          : 'border-gray-100 dark:border-gray-700/60'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
+                          {planned && Math.abs(diff) > 1 && (
+                            <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {planned && Math.abs(diff) > 1 && (
+                            <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                            </span>
+                          )}
+                          <span className="font-bold text-base text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -901,32 +956,33 @@ export default function BudgetActualPage() {
       )}
 
       {selectedEventId && filteredItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-2.5 z-40">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 px-6 py-3 z-40 shadow-lg">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <div>
-                <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider">Total Realizado</div>
-                <div className="text-lg font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(totalRealizado)}</div>
+                <div className="text-[10px] uppercase text-gray-400 font-semibold tracking-wider">Total Realizado</div>
+                <div className="text-lg font-black text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(totalRealizado)}</div>
               </div>
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
-              <div className="text-[11px] text-gray-400">
+              <div className="h-8 w-px bg-gray-200 dark:bg-gray-700" />
+              <div className="text-xs text-gray-400">
                 {filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}
+                {selectedCards.size > 0 && (
+                  <span className="ml-2 text-violet-600 font-medium">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
               {allSentForReview ? (
-                <div className="text-[11px] text-emerald-600 flex items-center gap-1">
+                <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Enviado para revisão
                 </div>
               ) : selectedCards.size > 0 ? (
                 <>
-                  <div className="text-[11px] text-gray-500">
-                    {selectedCards.size} {selectedCards.size === 1 ? 'prestação selecionada' : 'prestações selecionadas'}
-                  </div>
+                  <button onClick={() => setSelectedCards(new Set())} className="text-xs text-gray-400 hover:text-gray-600">Limpar</button>
                   <Button
                     size="sm"
-                    className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    className="h-9 px-5 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-md shadow-emerald-200 dark:shadow-emerald-900/30 rounded-xl"
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
@@ -934,25 +990,23 @@ export default function BudgetActualPage() {
                       setSelectedCards(new Set());
                     }}
                   >
-                    <Send className="w-3 h-3 mr-1.5" />
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
                     Enviar selecionadas
                   </Button>
                 </>
               ) : (
                 <>
-                  <div className="text-[11px] text-gray-400">
-                    Selecione prestações ou envie todas para revisão
-                  </div>
+                  <span className="text-xs text-gray-400 hidden sm:block">Selecione ou envie todas</span>
                   <Button
                     size="sm"
-                    className="h-8 px-4 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    className="h-9 px-5 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-md shadow-emerald-200 dark:shadow-emerald-900/30 rounded-xl"
                     disabled={sendForReviewMutation.isPending}
                     onClick={() => {
                       if (!selectedEventId) return;
                       sendForReviewMutation.mutate({ eventId: selectedEventId });
                     }}
                   >
-                    <Send className="w-3 h-3 mr-1.5" />
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
                     Enviar todas
                   </Button>
                 </>
@@ -1016,39 +1070,50 @@ export default function BudgetActualPage() {
 
             return (
               <>
-                <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                  <div className="flex items-start justify-between gap-3">
+                {/* ── Modal Header ── */}
+                <div className="bg-gradient-to-br from-violet-600 to-purple-700 px-6 pt-5 pb-5">
+                  <div className="flex items-start gap-4">
+                    {(() => {
+                      const mName = getCollaboratorName(editingItem.collaboratorId);
+                      const mInit = mName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
+                      const mBg = avatarColorAct(mName);
+                      return (
+                        <div className={`w-12 h-12 rounded-2xl ${mBg} border-2 border-white/30 flex items-center justify-center flex-shrink-0 shadow-lg`}>
+                          <span className="text-white text-sm font-bold">{mInit || '?'}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <h2 className="text-base font-bold text-white truncate">{getCollaboratorName(editingItem.collaboratorId)}</h2>
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5">{getFunctionName(editingItem.functionId)}</Badge>
-                        <Badge className={`text-[10px] h-[18px] px-1.5 ${editingItem.collaboratorType === 'casa' ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>
+                        <span className="text-[10px] text-violet-200 bg-white/15 px-2 py-0.5 rounded-full">{getFunctionName(editingItem.functionId)}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
-                        </Badge>
-                      </div>
-                    </div>
-                    {planned && (
-                      <div className="flex flex-col items-end gap-1.5 mr-6">
-                        <span className="text-[10px] text-gray-400">Realizado com base no planejado</span>
-                        {statusBadge && (
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border}`}>
-                            {statusBadge.icon}
-                            {statusBadge.label}
-                          </div>
+                        </span>
+                        {isReadOnly && (
+                          <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" /> Bloqueado
+                          </span>
                         )}
+                      </div>
+                      <p className="text-xs text-violet-200 mt-1.5">
+                        {isReadOnly ? 'Valores enviados para revisão — somente leitura' : 'Informe os valores realmente executados'}
+                      </p>
+                    </div>
+                    {planned && statusBadge && (
+                      <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold ${statusBadge.bg} ${statusBadge.text} border ${statusBadge.border} flex-shrink-0`}>
+                        {statusBadge.icon}
+                        {statusBadge.label}
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-2">
-                    {isReadOnly ? 'Visualização dos valores enviados. Não é possível editar.' : 'Informe os valores realmente executados.'}
-                  </p>
                   {rhComment && (
-                    <div className="mt-2.5 p-2.5 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                    <div className="mt-3 p-2.5 rounded-xl bg-white/10 border border-white/20">
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
                         <div>
-                          <span className="text-[9px] uppercase text-orange-500 font-semibold tracking-wider">Comentário do RH</span>
-                          <p className="text-[11px] text-orange-700 dark:text-orange-300 mt-0.5">{rhComment}</p>
+                          <span className="text-[9px] uppercase text-amber-300 font-semibold tracking-wider">Comentário do RH</span>
+                          <p className="text-[11px] text-white/80 mt-0.5">{rhComment}</p>
                         </div>
                       </div>
                     </div>
@@ -1424,55 +1489,56 @@ export default function BudgetActualPage() {
                   </div>
                 </div>
 
-                <div className="px-6 py-3.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                  {planned && Math.abs(difference) > 1 && (
-                    <div className={`rounded-lg p-2.5 mb-3 flex items-center justify-center gap-2 ${difference < 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'}`}>
-                      {difference < 0 ? (
-                        <TrendingDown className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                      ) : (
-                        <TrendingUp className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      )}
-                      <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                        {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
-                      </span>
-                      {plannedTotal > 0 && (
-                        <span className={`text-[10px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                          ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
-                        </span>
-                      )}
-                    </div>
-                  )}
+                {/* ── Modal Footer ── */}
+                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1">
                       {planned ? (
-                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                           <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
-                            <div className="px-3 py-2.5 text-center">
-                              <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-0.5">Planejado</div>
-                              <div className="text-base font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedTotal)}</div>
+                            <div className="px-4 py-3 text-center">
+                              <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Planejado</div>
+                              <div className="text-base font-black text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(plannedTotal)}</div>
                             </div>
-                            <div className="px-3 py-2.5 text-center">
-                              <div className="text-[9px] uppercase text-purple-500 font-semibold tracking-wider mb-0.5">Realizado</div>
-                              <div className="text-base font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
+                            <div className="px-4 py-3 text-center bg-violet-50/50 dark:bg-violet-950/20">
+                              <div className="text-[9px] uppercase text-violet-500 font-bold tracking-widest mb-1">Realizado</div>
+                              <div className="text-base font-black text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                             </div>
                           </div>
+                          {Math.abs(difference) > 1 && (
+                            <div className={`px-4 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 flex items-center justify-center gap-2 ${difference < 0 ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : 'bg-red-50/60 dark:bg-red-950/20'}`}>
+                              {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                              <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                                {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
+                              </span>
+                              {plannedTotal > 0 && (
+                                <span className={`text-[11px] tabular-nums ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                                  ({difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%)
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div>
                           <div className="text-[10px] uppercase text-gray-400 font-medium tracking-wider mb-0.5">Total da prestação</div>
-                          <div className="text-2xl font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalTotal)}</div>
+                          <div className="text-2xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(modalTotal)}</div>
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2.5">
+                    <div className="flex flex-col gap-2">
                       {isReadOnly ? (
-                        <Button variant="outline" className="h-9 px-5 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Fechar</Button>
+                        <Button variant="outline" className="h-10 px-6 text-sm rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Fechar</Button>
                       ) : (
                         <>
-                          <Button variant="outline" className="h-9 px-4 text-sm" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
-                          <Button onClick={saveEdit} disabled={updateMutation.isPending} className="h-9 px-5 text-sm bg-purple-600 hover:bg-purple-700">
+                          <Button
+                            onClick={saveEdit}
+                            disabled={updateMutation.isPending}
+                            className="h-10 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-md shadow-violet-200 dark:shadow-violet-900/30"
+                          >
                             {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
                           </Button>
+                          <Button variant="ghost" className="h-8 px-4 text-xs text-gray-400 hover:text-gray-600 rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>Cancelar</Button>
                         </>
                       )}
                     </div>

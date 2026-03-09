@@ -1,0 +1,38 @@
+Prompt para redesign da tela "Orçamento Realizado" e seu modal:
+
+Redesign completo do módulo de prestação de contas de orçamento realizado, com três estados: seleção de evento, listagem de colaboradores e modal de edição comparativo planejado vs realizado.
+Tela 1 — Seleção de evento (estado vazio):
+
+Mesmo padrão do Planejado, mas com identidade visual em roxo/violeta (#8b5cf6) para diferenciar o módulo
+Ícone de clipboard com check animado (pulse suave)
+Dropdown elegante com eventos recentes sugeridos como pills abaixo
+
+Tela 2 — Listagem de colaboradores:
+
+Banner "Total Realizado" com duas métricas lado a lado: valor realizado em destaque e planejado em cinza abaixo, com badge colorido "Dentro do planejado" (verde) ou "Acima do planejado" (vermelho)
+Stepper de etapas com as 3 primeiras concluídas visualmente (ícones de check preenchidos, linha colorida)
+Barra de busca e filtros refinados com pills de filtro ativo
+Card de colaborador redesenhado: avatar com inicial colorida, nome bold, badges de função e tipo, itens de custo com ícones e valores alinhados, rodapé com TOTAL realizado em roxo e linha de comparação "Planejado: R$ X — Sem diferença" em verde ou diferença em vermelho
+Checkbox de seleção elegante no canto esquerdo do card
+Footer fixo da página: total realizado à esquerda + contador de selecionados + botão "Enviar selecionadas" em verde com ícone de avião
+
+Modal — Prestação de contas (comparativo Planejado vs Realizado):
+
+Header: avatar + nome + badges + badge de status "Dentro/Acima do planejado" no canto superior direito com cor semântica
+Pill de período (data início–fim) com quantidade de dias úteis e fins de semana
+Para cada seção (Diárias, Mobilidade, Alimentação): card interno com fundo colorido suave por categoria
+Mini comparativo dentro de cada seção como duas colunas lado a lado: "PLANEJADO" em cinza/azul e "REALIZADO" em roxo/laranja, com valor e detalhamento embaixo
+Inputs editáveis com label flutuante, borda suave e foco colorido
+Para Alimentação: grid 2×2 (Dias Úteis / Fins de Semana × Almoço / Jantar) com subtotais por coluna e linha
+Indicador visual de diferença por campo: ícone de seta verde (abaixo do planejado) ou vermelho (acima), com tooltip explicativo
+Footer fixo do modal: dois cards lado a lado "PLANEJADO R$ X" e "REALIZADO R$ X" com diferença calculada entre eles em tempo real + botões Cancelar e "Salvar Prestação" em roxo sólido
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Identidade roxa (#8b5cf6) para o módulo Realizado (diferenciando do azul do Planejado)
+Cada categoria de custo com cor própria: Diárias azul, Mobilidade violeta, Alimentação laranja, Ajuda de Custo âmbar
+Modal com backdrop blur, border-radius 20px, largura 700px
+Animações suaves nos totais ao editar campos
+
+
