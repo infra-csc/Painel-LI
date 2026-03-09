@@ -1,0 +1,35 @@
+
+Prompt para redesign da tela "Orçamento Planejado":
+
+Redesign completo de um módulo financeiro de orçamento para eventos corporativos, com três estados de tela: seleção de evento, visão geral do orçamento e cards de colaboradores.
+Tela 1 — Seleção de evento (estado vazio):
+
+Centralizar o conteúdo verticalmente com ilustração vetorial minimalista de calendário/orçamento
+Dropdown "Selecionar evento" mais largo e elegante, com ícone, placeholder estilizado e sombra sutil
+Adicionar sugestão de eventos recentes abaixo do dropdown como pills clicáveis
+Fundo do card com gradiente suave azul/índigo em vez de pontilhado simples
+
+Tela 2 — Visão geral do orçamento:
+
+Banner "Total Planejado" redesenhado com gradiente verde esmeralda, valor em fonte grande bold e badge de colaboradores confirmados com ícone de pessoas
+Stepper de etapas (Escalação → Planejamento RH → Prestação → Aprovação) mais visual: círculos maiores, linha de progresso colorida, etapa atual em destaque com glow
+4 cards de métricas (Casa, Freela, Custo Médio/Col., Custo Médio/Dia) com ícone colorido no topo, valor em destaque e mini barra de proporção embaixo
+Seção "Envio para Realização" com barra de progresso real (não só texto "0%"), animada e colorida
+Barra de busca e filtros com visual mais refinado, pills de filtro ativo destacados
+
+Cards de colaboradores:
+
+Redesenhar como cards premium com avatar/inicial colorida do colaborador no canto
+Header do card com nome, badges de função e tipo (Casa/Freela) coloridos
+Itens de custo (Diárias, Alimentação, Mobilidade, Ajuda de custo) com ícones distintos e alinhamento em duas colunas
+Subtotais em cinza claro e total em rodapé com fundo verde suave e valor em destaque
+Botões de ação (editar, enviar) como ícones com tooltip no hover
+Sombra elevada no hover do card inteiro
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Paleta: sidebar escura (#1e293b) com itens em branco, conteúdo em fundo #f8fafc
+Acentos: verde (#10b981) para valores positivos, índigo (#6366f1) para ações, roxo (#8b5cf6) para médias
+Cards com border-radius 16px, sombra suave, separadores internos em cinza claro
+Micro-animações no hover dos cards e transições ao expandir/colapsar colaboradores

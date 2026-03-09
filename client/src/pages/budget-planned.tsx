@@ -589,16 +589,27 @@ export default function BudgetPlannedPage() {
 
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id)).length;
 
+  // Avatar color based on first letter
+  const avatarColor = (name: string) => {
+    const colors = [
+      "bg-indigo-500","bg-violet-500","bg-emerald-500","bg-amber-500",
+      "bg-rose-500","bg-sky-500","bg-teal-500","bg-orange-500",
+    ];
+    return colors[(name.charCodeAt(0) || 0) % colors.length];
+  };
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
+
+      {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
-            <Calculator className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md">
+            <Calculator className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-blue-900 dark:text-blue-100">Orçamento Planejado</h1>
-            <p className="text-sm text-gray-500">Cálculo automático das escalações confirmadas</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Orçamento Planejado</h1>
+            <p className="text-xs text-gray-500">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
         {selectedEventId && (
@@ -606,79 +617,110 @@ export default function BudgetPlannedPage() {
         )}
       </div>
 
+      {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        <div className="rounded-xl border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-16 text-center">
-          <div className="bg-blue-100 dark:bg-blue-900/50 rounded-2xl p-5 w-fit mx-auto mb-5">
-            <Calculator className="w-14 h-14 text-blue-500 dark:text-blue-400" />
+        <div className="rounded-2xl overflow-hidden border border-blue-100 dark:border-blue-900 shadow-sm">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-violet-950/20 px-8 py-16 text-center">
+            {/* Ilustração */}
+            <div className="relative w-24 h-24 mx-auto mb-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex items-center justify-center rotate-3">
+                <Calculator className="w-10 h-10 text-white" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
+                <DollarSign className="w-4 h-4 text-white" />
+              </div>
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Selecione um evento</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8">
+              Visualize o orçamento previsto com base nas escalações confirmadas. Valores calculados automaticamente.
+            </p>
+
+            <div className="max-w-sm mx-auto">
+              <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} accentColor="blue" />
+            </div>
+
+            {/* Pills de eventos recentes */}
+            {eventsWithInclusions && eventsWithInclusions.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs text-gray-400 mb-3">Eventos com escalações</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {eventsWithInclusions.slice(0, 5).map(ev => (
+                    <button
+                      key={ev.id}
+                      onClick={() => setSelectedEventId(ev.id)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 transition-colors shadow-sm"
+                    >
+                      <Calendar className="w-3 h-3" />
+                      {ev.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-2">Selecione um evento</h2>
-          <p className="text-blue-600/70 dark:text-blue-400/70 text-sm max-w-md mx-auto mb-6">
-            Visualize o orçamento previsto com base nas escalações confirmadas. Os valores são calculados automaticamente a partir das funções e períodos de trabalho.
-          </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} accentColor="blue" />
         </div>
       ) : (
           <>
-            {/* Total Geral Destacado */}
-            <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800 px-5 py-3 mb-4">
+            {/* ── Banner Total Planejado ── */}
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl px-6 py-5 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
-                    <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Planejado do Evento</span>
-                    <div className="text-2xl font-bold text-emerald-800 dark:text-emerald-200">{formatCurrency(totalGeral)}</div>
-                  </div>
+                <div>
+                  <p className="text-emerald-100 text-xs font-semibold uppercase tracking-widest mb-1">Total Planejado do Evento</p>
+                  <div className="text-3xl font-black text-white">{formatCurrency(totalGeral)}</div>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm text-emerald-600 dark:text-emerald-400">{stats.total} colaboradores confirmados</span>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-2 bg-white/20 rounded-xl px-3 py-1.5">
+                    <Users className="w-4 h-4 text-white" />
+                    <span className="text-white font-semibold text-sm">{stats.total} colaboradores</span>
+                  </div>
+                  <div className="text-emerald-100 text-xs">{stats.enviados} enviados para realização</div>
                 </div>
               </div>
             </div>
 
-            {/* Timeline de Progresso do Planejado */}
+            {/* ── Stepper de etapas ── */}
             {(() => {
               const currentStep = 1;
               const steps = [
                 { label: "Escalação", desc: "Inclusões confirmadas" },
-                { label: "Planejamento (RH)", desc: "Defina os valores previstos" },
-                { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
-                { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
+                { label: "Planejamento RH", desc: "Valores previstos" },
+                { label: "Prestação", desc: "Resp. preenche realizado" },
+                { label: "Aprovação RH", desc: "Análise e aprovação" },
               ];
               return (
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-5 py-3.5 mb-4">
-                  <div className="flex items-center justify-between">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-4">
+                  <div className="flex items-center">
                     {steps.map((step, i) => {
                       const isDone = i < currentStep;
                       const isActive = i === currentStep;
                       const isLast = i === steps.length - 1;
                       return (
                         <div key={i} className="flex items-center flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                              isDone ? 'bg-emerald-500 text-white' :
-                              isActive ? 'bg-purple-600 text-white ring-2 ring-purple-200 dark:ring-purple-800' :
+                          <div className="flex flex-col items-center gap-1.5">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
+                              isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
+                              isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-300 dark:shadow-indigo-900/50 ring-4 ring-indigo-100 dark:ring-indigo-900/40' :
                               'bg-gray-100 dark:bg-gray-700 text-gray-400'
                             }`}>
                               {isDone ? (
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : (i + 1)}
                             </div>
-                            <div className="min-w-0">
-                              <div className={`text-[11px] font-medium leading-tight ${
+                            <div className="text-center">
+                              <div className={`text-[11px] font-semibold leading-tight ${
                                 isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                                isActive ? 'text-purple-700 dark:text-purple-300' :
+                                isActive ? 'text-indigo-700 dark:text-indigo-300' :
                                 'text-gray-400'
                               }`}>{step.label}</div>
-                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                              <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
                             </div>
                           </div>
                           {!isLast && (
-                            <div className={`flex-1 h-[2px] mx-3 rounded ${
-                              isDone ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-gray-200 dark:bg-gray-700'
+                            <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
+                              isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100 dark:bg-gray-700'
                             }`} />
                           )}
                         </div>
@@ -689,84 +731,104 @@ export default function BudgetPlannedPage() {
               );
             })()}
 
-            {/* Cards de Resumo Secundários */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                  <Home className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Casa</span>
+            {/* ── Cards de métricas ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Casa */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mb-3">
+                  <Home className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div className="text-xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(stats.valorCasa)}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stats.totalCasa} colaboradores</div>
+                <div className="text-[11px] text-gray-500 font-medium mb-0.5">Casa</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCurrency(stats.valorCasa)}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">{stats.totalCasa} colaboradores</div>
                 {totalGeral > 0 && (
-                  <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-0.5">{Math.round((stats.valorCasa / totalGeral) * 100)}% do total</div>
+                  <>
+                    <div className="mt-2 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.round((stats.valorCasa / totalGeral) * 100)}%` }} />
+                    </div>
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-1">{Math.round((stats.valorCasa / totalGeral) * 100)}% do total</div>
+                  </>
                 )}
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                  <UserCheck className="w-3.5 h-3.5 text-orange-500" />
-                  <span>Freela</span>
+
+              {/* Freela */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center mb-3">
+                  <UserCheck className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div className="text-xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(stats.valorFreela)}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stats.totalFreela} colaboradores</div>
+                <div className="text-[11px] text-gray-500 font-medium mb-0.5">Freela</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCurrency(stats.valorFreela)}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">{stats.totalFreela} colaboradores</div>
                 {totalGeral > 0 && (
-                  <div className="text-xs font-semibold text-orange-600 dark:text-orange-400 mt-0.5">{Math.round((stats.valorFreela / totalGeral) * 100)}% do total</div>
+                  <>
+                    <div className="mt-2 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${Math.round((stats.valorFreela / totalGeral) * 100)}%` }} />
+                    </div>
+                    <div className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold mt-1">{Math.round((stats.valorFreela / totalGeral) * 100)}% do total</div>
+                  </>
                 )}
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                  <Users className="w-3.5 h-3.5 text-purple-500" />
-                  <span>Custo Médio / Colaborador</span>
+
+              {/* Custo médio / colaborador */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center mb-3">
+                  <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                 </div>
-                <div className="text-xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(stats.media)}</div>
+                <div className="text-[11px] text-gray-500 font-medium mb-0.5">Médio / Colaborador</div>
+                <div className="text-lg font-bold text-violet-600 dark:text-violet-400">{formatCurrency(stats.media)}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">média por pessoa</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3.5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs mb-2">
-                  <BarChart3 className="w-3.5 h-3.5 text-teal-500" />
-                  <span>Custo Médio / Dia</span>
+
+              {/* Custo médio / dia */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+                <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center mb-3">
+                  <BarChart3 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 </div>
-                <div className="text-xl font-bold text-teal-600 dark:text-teal-400">{formatCurrency(stats.mediaPorDia)}</div>
+                <div className="text-[11px] text-gray-500 font-medium mb-0.5">Médio / Dia</div>
+                <div className="text-lg font-bold text-teal-600 dark:text-teal-400">{formatCurrency(stats.mediaPorDia)}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">média por dia trabalhado</div>
               </div>
             </div>
 
-            {/* Barra de Progresso de Envio */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
+            {/* ── Barra de Progresso de Envio ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Envio para Realização</span>
+                  <Send className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Envio para Prestação de Contas</span>
                 </div>
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{Math.round(stats.progressoEnvio)}%</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                    {stats.enviados}/{stats.total}
+                    <span className="text-xs font-normal text-gray-400 ml-1">({Math.round(stats.progressoEnvio)}%)</span>
+                  </span>
+                  {selectedCards.size > 0 && (
+                    <Button 
+                      size="sm"
+                      onClick={() => setConfirmSendOpen(true)}
+                      disabled={sendSelectedToActualMutation.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs shadow-md shadow-indigo-200 dark:shadow-indigo-900/30"
+                    >
+                      <Send className="w-3 h-3 mr-1.5" />
+                      Enviar {selectedCards.size} selecionados
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="relative h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 mb-2">
+              <div className="relative h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
                 <div 
-                  className={`h-full rounded-full transition-all duration-500 ${
+                  className={`h-full rounded-full transition-all duration-700 ${
                     stats.progressoEnvio === 0 ? 'bg-gray-200 dark:bg-gray-600' : 
-                    stats.progressoEnvio === 100 ? 'bg-green-500' : 'bg-blue-500'
+                    stats.progressoEnvio === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 
+                    'bg-gradient-to-r from-indigo-500 to-violet-500'
                   }`}
-                  style={{ width: `${stats.progressoEnvio}%` }}
+                  style={{ width: `${Math.max(stats.progressoEnvio, stats.progressoEnvio > 0 ? 4 : 0)}%` }}
                 />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {stats.enviados} de {stats.total} colaboradores enviados
-                </span>
-                {selectedCards.size > 0 && (
-                  <Button 
-                    size="sm"
-                    onClick={() => setConfirmSendOpen(true)}
-                    disabled={sendSelectedToActualMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700 h-8 text-xs"
-                  >
-                    <Send className="w-3 h-3 mr-1.5" />
-                    Enviar selecionados para realização ({selectedCards.size})
-                  </Button>
-                )}
               </div>
             </div>
 
-            {/* Filtros e Busca */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-4">
+            {/* ── Filtros e Busca ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 {pendingCount > 0 && (
                   <Checkbox 
@@ -776,17 +838,17 @@ export default function BudgetPlannedPage() {
                   />
                 )}
                 <div className="relative flex-1 min-w-[150px]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <Input 
                     placeholder="Buscar por nome..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-8 text-sm"
+                    className="pl-9 h-9 text-sm rounded-xl border-gray-200"
                   />
                 </div>
                 
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="w-36 h-8 text-xs shrink-0">
+                  <SelectTrigger className="w-36 h-9 text-xs shrink-0 rounded-xl">
                     <SelectValue placeholder="Função" />
                   </SelectTrigger>
                   <SelectContent>
@@ -798,7 +860,7 @@ export default function BudgetPlannedPage() {
                 </Select>
                 
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-28 h-8 text-xs shrink-0">
+                  <SelectTrigger className="w-28 h-9 text-xs shrink-0 rounded-xl">
                     <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -809,7 +871,7 @@ export default function BudgetPlannedPage() {
                 </Select>
                 
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-32 h-8 text-xs shrink-0">
+                  <SelectTrigger className="w-32 h-9 text-xs shrink-0 rounded-xl">
                     <ArrowUpDown className="w-3 h-3 mr-1" />
                     <SelectValue placeholder="Ordenar" />
                   </SelectTrigger>
@@ -822,23 +884,27 @@ export default function BudgetPlannedPage() {
                   </SelectContent>
                 </Select>
 
-                <span className="text-[11px] text-gray-400 shrink-0">{filteredBudgets.length} resultados</span>
+                {(filterFunction !== "all" || filterType !== "all" || searchTerm) && (
+                  <Badge variant="secondary" className="h-9 px-3 rounded-xl font-normal">
+                    {filteredBudgets.length} resultado{filteredBudgets.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
               </div>
             </div>
 
-            {/* Conteúdo */}
+            {/* ── Cards de Colaboradores ── */}
             {isLoadingInclusions || isLoadingFunctionValues ? (
               <div className="flex items-center justify-center py-20">
-                <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
               </div>
             ) : filteredBudgets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <Users className="w-16 h-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+              <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+                <Users className="w-16 h-16 text-gray-200 dark:text-gray-700 mb-4" />
+                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300">
                   {calculatedBudgets.length === 0 ? 'Nenhuma escalação confirmada' : 'Nenhum resultado encontrado'}
                 </h3>
-                <p className="text-gray-500 mt-1">
-                  {calculatedBudgets.length === 0 ? 'Apenas escalações com status confirmado aparecem aqui' : 'Tente ajustar os filtros de busca'}
+                <p className="text-sm text-gray-400 mt-1">
+                  {calculatedBudgets.length === 0 ? 'Apenas escalações confirmadas aparecem aqui' : 'Tente ajustar os filtros'}
                 </p>
               </div>
             ) : (
@@ -848,45 +914,54 @@ export default function BudgetPlannedPage() {
                   const isSelected = selectedCards.has(budget.inclusion.id);
                   const isCollapsed = collapsedCards.has(budget.inclusion.id);
                   const isCasa = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
+                  const name = getCollaboratorName(budget.inclusion.collaboratorId);
+                  const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
                   
                   return (
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm hover:shadow-md transition-all duration-500 overflow-hidden flex flex-col ${
-                        highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30' :
-                        isSelected ? 'ring-2 ring-green-500 border-green-300' : 
-                        isSent ? 'border-indigo-200 dark:border-indigo-800 opacity-75' :
-                        budget.hasOverride ? 'border-yellow-200 dark:border-yellow-800' : 'border-gray-200 dark:border-gray-700'
+                      className={`bg-white dark:bg-gray-800 rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group ${
+                        highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-indigo-100 dark:shadow-indigo-900/30' :
+                        isSelected ? 'ring-2 ring-emerald-500 border-emerald-300 dark:border-emerald-700' : 
+                        isSent ? 'border-indigo-200 dark:border-indigo-800 opacity-80' :
+                        budget.hasOverride ? 'border-amber-200 dark:border-amber-800' : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
-                      {/* Cabeçalho do Card */}
-                      <div className={`flex items-center justify-between px-4 py-3 ${
-                        isSent ? 'bg-gray-50/80 dark:bg-gray-700/30' : 'bg-gray-50 dark:bg-gray-700/50'
+                      {/* ── Header do card ── */}
+                      <div className={`flex items-center justify-between px-4 py-3.5 ${
+                        isSent ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : 'bg-gray-50 dark:bg-gray-700/40'
                       }`}>
                         <div className="flex items-center gap-3">
+                          {/* Checkbox / lock */}
                           {!isSent ? (
                             <Checkbox 
                               checked={isSelected}
                               onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
                             />
                           ) : (
-                            <Lock className="w-4 h-4 text-indigo-400" />
+                            <Lock className="w-4 h-4 text-indigo-400 shrink-0" />
                           )}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                                {getCollaboratorName(budget.inclusion.collaboratorId)}
+
+                          {/* Avatar */}
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm ${avatarColor(name)}`}>
+                            {initials || '?'}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate">
+                                {name}
                               </span>
                               {budget.hasOverride && (
-                                <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" title="Valores personalizados" />
+                                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-medium">
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-medium rounded-md">
                                 {getFunctionName(budget.inclusion.functionId)}
                               </Badge>
-                              <Badge className={`text-[10px] h-5 px-1.5 font-medium ${
+                              <Badge className={`text-[10px] h-5 px-1.5 font-medium rounded-md ${
                                 isCasa 
                                   ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300' 
                                   : 'bg-orange-100 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300'
@@ -894,33 +969,35 @@ export default function BudgetPlannedPage() {
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
                               {isSent && (
-                                <Badge className="text-[10px] h-5 px-1.5 font-medium bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800">
+                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800">
                                   No Realizado
                                 </Badge>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+
+                        {/* Ações */}
+                        <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                           {canEdit && !isSent && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditModal(budget)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
                           )}
                           {!isSent && (
                             <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              variant="ghost" size="icon" 
+                              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                              title="Enviar para realização"
                               onClick={() => setConfirmSendSingle(budget)}
                             >
                               <Send className="w-3.5 h-3.5" />
                             </Button>
                           )}
                           <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-gray-400 hover:text-gray-600"
+                            variant="ghost" size="icon" 
+                            className="h-8 w-8 text-gray-400 hover:text-gray-600 rounded-lg"
+                            title={isCollapsed ? "Expandir" : "Recolher"}
                             onClick={() => toggleCollapse(budget.inclusion.id)}
                           >
                             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -928,65 +1005,66 @@ export default function BudgetPlannedPage() {
                         </div>
                       </div>
                       
-                      {/* Corpo do Card - Colapsável */}
+                      {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 text-sm flex-1 flex flex-col">
+                        <div className="px-4 pt-3 pb-2 text-sm flex-1 flex flex-col gap-1">
+                          {/* Período */}
                           {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                            <div className="flex items-center gap-2 py-1 text-xs text-gray-500 dark:text-gray-400">
-                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                              <span>
-                                {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-                              </span>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                             </div>
                           )}
-                          <div className="py-1 flex-1">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                <span className="text-gray-600 dark:text-gray-400">Diárias</span>
+
+                          {/* Itens em duas colunas */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                                <span className="text-xs">Diárias</span>
                               </div>
-                              <span className="font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
                             </div>
-                            <div className="ml-6 mt-0.5 space-y-0.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                <Car className="w-3.5 h-3.5 text-violet-400" />
+                                <span className="text-xs">Mobilidade</span>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.mobilidade)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                <Utensils className="w-3.5 h-3.5 text-orange-400" />
+                                <span className="text-xs">Alimentação</span>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                <Coffee className="w-3.5 h-3.5 text-amber-400" />
+                                <span className="text-xs">Ajuda de custo</span>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.ajudaCusto)}</span>
+                            </div>
+                          </div>
+
+                          {/* Detalhe diárias */}
+                          {(budget.weekdays > 0 || budget.weekends > 0) && (
+                            <div className="mt-1 pl-5 space-y-0.5">
                               {budget.weekdays > 0 && (
-                                <div className="text-[11px] text-gray-400">
-                                  {formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}
-                                </div>
+                                <div className="text-[10px] text-gray-400">{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>
                               )}
                               {budget.weekends > 0 && (
-                                <div className="text-[11px] text-gray-400">
-                                  {formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}
-                                </div>
+                                <div className="text-[10px] text-gray-400">{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>
                               )}
                             </div>
-                          </div>
-                          <div className="flex justify-between items-center py-1">
-                            <div className="flex items-center gap-2">
-                              <Utensils className="w-3.5 h-3.5 text-orange-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Alimentação</span>
-                            </div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1">
-                            <div className="flex items-center gap-2">
-                              <Car className="w-3.5 h-3.5 text-purple-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Mobilidade</span>
-                            </div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.mobilidade)}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1">
-                            <div className="flex items-center gap-2">
-                              <Coffee className="w-3.5 h-3.5 text-amber-500" />
-                              <span className="text-gray-600 dark:text-gray-400">Ajuda de custo</span>
-                            </div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(budget.ajudaCusto)}</span>
-                          </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Total - Sempre visível */}
-                      <div className="flex justify-between items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-100 dark:border-emerald-900">
-                        <span className="font-bold text-emerald-800 dark:text-emerald-300 text-xs uppercase tracking-wider">Total</span>
+                      {/* ── Total ── */}
+                      <div className="flex justify-between items-center px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-t border-emerald-100 dark:border-emerald-900/40 mt-auto">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Total</span>
                         <span className="font-bold text-base text-emerald-700 dark:text-emerald-300">{formatCurrency(budget.totalFinal)}</span>
                       </div>
                     </div>
