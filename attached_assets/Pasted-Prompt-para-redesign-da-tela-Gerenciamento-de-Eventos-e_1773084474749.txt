@@ -1,0 +1,39 @@
+Prompt para redesign da tela "Gerenciamento de Eventos" e modal "Editar Evento":
+
+Redesign da tela de listagem de eventos com tabela e do modal de edição, mantendo visual limpo, profissional e sem poluição visual.
+Cards de métricas (topo):
+
+Quatro cards simples, brancos, sombra mínima, sem bordas coloridas
+Ícone pequeno em fundo cinza claro à esquerda, número grande bold e label em cinza abaixo
+Apenas o card "Total" neutro, "Planejados" em azul, "Em andamento" em âmbar, "Concluídos" em verde — somente o número e o ícone recebem a cor, o card em si permanece branco
+
+Tabela de eventos:
+
+Header da seção com título, contador entre parênteses e botão "+ Novo Evento" em azul sólido alinhado à direita
+Filtros reorganizados em uma única linha: busca (largura maior), dropdown de status, mês e ano lado a lado, campo de data à direita
+Tabela com linhas mais espaçadas, zebra striping sutil em cinza muito claro (#f8fafc) nas linhas pares
+Coluna Nº em cinza discreto, Nome em bold, Cidade e Período em cinza médio
+Badge de Status: "Concluído" verde suave, "Em andamento" âmbar, "Planejado" azul claro, "Excluído" vermelho muito claro com texto cinza (sem destaque, pois é dado inativo)
+Linhas de eventos excluídos com opacidade reduzida (70%) para indicar visualmente inatividade
+Coluna "Escal." com número centralizado e ícone de pessoa pequeno
+Botões de ação (editar/excluir) como ícones sem borda, hover com fundo cinza arredondado — botão excluir vermelho só no hover, não o tempo todo
+Linha de hover na tabela com fundo azul muito claro (#eff6ff)
+
+Modal "Editar Evento":
+
+Modal centralizado, largura ~520px, border-radius 16px, sombra profunda, backdrop blur
+Header: título "Editar Evento" em bold + botão X sem borda, com hover em fundo cinza
+Campos com labels fixas acima, inputs com borda #e2e8f0, foco em azul com glow suave
+"Nome do Evento" em largura total
+"Local" em largura total com ícone de pin à esquerda
+"Data Início" e "Data Fim" lado a lado em grid 2 colunas com ícone de calendário
+"Status" como dropdown estilizado com ícone colorido por status à esquerda da opção
+"Observações" como textarea com placeholder descritivo e contador de caracteres no canto inferior direito
+Rodapé: "Cancelar" como ghost button e "Atualizar Evento" em azul sólido com ícone de check
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul (#2563eb) só para ações e foco
+Tabela sem bordas verticais, apenas separadores horizontais finos
+Transições suaves no hover das linhas e abertura do modal

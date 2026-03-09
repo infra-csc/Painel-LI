@@ -1,8 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,7 +14,7 @@ import EventModal from "@/components/modals/event-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { format } from "date-fns";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getEventStatus(event: Event): string {
   if (event.status === "excluído") return "excluído";
@@ -40,42 +37,46 @@ function formatPeriod(startStr: string, endStr: string): string {
   } catch { return `${startStr} – ${endStr}`; }
 }
 
-
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  planejado:      { label: "Planejado",      cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300" },
-  "em andamento": { label: "Em andamento",   cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" },
-  concluído:      { label: "Concluído",      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" },
-  excluído:       { label: "Excluído",       cls: "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400" },
+const STATUS_CONFIG: Record<string, { label: string; badgeCls: string }> = {
+  planejado:      { label: "Planejado",    badgeCls: "bg-blue-50 text-blue-600 ring-1 ring-blue-200" },
+  "em andamento": { label: "Em andamento", badgeCls: "bg-amber-50 text-amber-600 ring-1 ring-amber-200" },
+  concluído:      { label: "Concluído",    badgeCls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
+  excluído:       { label: "Excluído",     badgeCls: "bg-gray-100 text-gray-400 ring-1 ring-gray-200" },
 };
 
 type SortKey = "eventNumber" | "name" | "period" | "status";
 type SortDir = "asc" | "desc";
 
-// ─── Sort icon ────────────────────────────────────────────────────────────────
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown className="w-3.5 h-3.5 opacity-30 ml-1 inline" />;
+  if (col !== sortKey) return <ChevronsUpDown className="w-3 h-3 opacity-25 ml-1 inline" />;
   return sortDir === "asc"
-    ? <ChevronUp className="w-3.5 h-3.5 ml-1 inline text-primary" />
-    : <ChevronDown className="w-3.5 h-3.5 ml-1 inline text-primary" />;
+    ? <ChevronUp className="w-3 h-3 ml-1 inline text-blue-600" />
+    : <ChevronDown className="w-3 h-3 ml-1 inline text-blue-600" />;
 }
 
-// ─── Mini stat card ───────────────────────────────────────────────────────────
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
+// ─── StatCard ────────────────────────────────────────────────────────────────
+interface StatCardProps {
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  numCls: string;
+  iconCls: string;
+}
+function StatCard({ label, value, icon: Icon, numCls, iconCls }: StatCardProps) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-      <div className={`w-8 h-8 rounded-md flex items-center justify-center ${color}`}>
-        <Icon className="w-4 h-4" />
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex items-center gap-4">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconCls}`}>
+        <Icon className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}} />
       </div>
       <div>
-        <p className="text-xl font-semibold leading-none text-foreground">{value}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+        <p className={`text-2xl font-bold leading-none tabular-nums ${numCls}`}>{value}</p>
+        <p className="text-xs text-slate-400 mt-1">{label}</p>
       </div>
     </div>
   );
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
-
 export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -92,7 +93,6 @@ export default function Events() {
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: inclusions } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
-  // Count active escalações per event
   const escalacoesByEvent = useMemo(() => {
     if (!inclusions) return {} as Record<string, number>;
     return inclusions.reduce((acc, inc) => {
@@ -101,7 +101,6 @@ export default function Events() {
     }, {} as Record<string, number>);
   }, [inclusions]);
 
-  // Unique years from all events for the year select
   const availableYears = useMemo(() => {
     if (!events) return [];
     const years = new Set<number>();
@@ -112,7 +111,6 @@ export default function Events() {
     return Array.from(years).sort((a, b) => b - a);
   }, [events]);
 
-  // Stats from all (unfiltered) events
   const stats = useMemo(() => {
     if (!events) return { total: 0, planejado: 0, emAndamento: 0, concluido: 0 };
     const active = events.filter(e => e.status !== "excluído");
@@ -132,7 +130,6 @@ export default function Events() {
   const filteredAndSortedEvents = useMemo(() => {
     if (!events) return [];
     let list = [...events];
-
     if (searchTerm.trim()) {
       const t = searchTerm.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
@@ -150,7 +147,6 @@ export default function Events() {
       list = list.filter(e => {
         const es = new Date(e.startDate);
         const ee = new Date(e.endDate);
-        // Iterate each month in the event's range and check if it matches
         const cur = new Date(es.getFullYear(), es.getMonth(), 1);
         const endMonth = new Date(ee.getFullYear(), ee.getMonth(), 1);
         while (cur <= endMonth) {
@@ -162,7 +158,6 @@ export default function Events() {
         return false;
       });
     }
-
     list.sort((a, b) => {
       let cmp = 0;
       if (sortKey === "eventNumber") cmp = a.eventNumber - b.eventNumber;
@@ -171,7 +166,6 @@ export default function Events() {
       else if (sortKey === "status") cmp = getEventStatus(a).localeCompare(getEventStatus(b), "pt-BR");
       return sortDir === "asc" ? cmp : -cmp;
     });
-
     return list;
   }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir]);
 
@@ -196,285 +190,311 @@ export default function Events() {
 
   return (
     <TooltipProvider>
-      <>
-        <div className="space-y-5">
+      <div className="space-y-5">
 
-          {/* ── Mini stat cards ── */}
-          {!isLoading && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Total de eventos"  value={stats.total}       icon={LayoutList}    color="bg-muted text-muted-foreground" />
-              <StatCard label="Planejados"         value={stats.planejado}   icon={CalendarClock} color="bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400" />
-              <StatCard label="Em andamento"       value={stats.emAndamento} icon={CalendarCheck} color="bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" />
-              <StatCard label="Concluídos"         value={stats.concluido}   icon={CalendarX}     color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400" />
+        {/* ── Metric cards ── */}
+        {!isLoading && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard
+              label="Total de eventos"
+              value={stats.total}
+              icon={LayoutList}
+              numCls="text-slate-800"
+              iconCls="bg-slate-100 text-slate-500"
+            />
+            <StatCard
+              label="Planejados"
+              value={stats.planejado}
+              icon={CalendarClock}
+              numCls="text-blue-600"
+              iconCls="bg-blue-50 text-blue-500"
+            />
+            <StatCard
+              label="Em andamento"
+              value={stats.emAndamento}
+              icon={CalendarCheck}
+              numCls="text-amber-600"
+              iconCls="bg-amber-50 text-amber-500"
+            />
+            <StatCard
+              label="Concluídos"
+              value={stats.concluido}
+              icon={CalendarX}
+              numCls="text-emerald-600"
+              iconCls="bg-emerald-50 text-emerald-500"
+            />
+          </div>
+        )}
+
+        {/* ── Main panel ── */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+          {/* Section header */}
+          <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                Gerenciamento de Eventos
+                {!isLoading && (
+                  <span className="text-sm font-normal text-slate-400">
+                    ({hasActiveFilters
+                      ? `${filteredAndSortedEvents.length} de ${events?.filter(e => e.status !== "excluído").length ?? 0}`
+                      : stats.total})
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Gerencie os eventos do sistema</p>
             </div>
-          )}
+            <button
+              onClick={() => handleOpenModal()}
+              data-testid="button-add-event"
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Evento
+            </button>
+          </div>
 
-          {/* ── Main card ── */}
-          <Card className="border-border">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    Gerenciamento de Eventos
-                    {!isLoading && (
-                      <span className="ml-1 text-sm font-normal text-muted-foreground">
-                        ({hasActiveFilters ? `${filteredAndSortedEvents.length} de ${events?.filter(e => e.status !== "excluído").length ?? 0}` : stats.total})
-                      </span>
-                    )}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">Gerencie os eventos do sistema</p>
-                </div>
-                <Button onClick={() => handleOpenModal()} data-testid="button-add-event">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Evento
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              {/* ── Filters ── */}
-              <div className="mb-6 space-y-4">
-                {/* Linha 1: busca + status */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome ou cidade..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                      data-testid="input-search-event"
-                    />
-                    {searchTerm && (
-                      <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger data-testid="select-status-filter">
-                      <SelectValue placeholder="Todos os status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      <SelectItem value="planejado">Planejado</SelectItem>
-                      <SelectItem value="em andamento">Em andamento</SelectItem>
-                      <SelectItem value="concluído">Concluído</SelectItem>
-                      <SelectItem value="excluído">Excluído</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Linha 2: mês + ano + data */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <Select value={monthFilter} onValueChange={setMonthFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os meses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os meses</SelectItem>
-                      <SelectItem value="1">Janeiro</SelectItem>
-                      <SelectItem value="2">Fevereiro</SelectItem>
-                      <SelectItem value="3">Março</SelectItem>
-                      <SelectItem value="4">Abril</SelectItem>
-                      <SelectItem value="5">Maio</SelectItem>
-                      <SelectItem value="6">Junho</SelectItem>
-                      <SelectItem value="7">Julho</SelectItem>
-                      <SelectItem value="8">Agosto</SelectItem>
-                      <SelectItem value="9">Setembro</SelectItem>
-                      <SelectItem value="10">Outubro</SelectItem>
-                      <SelectItem value="11">Novembro</SelectItem>
-                      <SelectItem value="12">Dezembro</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={yearFilter} onValueChange={setYearFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os anos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os anos</SelectItem>
-                      {availableYears.map(y => (
-                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={dateFilter}
-                      onChange={e => setDateFilter(e.target.value)}
-                      className="w-full"
-                      title="Data específica — mostra eventos que ocorrem neste dia"
-                      data-testid="input-date-filter"
-                    />
-                    {dateFilter && (
-                      <button
-                        onClick={() => setDateFilter("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      {filteredAndSortedEvents.length} evento(s) encontrado(s)
-                    </p>
-                    <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
-                      <X className="w-4 h-4 mr-2" />
-                      Limpar filtros
-                    </Button>
-                  </div>
+          {/* Filters — single row */}
+          <div className="px-6 py-4 border-b border-gray-100">
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Search */}
+              <div className="relative flex-[2] min-w-[180px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <Input
+                  placeholder="Buscar por nome ou cidade..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                  data-testid="input-search-event"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
               </div>
 
-              {/* ── Table ── */}
-              {isLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Carregando eventos...</div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead
-                          className="cursor-pointer select-none w-16 hover:text-foreground"
-                          onClick={() => handleSort("eventNumber")}
-                        >
-                          Nº <SortIcon col="eventNumber" sortKey={sortKey} sortDir={sortDir} />
-                        </TableHead>
-                        <TableHead
-                          className="cursor-pointer select-none hover:text-foreground"
-                          onClick={() => handleSort("name")}
-                        >
-                          Nome <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-                        </TableHead>
-                        <TableHead>Cidade</TableHead>
-                        <TableHead
-                          className="cursor-pointer select-none hover:text-foreground"
-                          onClick={() => handleSort("period")}
-                        >
-                          Período <SortIcon col="period" sortKey={sortKey} sortDir={sortDir} />
-                        </TableHead>
-                        <TableHead
-                          className="cursor-pointer select-none hover:text-foreground"
-                          onClick={() => handleSort("status")}
-                        >
-                          Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="flex items-center justify-center gap-1 cursor-default">
-                                <Users className="w-3.5 h-3.5" /> Escal.
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Escalações ativas no evento</TooltipContent>
-                          </Tooltip>
-                        </TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAndSortedEvents.map((event) => {
-                        const displayStatus = getEventStatus(event);
-                        const statusCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["planejado"];
-                        const isDeleted = displayStatus === "excluído";
-                        const isOngoing = displayStatus === "em andamento";
-                        const escalacoes = escalacoesByEvent[event.id] ?? 0;
+              {/* Status */}
+              <div className="flex-1 min-w-[130px]">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg" data-testid="select-status-filter">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="planejado">Planejado</SelectItem>
+                    <SelectItem value="em andamento">Em andamento</SelectItem>
+                    <SelectItem value="concluído">Concluído</SelectItem>
+                    <SelectItem value="excluído">Excluído</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        return (
-                          <TableRow
-                            key={event.id}
-                            className={`transition-colors ${isDeleted ? "opacity-60" : "hover:bg-muted/40"}`}
-                          >
-                            <TableCell className="font-medium text-muted-foreground">{event.eventNumber}</TableCell>
-                            <TableCell>
-                              <span className="flex items-center gap-2">
-                                {isOngoing && (
-                                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="Em andamento" />
-                                )}
-                                {event.name}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{event.location}</TableCell>
-                            <TableCell className="tabular-nums text-muted-foreground whitespace-nowrap">
-                              {formatPeriod(event.startDate, event.endDate)}
-                            </TableCell>
-                            <TableCell>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.cls}`}>
-                                {statusCfg.label}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {escalacoes > 0 ? (
-                                <span className="text-sm font-medium text-foreground">{escalacoes}</span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex gap-1.5 justify-end">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleOpenModal(event)}
-                                      disabled={isDeleted}
-                                      data-testid={`button-edit-event-${event.id}`}
-                                    >
-                                      <Edit className="w-3 h-3" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Editar evento</TooltipContent>
-                                </Tooltip>
+              {/* Month */}
+              <div className="flex-1 min-w-[120px]">
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg">
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os meses</SelectItem>
+                    {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
+                      <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleDelete(event)}
-                                      disabled={isDeleted}
-                                      className="text-destructive hover:text-destructive"
-                                      data-testid={`button-delete-event-${event.id}`}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Excluir evento</TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {filteredAndSortedEvents.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                            {hasActiveFilters
-                              ? "Nenhum evento encontrado com os filtros aplicados."
-                              : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+              {/* Year */}
+              <div className="w-[96px]">
+                <Select value={yearFilter} onValueChange={setYearFilter}>
+                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {availableYears.map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date */}
+              <div className="relative w-[140px]">
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={e => setDateFilter(e.target.value)}
+                  className="h-9 text-sm border-gray-200 rounded-lg"
+                  title="Data específica — mostra eventos que ocorrem neste dia"
+                  data-testid="input-date-filter"
+                />
+                {dateFilter && (
+                  <button onClick={() => setDateFilter("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Clear */}
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  data-testid="button-clear-filters"
+                  className="flex items-center gap-1 h-9 px-3 text-xs text-slate-500 hover:text-slate-700 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Limpar
+                </button>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
 
-        <EventModal open={isModalOpen} onClose={handleCloseModal} event={editingEvent} />
-      </>
+          {/* Table */}
+          {isLoading ? (
+            <div className="text-center py-12 text-slate-400 text-sm">Carregando eventos...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th
+                      onClick={() => handleSort("eventNumber")}
+                      className="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none whitespace-nowrap w-16 hover:text-slate-600"
+                    >
+                      Nº <SortIcon col="eventNumber" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
+                    <th
+                      onClick={() => handleSort("name")}
+                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600"
+                    >
+                      Nome <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                      Cidade
+                    </th>
+                    <th
+                      onClick={() => handleSort("period")}
+                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600 whitespace-nowrap"
+                    >
+                      Período <SortIcon col="period" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
+                    <th
+                      onClick={() => handleSort("status")}
+                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600"
+                    >
+                      Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
+                    </th>
+                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="flex items-center justify-center gap-1 cursor-default">
+                            <Users className="w-3.5 h-3.5" /> Escal.
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Escalações ativas no evento</TooltipContent>
+                      </Tooltip>
+                    </th>
+                    <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAndSortedEvents.map((event, idx) => {
+                    const displayStatus = getEventStatus(event);
+                    const statusCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["planejado"];
+                    const isDeleted = displayStatus === "excluído";
+                    const isOngoing = displayStatus === "em andamento";
+                    const escalacoes = escalacoesByEvent[event.id] ?? 0;
+                    const isEven = idx % 2 === 1;
+
+                    return (
+                      <tr
+                        key={event.id}
+                        className={`border-b border-gray-50 transition-colors group ${
+                          isDeleted ? "opacity-60" : ""
+                        } ${isEven ? "bg-slate-50/60" : "bg-white"} hover:bg-blue-50/60`}
+                      >
+                        <td className="px-6 py-3.5 text-xs text-slate-400 font-medium tabular-nums">
+                          {event.eventNumber}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className="flex items-center gap-2">
+                            {isOngoing && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                            )}
+                            <span className="font-semibold text-slate-800">{event.name}</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-500">{event.location}</td>
+                        <td className="px-4 py-3.5 text-slate-500 tabular-nums whitespace-nowrap">
+                          {formatPeriod(event.startDate, event.endDate)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium ${statusCfg.badgeCls}`}>
+                            {statusCfg.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          {escalacoes > 0 ? (
+                            <span className="text-sm font-semibold text-slate-700">{escalacoes}</span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-1 justify-end">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => handleOpenModal(event)}
+                                  disabled={isDeleted}
+                                  data-testid={`button-edit-event-${event.id}`}
+                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar evento</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => handleDelete(event)}
+                                  disabled={isDeleted}
+                                  data-testid={`button-delete-event-${event.id}`}
+                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Excluir evento</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredAndSortedEvents.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
+                        {hasActiveFilters
+                          ? "Nenhum evento encontrado com os filtros aplicados."
+                          : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <EventModal open={isModalOpen} onClose={handleCloseModal} event={editingEvent} />
     </TooltipProvider>
   );
 }
