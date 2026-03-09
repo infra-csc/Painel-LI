@@ -902,7 +902,7 @@ export default function RhControlPage() {
               <Icon className="w-4 h-4 text-slate-400" />
               <span className="text-xs font-medium text-slate-500">{label}</span>
               {accent && rhActionCount > 0 && (
-                <span className="ml-auto text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">{rhActionCount}</span>
+                <span className="ml-auto text-[9px] font-bold text-red-600 bg-red-50 px-1 py-px rounded-full border border-red-100">{rhActionCount}</span>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -934,7 +934,7 @@ export default function RhControlPage() {
               {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
             </p>
             <div className="flex items-center gap-2 mt-1.5">
-              <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden max-w-[160px]">
+              <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden max-w-[160px]">
                 <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
               </div>
               <span className="text-[10px] text-slate-400">{progressPct}% concluído</span>
@@ -1115,14 +1115,29 @@ export default function RhControlPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-400" /> : null}
-                    {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-400" /> : null}
-                    {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-400" /> : null}
-                    {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-300" /> : null}
-                    {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-400" /> : null}
-                    {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-400" /> : null}
-                  </div>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-400" /> : null}
+                          {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-400" /> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-400" /> : null}
+                          {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-300" /> : null}
+                          {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-400" /> : null}
+                          {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-400" /> : null}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-[11px] space-y-1 p-2.5">
+                        <div className="font-semibold text-gray-600 mb-1.5">Etapas presentes</div>
+                        {statuses.prestacao_recebida ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" /><span className="text-blue-600">Comparativo ({statuses.prestacao_recebida})</span></div> : null}
+                        {statuses.planejamento_pendente ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /><span className="text-amber-600">Planejamento pendente ({statuses.planejamento_pendente})</span></div> : null}
+                        {statuses.devolvida_para_ajuste ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" /><span className="text-orange-600">Devolvida ({statuses.devolvida_para_ajuste})</span></div> : null}
+                        {statuses.aguardando_prestacao ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /><span className="text-slate-500">Aguardando prestação ({statuses.aguardando_prestacao})</span></div> : null}
+                        {statuses.aprovada_faturamento ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /><span className="text-emerald-600">Aprovada ({statuses.aprovada_faturamento})</span></div> : null}
+                        {statuses.recusada ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 shrink-0" /><span className="text-red-600">Recusada ({statuses.recusada})</span></div> : null}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </button>
 
                 {isOpen && (
