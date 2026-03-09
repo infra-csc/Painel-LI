@@ -1,0 +1,83 @@
+Prompt para redesign da sidebar de navegação:
+
+Redesign da sidebar de navegação lateral de um sistema de gestão de eventos, mantendo todos os itens existentes mas melhorando hierarquia visual, legibilidade e experiência geral.
+Estrutura geral:
+
+Largura 240px (aberta) e 64px (compacta)
+Fundo branco com borda direita fina em #f1f5f9 — sem fundo escuro, manter consistência com o sistema claro
+Scroll suave na lista de itens quando necessário
+
+Logo (topo):
+
+Área do logo com padding generoso, sem misturar dois logos diferentes (Norte + ícone separado confuso)
+Botão de colapso como chevron discreto integrado à borda direita da sidebar, não como botão azul flutuante
+
+Grupos de navegação:
+
+Labels de grupo (CADASTROS, OPERACIONAL, FINANCEIRO, GESTÃO) em cinza small-caps, tamanho 11px, com espaçamento vertical maior acima de cada grupo
+Separador visual mais claro entre grupos
+
+Itens de navegação:
+
+Ícone + label alinhados, padding horizontal 12px, border-radius 8px
+Estado padrão: ícone e texto em cinza (#64748b)
+Estado hover: fundo cinza claro (#f1f5f9), texto em cinza escuro
+Estado ativo: fundo azul muito claro (#eff6ff), texto azul (#2563eb), ícone azul — sem barra lateral colorida separada, o fundo já indica o ativo
+Ícones com tamanho consistente (18px), mesma família visual
+
+Rodapé da sidebar:
+
+Separador acima da área do usuário
+Avatar + nome + e-mail compactos em uma linha
+Ícones de ação (Compactar, Configurações, Tema) reorganizados como ícones discretos em linha horizontal, não misturados com texto
+"Sair" como item de menu com ícone de saída, em cinza — vermelho só no hover
+
+Modo compacto:
+
+Ao colapsar, mostrar apenas ícones centralizados com tooltip no hover mostrando o nome do item
+Logo reduzido à inicial ou ícone da marca
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Sidebar totalmente branca e limpa — a cor aparece apenas no item ativo
+Transição suave ao colapsar/expandir (width animado)
+
+
+
+Cole esse prompt que eu gero o código! 🚀melhorou mas não teria que ter alguma cor, não poluido mas assim achei que ficou muito cinza16:54Concordo! Ficou cinza demais. Aqui está o prompt ajustado com mais personalidade sem poluir:
+
+Prompt para ajuste da sidebar — mais cor com equilíbrio:
+
+Ajuste da sidebar de navegação para ter mais identidade visual sem poluição. O problema atual é excesso de cinza — tudo tem o mesmo peso visual, nada se destaca. Queremos personalidade com moderação.
+Logo (topo):
+
+Manter a logo Norte com destaque — adicionar fundo azul escuro (#0f172a) ou azul marca só na área do logo, criando um "cabeçalho" da sidebar
+Isso ancora visualmente o topo e dá identidade imediata sem colorir tudo
+
+Fundo da sidebar:
+
+Corpo da sidebar em branco ou cinza levíssimo (#fafafa) — não mudar
+Mas adicionar uma faixa vertical fina de 3px na borda esquerda da sidebar em azul da marca (#2563eb) — detalhe sutil que dá personalidade
+
+Labels de grupo:
+
+CADASTROS, OPERACIONAL, FINANCEIRO, GESTÃO em azul muito claro (#93c5fd) ou índigo (#818cf8) em vez de cinza — mantém hierarquia mas adiciona cor suave
+
+Ícones dos itens:
+
+Ícones em azul claro (#3b82f6) com 60% de opacidade no estado padrão — não cinza puro
+No hover: ícone em azul pleno (#2563eb), texto em azul escuro
+No ativo: ícone e texto em azul (#2563eb), fundo azul claro (#eff6ff) com borda esquerda fina azul sólido
+
+Rodapé:
+
+Avatar do usuário com fundo em gradiente azul/índigo (cor da marca)
+Nome em cinza escuro, e-mail em cinza claro
+Ícones de ação (tema, configurações) em azul claro no hover
+
+Resultado esperado:
+
+Sidebar com identidade da marca Norte (azul) sem ser colorida demais
+Hierarquia clara: logo escura → grupos em azul suave → itens em cinza com toque azul → ativo em azul pleno
+Sensação de sistema profissional com personalidade, não planilha cinza

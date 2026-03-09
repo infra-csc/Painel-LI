@@ -16,16 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 import norteLogo from "@assets/image_1770316785096.png";
 
-// ─── Avatar helpers ─────────────────────────────────────────────────────────
-const AVATAR_COLORS = [
-  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-orange-500",
-  "bg-pink-500", "bg-cyan-600", "bg-amber-500", "bg-rose-500",
-];
-function avatarColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -49,22 +40,22 @@ export default function Sidebar() {
   const { theme, toggleTheme } = useTheme();
 
   const allTabs = [
-    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,      permission: "canAccessScreen0" as const },
-    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,      permission: "canAccessAdminUsers" as const },
-    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,        permission: "canAccessScreen0" as const },
-    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: UserCog,       permission: "canAccessCollaborators" as const },
-    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,         permission: "canAccessScreen1" as const },
-    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: UserCheck,     permission: "canAccessScreen2" as const },
-    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,         permission: "canAccessScreen3" as const },
-    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: Hotel,         permission: "canAccessScreen3" as const },
-    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: Calculator,    permission: "canAccessScreen0" as const },
-    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck,permission: "canAccessScreen0" as const },
-    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: BarChart3,     permission: "canAccessScreen5" as const },
-    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: Shield,        permission: "canAccessScreen5" as const },
-    { id: "approval",          path: "/approval",          label: "Aprovação",             icon: CheckCircle,   permission: "canAccessScreen5" as const },
-    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,        permission: "canAccessScreen6" as const },
-    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Settings,      permission: "canAccessAdminUsers" as const },
-    { id: "system-settings",   path: "/system-settings",   label: "Configurações",         icon: Settings,      permission: "canAccessAdminUsers" as const },
+    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       permission: "canAccessScreen0" as const },
+    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       permission: "canAccessAdminUsers" as const },
+    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         permission: "canAccessScreen0" as const },
+    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: UserCog,        permission: "canAccessCollaborators" as const },
+    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,          permission: "canAccessScreen1" as const },
+    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: UserCheck,      permission: "canAccessScreen2" as const },
+    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,          permission: "canAccessScreen3" as const },
+    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: Hotel,          permission: "canAccessScreen3" as const },
+    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: Calculator,     permission: "canAccessScreen0" as const },
+    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck, permission: "canAccessScreen0" as const },
+    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: BarChart3,      permission: "canAccessScreen5" as const },
+    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: Shield,         permission: "canAccessScreen5" as const },
+    { id: "approval",          path: "/approval",          label: "Aprovação",             icon: CheckCircle,    permission: "canAccessScreen5" as const },
+    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         permission: "canAccessScreen6" as const },
+    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Settings,       permission: "canAccessAdminUsers" as const },
+    { id: "system-settings",   path: "/system-settings",   label: "Configurações",         icon: Settings,       permission: "canAccessAdminUsers" as const },
   ];
 
   const tabs = allTabs.filter(tab =>
@@ -75,9 +66,8 @@ export default function Sidebar() {
 
   const getGroupTabs = (ids: string[]) => tabs.filter(t => ids.includes(t.id));
   const userName = user?.name || "Usuário";
-  const col = avatarColor(userName);
 
-  // ── Icon-only tooltip wrapper ─────────────────────────────────────────────
+  // ── Nav item ─────────────────────────────────────────────────────────────
   function NavItem({ tab }: { tab: typeof tabs[0] }) {
     const Icon = tab.icon;
     const isActive = location === tab.path;
@@ -88,14 +78,23 @@ export default function Sidebar() {
           onClick={() => setMobileOpen(false)}
           data-testid={`sidebar-${tab.id}`}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150",
+            "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
             isCompact && "justify-center px-0",
             isActive
-              ? "bg-blue-50 text-blue-600"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+              ? "bg-blue-50 text-blue-700"
+              : "text-slate-600 hover:bg-slate-50 hover:text-blue-700"
           )}
         >
-          <Icon className={cn("flex-shrink-0 transition-colors duration-150", isCompact ? "w-[18px] h-[18px]" : "w-[18px] h-[18px]", isActive ? "text-blue-600" : "")} />
+          {/* Active left accent */}
+          {isActive && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-blue-600 rounded-r-full" />
+          )}
+          <Icon className={cn(
+            "flex-shrink-0 w-[18px] h-[18px] transition-colors duration-150",
+            isActive
+              ? "text-blue-600"
+              : "text-blue-400/70 group-hover:text-blue-600"
+          )} />
           {!isCompact && <span className="truncate leading-tight">{tab.label}</span>}
         </button>
       </Link>
@@ -128,7 +127,7 @@ export default function Sidebar() {
           <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
         )}
 
-        {/* Re-expand button when fully collapsed (desktop) */}
+        {/* Re-expand tab when fully collapsed (desktop) */}
         {isCollapsed && !isFocusMode && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -144,17 +143,22 @@ export default function Sidebar() {
         )}
 
         {/* ── Sidebar ── */}
+        {/* Left accent stripe on the sidebar itself */}
         <aside className={cn(
-          "fixed left-0 top-0 h-full bg-white border-r border-slate-100 z-40 flex flex-col transition-all duration-300 ease-in-out shadow-sm",
+          "fixed left-0 top-0 h-full z-40 flex flex-col transition-all duration-300 ease-in-out shadow-sm",
+          "bg-white border-r border-slate-100 border-l-[3px] border-l-blue-600",
           isCompact ? "w-16" : "w-60",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           (isCollapsed || isFocusMode) && "lg:-translate-x-full"
         )}>
 
-          {/* ── Logo area ── */}
-          <div className={cn("flex items-center border-b border-slate-100 shrink-0", isCompact ? "h-14 justify-center px-3" : "h-14 px-4 justify-between")}>
+          {/* ── Logo — dark brand header ── */}
+          <div className={cn(
+            "bg-[#0f172a] shrink-0 flex items-center",
+            isCompact ? "h-14 justify-center px-3" : "h-14 px-4 justify-between"
+          )}>
             {isCompact ? (
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-base select-none">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-base select-none shadow-md">
                 N
               </div>
             ) : (
@@ -163,17 +167,20 @@ export default function Sidebar() {
                   src={norteLogo}
                   alt="Norte"
                   className="w-36 object-cover object-top"
-                  style={{ clipPath: "inset(0 0 25% 0)" }}
+                  style={{
+                    clipPath: "inset(0 0 25% 0)",
+                    filter: "brightness(0) invert(1)",
+                  }}
                 />
               </div>
             )}
 
-            {/* Collapse chevron — integrated into header */}
+            {/* Collapse chevron — white on dark header */}
             {!isCompact && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                    className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors shrink-0"
                     onClick={toggleCollapsed}
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -193,7 +200,8 @@ export default function Sidebar() {
               return (
                 <div key={group.title} className={cn(idx > 0 && "mt-5")}>
                   {!isCompact ? (
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-3 mb-1.5 select-none">
+                    /* Group label — blue/indigo tint instead of flat gray */
+                    <p className="text-[10px] font-bold text-blue-400/80 uppercase tracking-widest px-3 mb-1.5 select-none">
                       {group.title}
                     </p>
                   ) : (
@@ -215,7 +223,11 @@ export default function Sidebar() {
           <div className="border-t border-slate-100 px-2 py-3 space-y-2 shrink-0">
             {/* User info */}
             <div className={cn("flex items-center gap-2.5 px-1 min-w-0", isCompact && "justify-center px-0")}>
-              <div className={cn("rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0", isCompact ? "w-8 h-8" : "w-8 h-8", col)}>
+              {/* Blue/indigo gradient avatar */}
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0",
+                "bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm shadow-blue-200"
+              )}>
                 {initials(userName)}
               </div>
               {!isCompact && (
@@ -232,7 +244,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={toggleCompact}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     {isCompact ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
                   </button>
@@ -258,7 +270,7 @@ export default function Sidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={toggleTheme}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
                   </button>
