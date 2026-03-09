@@ -154,7 +154,7 @@ export default function Events() {
     });
 
     return list;
-  }, [events, searchTerm, statusFilter, periodFilter, sortKey, sortDir]);
+  }, [events, searchTerm, statusFilter, startDateFilter, endDateFilter, sortKey, sortDir]);
 
   const deleteEventMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
