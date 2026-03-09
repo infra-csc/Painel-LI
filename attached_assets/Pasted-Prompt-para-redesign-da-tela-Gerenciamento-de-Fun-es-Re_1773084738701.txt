@@ -1,0 +1,46 @@
+Prompt para redesign da tela "Gerenciamento de Funções":
+
+Redesign da tela de gerenciamento de funções do sistema, mantendo visual limpo, hierarquia clara e fácil usabilidade para adicionar/remover responsáveis.
+Header da seção:
+
+Ícone de engrenagem substituído por ícone mais moderno (grade ou tag)
+Título bold, subtítulo em cinza claro abaixo
+Botão "+ Nova Função" em azul sólido com ícone, alinhado à direita
+Campo de busca discreto entre o header e a tabela para filtrar funções por nome
+
+Tabela de funções:
+
+Sem bordas laterais, apenas separadores horizontais finos em #f1f5f9
+Header da tabela com colunas: Nome, Responsáveis, Ações — em cinza small-caps, fundo levemente diferenciado (#f8fafc)
+Linhas com altura generosa (56–64px), hover com fundo #f8fafc suave
+
+Coluna "Nome":
+
+Nome da função em bold, primeira letra maiúscula
+Adicionar um número discreto de ordem à esquerda em cinza claro
+
+Coluna "Responsáveis":
+
+Tags de usuário redesenhadas: avatar circular pequeno com inicial colorida + nome do usuário + botão X no hover (não o tempo todo)
+Cores dos avatars variadas por usuário (azul, verde, roxo, laranja) para diferenciar visualmente
+Botão "+ Adicionar" como pill outline discreto em cinza, hover em azul suave — não competir visualmente com as tags de usuário
+Quando vazio: apenas o botão "+ Adicionar" com mensagem "Nenhum responsável" em cinza italic ao lado
+
+Coluna "Ações":
+
+Ícones de editar e excluir sem bordas (ghost)
+Editar em cinza, hover em azul
+Excluir em cinza, hover em vermelho — nunca vermelho sólido o tempo todo
+Tooltip "Editar função" e "Excluir função" no hover
+
+Estados especiais:
+
+Funções sem responsável: linha com fundo levemente amarelado (#fffbeb) e ícone de alerta discreto na coluna de responsáveis
+Funções com 3+ responsáveis: mostrar os 2 primeiros + badge "+N" em cinza arredondado
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Paleta neutra: branco, cinzas, azul (#2563eb) só para ações e foco
+Tags de usuário compactas, sem verde constante — cor só no avatar
+Tabela com scroll suave quando há muitas funções
