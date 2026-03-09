@@ -1,0 +1,38 @@
+Prompt para redesign do modal "Orçamento Planejado por Colaborador":
+
+Redesign completo de um modal de edição de orçamento individual de colaborador para eventos. O modal deve ser elegante, organizado e facilitar a edição dos valores financeiros.
+Header do modal:
+
+Avatar circular com inicial do nome do colaborador em gradiente índigo/roxo à esquerda do título
+Nome em destaque bold, subtítulo "Orçamento Planejado — atendimento" em cinza
+Linha de metadados: badge "Casa" colorido + ícone de calendário + período + quantidade de dias úteis e fins de semana em pills distintos
+Botão "Restaurar padrão" com ícone de reset, discreto no canto superior direito, com hover em vermelho suave
+Botão X de fechar com hover em fundo cinza arredondado
+
+Corpo do modal (seções de custo):
+
+Cada seção (Diárias, Mobilidade, Alimentação, Ajuda de Custo) como um card interno com fundo levemente diferenciado (#f8fafc)
+Header da seção: ícone colorido + título em maiúsculas bold + subtotal alinhado à direita em cor de destaque
+Linhas de item com: label + quantidade de dias em badge cinza + prefixo "R$" + input editável centralizado estilizado + sufixo "/dia" ou "total" em cinza + valor calculado em bold à direita
+Inputs com borda suave, foco em azul índigo com glow, largura fixa de ~100px
+Subseções de Alimentação (Dias Úteis / Fim de Semana) com header interno menor, ícone distinto e indentação visual
+Separadores entre seções com linha tracejada sutil
+
+Footer fixo do modal:
+
+Card "Total do Planejado" à esquerda com fundo verde menta suave, label pequeno acima e valor em fonte grande bold verde
+Adicionar mini breakdown no tooltip: "Diárias + Alimentação + Mobilidade + Ajuda"
+Botão "Cancelar" como ghost button e "Salvar Alterações" em gradiente índigo com ícone de check, ambos com hover animado
+
+Comportamento visual:
+
+Total atualiza em tempo real conforme os inputs são editados (com animação count-up suave)
+Subtotais de cada seção também recalculam dinamicamente
+Scroll interno suave com indicador de há mais conteúdo abaixo (gradiente fade na borda)
+Overlay de fundo com blur (backdrop-filter: blur) em vez de escurecimento simples
+
+Estilo geral:
+
+Fonte Sora ou DM Sans
+Modal com border-radius 20px, sombra profunda, largura ~680px
+Cores: índigo (#6366f1) para ações, verde (#10b981) para totais, âmbar (#f59e0b) para fins de semana, coral (#f97316) para alimentação
