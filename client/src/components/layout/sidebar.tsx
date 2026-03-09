@@ -63,6 +63,10 @@ const menuGroups = [
     items: ["team-inclusion", "scaling", "tickets", "accommodations"]
   },
   {
+    title: "Financeiro",
+    items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control"]
+  },
+  {
     title: "Gestão",
     items: ["approval", "consultation", "admin-users"]
   }
