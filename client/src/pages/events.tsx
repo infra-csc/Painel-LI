@@ -81,7 +81,8 @@ export default function Events() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { toast } = useToast();
@@ -98,6 +99,17 @@ export default function Events() {
       return acc;
     }, {} as Record<string, number>);
   }, [inclusions]);
+
+  // Unique years from all events for the year select
+  const availableYears = useMemo(() => {
+    if (!events) return [];
+    const years = new Set<number>();
+    events.forEach(e => {
+      years.add(new Date(e.startDate).getFullYear());
+      years.add(new Date(e.endDate).getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [events]);
 
   // Stats from all (unfiltered) events
   const stats = useMemo(() => {
@@ -125,12 +137,20 @@ export default function Events() {
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
     if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (dateFilter) {
-      const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
+    if (monthFilter !== "all" || yearFilter !== "all") {
       list = list.filter(e => {
-        const es = new Date(e.startDate); es.setHours(0,0,0,0);
-        const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
-        return selected >= es && selected <= ee;
+        const es = new Date(e.startDate);
+        const ee = new Date(e.endDate);
+        // Iterate each month in the event's range and check if it matches
+        const cur = new Date(es.getFullYear(), es.getMonth(), 1);
+        const endMonth = new Date(ee.getFullYear(), ee.getMonth(), 1);
+        while (cur <= endMonth) {
+          const mMatch = monthFilter === "all" || cur.getMonth() + 1 === Number(monthFilter);
+          const yMatch = yearFilter === "all" || cur.getFullYear() === Number(yearFilter);
+          if (mMatch && yMatch) return true;
+          cur.setMonth(cur.getMonth() + 1);
+        }
+        return false;
       });
     }
 
@@ -144,7 +164,7 @@ export default function Events() {
     });
 
     return list;
-  }, [events, searchTerm, statusFilter, dateFilter, sortKey, sortDir]);
+  }, [events, searchTerm, statusFilter, monthFilter, yearFilter, sortKey, sortDir]);
 
   const deleteEventMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
@@ -162,8 +182,8 @@ export default function Events() {
     if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`))
       deleteEventMutation.mutate(event);
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setDateFilter(""); };
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || dateFilter;
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setMonthFilter("all"); setYearFilter("all"); };
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || monthFilter !== "all" || yearFilter !== "all";
 
   return (
     <TooltipProvider>
@@ -236,23 +256,38 @@ export default function Events() {
                     </SelectContent>
                   </Select>
 
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={dateFilter}
-                      onChange={e => setDateFilter(e.target.value)}
-                      className="w-full"
-                      title="Filtrar por data (eventos que ocorrem nesta data)"
-                      data-testid="input-date-filter"
-                    />
-                    {dateFilter && (
-                      <button
-                        onClick={() => setDateFilter("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                  <div className="flex gap-2">
+                    <Select value={monthFilter} onValueChange={setMonthFilter}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Mês" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os meses</SelectItem>
+                        <SelectItem value="1">Janeiro</SelectItem>
+                        <SelectItem value="2">Fevereiro</SelectItem>
+                        <SelectItem value="3">Março</SelectItem>
+                        <SelectItem value="4">Abril</SelectItem>
+                        <SelectItem value="5">Maio</SelectItem>
+                        <SelectItem value="6">Junho</SelectItem>
+                        <SelectItem value="7">Julho</SelectItem>
+                        <SelectItem value="8">Agosto</SelectItem>
+                        <SelectItem value="9">Setembro</SelectItem>
+                        <SelectItem value="10">Outubro</SelectItem>
+                        <SelectItem value="11">Novembro</SelectItem>
+                        <SelectItem value="12">Dezembro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={yearFilter} onValueChange={setYearFilter}>
+                      <SelectTrigger className="w-28">
+                        <SelectValue placeholder="Ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {availableYears.map(y => (
+                          <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
