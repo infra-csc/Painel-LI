@@ -235,7 +235,8 @@ export default function Events() {
             <CardContent>
               {/* ── Filters ── */}
               <div className="mb-6 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {/* Linha 1: busca + status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -264,7 +265,10 @@ export default function Events() {
                       <SelectItem value="excluído">Excluído</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
 
+                {/* Linha 2: mês + ano + data */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Select value={monthFilter} onValueChange={setMonthFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os meses" />
