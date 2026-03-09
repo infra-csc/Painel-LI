@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock } from "lucide-react";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
@@ -663,18 +664,26 @@ export default function BudgetPlannedPage() {
       ) : (
           <>
             {/* ── Banner Total Planejado ── */}
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl px-6 py-5 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30">
-              <div className="flex items-center justify-between">
+            <div className="relative bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl px-6 py-5 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30 overflow-hidden">
+              {/* dot pattern for depth */}
+              <div
+                className="absolute inset-0 opacity-[0.07] pointer-events-none"
+                style={{ backgroundImage: "radial-gradient(circle, white 1.5px, transparent 1.5px)", backgroundSize: "22px 22px" }}
+              />
+              <div className="relative flex items-center justify-between">
                 <div>
                   <p className="text-emerald-100 text-xs font-semibold uppercase tracking-widest mb-1">Total Planejado do Evento</p>
                   <div className="text-3xl font-black text-white">{formatCurrency(totalGeral)}</div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2 bg-white/20 rounded-xl px-3 py-1.5">
+                  <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: "rgba(255,255,255,0.15)" }}>
                     <Users className="w-4 h-4 text-white" />
                     <span className="text-white font-semibold text-sm">{stats.total} colaboradores</span>
                   </div>
-                  <div className="text-emerald-100 text-xs">{stats.enviados} enviados para realização</div>
+                  <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-1" style={{ background: "rgba(255,255,255,0.12)" }}>
+                    <Send className="w-3 h-3 text-emerald-100" />
+                    <span className="text-emerald-100 text-xs">{stats.enviados} enviados</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -698,11 +707,14 @@ export default function BudgetPlannedPage() {
                       return (
                         <div key={i} className="flex items-center flex-1">
                           <div className="flex flex-col items-center gap-1.5">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                              isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
-                              isActive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-300 dark:shadow-indigo-900/50 ring-4 ring-indigo-100 dark:ring-indigo-900/40' :
-                              'bg-gray-100 dark:bg-gray-700 text-gray-400'
-                            }`}>
+                            <div
+                              className={`rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
+                                isDone ? 'w-8 h-8 bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
+                                isActive ? 'w-9 h-9 bg-indigo-600 text-white ring-4 ring-indigo-100 dark:ring-indigo-900/40' :
+                                'w-8 h-8 bg-gray-50 dark:bg-gray-700 text-gray-300'
+                              }`}
+                              style={isActive ? { boxShadow: "0 0 0 4px rgba(99,102,241,0.2)" } : undefined}
+                            >
                               {isDone ? (
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -825,6 +837,9 @@ export default function BudgetPlannedPage() {
                   style={{ width: `${Math.max(stats.progressoEnvio, stats.progressoEnvio > 0 ? 4 : 0)}%` }}
                 />
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.enviados} de {stats.total}</span> colaboradores enviados para Prestação de Contas
+              </p>
             </div>
 
             {/* ── Filtros e Busca ── */}
@@ -940,7 +955,16 @@ export default function BudgetPlannedPage() {
                               onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
                             />
                           ) : (
-                            <Lock className="w-4 h-4 text-indigo-400 shrink-0" />
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Lock className="w-4 h-4 text-indigo-400 shrink-0 cursor-default" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="text-xs">
+                                  Aguardando prestação de contas
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
 
                           {/* Avatar */}
@@ -969,7 +993,7 @@ export default function BudgetPlannedPage() {
                                 {isCasa ? 'Casa' : 'Freela'}
                               </Badge>
                               {isSent && (
-                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800">
+                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600">
                                   No Realizado
                                 </Badge>
                               )}
