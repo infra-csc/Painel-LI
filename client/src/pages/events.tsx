@@ -83,6 +83,7 @@ export default function Events() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { toast } = useToast();
@@ -137,6 +138,14 @@ export default function Events() {
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
     if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
+    if (dateFilter) {
+      const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
+      list = list.filter(e => {
+        const es = new Date(e.startDate); es.setHours(0,0,0,0);
+        const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
+        return selected >= es && selected <= ee;
+      });
+    }
     if (monthFilter !== "all" || yearFilter !== "all") {
       list = list.filter(e => {
         const es = new Date(e.startDate);
@@ -164,7 +173,7 @@ export default function Events() {
     });
 
     return list;
-  }, [events, searchTerm, statusFilter, monthFilter, yearFilter, sortKey, sortDir]);
+  }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir]);
 
   const deleteEventMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
@@ -182,8 +191,8 @@ export default function Events() {
     if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`))
       deleteEventMutation.mutate(event);
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setMonthFilter("all"); setYearFilter("all"); };
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || monthFilter !== "all" || yearFilter !== "all";
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all"); };
+  const hasActiveFilters = searchTerm || statusFilter !== "all" || dateFilter || monthFilter !== "all" || yearFilter !== "all";
 
   return (
     <TooltipProvider>
@@ -226,7 +235,7 @@ export default function Events() {
             <CardContent>
               {/* ── Filters ── */}
               <div className="mb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -288,6 +297,25 @@ export default function Events() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      value={dateFilter}
+                      onChange={e => setDateFilter(e.target.value)}
+                      className="w-full"
+                      title="Data específica — mostra eventos que ocorrem neste dia"
+                      data-testid="input-date-filter"
+                    />
+                    {dateFilter && (
+                      <button
+                        onClick={() => setDateFilter("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
