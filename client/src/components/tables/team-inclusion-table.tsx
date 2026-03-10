@@ -444,21 +444,38 @@ export default function TeamInclusionTable() {
       {/* Totals Summary */}
       <div className="mb-6">
         <div className="grid grid-cols-4 xl:grid-cols-8 gap-3">
-          {[
-            { value: totals.incluidos,           label: "Total",          color: "text-blue-600",    border: "border-t-blue-400",    testId: "total-incluidos" },
-            { value: totals.pendentes,           label: "Pendentes",      color: "text-red-500",     border: "border-t-red-400",     testId: "total-pendentes" },
-            { value: totals.escalados,           label: "Escalados",      color: "text-green-600",   border: "border-t-green-500",   testId: "total-escalados" },
-            { value: totals.aguardando_passagem, label: "Passagem",       color: "text-orange-600",  border: "border-t-orange-400",  testId: "total-passagem" },
-            { value: totals.hospedagem,          label: "Hospedagem",     color: "text-purple-600",  border: "border-t-purple-400",  testId: "total-hospedagem" },
-            { value: totals.passagem_comprada,   label: "Pass. Comprada", color: "text-emerald-600", border: "border-t-emerald-400", testId: "total-passagem-comprada" },
-            { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-indigo-600",  border: "border-t-indigo-400",  testId: "total-hospedagem-comprada" },
-            { value: totals.cancelados,          label: "Cancelados",     color: "text-gray-400",    border: "border-t-gray-300",    testId: "total-cancelados" },
-          ].map(({ value, label, color, border, testId }) => (
-            <div key={testId} className={`bg-white border border-slate-200 border-t-2 ${border} rounded-xl shadow-sm p-4 text-center`}>
-              <div className={`text-3xl font-bold tabular-nums ${color}`} data-testid={testId}>{value}</div>
-              <div className="text-[11px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
-            </div>
-          ))}
+          {([
+            { value: totals.incluidos,           label: "Total",          color: "text-blue-600",    border: "border-t-blue-400",    activeBg: "bg-blue-50",    filterValue: "all",                  testId: "total-incluidos" },
+            { value: totals.pendentes,           label: "Pendentes",      color: "text-red-500",     border: "border-t-red-400",     activeBg: "bg-red-50",     filterValue: "planejado",            testId: "total-pendentes" },
+            { value: totals.escalados,           label: "Escalados",      color: "text-green-600",   border: "border-t-green-500",   activeBg: "bg-green-50",   filterValue: "escalado",             testId: "total-escalados" },
+            { value: totals.aguardando_passagem, label: "Passagem",       color: "text-orange-600",  border: "border-t-orange-400",  activeBg: "bg-orange-50",  filterValue: "passagem",             testId: "total-passagem" },
+            { value: totals.hospedagem,          label: "Hospedagem",     color: "text-purple-600",  border: "border-t-purple-400",  activeBg: "bg-purple-50",  filterValue: "hospedagem",           testId: "total-hospedagem" },
+            { value: totals.passagem_comprada,   label: "Pass. Comprada", color: "text-emerald-600", border: "border-t-emerald-400", activeBg: "bg-emerald-50", filterValue: "passagem_comprada",    testId: "total-passagem-comprada" },
+            { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-indigo-600",  border: "border-t-indigo-400",  activeBg: "bg-indigo-50",  filterValue: "hospedagem_comprada",  testId: "total-hospedagem-comprada" },
+            { value: totals.cancelados,          label: "Cancelados",     color: "text-gray-400",    border: "border-t-gray-300",    activeBg: "bg-gray-50",    filterValue: "cancelado",            testId: "total-cancelados" },
+          ] as const).map(({ value, label, color, border, activeBg, filterValue, testId }) => {
+            const isActive = filterValue === "all"
+              ? filters.status === "all"
+              : filters.status === filterValue;
+            return (
+              <div
+                key={testId}
+                onClick={() => {
+                  if (filterValue === "all") {
+                    setFilters(f => ({ ...f, status: "all" }));
+                  } else {
+                    setFilters(f => ({ ...f, status: isActive ? "all" : filterValue }));
+                  }
+                }}
+                className={`border border-slate-200 border-t-2 ${border} rounded-xl p-4 text-center cursor-pointer transition-all duration-150 select-none
+                  ${isActive ? `${activeBg} shadow-md border-2` : "bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+                data-testid={testId}
+              >
+                <div className={`text-3xl font-bold tabular-nums ${color}`}>{value}</div>
+                <div className="text-[11px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
