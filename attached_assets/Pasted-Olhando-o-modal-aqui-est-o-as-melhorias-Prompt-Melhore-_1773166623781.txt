@@ -1,0 +1,71 @@
+Olhando o modal, aqui estão as melhorias:
+
+Prompt:
+Melhore apenas o design visual do modal de Detalhes da Escalação. Zero mudança em lógica.
+1. Header do modal
+
+Título em text-lg font-bold text-slate-800
+Linha separadora border-b border-slate-100 pb-4 mb-4 abaixo do título
+Botão X: hover:bg-slate-100 rounded-lg p-1 transition-colors
+
+2. Grid de informações (Evento, ID, Função, Status)
+
+Layout em grid grid-cols-2 gap-4
+Label em text-xs font-bold uppercase tracking-wider text-slate-400 mb-1
+Valor em text-sm font-medium text-slate-700
+Evento em text-blue-600
+
+3. Select de Colaborador
+
+border border-slate-200 rounded-xl bg-slate-50 px-3 py-2.5 w-full text-sm focus:ring-2 focus:ring-blue-200
+Aviso "Não é possível alterar": text-xs text-amber-600 mt-1 flex items-center gap-1
+
+4. Bloco "Período de Trabalho"
+
+Container: bg-blue-50 border border-blue-100 rounded-xl p-4
+Título em text-blue-700 font-semibold
+Cards dos dias: bg-white border border-blue-100 rounded-lg text-center px-3 py-2 text-sm font-medium shadow-sm
+Dia da semana em text-xs text-slate-400 uppercase
+Número do dia em text-lg font-bold text-slate-700
+Check em text-green-500
+
+5. Bloco "Datas de Viagem"
+
+Cards IDA/VOLTA lado a lado: bg-white border border-slate-200 rounded-xl p-4 flex-1
+Label "IDA"/"VOLTA" em text-xs font-bold uppercase tracking-wider text-blue-600
+Horário destacado: bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2 text-lg font-bold text-green-700
+Campos vazios (--:--): mesma estrutura mas border-slate-200 text-slate-300
+
+6. Bloco "Dados da Hospedagem"
+
+Container: bg-green-50 border border-green-100 rounded-xl p-4
+Título em text-green-700 font-semibold
+Labels em text-xs text-slate-400 uppercase tracking-wider
+Valores em text-sm font-medium text-slate-700
+
+7. Anexos
+
+Card de anexo: bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer
+Número do anexo: bg-blue-100 text-blue-600 rounded-lg w-6 h-6 flex items-center justify-center text-xs font-bold
+Ícone olho: text-blue-400 hover:text-blue-600
+
+8. Comentários
+
+Área vazia: bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-6
+Textarea: border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-200 text-sm p-3 w-full resize-none
+Botão Enviar: bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors
+
+9. Histórico de Alterações
+
+Cada item: border-l-2 border-blue-200 pl-3 py-1
+Título do evento em text-sm font-medium text-slate-700
+Descrição em text-xs text-slate-500
+Data/hora em text-xs text-slate-400
+"por X": text-xs text-blue-500
+Bullet: bg-blue-500 rounded-full w-2 h-2
+
+10. Botões do rodapé
+
+"Cancelar": border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium
+"Salvar Alterações": border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-4 py-2 text-sm font-medium
+"Confirmar Escalação": bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold shadow-sm

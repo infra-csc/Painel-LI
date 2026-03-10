@@ -1270,9 +1270,9 @@ export default function Scaling() {
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="w-5 h-5" />
+          <DialogHeader className="border-b border-slate-100 pb-4 mb-4">
+            <DialogTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-500" />
               Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
             </DialogTitle>
           </DialogHeader>
@@ -1282,33 +1282,33 @@ export default function Scaling() {
               {/* Informações Básicas */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">Evento</Label>
-                  <div className="text-sm text-muted-foreground mt-1">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Evento</div>
+                  <div className="text-sm font-medium text-blue-600">
                     {getEventName(selectedInclusion.eventId)}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">ID</Label>
-                  <div className="text-sm text-muted-foreground mt-1 font-mono">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">ID</div>
+                  <div className="text-sm font-medium text-slate-700 font-mono">
                     #{selectedInclusion.inclusionNumber || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Função</Label>
-                  <div className="text-sm text-muted-foreground mt-1">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função</div>
+                  <div className="text-sm font-medium text-slate-700">
                     {getFunctionName(selectedInclusion.functionId)}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Status da Escalação</Label>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status da Escalação</div>
                   <div className="mt-1">
                     {isEscalated(selectedInclusion) ? (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         Escalado
                       </div>
                     ) : (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full">
                         <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                         Pendente
                       </div>
@@ -1324,8 +1324,8 @@ export default function Scaling() {
                 </Label>
                 {!canEditCollaborator(selectedInclusion) ? (
                   // Colaborador fixo quando não pode editar (passagem/hospedagem comprada ou sem permissão)
-                  <div className="mt-2 px-3 py-2 bg-muted rounded-md border">
-                    <div className="text-sm font-medium">
+                  <div className="mt-2 border border-slate-200 rounded-xl bg-slate-50 px-3 py-2.5 w-full">
+                    <div className="text-sm font-medium text-slate-700">
                       {getCollaboratorName(modalData.collaboratorId)}
                     </div>
                     {(() => {
@@ -1335,7 +1335,7 @@ export default function Scaling() {
                       // Se precisa de passagem e foi comprada
                       if (selectedInclusion.needsTicket && ticketPurchased) {
                         return (
-                          <div className="text-xs text-muted-foreground mt-1">
+                          <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                             ⚠️ Não é possível alterar - passagem já comprada
                           </div>
                         );
@@ -1343,14 +1343,14 @@ export default function Scaling() {
                       // Se não precisa de passagem mas precisa de hospedagem e foi reservada
                       if (!selectedInclusion.needsTicket && selectedInclusion.needsAccommodation && accommodationPurchased) {
                         return (
-                          <div className="text-xs text-muted-foreground mt-1">
+                          <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                             ⚠️ Não é possível alterar - hospedagem já reservada
                           </div>
                         );
                       }
                       // Sem permissão
                       return (
-                        <div className="text-xs text-muted-foreground mt-1">
+                        <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                           ⚠️ Você não tem permissão para alterar o colaborador
                         </div>
                       );
@@ -1381,21 +1381,21 @@ export default function Scaling() {
               </div>
 
               {/* Período de Trabalho com Calendário Visual */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-4 flex items-center gap-2">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <h3 className="text-blue-700 font-semibold mb-4 flex items-center gap-2">
                   📅 Período de Trabalho
                 </h3>
                 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <Label className="text-sm font-medium text-blue-900 dark:text-blue-200">Data de Início</Label>
-                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-1">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data de Início</div>
+                    <div className="text-sm font-medium text-slate-700">
                       {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
                     </div>
                   </div>
                   <div>
-                    <Label className="text-sm font-medium text-blue-900 dark:text-blue-200">Data de Fim</Label>
-                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-1">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data de Fim</div>
+                    <div className="text-sm font-medium text-slate-700">
                       {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
                     </div>
                   </div>
@@ -1408,8 +1408,8 @@ export default function Scaling() {
                   const allDays = eachDayOfInterval({ start: startDate, end: endDate });
                   
                   return (
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-blue-300 dark:border-blue-700">
-                      <div className="text-xs font-medium text-muted-foreground mb-3">
+                    <div className="bg-white border border-blue-100 rounded-lg p-4">
+                      <div className="text-xs font-medium text-slate-400 mb-3">
                         Dias do período ({allDays.length} {allDays.length === 1 ? 'dia' : 'dias'})
                       </div>
                       <div className="grid grid-cols-7 gap-2">
@@ -1421,22 +1421,16 @@ export default function Scaling() {
                           return (
                             <div 
                               key={index}
-                              className={`
-                                flex flex-col items-center justify-center p-2 rounded-md border
-                                ${isWorkDay 
-                                  ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' 
-                                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
-                                }
-                              `}
+                              className="bg-white border border-blue-100 rounded-lg text-center px-3 py-2 shadow-sm"
                             >
-                              <div className="text-xs font-medium text-foreground">
+                              <div className="text-xs text-slate-400 uppercase">
                                 {weekday}
                               </div>
-                              <div className="text-sm font-semibold text-foreground">
+                              <div className="text-lg font-bold text-slate-700">
                                 {format(day, 'dd', { locale: ptBR })}
                               </div>
                               {isWorkDay && (
-                                <div className="text-green-600 dark:text-green-400 font-bold text-lg">
+                                <div className="text-green-500 font-bold">
                                   ✓
                                 </div>
                               )}
@@ -1478,61 +1472,73 @@ export default function Scaling() {
                       </div>
 
                       {/* Detalhes dos Voos - Agrupados por Trecho */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* Trecho de IDA */}
-                        <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                          <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
                             🛫 IDA
                           </h4>
                           <div className="space-y-2">
                             <div>
-                              <Label className="text-xs text-muted-foreground">Origem</Label>
-                              <p className="font-medium">{selectedTicket.departureAirport || "-"}</p>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider">Origem</div>
+                              <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Destino</Label>
-                              <p className="font-medium">{selectedTicket.destinationAirport || "-"}</p>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider">Destino</div>
+                              <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Data</Label>
-                              <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
+                              <div className="text-sm font-medium text-blue-600 mb-2">
                                 {selectedTicket.actualDepartureDate ? formatDate(selectedTicket.actualDepartureDate) : "-"}
-                              </p>
-                              <Label className="text-xs text-muted-foreground">Horário</Label>
-                              <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                <span className="text-lg font-bold text-green-800 dark:text-green-100">
-                                  {selectedTicket.actualDepartureTime || "--:--"}
-                                </span>
                               </div>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                              {selectedTicket.actualDepartureTime ? (
+                                <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                  <span className="text-lg font-bold text-green-700">
+                                    {selectedTicket.actualDepartureTime}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                  <span className="text-lg font-bold text-slate-300">--:--</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
 
                         {/* Trecho de VOLTA */}
-                        <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                          <h4 className="font-medium text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 flex-1">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-3 flex items-center gap-2">
                             🛬 VOLTA
                           </h4>
                           <div className="space-y-2">
                             <div>
-                              <Label className="text-xs text-muted-foreground">Origem</Label>
-                              <p className="font-medium">{selectedTicket.destinationAirport || "-"}</p>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider">Origem</div>
+                              <div className="text-sm font-medium text-slate-700">{selectedTicket.destinationAirport || "-"}</div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Destino</Label>
-                              <p className="font-medium">{selectedTicket.departureAirport || "-"}</p>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider">Destino</div>
+                              <div className="text-sm font-medium text-slate-700">{selectedTicket.departureAirport || "-"}</div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Data</Label>
-                              <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Data</div>
+                              <div className="text-sm font-medium text-blue-600 mb-2">
                                 {selectedTicket.actualReturnDate ? formatDate(selectedTicket.actualReturnDate) : "-"}
-                              </p>
-                              <Label className="text-xs text-muted-foreground">Horário</Label>
-                              <div className="bg-green-100 dark:bg-green-800 px-3 py-2 rounded-md border-l-4 border-green-500">
-                                <span className="text-lg font-bold text-green-800 dark:text-green-100">
-                                  {selectedTicket.actualReturnTime || "--:--"}
-                                </span>
                               </div>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Horário</div>
+                              {selectedTicket.actualReturnTime ? (
+                                <div className="bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2">
+                                  <span className="text-lg font-bold text-green-700">
+                                    {selectedTicket.actualReturnTime}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-50 border-l-4 border-slate-200 rounded-lg px-3 py-2">
+                                  <span className="text-lg font-bold text-slate-300">--:--</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1626,27 +1632,27 @@ export default function Scaling() {
                 if (!accommodation) return null;
                 return (
                   <div className="border-t pt-4">
-                    <h3 className="text-lg font-medium mb-3">🏨 Dados da Hospedagem</h3>
-                    <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+                    <h3 className="text-base font-semibold text-slate-800 mb-3">🏨 Dados da Hospedagem</h3>
+                    <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Hotel */}
                         <div>
-                          <span className="text-sm text-muted-foreground">Hotel:</span>
-                          <div className="font-medium">{accommodation.hotelName || 'Não informado'}</div>
+                          <div className="text-xs text-slate-400 uppercase tracking-wider">Hotel</div>
+                          <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.hotelName || 'Não informado'}</div>
                         </div>
                         
                         {/* Localização */}
                         {accommodation.hotelLocation && (
                           <div>
-                            <span className="text-sm text-muted-foreground">Localização:</span>
-                            <div className="font-medium">{accommodation.hotelLocation}</div>
+                            <div className="text-xs text-slate-400 uppercase tracking-wider">Localização</div>
+                            <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.hotelLocation}</div>
                           </div>
                         )}
                         
                         {/* Check-in */}
                         <div>
-                          <span className="text-sm text-muted-foreground">Check-in:</span>
-                          <div className="font-medium">
+                          <div className="text-xs text-slate-400 uppercase tracking-wider">Check-in</div>
+                          <div className="text-sm font-medium text-slate-700 mt-0.5">
                             {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
                             {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
                           </div>
@@ -1654,8 +1660,8 @@ export default function Scaling() {
                         
                         {/* Check-out */}
                         <div>
-                          <span className="text-sm text-muted-foreground">Check-out:</span>
-                          <div className="font-medium">
+                          <div className="text-xs text-slate-400 uppercase tracking-wider">Check-out</div>
+                          <div className="text-sm font-medium text-slate-700 mt-0.5">
                             {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
                             {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
                           </div>
@@ -1664,25 +1670,25 @@ export default function Scaling() {
                         {/* Valor da diária */}
                         {accommodation.dailyRate && (
                           <div>
-                            <span className="text-sm text-muted-foreground">Valor da Diária:</span>
-                            <div className="font-medium">R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
+                            <div className="text-xs text-slate-400 uppercase tracking-wider">Valor da Diária</div>
+                            <div className="text-sm font-medium text-slate-700 mt-0.5">R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
                           </div>
                         )}
                         
                         {/* Número da reserva */}
                         {accommodation.reservationNumber && (
                           <div>
-                            <span className="text-sm text-muted-foreground">Nº da Reserva:</span>
-                            <div className="font-medium">{accommodation.reservationNumber}</div>
+                            <div className="text-xs text-slate-400 uppercase tracking-wider">Nº da Reserva</div>
+                            <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.reservationNumber}</div>
                           </div>
                         )}
                       </div>
                       
                       {/* Observações */}
                       {accommodation.accommodationObservations && (
-                        <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-700">
-                          <span className="text-sm text-muted-foreground">Observações:</span>
-                          <div className="font-medium mt-1">{accommodation.accommodationObservations}</div>
+                        <div className="mt-4 pt-4 border-t border-green-100">
+                          <div className="text-xs text-slate-400 uppercase tracking-wider">Observações</div>
+                          <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.accommodationObservations}</div>
                         </div>
                       )}
                     </div>
@@ -1695,7 +1701,7 @@ export default function Scaling() {
                           {accommodation.attachmentIds.map((attachmentId, index) => (
                             <div 
                               key={attachmentId} 
-                              className="flex items-center gap-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 px-4 py-3 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 cursor-pointer transition-colors"
+                              className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
                               onClick={async () => {
                                 try {
                                   // Buscar informações do anexo
@@ -1738,24 +1744,20 @@ export default function Scaling() {
                                 }
                               }}
                             >
-                              <div className="flex-shrink-0">
-                                <div className="w-8 h-8 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
-                                  <span className="text-green-600 dark:text-green-300 font-medium text-sm">
-                                    {index + 1}
-                                  </span>
+                              <div className="flex items-center gap-3">
+                                <div className="bg-blue-100 text-blue-600 rounded-lg w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                  {index + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-slate-700">
+                                    Anexo {index + 1} da Hospedagem
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    Clique para visualizar
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-green-900 dark:text-green-100">
-                                  Anexo {index + 1} da Hospedagem
-                                </div>
-                                <div className="text-xs text-green-700 dark:text-green-300">
-                                  Clique para visualizar
-                                </div>
-                              </div>
-                              <div className="flex-shrink-0">
-                                <Eye className="w-4 h-4 text-green-600 dark:text-green-400" />
-                              </div>
+                              <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 flex-shrink-0" />
                             </div>
                           ))}
                         </div>
@@ -1773,7 +1775,7 @@ export default function Scaling() {
                       {selectedTicket.attachmentIds.map((attachmentId, index) => (
                         <div 
                           key={attachmentId} 
-                          className="flex items-center gap-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-3 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+                          className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
                           onClick={async () => {
                             try {
                               // Buscar informações do anexo
@@ -1816,24 +1818,20 @@ export default function Scaling() {
                             }
                           }}
                         >
-                          <div className="flex-shrink-0">
-                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 dark:text-blue-300 font-medium text-sm">
-                                {index + 1}
-                              </span>
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 text-blue-600 rounded-lg w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {index + 1}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-700">
+                                Anexo {index + 1} da Passagem
+                              </div>
+                              <div className="text-xs text-slate-400">
+                                Clique para visualizar
+                              </div>
                             </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                              Anexo {index + 1} da Passagem
-                            </div>
-                            <div className="text-xs text-blue-700 dark:text-blue-300">
-                              Clique para visualizar
-                            </div>
-                          </div>
-                          <div className="flex-shrink-0">
-                            <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          </div>
+                          <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 flex-shrink-0" />
                         </div>
                       ))}
                     </div>
@@ -1842,52 +1840,52 @@ export default function Scaling() {
 
               {/* Seção de Comentários */}
               <div className="border-t pt-4">
-                <h3 className="text-lg font-medium mb-3">Comentários</h3>
+                <h3 className="text-base font-semibold text-slate-800 mb-3">Comentários</h3>
                 
                 {/* Lista de comentários existentes */}
                 {comments && comments.length > 0 ? (
                   <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
                     {comments.map((comment) => (
-                      <div key={comment.id} className="bg-muted p-3 rounded-lg">
+                      <div key={comment.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
                         <div className="flex justify-between items-start mb-2">
-                          <div className="text-sm font-medium text-foreground">
+                          <div className="text-sm font-medium text-slate-700">
                             {getUserName(comment.userId)}
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-slate-400">
                             {formatDateTime(comment.createdAt)}
                           </div>
                         </div>
-                        <div className="text-sm text-foreground mb-2">
+                        <div className="text-sm text-slate-700 mb-2">
                           {comment.content}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-slate-400">
                           {getPhaseLabel(comment.phase)}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground text-center py-4 bg-muted rounded-lg mb-4">
+                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-6 mb-4">
                     Nenhum comentário registrado para esta inclusão.
                   </div>
                 )}
 
                 {/* Formulário para adicionar novo comentário */}
-                <div className="border-t border-border pt-4">
+                <div className="border-t border-slate-100 pt-4">
                   <div className="flex space-x-3">
                     <Textarea 
                       rows={2}
                       placeholder="Adicionar comentário..."
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      className="flex-1"
+                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200"
                       data-testid="textarea-comment-inline"
                       disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
                       disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
-                      className="flex items-center gap-2"
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                       data-testid="button-add-comment-inline"
                     >
                       {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
@@ -1922,31 +1920,31 @@ export default function Scaling() {
                         };
                         
                         return (
-                          <div key={log.id} className="relative pl-8 pb-4">
+                          <div key={log.id} className="relative pl-6 pb-4">
                             {/* Timeline line */}
                             {index < inclusionLogs.length - 1 && (
-                              <div className="absolute left-3 top-6 bottom-0 w-0.5 bg-border"></div>
+                              <div className="absolute left-[7px] top-4 bottom-0 w-0.5 bg-blue-100"></div>
                             )}
                             
                             {/* Timeline dot */}
-                            <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-blue-500 dark:bg-blue-600 flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-white"></div>
+                            <div className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
                             </div>
                             
                             {/* Log content */}
-                            <div className="bg-muted/50 dark:bg-muted/30 p-3 rounded-lg border border-border">
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="text-sm font-medium text-foreground">
+                            <div className="border-l-2 border-blue-200 pl-3 py-1">
+                              <div className="flex justify-between items-start mb-1">
+                                <div className="text-sm font-medium text-slate-700">
                                   {actionLabels[log.action] || log.action}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-slate-400">
                                   {log.createdAt && formatDateTime(log.createdAt)}
                                 </div>
                               </div>
-                              <div className="text-sm text-foreground mb-1">
+                              <div className="text-xs text-slate-500 mb-0.5">
                                 {log.details}
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-blue-500">
                                 por {log.userName}
                               </div>
                             </div>
@@ -1959,7 +1957,7 @@ export default function Scaling() {
 
               {/* Botões */}
               <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowModal(false)}>
+                <Button variant="outline" onClick={() => setShowModal(false)} className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium">
                   Cancelar
                 </Button>
                 {selectedInclusion && !isReadOnly(selectedInclusion) && (
@@ -1981,7 +1979,7 @@ export default function Scaling() {
                           if (!canConfirmEscalation(selectedInclusion)) return true;
                           return false;
                         })()}
-                        className="flex items-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300"
+                        className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-4 py-2 text-sm font-medium"
                       >
                         <Save className="w-4 h-4" />
                         {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
@@ -1999,7 +1997,7 @@ export default function Scaling() {
                           if (!canConfirmEscalation(selectedInclusion)) return true;
                           return false;
                         })()}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold shadow-sm"
                       >
                         <Save className="w-4 h-4" />
                         {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
