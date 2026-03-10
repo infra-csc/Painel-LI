@@ -14,11 +14,6 @@ function capitalizeName(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return (parts[0][0] || "?").toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 interface CollaboratorComboboxProps {
   collaborators?: Collaborator[];
@@ -87,7 +82,7 @@ export default function CollaboratorCombobox({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="p-0 border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 bg-white"
+        className="p-0 border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 bg-white min-w-[280px]"
         style={{ width: "var(--radix-popover-trigger-width, 280px)" }}
       >
         <div className="flex items-center border-b border-slate-100 px-3 py-2.5">
@@ -124,12 +119,11 @@ export default function CollaboratorCombobox({
           ) : (
             filtered.map((collaborator) => {
               const name = capitalizeName(fixEncoding(collaborator.fullName));
-              const initials = getInitials(collaborator.fullName);
               const isSelected = value === collaborator.id;
               return (
                 <div
                   key={collaborator.id}
-                  className={`flex items-center px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                  className={`px-4 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal ${
                     isSelected
                       ? "bg-blue-50 text-blue-700 font-medium"
                       : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
@@ -139,10 +133,7 @@ export default function CollaboratorCombobox({
                     close();
                   }}
                 >
-                  <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center mr-2 flex-shrink-0">
-                    {initials}
-                  </div>
-                  <span className="truncate">{name}</span>
+                  {name}
                 </div>
               );
             })
