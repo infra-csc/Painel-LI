@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { formatDiarias, fixEncoding } from "@/lib/utils";
+import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
@@ -1084,9 +1084,9 @@ export default function Scaling() {
                                     {getCollaboratorName(inclusion.collaboratorId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="text-sm text-slate-700">
-                                    {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
+                                <td className="px-3 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-slate-700 whitespace-nowrap">
+                                    {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
                                   <div className="text-xs text-slate-400">
                                     {formatDiarias(inclusion.dailyRates)}
@@ -1205,9 +1205,9 @@ export default function Scaling() {
                                     {getCollaboratorName(inclusion.collaboratorId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="text-sm text-slate-700">
-                                    {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
+                                <td className="px-3 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-slate-700 whitespace-nowrap">
+                                    {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
                                   <div className="text-xs text-slate-400">
                                     {formatDiarias(inclusion.dailyRates)}

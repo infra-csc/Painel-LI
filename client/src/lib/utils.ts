@@ -41,3 +41,18 @@ export function formatDiasUteis(n: number): string {
 export function formatFds(n: number): string {
   return `${n} ${n === 1 ? 'fim de semana' : 'fins de semana'}`;
 }
+
+export function formatDateRange(
+  start: string | null | undefined,
+  end: string | null | undefined
+): string {
+  if (!start) return '–';
+  const toDDMM = (s: string) => {
+    const d = new Date(s.length === 10 ? s + 'T12:00:00' : s);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const s = toDDMM(start);
+  if (!end) return s;
+  const e = toDDMM(end);
+  return s === e ? s : `${s} – ${e}`;
+}
