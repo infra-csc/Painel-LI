@@ -1236,19 +1236,19 @@ export default function GridTeamInclusionForm() {
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
-                              <span>Pass.</span>
+                              <span>Passagem</span>
                             </div>
                           </th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               🏨
-                              <span>Hosp.</span>
+                              <span>Hospedagem</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Chegada</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Retorno</th>
-                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Partida</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Data Voo Ida</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Data Voo Retorno</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Partida Sugerido</th>
                           {dates.map(date => (
                             <th key={date} className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16 bg-blue-50/50">
                               <div className="text-xs">
