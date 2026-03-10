@@ -732,18 +732,27 @@ export default function Tickets() {
                   {/* Barra de progresso de campos obrigatórios */}
                   {(() => {
                     const q = ticketData["quick"];
-                    const filled = [
+                    const isOneWay = !!(q?.isOneWay);
+                    const idaFields = [
                       !!(q?.transportType),
                       !!(q?.value),
                       !!(q?.purchaseOrderNumber),
                       !!(q?.departureCityOrigin),
                       !!(q?.departureAirport),
                       !!(q?.actualDepartureDate),
-                    ].filter(Boolean).length;
-                    const pct = Math.round((filled / 6) * 100);
+                    ];
+                    const voltaFields = isOneWay ? [] : [
+                      !!(q?.returnCityOrigin),
+                      !!(q?.returnOriginAirport),
+                      !!(q?.actualReturnDate),
+                    ];
+                    const allFields = [...idaFields, ...voltaFields];
+                    const total = allFields.length;
+                    const filled = allFields.filter(Boolean).length;
+                    const pct = Math.round((filled / total) * 100);
                     return (
                       <div>
-                        <p className="text-xs text-[#64748B] mb-1">{filled} de 6 campos obrigatórios preenchidos</p>
+                        <p className="text-xs text-[#64748B] mb-1">{filled} de {total} campos obrigatórios preenchidos</p>
                         <div className="h-1 rounded-full bg-[#E2E8F0] overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-300"
@@ -897,7 +906,7 @@ export default function Tickets() {
                         {/* Cidades */}
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
-                            <Label className="text-[10px] font-medium">Cidade Origem</Label>
+                            <Label className="text-[10px] font-medium">Cidade Origem *</Label>
                             <Input
                               placeholder="Rio de Janeiro"
                               value={ticketData["quick"]?.returnCityOrigin || ""}
@@ -907,7 +916,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label className="text-[10px] font-medium">Cidade Destino</Label>
+                            <Label className="text-[10px] font-medium">Cidade Destino *</Label>
                             <Input
                               placeholder="São Paulo"
                               value={ticketData["quick"]?.returnCityDestination || ""}
@@ -921,7 +930,7 @@ export default function Tickets() {
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
                             <Label className="text-[10px] font-medium">
-                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"}
+                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                             </Label>
                             <Input
                               placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "CGH"}
@@ -933,7 +942,7 @@ export default function Tickets() {
                           </div>
                           <div>
                             <Label className="text-[10px] font-medium">
-                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"}
+                              {ticketData["quick"]?.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                             </Label>
                             <Input
                               placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Terminal Rodoviário" : "GRU"}
@@ -946,7 +955,7 @@ export default function Tickets() {
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <Label className="text-[10px] font-medium">Data</Label>
+                            <Label className="text-[10px] font-medium">Data *</Label>
                             <Input
                               type="date"
                               value={ticketData["quick"]?.actualReturnDate || ""}
@@ -956,7 +965,7 @@ export default function Tickets() {
                             />
                           </div>
                           <div>
-                            <Label className="text-[10px] font-medium">Horário de Volta</Label>
+                            <Label className="text-[10px] font-medium">Horário de Volta *</Label>
                             <Input
                               type="time"
                               value={ticketData["quick"]?.actualReturnTime || ""}
