@@ -442,22 +442,21 @@ export default function TeamInclusionTable() {
       <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
       {/* Totals Summary */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-5 mb-6">
-        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Resumo dos Totais</h3>
-        <div className="flex flex-wrap divide-x divide-slate-200">
+      <div className="mb-6">
+        <div className="grid grid-cols-4 xl:grid-cols-8 gap-3">
           {[
-            { value: totals.incluidos,           label: "Total",               color: "text-blue-600",    testId: "total-incluidos" },
-            { value: totals.pendentes,           label: "Pendentes",           color: "text-red-500",     testId: "total-pendentes" },
-            { value: totals.escalados,           label: "Escalados",           color: "text-green-600",   testId: "total-escalados" },
-            { value: totals.aguardando_passagem, label: "Passagem",            color: "text-orange-600",  testId: "total-passagem" },
-            { value: totals.hospedagem,          label: "Hospedagem",          color: "text-purple-600",  testId: "total-hospedagem" },
-            { value: totals.passagem_comprada,   label: "Pass. Comprada",      color: "text-emerald-600", testId: "total-passagem-comprada" },
-            { value: totals.hospedagem_comprada, label: "Hosp. Comprada",      color: "text-indigo-600",  testId: "total-hospedagem-comprada" },
-            { value: totals.cancelados,          label: "Cancelados",          color: "text-gray-400",    testId: "total-cancelados" },
-          ].map(({ value, label, color, testId }) => (
-            <div key={testId} className="flex-1 min-w-[80px] text-center px-3 first:pl-0 last:pr-0">
-              <div className={`text-2xl font-bold tabular-nums ${color}`} data-testid={testId}>{value}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5 leading-tight">{label}</div>
+            { value: totals.incluidos,           label: "Total",          color: "text-blue-600",    border: "border-t-blue-400",    testId: "total-incluidos" },
+            { value: totals.pendentes,           label: "Pendentes",      color: "text-red-500",     border: "border-t-red-400",     testId: "total-pendentes" },
+            { value: totals.escalados,           label: "Escalados",      color: "text-green-600",   border: "border-t-green-500",   testId: "total-escalados" },
+            { value: totals.aguardando_passagem, label: "Passagem",       color: "text-orange-600",  border: "border-t-orange-400",  testId: "total-passagem" },
+            { value: totals.hospedagem,          label: "Hospedagem",     color: "text-purple-600",  border: "border-t-purple-400",  testId: "total-hospedagem" },
+            { value: totals.passagem_comprada,   label: "Pass. Comprada", color: "text-emerald-600", border: "border-t-emerald-400", testId: "total-passagem-comprada" },
+            { value: totals.hospedagem_comprada, label: "Hosp. Comprada", color: "text-indigo-600",  border: "border-t-indigo-400",  testId: "total-hospedagem-comprada" },
+            { value: totals.cancelados,          label: "Cancelados",     color: "text-gray-400",    border: "border-t-gray-300",    testId: "total-cancelados" },
+          ].map(({ value, label, color, border, testId }) => (
+            <div key={testId} className={`bg-white border border-slate-200 border-t-2 ${border} rounded-xl shadow-sm p-4 text-center`}>
+              <div className={`text-3xl font-bold tabular-nums ${color}`} data-testid={testId}>{value}</div>
+              <div className="text-[11px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
             </div>
           ))}
         </div>
@@ -496,17 +495,17 @@ export default function TeamInclusionTable() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-800">Lista de Inclusões de Equipe</h3>
           {filteredAndSortedInclusions.length > 0 && (
             <span className="text-xs text-slate-400 font-normal">{filteredAndSortedInclusions.length} {filteredAndSortedInclusions.length === 1 ? "registro" : "registros"}</span>
           )}
         </div>
         
-        <div>
+        <div className="overflow-x-auto">
           <table className="w-full table-auto">
-            <thead className="bg-slate-50/80 border-b border-gray-100">
+            <thead className="bg-slate-50">
               <tr>
                 <th className="w-12 px-3 py-3">
                   <Checkbox
@@ -515,24 +514,24 @@ export default function TeamInclusionTable() {
                     data-testid="checkbox-select-all"
                   />
                 </th>
-                <SortableHeader field="id" className="w-20" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                <SortableHeader field="event" className="w-36" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
-                <SortableHeader field="function" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
-                <SortableHeader field="collaborator" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                <SortableHeader field="date" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
-                <SortableHeader field="status" className="w-24" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-14 px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
+                <SortableHeader field="id" className="w-20 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                <SortableHeader field="event" className="w-36 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
+                <SortableHeader field="function" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
+                <SortableHeader field="collaborator" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                <SortableHeader field="date" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
+                <SortableHeader field="status" className="w-24 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
+                <th className="w-14 px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-14 px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
+                <th className="w-14 px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="w-40 px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                <th className="w-40 px-3 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {filteredAndSortedInclusions?.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-6 py-12 text-center text-slate-400 text-sm">
@@ -545,7 +544,7 @@ export default function TeamInclusionTable() {
                   return (
                   <tr
                     key={inclusion.id}
-                    className={`transition-colors ${isCanceled ? 'opacity-50' : ''} ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/40`}
+                    className={`border-b border-slate-100 transition-colors ${isCanceled ? 'opacity-50' : ''} hover:bg-blue-50/50`}
                     data-testid={`row-inclusion-${inclusion.id}`}
                   >
                     <td className="px-3 py-4">
@@ -579,10 +578,10 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4 min-w-[200px]">
-                      <div className="text-sm font-medium text-foreground whitespace-nowrap">
+                      <div className="text-sm font-medium text-slate-800 whitespace-nowrap">
                         {getEventName(inclusion.eventId)}
                       </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div className="text-xs text-slate-400 whitespace-nowrap">
                         {getEventLocation(inclusion.eventId)}
                       </div>
                     </td>
@@ -592,12 +591,16 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <div
-                        className="text-sm text-slate-700 truncate"
-                        title={toTitleCase(getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado")}
-                      >
-                        {toTitleCase(getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado")}
-                      </div>
+                      {inclusion.collaboratorId ? (
+                        <div
+                          className="text-sm text-slate-700 truncate"
+                          title={toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
+                        >
+                          {toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
+                        </div>
+                      ) : (
+                        <span className="text-sm italic text-slate-400">Não Escalado</span>
+                      )}
                     </td>
                     <td className="px-3 py-4">
                       <div className="text-xs text-foreground">
@@ -627,7 +630,7 @@ export default function TeamInclusionTable() {
                       )}
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">
-                      <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''}`}>
+                      <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
                         {/* Para registros cancelados, permitir apenas comentários se não for edição */}
                         <Button
                           size="sm"

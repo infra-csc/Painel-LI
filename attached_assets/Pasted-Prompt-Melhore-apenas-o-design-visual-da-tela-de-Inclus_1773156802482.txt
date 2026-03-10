@@ -1,0 +1,48 @@
+Prompt:
+Melhore apenas o design visual da tela de Inclusão de Equipe (painel de filtros, resumo de totais e tabela). Não altere nenhuma lógica, estado, funções ou chamadas de API.
+Paleta — baseada no app atual:
+
+Fundo geral: #f8fafc
+Cards/painéis: #ffffff com borda #e2e8f0 e shadow-sm
+Azul primário: #2563eb
+Laranja acento: #f97316
+Verde: #16a34a
+Vermelho: #dc2626
+Amarelo: #ca8a04
+Texto principal: #0f172a
+Texto secundário: #64748b
+
+
+1. Painel de filtros
+
+Container com bg-white rounded-2xl border border-slate-200 shadow-sm p-6
+Inputs e selects com border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400
+Labels em text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1
+Botão "Gerar Grade": bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all rounded-lg font-medium
+Botão "Limpar Filtros": border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg
+
+2. Resumo dos Totais
+
+Grid de cards individuais: bg-white border border-slate-200 rounded-xl shadow-sm p-4
+Borda superior colorida border-t-2 com a cor de cada métrica
+Número em text-3xl font-bold mantendo as cores já existentes
+Label em text-[11px] uppercase tracking-widest text-slate-400 mt-1
+
+3. Tabela
+
+Container: bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden
+Header: bg-slate-50 text-[11px] uppercase tracking-widest text-slate-400 font-semibold
+Linhas: hover:bg-blue-50/50 transition-colors border-b border-slate-100
+Coluna EVENTO: nome em font-medium text-slate-800, cidade abaixo em text-xs text-slate-400
+Coluna COLABORADOR: "Não Escalado" em italic text-slate-400
+Badges de status em rounded-full px-3 py-1 text-xs font-semibold:
+
+"Aguardando Escalação": bg-orange-50 text-orange-600
+"Passagem Comprada": bg-green-50 text-green-600
+"Processando Passagem": bg-yellow-50 text-yellow-600
+"Cancelado": bg-slate-100 text-slate-400
+
+
+Ícones de ação com hover:scale-110 transition-transform
+
+Regra absoluta: Zero mudança em lógica. Apenas classes CSS/Tailwind.

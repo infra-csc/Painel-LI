@@ -64,20 +64,20 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   };
 
   return (
-    <div className="bg-card rounded-lg shadow-sm border border-border p-4 mb-6">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="flex-1 min-w-64">
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             Buscar por ID
           </label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Buscar por número..."
               value={filters.searchId}
               onChange={(e) => onFiltersChange({ ...filters, searchId: e.target.value })}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
               data-testid="input-search-id"
             />
           </div>
@@ -85,7 +85,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             Evento
           </label>
           <EventCombobox
@@ -98,7 +98,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         </div>
 
         <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             Funções
           </label>
           <FunctionMultiSelect
@@ -111,7 +111,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         </div>
 
         <div className="flex-1 min-w-64">
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             Colaborador
           </label>
           <CollaboratorCombobox
@@ -125,7 +125,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
 
         {!hideStatusFilter && (
           <div className="flex-1 min-w-48">
-            <label className="block text-sm font-medium text-foreground mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
               Status
             </label>
             <Select 
@@ -148,7 +148,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         )}
 
         <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
             Escalação
           </label>
           <Select 
@@ -174,10 +174,10 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             id="show-deleted"
             checked={filters.showDeleted || false}
             onChange={(e) => onFiltersChange({ ...filters, showDeleted: e.target.checked })}
-            className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
+            className="w-4 h-4 text-blue-600 bg-white border-slate-200 rounded focus:ring-blue-200 focus:ring-2"
             data-testid="checkbox-show-deleted"
           />
-          <label htmlFor="show-deleted" className="text-sm font-medium text-foreground cursor-pointer select-none">
+          <label htmlFor="show-deleted" className="text-xs font-semibold uppercase tracking-wider text-slate-400 cursor-pointer select-none">
             Mostrar Excluídos
           </label>
         </div>
@@ -186,7 +186,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
           <Button 
             variant="outline" 
             onClick={clearFilters}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg"
             data-testid="button-clear-filters"
           >
             <X className="w-4 h-4" />
