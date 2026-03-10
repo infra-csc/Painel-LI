@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -34,92 +33,80 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const { data: events } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
-  });
-
-  const { data: functions } = useQuery<Function[]>({
-    queryKey: ["/api/functions"],
-  });
-
-  const { data: collaborators } = useQuery<Collaborator[]>({
-    queryKey: ["/api/collaborators"],
-  });
+  const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
+  const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
 
   const clearFilters = () => {
-    onFiltersChange({
-      eventId: "all",
-      functionId: [], 
-      collaboratorId: "all",
-      searchId: ""
-    });
+    onFiltersChange({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "" });
   };
 
   return (
-    <div className="bg-card rounded-lg shadow-sm border border-border p-4 mb-6">
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <div className="flex-1 min-w-64">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Buscar por ID
-          </label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar por número..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              data-testid="input-search-id"
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+      <div className="mb-4">
+        <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+          Buscar por ID
+        </label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Buscar por número..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+            data-testid="input-search-id"
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-slate-100 pt-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+              Evento
+            </label>
+            <EventCombobox
+              events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
+              value={filters.eventId}
+              onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
+              placeholder="Selecionar evento"
+              testId="filter-event"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+              Funções
+            </label>
+            <FunctionMultiSelect
+              functions={functions}
+              selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
+              onSelectedChange={(selectedIds) => onFiltersChange({ ...filters, functionId: selectedIds })}
+              placeholder="Selecionar funções"
+              testId="filter-function"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+              Colaborador
+            </label>
+            <CollaboratorCombobox
+              collaborators={collaborators}
+              value={filters.collaboratorId}
+              onValueChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
+              placeholder="Selecionar colaborador"
+              testId="filter-collaborator"
             />
           </div>
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Evento
-          </label>
-          <EventCombobox
-            events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
-            value={filters.eventId}
-            onValueChange={(value) => onFiltersChange({ ...filters, eventId: value })}
-            placeholder="Selecionar evento"
-            testId="filter-event"
-          />
-        </div>
 
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Funções
-          </label>
-          <FunctionMultiSelect
-            functions={functions}
-            selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
-            onSelectedChange={(selectedIds) => onFiltersChange({ ...filters, functionId: selectedIds })}
-            placeholder="Selecionar funções"
-            testId="filter-function"
-          />
-        </div>
-
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Colaborador
-          </label>
-          <CollaboratorCombobox
-            collaborators={collaborators}
-            value={filters.collaboratorId}
-            onValueChange={(value) => onFiltersChange({ ...filters, collaboratorId: value })}
-            placeholder="Selecionar colaborador"
-            testId="filter-collaborator"
-          />
-        </div>
-
-        <div className="flex items-end">
-          <Button 
-            variant="outline" 
+        <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
+          <Button
+            variant="outline"
             onClick={clearFilters}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
             data-testid="button-clear-filters"
           >
             <X className="w-4 h-4" />

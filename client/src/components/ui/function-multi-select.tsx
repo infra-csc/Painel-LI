@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Search, ChevronDown, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import type { Function as FunctionType } from "@shared/schema";
 
 interface FunctionMultiSelectProps {
@@ -26,110 +23,121 @@ export default function FunctionMultiSelect({
   testId = "function-multi-select",
 }: FunctionMultiSelectProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const toggleFunction = (functionId: string) => {
     if (selectedIds.includes(functionId)) {
-      onSelectedChange(selectedIds.filter(id => id !== functionId));
+      onSelectedChange(selectedIds.filter((id) => id !== functionId));
     } else {
       onSelectedChange([...selectedIds, functionId]);
     }
   };
 
-  const clearAll = () => {
-    onSelectedChange([]);
-  };
+  const clearAll = () => onSelectedChange([]);
 
-  const selectedFunctions = functions?.filter(f => selectedIds.includes(f.id)) || [];
-  const displayText = selectedFunctions.length > 0
-    ? `${selectedFunctions.length} função${selectedFunctions.length > 1 ? 'ões' : ''} selecionada${selectedFunctions.length > 1 ? 's' : ''}`
-    : placeholder;
+  const sorted = functions?.slice().sort((a, b) =>
+    a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
+  ) || [];
+
+  const filtered = search.trim()
+    ? sorted.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()))
+    : sorted;
+
+  const displayText =
+    selectedIds.length > 0
+      ? `${selectedIds.length} função${selectedIds.length > 1 ? "ões" : ""} selecionada${selectedIds.length > 1 ? "s" : ""}`
+      : placeholder;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between h-10 font-normal"
+        <button
           data-testid={testId}
+          type="button"
+          className="w-full flex items-center justify-between px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
-          <span className="truncate">{displayText}</span>
-          <div className="flex items-center gap-1 ml-2">
+          <span className="mr-2 flex items-center gap-2">
+            <span>{displayText}</span>
             {selectedIds.length > 0 && (
-              <Badge 
-                variant="secondary" 
-                className="rounded-sm px-1 font-normal"
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full"
               >
                 {selectedIds.length}
-              </Badge>
+              </span>
             )}
-          </div>
-        </Button>
+          </span>
+          <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
-        <div className="max-h-[300px] overflow-y-auto">
-          <div className="p-2 border-b">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Funções</span>
-              {selectedIds.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={clearAll}
-                >
-                  Limpar
-                </Button>
-              )}
+
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="p-0 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 min-w-[220px]"
+        style={{ width: "var(--radix-popover-trigger-width, 220px)" }}
+      >
+        <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          <input
+            autoFocus
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar função..."
+            className="w-full text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
+          />
+          {selectedIds.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); clearAll(); }}
+              className="text-xs text-slate-400 hover:text-red-500 flex-shrink-0 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-4 text-sm text-slate-400 text-center">
+              Nenhuma função encontrada.
             </div>
-            {selectedFunctions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedFunctions.map((func) => (
-                  <Badge
-                    key={func.id}
-                    variant="secondary"
-                    className="text-xs flex items-center gap-1"
-                  >
-                    {func.name}
-                    <X
-                      className="h-3 w-3 cursor-pointer hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFunction(func.id);
-                      }}
-                    />
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="p-2">
-            {functions?.map((func) => (
-              <div
-                key={func.id}
-                className={cn(
-                  "flex items-center gap-2 p-2 cursor-pointer rounded-sm hover:bg-accent",
-                  selectedIds.includes(func.id) && "bg-accent"
-                )}
-                onClick={() => toggleFunction(func.id)}
-              >
+          ) : (
+            filtered.map((func) => {
+              const isSelected = selectedIds.includes(func.id);
+              return (
                 <div
-                  className={cn(
-                    "h-4 w-4 border rounded-sm flex items-center justify-center",
-                    selectedIds.includes(func.id)
-                      ? "bg-primary border-primary"
-                      : "border-input"
-                  )}
+                  key={func.id}
+                  className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors whitespace-normal ${
+                    isSelected
+                      ? "bg-blue-50 text-blue-700 font-medium"
+                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                  }`}
+                  onClick={() => toggleFunction(func.id)}
                 >
-                  {selectedIds.includes(func.id) && (
-                    <Check className="h-3 w-3 text-primary-foreground" />
-                  )}
+                  <div
+                    className={`w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 border-blue-600"
+                        : "border-slate-300"
+                    }`}
+                  >
+                    {isSelected && (
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                        <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  {func.name}
                 </div>
-                <span className="text-sm flex-1">{func.name}</span>
-              </div>
-            ))}
-          </div>
+              );
+            })
+          )}
         </div>
       </PopoverContent>
     </Popover>

@@ -152,12 +152,16 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
                 onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
                 data-testid="filter-status"
               >
-                <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all">
+                <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                   <SelectValue placeholder="Selecionar status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg p-0 overflow-hidden min-w-[220px]">
                   {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium"
+                    >
                       {option.label}
                     </SelectItem>
                   ))}
@@ -175,14 +179,14 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               onValueChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
               data-testid="filter-escalation"
             >
-              <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all">
+              <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                 <SelectValue placeholder="Filtrar por escalação" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendentes de Escalação</SelectItem>
-                <SelectItem value="escalated">Já Escalados</SelectItem>
-                <SelectItem value="cancelado">Cancelados</SelectItem>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg p-0 overflow-hidden min-w-[220px]">
+                <SelectItem value="all" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                <SelectItem value="pending" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendentes de Escalação</SelectItem>
+                <SelectItem value="escalated" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Já Escalados</SelectItem>
+                <SelectItem value="cancelado" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Cancelados</SelectItem>
               </SelectContent>
             </Select>
           </div>
