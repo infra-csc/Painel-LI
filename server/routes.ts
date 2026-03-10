@@ -1655,8 +1655,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       try {
-        // Simplesmente confirmar o upload - o arquivo já foi enviado via presigned URL
-        // Criar um registro interno do anexo para futuras consultas
+        // Salvar o nome original do arquivo nos metadados do objeto no storage
+        if (fileName) {
+          try {
+            const privateDir = objectStorageService.getPrivateObjectDir();
+            const fullPath = `${privateDir}/uploads/${id}`;
+            const parseObjectPath2 = (path: string): { bucketName: string; objectName: string } => {
+              if (!path.startsWith("/")) path = `/${path}`;
+              const pathParts = path.split("/");
+              if (pathParts.length < 3) throw new Error("Invalid path");
+              return { bucketName: pathParts[1], objectName: pathParts.slice(2).join("/") };
+            };
+            const { bucketName, objectName } = parseObjectPath2(fullPath);
+            const bucket = objectStorageClient.bucket(bucketName);
+            const objectFile = bucket.file(objectName);
+            await objectFile.setMetadata({ metadata: { 'custom:originalFileName': fileName } });
+          } catch (_metaErr) {
+            // não crítico — seguir mesmo se falhar
+          }
+        }
         res.json({
           message: "Upload confirmado com sucesso",
           attachmentId: id,
@@ -1697,8 +1714,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [metadata] = await objectFile.getMetadata();
         
         // Extrair nome original dos metadados customizados
-        const rawName = metadata.metadata?.['custom:originalFileName'] || (metadata.name ? metadata.name.split('/').pop() : null) || `Anexo_${id.slice(-8)}`;
-        const originalFileName = rawName;
+        const extractedName = metadata.name ? metadata.name.split('/').pop() : null;
+        // Se o nome extraído é apenas o ID do objeto (começa com "ATT-"), ignorar
+        const fallbackName = extractedName && !extractedName.startsWith('ATT-') ? extractedName : `Anexo_${id.slice(-8)}`;
+        const originalFileName = metadata.metadata?.['custom:originalFileName'] || fallbackName;
         
         // Retornar informações do arquivo real
         res.json({
