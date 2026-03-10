@@ -933,38 +933,38 @@ export default function Scaling() {
 
       <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
           
-          {/* Filtro específico para status de passagem e botão de exportação */}
-          <div className="px-6 pb-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="w-64">
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Status da Passagem
-                </label>
-                <Select 
-                  value={filters.ticketStatus} 
-                  onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
-                >
-                  <SelectTrigger data-testid="select-ticket-status">
-                    <SelectValue placeholder="Selecionar status da passagem" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="purchased">✈️ Passagens Compradas</SelectItem>
-                    <SelectItem value="not-purchased">❌ Passagens Não Compradas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={handleExportToExcel}
-                variant="outline"
-                className="flex items-center gap-2"
-                data-testid="button-export-excel"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                Exportar para Excel
-              </Button>
-            </div>
+      {/* Filtro específico para status de passagem e botão de exportação */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <div className="flex items-end justify-between gap-4">
+          <div className="w-64">
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+              Status da Passagem
+            </label>
+            <Select
+              value={filters.ticketStatus}
+              onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
+            >
+              <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
+                <SelectValue placeholder="Selecionar status da passagem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="purchased">✈️ Passagens Compradas</SelectItem>
+                <SelectItem value="not-purchased">❌ Passagens Não Compradas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          <Button
+            onClick={handleExportToExcel}
+            variant="outline"
+            className="flex items-center gap-2 border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+            data-testid="button-export-excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Exportar para Excel
+          </Button>
+        </div>
+      </div>
 
           {scalingInclusions.length === 0 ? (
             <div className="p-12 text-center">
@@ -986,30 +986,30 @@ export default function Scaling() {
             
             return (
               <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
-                <div className="px-6 py-4 border-b border-border">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger 
-                      value="without-ticket" 
-                      className="flex items-center gap-2"
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <TabsList className="grid w-full grid-cols-2 h-auto rounded-none bg-transparent p-0">
+                    <TabsTrigger
+                      value="without-ticket"
+                      className="flex items-center gap-2 rounded-none bg-[#fff7ed] hover:bg-orange-50 data-[state=active]:bg-[#fff7ed] data-[state=active]:shadow-none border-r border-slate-200 px-6 py-4"
                       disabled={withoutTicket.length === 0}
                     >
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span>Sem Passagem ({withoutTicket.length})</span>
+                      <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                      <span className="text-orange-700 font-medium">Sem Passagem ({withoutTicket.length})</span>
                       {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
+                        <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs rounded-full font-semibold">
                           {withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''}
                         </span>
                       )}
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="with-ticket" 
-                      className="flex items-center gap-2"
+                    <TabsTrigger
+                      value="with-ticket"
+                      className="flex items-center gap-2 rounded-none bg-[#f0fdf4] hover:bg-green-50 data-[state=active]:bg-[#f0fdf4] data-[state=active]:shadow-none px-6 py-4"
                       disabled={withTicket.length === 0}
                     >
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span>Com Passagem ({withTicket.length})</span>
+                      <span className="text-green-700 font-medium">Com Passagem ({withTicket.length})</span>
                       {withTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
+                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-semibold">
                           {withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''}
                         </span>
                       )}
@@ -1030,103 +1030,98 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-muted">
-                          <tr>
-                            <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                            <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
-                            <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                            <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Escalação
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-card divide-y divide-border">
-                          {withoutTicket.map((inclusion) => (
-                            <tr 
-                              key={inclusion.id} 
-                              className={`hover:bg-accent/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
-                              onClick={() => handleRowClick(inclusion)}
-                            >
-                              <td className="px-3 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-mono text-foreground">
-                                    #{inclusion.inclusionNumber || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <Eye 
-                                      className="w-4 h-4 transition-colors text-blue-600 hover:text-blue-800 cursor-pointer"
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                              <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
+                              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                              <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
+                              <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                                Escalação
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {withoutTicket.map((inclusion) => (
+                              <tr
+                                key={inclusion.id}
+                                className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                onClick={() => handleRowClick(inclusion)}
+                              >
+                                <td className="px-3 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-mono text-slate-500">
+                                      #{inclusion.inclusionNumber || 'N/A'}
+                                    </div>
+                                    <Eye
+                                      className="w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm font-medium text-foreground">
-                                  {getFunctionName(inclusion.functionId)}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {getEventName(inclusion.eventId)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getCollaboratorName(inclusion.collaboratorId)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
-                                </div>
-                                <div className="text-xs text-muted-foreground font-medium">
-                                  {formatDiarias(inclusion.dailyRates)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="flex flex-col gap-1">
-                                  {inclusion.status === "cancelado" ? (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                      Cancelado
-                                    </div>
-                                  ) : isEscalated(inclusion) ? (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                      Escalado
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                      Pendente
-                                    </div>
-                                  )}
-                                  {getTicket(inclusion.id) && (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                      ✈️ Passagem Comprada
-                                    </div>
-                                  )}
-                                  {(() => {
-                                    const accommodation = getAccommodation(inclusion.id);
-                                    const accommodationInfo = formatAccommodationInfo(accommodation);
-                                    return accommodationInfo && (
-                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
-                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                        🏨 Hospedagem Disponível
-                                        {accommodationInfo.hasAttachments && (
-                                          <span className="ml-1">📎</span>
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm font-medium text-slate-800">
+                                    {getFunctionName(inclusion.functionId)}
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {getEventName(inclusion.eventId)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm text-slate-700">
+                                    {getCollaboratorName(inclusion.collaboratorId)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm text-slate-700">
+                                    {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {formatDiarias(inclusion.dailyRates)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="flex flex-col gap-1">
+                                    {inclusion.status === "cancelado" ? (
+                                      <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
+                                        Cancelado
+                                      </span>
+                                    ) : isEscalated(inclusion) ? (
+                                      <span className="px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold">
+                                        Escalado
+                                      </span>
+                                    ) : (
+                                      <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold w-full text-left">
+                                        Pendente
+                                      </span>
+                                    )}
+                                    {getTicket(inclusion.id) && (
+                                      <span className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold">
+                                        ✈️ Passagem Comprada
+                                      </span>
+                                    )}
+                                    {(() => {
+                                      const accommodation = getAccommodation(inclusion.id);
+                                      const accommodationInfo = formatAccommodationInfo(accommodation);
+                                      return accommodationInfo && (
+                                        <span className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold">
+                                          🏨 Hospedagem Disponível
+                                          {accommodationInfo.hasAttachments && (
+                                            <span className="ml-1">📎</span>
+                                          )}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </TabsContent>
@@ -1144,110 +1139,104 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-muted">
-                          <tr>
-                            <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                            <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
-                            <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                            <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              Escalação
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-card divide-y divide-border">
-                          {withTicket.map((inclusion) => (
-                            <tr 
-                              key={inclusion.id} 
-                              className={`hover:bg-accent/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
-                              onClick={() => handleRowClick(inclusion)}
-                            >
-                              <td className="px-3 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-mono text-foreground">
-                                    #{inclusion.inclusionNumber || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <Eye 
-                                      className="w-4 h-4 transition-colors text-blue-600 hover:text-blue-800 cursor-pointer"
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                              <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
+                              <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                              <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
+                              <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                                Escalação
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {withTicket.map((inclusion) => (
+                              <tr
+                                key={inclusion.id}
+                                className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                onClick={() => handleRowClick(inclusion)}
+                              >
+                                <td className="px-3 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-mono text-slate-500">
+                                      #{inclusion.inclusionNumber || 'N/A'}
+                                    </div>
+                                    <Eye
+                                      className="w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm font-medium text-foreground">
-                                  {getFunctionName(inclusion.functionId)}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {getEventName(inclusion.eventId)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getCollaboratorName(inclusion.collaboratorId)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="text-sm text-foreground">
-                                  {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
-                                </div>
-                                <div className="text-xs text-muted-foreground font-medium">
-                                  {formatDiarias(inclusion.dailyRates)}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="flex flex-col gap-1">
-                                  {inclusion.status === "cancelado" ? (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                      Cancelado
-                                    </div>
-                                  ) : isEscalated(inclusion) ? (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                      Escalado
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                      Pendente
-                                    </div>
-                                  )}
-                                  {getTicket(inclusion.id) && (
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full">
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                      ✈️ Passagem Comprada
-                                    </div>
-                                  )}
-                                  {(() => {
-                                    const accommodation = getAccommodation(inclusion.id);
-                                    const accommodationInfo = formatAccommodationInfo(accommodation);
-                                    return accommodationInfo && (
-                                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded-full">
-                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                        🏨 Hospedagem Disponível
-                                        {accommodationInfo.hasAttachments && (
-                                          <span className="ml-1">📎</span>
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm font-medium text-slate-800">
+                                    {getFunctionName(inclusion.functionId)}
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {getEventName(inclusion.eventId)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm text-slate-700">
+                                    {getCollaboratorName(inclusion.collaboratorId)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="text-sm text-slate-700">
+                                    {getWorkPeriod(inclusion).start} a {getWorkPeriod(inclusion).end}
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {formatDiarias(inclusion.dailyRates)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-4">
+                                  <div className="flex flex-col gap-1">
+                                    {inclusion.status === "cancelado" ? (
+                                      <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
+                                        Cancelado
+                                      </span>
+                                    ) : isEscalated(inclusion) ? (
+                                      <span className="px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold">
+                                        Escalado
+                                      </span>
+                                    ) : (
+                                      <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold w-full text-left">
+                                        Pendente
+                                      </span>
+                                    )}
+                                    {getTicket(inclusion.id) && (
+                                      <span className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold">
+                                        ✈️ Passagem Comprada
+                                      </span>
+                                    )}
+                                    {(() => {
+                                      const accommodation = getAccommodation(inclusion.id);
+                                      const accommodationInfo = formatAccommodationInfo(accommodation);
+                                      return accommodationInfo && (
+                                        <span className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold">
+                                          🏨 Hospedagem Disponível
+                                          {accommodationInfo.hasAttachments && (
+                                            <span className="ml-1">📎</span>
+                                          )}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </TabsContent>
               </Tabs>
             );
           })()}
-        </div>
 
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -2014,6 +2003,6 @@ export default function Scaling() {
         />
       )}
 
-    </>
+    </div>
   );
 }

@@ -24,7 +24,7 @@ export default function SortableHeader({
 }: SortableHeaderProps) {
   return (
     <th 
-      className={`px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted/50 transition-colors ${className}`}
+      className={`px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors ${className}`}
       onClick={() => onSort(field)}
       data-testid={`header-${field}`}
     >
