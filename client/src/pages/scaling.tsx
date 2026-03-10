@@ -1988,61 +1988,65 @@ export default function Scaling() {
       {/* Lightbox de imagens — renderizado via Portal fora do Dialog para evitar focus trap */}
       {lightbox && createPortal(
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
           onMouseDown={() => setLightbox(null)}
         >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
           <div
-            className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-[80vw] max-h-[85vh]"
+            className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-5xl w-full max-h-[90vh]"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {/* Barra de ações */}
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-b border-slate-100 bg-white flex-shrink-0">
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={async () => {
-                  try {
-                    const res = await fetch(lightbox.url);
-                    const blob = await res.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = lightbox.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(blobUrl);
-                  } catch {
-                    window.open(lightbox.url, '_blank');
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Baixar
-              </button>
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Abrir em outra aba
-              </button>
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => setLightbox(null)}
-                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            {/* Header */}
+            <div className="bg-white border-b border-slate-100 px-5 py-3 flex items-center justify-between flex-shrink-0">
+              <span className="text-sm font-semibold text-slate-700">Visualizando anexo</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(lightbox.url);
+                      const blob = await res.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.download = lightbox.name;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(blobUrl);
+                    } catch {
+                      window.open(lightbox.url, '_blank');
+                    }
+                  }}
+                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar
+                </button>
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
+                  className="border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Abrir em outra aba
+                </button>
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => setLightbox(null)}
+                  className="hover:bg-slate-100 rounded-lg p-1.5 text-slate-400 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            {/* Preview da imagem */}
-            <div className="overflow-auto p-4 flex items-center justify-center bg-slate-50">
+            {/* Área de conteúdo */}
+            <div className="bg-slate-50 overflow-auto flex items-center justify-center min-h-[70vh]">
               <img
                 src={lightbox.url}
-                alt={lightbox.name}
-                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                alt="Visualização do anexo"
+                className="w-full object-contain"
+                style={{ minHeight: '70vh' }}
               />
             </div>
           </div>
