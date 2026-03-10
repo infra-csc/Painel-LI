@@ -32,10 +32,12 @@ function initials(name: string) {
     .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ãµ/g, 'õ')
     .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
     .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã /g, 'à')
-    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã\u0087/g, 'Ç').replace(/Ã\u0083/g, 'Ã')
+    .replace(/Ã\u0089/g, 'É').replace(/Ã\u0093/g, 'Ó').replace(/Ã\u0095/g, 'Õ')
+    .replace(/Ã\u0082/g, 'Â').replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú')
     .replace(/Ã‡/g, 'Ç').replace(/Ãƒ/g, 'Ã')
-    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'")
-    .replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú');
+    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'");
   const parts = fixed.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -45,10 +47,12 @@ function toTitleCase(str: string) {
     .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ãµ/g, 'õ')
     .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
     .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã /g, 'à')
-    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã\u0087/g, 'Ç').replace(/Ã\u0083/g, 'Ã')
+    .replace(/Ã\u0089/g, 'É').replace(/Ã\u0093/g, 'Ó').replace(/Ã\u0095/g, 'Õ')
+    .replace(/Ã\u0082/g, 'Â').replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú')
     .replace(/Ã‡/g, 'Ç').replace(/Ãƒ/g, 'Ã')
-    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'")
-    .replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú');
+    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'");
   return fixed.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
