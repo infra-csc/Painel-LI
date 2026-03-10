@@ -335,32 +335,23 @@ function EventPanel({
   );
 }
 
-// ─── Day popover (overflow events) ───────────────────────────────────────────
+// ─── Hidden events popover ────────────────────────────────────────────────────
 
-const POPOVER_W = 240;
+const POPOVER_W = 248;
 
-function DayPopover({ day, x, y, events, onSelectEvent, onClose }: {
-  day: Date;
+function HiddenEventsPopover({ hiddenEvents, x, y, onSelectEvent, onClose }: {
+  hiddenEvents: Event[];
   x: number; y: number;
-  events: Event[];
   onSelectEvent: SelectEventFn;
   onClose: () => void;
 }) {
-  const dayEvents = events.filter(ev => {
-    const start = parseLocalDate(ev.startDate);
-    const end = parseLocalDate(ev.endDate);
-    return isInRange(day, start, end);
-  });
-
   const openLeft = x > window.innerWidth / 2;
   const rawLeft = openLeft ? x - POPOVER_W - 8 : x + 8;
   const left = Math.max(8, Math.min(window.innerWidth - POPOVER_W - 8, rawLeft));
 
-  const ITEM_H = 40;
-  const popoverH = dayEvents.length * ITEM_H + 48;
-  const top = Math.max(8, Math.min(window.innerHeight - popoverH - 8, y));
-
-  const dayLabel = day.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+  const ITEM_H = 48;
+  const popoverH = hiddenEvents.length * ITEM_H + 16;
+  const top = Math.max(8, Math.min(window.innerHeight - popoverH - 8, y - popoverH / 2));
 
   return (
     <div className="fixed inset-0 z-[60]">
@@ -374,28 +365,86 @@ function DayPopover({ day, x, y, events, onSelectEvent, onClose }: {
           boxShadow: "0 8px 32px -4px rgba(0,0,0,0.18), 0 2px 8px -1px rgba(0,0,0,0.10)",
         }}
       >
-        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/80">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest capitalize">{dayLabel}</span>
-        </div>
-        <div className="py-1 max-h-64 overflow-y-auto">
-          {dayEvents.map(ev => {
+        <div className="py-1 max-h-72 overflow-y-auto">
+          {hiddenEvents.map(ev => {
             const cfg = getCfg(getEffectiveStatus(ev));
+            const StatusIcon = cfg.icon;
             return (
               <button
                 key={ev.id}
                 onClick={(e) => { e.stopPropagation(); onSelectEvent(ev, { x: e.clientX, y: e.clientY }); onClose(); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 text-left transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#f8fafc] text-left transition-colors"
               >
-                <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                <span className={`text-[12.5px] font-medium text-gray-800 truncate ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
-                  {ev.name}
-                </span>
+                <div className={`w-6 h-6 rounded-lg ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
+                  <StatusIcon className={`w-3 h-3 ${cfg.text}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[12.5px] font-semibold text-gray-800 truncate leading-tight ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
+                    {ev.name}
+                  </p>
+                  <p className="text-[11px] text-gray-400 truncate leading-tight mt-0.5">{ev.location}</p>
+                </div>
               </button>
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Overflow lane row ────────────────────────────────────────────────────────
+
+function OverflowRow({ bars, onSelectEvent }: {
+  bars: EventBar[];
+  onSelectEvent: SelectEventFn;
+}) {
+  const [popover, setPopover] = useState<{ events: Event[]; x: number; y: number } | null>(null);
+
+  const hiddenByCol = useMemo(() => {
+    const map: Record<number, Event[]> = {};
+    bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
+      for (let c = b.startCol; c <= b.endCol; c++) {
+        if (!map[c]) map[c] = [];
+        map[c].push(b.event);
+      }
+    });
+    return map;
+  }, [bars]);
+
+  const hasAny = Object.keys(hiddenByCol).length > 0;
+  if (!hasAny) return null;
+
+  return (
+    <>
+      <div className="grid grid-cols-7">
+        {Array.from({ length: 7 }).map((_, col) => {
+          const hidden = hiddenByCol[col];
+          if (!hidden || hidden.length === 0) {
+            return <div key={col} className="h-[22px]" />;
+          }
+          return (
+            <button
+              key={col}
+              onClick={(e) => { e.stopPropagation(); setPopover({ events: hidden, x: e.clientX, y: e.clientY }); }}
+              className="h-[22px] mx-0.5 rounded-md px-2 text-[11px] font-semibold text-[#374151] bg-[#f1f5f9] hover:bg-[#e2e8f0] transition-colors text-left truncate"
+            >
+              + {hidden.length} {hidden.length === 1 ? "evento" : "eventos"}
+            </button>
+          );
+        })}
+      </div>
+
+      {popover && (
+        <HiddenEventsPopover
+          hiddenEvents={popover.events}
+          x={popover.x}
+          y={popover.y}
+          onSelectEvent={(ev, pos) => { onSelectEvent(ev, pos); setPopover(null); }}
+          onClose={() => setPopover(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -411,7 +460,6 @@ function MonthView({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const [popover, setPopover] = useState<{ day: Date; x: number; y: number } | null>(null);
 
   // Build all day cells
   const firstDay = new Date(year, month, 1);
@@ -466,14 +514,7 @@ function MonthView({
           const bars = computeWeekBars(week, events);
           const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
           const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
-
-          // Count hidden events per day column
-          const hiddenByCol: Record<number, number> = {};
-          bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
-            for (let c = b.startCol; c <= b.endCol; c++) {
-              hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
-            }
-          });
+          const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
 
           return (
             <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
@@ -500,43 +541,26 @@ function MonthView({
                       }`}>
                         {day.getDate()}
                       </div>
-                      {hiddenByCol[di] > 0 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPopover({ day, x: e.clientX, y: e.clientY }); }}
-                          className="ml-auto text-[10px] font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded px-1.5 py-0.5 transition-colors leading-tight shrink-0"
-                        >
-                          +{hiddenByCol[di]} mais
-                        </button>
-                      )}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Event bar rows */}
-              {visibleLanes > 0 && (
+              {/* Event bar rows + overflow pill row */}
+              {(visibleLanes > 0 || hasOverflow) && (
                 <div className="pt-1 pb-1.5 space-y-0.5">
                   {Array.from({ length: visibleLanes }).map((_, lane) => (
                     <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
                   ))}
+                  {hasOverflow && (
+                    <OverflowRow bars={bars} onSelectEvent={onSelectEvent} />
+                  )}
                 </div>
               )}
             </div>
           );
         })}
       </div>
-
-      {/* Day overflow popover */}
-      {popover && (
-        <DayPopover
-          day={popover.day}
-          x={popover.x}
-          y={popover.y}
-          events={events}
-          onSelectEvent={(ev, pos) => { onSelectEvent(ev, pos); setPopover(null); }}
-          onClose={() => setPopover(null)}
-        />
-      )}
     </div>
   );
 }
