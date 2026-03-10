@@ -547,30 +547,30 @@ export default function TeamInclusionTable() {
           )}
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto">
+        <div>
+          <table className="table-fixed w-full">
             <thead className="bg-slate-50">
               <tr>
-                <th className="w-12 px-3 py-3">
+                <th className="w-[40px] px-2 py-3">
                   <Checkbox
                     checked={selectedRows.size === filteredAndSortedInclusions.length && filteredAndSortedInclusions.length > 0}
                     onCheckedChange={toggleSelectAll}
                     data-testid="checkbox-select-all"
                   />
                 </th>
-                <SortableHeader field="id" className="w-20 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
-                <SortableHeader field="event" className="w-36 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
-                <SortableHeader field="function" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
-                <SortableHeader field="collaborator" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                <SortableHeader field="date" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
-                <SortableHeader field="status" className="w-24 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-12 px-1 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <SortableHeader field="id" className="w-[80px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                <SortableHeader field="event" className="w-[22%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Evento</SortableHeader>
+                <SortableHeader field="function" className="w-[10%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Função</SortableHeader>
+                <SortableHeader field="collaborator" className="w-[18%] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
+                <SortableHeader field="date" className="w-[100px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
+                <SortableHeader field="status" className="w-[130px] !px-2 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
+                <th className="w-[48px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-12 px-1 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[48px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="sticky right-0 bg-white min-w-[120px] whitespace-nowrap px-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[100px] whitespace-nowrap px-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
@@ -591,15 +591,15 @@ export default function TeamInclusionTable() {
                     className={`border-b border-slate-100 transition-colors ${isCanceled ? 'opacity-50' : ''} hover:bg-blue-50/50`}
                     data-testid={`row-inclusion-${inclusion.id}`}
                   >
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-3">
                       <Checkbox
                         checked={selectedRows.has(inclusion.id)}
                         onCheckedChange={() => toggleRowSelection(inclusion.id)}
                         data-testid={`checkbox-row-${inclusion.id}`}
                       />
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-1 truncate">
+                    <td className="px-2 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
                         <div className="text-sm font-mono text-foreground font-medium truncate">
                           #{inclusion.inclusionNumber || 'N/A'}
                         </div>
@@ -621,23 +621,23 @@ export default function TeamInclusionTable() {
                         </Button>
                       </div>
                     </td>
-                    <td className="px-3 py-4 min-w-[200px]">
-                      <div className="text-sm font-medium text-slate-800 whitespace-nowrap">
+                    <td className="px-2 py-3">
+                      <div className="text-sm font-medium text-slate-800 whitespace-normal break-words">
                         {getEventName(inclusion.eventId)}
                       </div>
-                      <div className="text-xs text-slate-400 whitespace-nowrap">
+                      <div className="text-xs text-slate-400">
                         {getEventLocation(inclusion.eventId)}
                       </div>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       <div className="text-sm text-slate-700 truncate">
                         {getFunctionName(inclusion.functionId)}
                       </div>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-3">
                       {inclusion.collaboratorId ? (
                         <div
-                          className="text-sm text-slate-700 truncate"
+                          className="text-sm text-slate-700 whitespace-normal break-words"
                           title={toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
                         >
                           {toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
@@ -646,7 +646,7 @@ export default function TeamInclusionTable() {
                         <span className="text-sm italic text-slate-400">Não Escalado</span>
                       )}
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       <div className="text-xs text-foreground">
                         {inclusion.scheduleStartDate && inclusion.scheduleEndDate
                           ? `${formatDate(inclusion.scheduleStartDate)} - ${formatDate(inclusion.scheduleEndDate)}`
@@ -656,24 +656,24 @@ export default function TeamInclusionTable() {
                         {formatDiarias(inclusion.dailyRates)}
                       </div>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-3">
                       <StatusBadge status={getDisplayStatus(inclusion)} />
                     </td>
-                    <td className="px-1 py-4 text-center">
+                    <td className="px-2 py-3 text-center">
                       {inclusion.needsTicket ? (
                         <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de passagem" />
                       ) : (
                         <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de passagem" />
                       )}
                     </td>
-                    <td className="px-1 py-4 text-center">
+                    <td className="px-2 py-3 text-center">
                       {inclusion.needsAccommodation ? (
                         <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de hospedagem" />
                       ) : (
                         <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de hospedagem" />
                       )}
                     </td>
-                    <td className="sticky right-0 bg-white min-w-[120px] whitespace-nowrap px-2 py-4 text-right text-sm font-medium">
+                    <td className="w-[100px] whitespace-nowrap px-2 py-3 text-right text-sm font-medium">
                       <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
                         {/* Para registros cancelados, permitir apenas comentários se não for edição */}
                         <Button
