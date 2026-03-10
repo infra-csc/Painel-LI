@@ -180,7 +180,7 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
   const overflow = managers.length > 2 ? managers.length - 2 : 0;
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="flex items-center gap-2 flex-wrap">
       {hasNone && (
         <span className="flex items-center gap-1 text-xs text-slate-400 italic">
           <AlertTriangle className="w-3 h-3 text-amber-400" />
@@ -188,42 +188,55 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
         </span>
       )}
 
-      {visible.map((fm) => {
-        const u = users?.find(uid => uid.id === fm.userId);
-        const displayName = u?.name || u?.email || "Usuário";
-        const col = avatarColor(fm.userId);
-        return (
-          <div
-            key={fm.id}
-            className="group flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors cursor-default"
-          >
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${col}`}>
-              {initials(displayName)}
-            </div>
-            <span className="text-xs text-slate-700 font-medium max-w-[120px] truncate">{displayName}</span>
-            <button
-              className="w-3.5 h-3.5 flex items-center justify-center rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-40 group-hover:opacity-100 transition-all ml-0.5 shrink-0"
-              onClick={() => removeManagerMutation.mutate(fm.userId)}
-              data-testid={`button-remove-function-manager-${fm.userId}`}
-              title="Remover responsável"
-            >
-              <X className="w-2.5 h-2.5" />
-            </button>
-          </div>
-        );
-      })}
+      {/* Overlapping avatar stack */}
+      {!hasNone && (
+        <div className="flex items-center">
+          {visible.map((fm, i) => {
+            const u = users?.find(uid => uid.id === fm.userId);
+            const displayName = u?.name || u?.email || "Usuário";
+            const col = avatarColor(fm.userId);
+            return (
+              <Tooltip key={fm.id}>
+                <TooltipTrigger asChild>
+                  <div
+                    className="group relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shrink-0 cursor-default"
+                    style={{ marginLeft: i === 0 ? 0 : -8, zIndex: visible.length - i }}
+                  >
+                    <div className={`absolute inset-0 rounded-full ${col}`} />
+                    <span className="relative z-10 text-white text-[10px] font-bold select-none">
+                      {initials(displayName)}
+                    </span>
+                    {/* X badge on hover */}
+                    <button
+                      className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white shadow border border-gray-100 hidden group-hover:flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 z-20 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); removeManagerMutation.mutate(fm.userId); }}
+                      data-testid={`button-remove-function-manager-${fm.userId}`}
+                    >
+                      <X className="w-2 h-2" />
+                    </button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">{displayName}</TooltipContent>
+              </Tooltip>
+            );
+          })}
 
-      {overflow > 0 && (
-        <button
-          className="w-5 h-5 rounded-full bg-[#e2e8f0] text-[9px] font-bold text-slate-600 flex items-center justify-center hover:bg-slate-300 transition-colors shrink-0 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            setPopover({ x: e.clientX, y: e.clientY });
-          }}
-          title="Ver todos os responsáveis"
-        >
-          +{overflow}
-        </button>
+          {/* +N overflow badge — same height, overlapping */}
+          {overflow > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="relative w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 border-2 border-white text-[9px] font-bold text-slate-600 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                  style={{ marginLeft: -8, zIndex: 0 }}
+                  onClick={(e) => { e.stopPropagation(); setPopover({ x: e.clientX, y: e.clientY }); }}
+                >
+                  +{overflow}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Ver todos os responsáveis</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       )}
 
       {/* Managers popover */}
@@ -239,11 +252,11 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
         />
       )}
 
-      {/* Add button */}
+      {/* Add button — blue dashed */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <button
-            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-dashed border-gray-300 text-xs text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-dashed border-blue-300 text-xs text-blue-500 hover:border-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
             data-testid={`button-add-function-manager-${functionId}`}
           >
             <Plus className="w-3 h-3" />
@@ -415,6 +428,9 @@ export default function Functions() {
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
                 <Tag className="w-4 h-4 text-slate-400" />
                 Gerenciamento de Funções
+                {functions && functions.length > 0 && (
+                  <span className="text-xs font-normal text-slate-400">({functions.length})</span>
+                )}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">Gerencie as funções e atribua usuários responsáveis</p>
             </div>
@@ -530,54 +546,51 @@ export default function Functions() {
                 </tr>
               </thead>
               <tbody>
-                {sortedFunctions.map((func, idx) => {
-                  const isNoManager = false;
-                  return (
-                    <tr
-                      key={func.id}
-                      className="border-b border-gray-50 hover:bg-slate-50/60 transition-colors group"
-                    >
-                      <td className="px-6 py-4 text-xs text-slate-300 font-medium tabular-nums">
-                        {String(idx + 1).padStart(2, "0")}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="font-semibold text-slate-800 capitalize">{func.name}</span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <FunctionManagersCell functionId={func.id} functionName={func.name} />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 justify-end">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => handleOpenDialog(func)}
-                                data-testid={`button-edit-function-${func.id}`}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar função</TooltipContent>
-                          </Tooltip>
+                {sortedFunctions.map((func, idx) => (
+                  <tr
+                    key={func.id}
+                    className="group border-b border-gray-50 transition-colors even:bg-slate-50/50 hover:bg-blue-50/40"
+                  >
+                    <td className="px-6 py-3.5 text-xs text-slate-300 font-medium tabular-nums">
+                      {String(idx + 1).padStart(2, "0")}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="font-semibold text-slate-800 capitalize">{func.name}</span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <FunctionManagersCell functionId={func.id} functionName={func.name} />
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleOpenDialog(func)}
+                              data-testid={`button-edit-function-${func.id}`}
+                              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-100 transition-colors"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar função</TooltipContent>
+                        </Tooltip>
 
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => handleDelete(func.id)}
-                                data-testid={`button-delete-function-${func.id}`}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Excluir função</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleDelete(func.id)}
+                              data-testid={`button-delete-function-${func.id}`}
+                              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Excluir função</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
                 {sortedFunctions.length === 0 && (
                   <tr>
                     <td colSpan={4} className="text-center py-12 text-slate-400 text-sm">
