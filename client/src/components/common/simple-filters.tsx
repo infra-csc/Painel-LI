@@ -42,8 +42,16 @@ export default function SimpleFilters({ filters, onFiltersChange, extraItems }: 
     onFiltersChange({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "" });
   };
 
+  const firstExtraItem = extraItems?.[0];
+  const secondExtraItem = extraItems?.[1];
+  const hasExtra = !!firstExtraItem;
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+    <div
+      className="bg-white rounded-xl border border-[#E2E8F0] p-5 mb-0"
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
+    >
+      {/* Linha 1: Buscar por ID (largura total) */}
       <div className="mb-4">
         <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
           Buscar por ID
@@ -55,14 +63,15 @@ export default function SimpleFilters({ filters, onFiltersChange, extraItems }: 
             placeholder="Buscar por número..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 border border-[#E2E8F0] rounded-xl bg-slate-50 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
             data-testid="input-search-id"
           />
         </div>
       </div>
 
-      <div className="border-t border-slate-100 pt-4">
-        <div className={`grid grid-cols-2 ${extraItems?.length ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3`}>
+      {/* Linha 2: Evento, Funções, Colaborador + primeiro extra (4 colunas) */}
+      <div className="mb-4">
+        <div className={`grid grid-cols-2 ${hasExtra ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3`}>
           <div>
             <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
               Evento
@@ -102,27 +111,40 @@ export default function SimpleFilters({ filters, onFiltersChange, extraItems }: 
             />
           </div>
 
-          {extraItems?.map((item, idx) => (
-            <div key={idx}>
+          {firstExtraItem && (
+            <div>
               <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-                {item.label}
+                {firstExtraItem.label}
               </label>
-              {item.element}
+              {firstExtraItem.element}
             </div>
-          ))}
+          )}
         </div>
+      </div>
 
-        <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
-          <Button
-            variant="outline"
-            onClick={clearFilters}
-            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-            data-testid="button-clear-filters"
-          >
-            <X className="w-4 h-4" />
-            Limpar Filtros
-          </Button>
+      {/* Linha 3: segundo extra à esquerda + Limpar Filtros à direita */}
+      <div className="flex items-end justify-between gap-3 pt-3 border-t border-[#E2E8F0]">
+        <div className="flex-1 max-w-xs">
+          {secondExtraItem ? (
+            <>
+              <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+                {secondExtraItem.label}
+              </label>
+              {secondExtraItem.element}
+            </>
+          ) : (
+            <span />
+          )}
         </div>
+        <Button
+          variant="outline"
+          onClick={clearFilters}
+          className="flex items-center gap-2 border border-[#E2E8F0] text-[#64748B] hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-2 text-sm font-medium transition-colors shrink-0"
+          data-testid="button-clear-filters"
+        >
+          <X className="w-4 h-4" />
+          Limpar Filtros
+        </Button>
       </div>
     </div>
   );

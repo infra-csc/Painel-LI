@@ -973,7 +973,7 @@ export default function Tickets() {
                           createTicketMutation.isPending
                         }
                         data-testid="button-apply-to-selected"
-                        className="bg-[#3B5BDB] hover:bg-[#2F4DC4] text-white"
+                        className="bg-[#3B5BDB] hover:bg-[#2F4DC4] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Save className="w-4 h-4 mr-2" />
                         {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
@@ -1057,7 +1057,7 @@ export default function Tickets() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-slate-50 border-b border-slate-200 border-t-[3px] border-t-[#3B5BDB]">
                   <tr>
                     <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">
                       <input
@@ -1085,9 +1085,12 @@ export default function Tickets() {
                     return (
                       <tr 
                         key={inclusion.id} 
-                        className={`transition-colors hover:bg-[#EEF2FF] ${rowIndex % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}
+                        className="transition-colors"
+                        style={{ backgroundColor: rowIndex % 2 === 1 ? '#F8FAFC' : '#ffffff' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#EEF2FF'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = rowIndex % 2 === 1 ? '#F8FAFC' : '#ffffff'; }}
                       >
-                        <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
                             <input
                               type="checkbox"
@@ -1100,7 +1103,7 @@ export default function Tickets() {
                             <div className="w-4 h-4"></div>
                           )}
                         </td>
-                        <td className={`px-4 py-4 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="flex items-center gap-2">
                             <span className="inline-flex items-center gap-0.5 bg-[#EEF2FF] text-[#3B5BDB] text-xs font-bold px-2 py-0.5 rounded-md font-mono">
                               <span className="text-[#3B5BDB] opacity-60">#</span>{inclusion.inclusionNumber || 'N/A'}
@@ -1112,7 +1115,7 @@ export default function Tickets() {
                             </div>
                           </div>
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="font-medium text-slate-800 text-sm">
                             {getEventName(inclusion.eventId)}
                           </div>
@@ -1120,17 +1123,17 @@ export default function Tickets() {
                             {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-sm text-slate-700 capitalize">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="text-blue-600 font-medium text-sm">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualDepartureDate ? (
@@ -1153,7 +1156,7 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="text-sm font-medium text-foreground">
                               {ticket.actualReturnDate ? (
@@ -1176,16 +1179,25 @@ export default function Tickets() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
+                            const idaVazia = travelInfo.ida === 'Não definido' || travelInfo.ida === 'Não informado';
+                            const voltaVazia = travelInfo.retorno === 'Não definido' || travelInfo.retorno === 'Não informado';
+                            if (idaVazia && voltaVazia) {
+                              return (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-[#94A3B8]">
+                                  Não informado
+                                </span>
+                              );
+                            }
                             return (
                               <div className="text-xs text-[#64748B] space-y-1">
                                 <div className="flex items-start gap-1">
                                   <span className="text-base leading-none">✈️</span>
                                   <div>
                                     <span className="font-semibold text-[#3B5BDB]">Ida:</span>{' '}
-                                    {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
+                                    {formatSuggestionDate(!idaVazia ? travelInfo.ida : "Não informado")}
                                     {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Chegada: {travelInfo.chegada}</div>}
                                   </div>
                                 </div>
@@ -1193,7 +1205,7 @@ export default function Tickets() {
                                   <span className="text-base leading-none">🔄</span>
                                   <div>
                                     <span className="font-semibold text-[#F59E0B]">Volta:</span>{' '}
-                                    {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
+                                    {formatSuggestionDate(!voltaVazia ? travelInfo.retorno : "Não informado")}
                                     {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Horário: {travelInfo.horario}</div>}
                                   </div>
                                 </div>
@@ -1201,7 +1213,7 @@ export default function Tickets() {
                             );
                           })()}
                         </td>
-                        <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (ticket) {
