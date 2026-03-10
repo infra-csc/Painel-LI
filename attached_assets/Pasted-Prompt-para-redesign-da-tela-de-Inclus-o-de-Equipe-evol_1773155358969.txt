@@ -1,0 +1,48 @@
+Prompt para redesign da tela de Inclusão de Equipe — evolução visual sem mudança de comportamento:
+
+Redesign visual da tela de Inclusão de Equipe mantendo exatamente a mesma estrutura, hierarquia e fluxo que o usuário já conhece. Apenas elevar a qualidade visual.
+Seção "Escalação por Grade":
+
+Card com fundo branco, border-radius 12px, sombra suave — já tem, refinar
+Título com ícone de grade — manter
+Campos "Evento", "Data Inicial" e "Data Final" — manter posições exatas
+Inputs com borda #e2e8f0, focus azul com glow sutil
+Botão "Gerar Grade de Funções" azul sólido largura total com ícone de calendário — manter
+
+Seção de filtros:
+
+"Buscar por ID" como campo de busca limpo com ícone de lupa — manter
+5 dropdowns em linha (Evento, Funções, Colaborador, Status, Escalação) — manter layout exato
+Checkbox "Mostrar Excluídos" — manter posição
+Botão "Limpar Filtros" com X — manter, apenas refinar visual
+
+Seção "Resumo dos Totais":
+
+8 métricas em linha — manter todas
+Números coloridos por categoria: Total em azul, Pendentes em vermelho, Escalados em verde, Passagem em laranja, Hospedagem em roxo, Passagem Comprada em verde esmeralda, Hospedagem Comprada em índigo, Cancelados em cinza
+Label abaixo de cada número em cinza pequeno — manter
+Separadores verticais finos entre métricas
+
+Tabela "Lista de Inclusões de Equipe":
+
+Colunas exatas: checkbox, ID, Evento, Função, Colaborador, Data/Diárias, Status, Pass., Ações — não mover nada
+Zebra striping suave (#fafafa alternado com branco)
+Hover na linha com fundo azul muito claro (#f0f4ff)
+Nomes em ALL CAPS (LYRICK ANDRADE AL...) — converter para Title Case para melhor legibilidade
+Cidade/estado abaixo do evento em cinza menor — manter
+
+Badges de status na tabela:
+
+"Passagem Comprada" — verde claro com texto verde escuro (já tem, manter)
+"Aguardando Passagem" — cinza neutro com texto cinza escuro (sem cor de alerta)
+"Processando Passagem" — âmbar claro com texto âmbar escuro (já tem, manter)
+"Aguardando Escalação" — vermelho claro com texto vermelho (já tem, manter)
+
+Coluna de ações:
+
+Ícones: comentário (azul), editar (verde), lixeira (vermelho), cancelar (laranja) — manter cores e posições
+Aparecem sempre visíveis — manter comportamento atual para não confundir usuários habituados
+
+Coluna Pass. (check/X):
+
+Check verde e X vermelho — manter semântica, apenas garantir tamanho consistente (16px)

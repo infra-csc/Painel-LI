@@ -16,6 +16,10 @@ import SortableHeader, { type SortConfig, type SortField } from "@/components/co
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
 import { isReadOnly } from "@/lib/interactions";
 
+// Convert ALL CAPS names to Title Case for better readability
+const toTitleCase = (str: string) =>
+  str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
   if (inclusion.status === "escalado" && (inclusion.needsTicket || inclusion.needsAccommodation)) {
@@ -437,41 +441,24 @@ export default function TeamInclusionTable() {
       <UniversalFilters filters={filters} onFiltersChange={setFilters} />
 
       {/* Totals Summary */}
-      <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Resumo dos Totais</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-primary" data-testid="total-incluidos">{totals.incluidos}</div>
-            <div className="text-sm text-muted-foreground">Total</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-500" data-testid="total-pendentes">{totals.pendentes}</div>
-            <div className="text-sm text-muted-foreground">Pendentes</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600" data-testid="total-escalados">{totals.escalados}</div>
-            <div className="text-sm text-muted-foreground">Escalados</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600" data-testid="total-passagem">{totals.aguardando_passagem}</div>
-            <div className="text-sm text-muted-foreground">Passagem</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600" data-testid="total-hospedagem">{totals.hospedagem}</div>
-            <div className="text-sm text-muted-foreground">Hospedagem</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-600" data-testid="total-passagem-comprada">{totals.passagem_comprada}</div>
-            <div className="text-sm text-muted-foreground">Passagem Comprada</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-emerald-600" data-testid="total-hospedagem-comprada">{totals.hospedagem_comprada}</div>
-            <div className="text-sm text-muted-foreground">Hospedagem Comprada</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-500" data-testid="total-cancelados">{totals.cancelados}</div>
-            <div className="text-sm text-muted-foreground">Cancelados</div>
-          </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-5 mb-6">
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Resumo dos Totais</h3>
+        <div className="flex flex-wrap divide-x divide-gray-100">
+          {[
+            { value: totals.incluidos,           label: "Total",               color: "text-blue-600",    testId: "total-incluidos" },
+            { value: totals.pendentes,           label: "Pendentes",           color: "text-red-500",     testId: "total-pendentes" },
+            { value: totals.escalados,           label: "Escalados",           color: "text-green-600",   testId: "total-escalados" },
+            { value: totals.aguardando_passagem, label: "Passagem",            color: "text-orange-600",  testId: "total-passagem" },
+            { value: totals.hospedagem,          label: "Hospedagem",          color: "text-purple-600",  testId: "total-hospedagem" },
+            { value: totals.passagem_comprada,   label: "Pass. Comprada",      color: "text-emerald-600", testId: "total-passagem-comprada" },
+            { value: totals.hospedagem_comprada, label: "Hosp. Comprada",      color: "text-indigo-600",  testId: "total-hospedagem-comprada" },
+            { value: totals.cancelados,          label: "Cancelados",          color: "text-gray-400",    testId: "total-cancelados" },
+          ].map(({ value, label, color, testId }) => (
+            <div key={testId} className="flex-1 min-w-[80px] text-center px-3 first:pl-0 last:pr-0">
+              <div className={`text-2xl font-bold tabular-nums ${color}`} data-testid={testId}>{value}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5 leading-tight">{label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -508,14 +495,17 @@ export default function TeamInclusionTable() {
       )}
 
       {/* Table */}
-      <div className="bg-card rounded-lg shadow-sm border border-border">
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-foreground">Lista de Inclusões de Equipe</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">Lista de Inclusões de Equipe</h3>
+          {filteredAndSortedInclusions.length > 0 && (
+            <span className="text-xs text-slate-400 font-normal">{filteredAndSortedInclusions.length} {filteredAndSortedInclusions.length === 1 ? "registro" : "registros"}</span>
+          )}
         </div>
         
         <div>
           <table className="w-full table-fixed">
-            <thead className="bg-muted">
+            <thead className="bg-slate-50/80 border-b border-gray-100">
               <tr>
                 <th className="w-12 px-3 py-3">
                   <Checkbox
@@ -538,18 +528,22 @@ export default function TeamInclusionTable() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-card divide-y divide-border">
+            <tbody className="divide-y divide-gray-50">
               {filteredAndSortedInclusions?.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-400 text-sm">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedInclusions?.map((inclusion) => {
+                filteredAndSortedInclusions?.map((inclusion, idx) => {
                   const isCanceled = inclusion.status === 'cancelado';
                   return (
-                  <tr key={inclusion.id} className={`transition-colors ${isCanceled ? 'opacity-60' : 'hover:bg-accent/50'}`} data-testid={`row-inclusion-${inclusion.id}`}>
+                  <tr
+                    key={inclusion.id}
+                    className={`transition-colors ${isCanceled ? 'opacity-50' : ''} ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'} hover:bg-blue-50/40`}
+                    data-testid={`row-inclusion-${inclusion.id}`}
+                  >
                     <td className="px-3 py-4">
                       <Checkbox
                         checked={selectedRows.has(inclusion.id)}
@@ -591,13 +585,13 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <div className="text-sm text-foreground truncate">
+                      <div className="text-sm text-slate-700 truncate">
                         {getFunctionName(inclusion.functionId)}
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <div className="text-sm text-foreground truncate">
-                        {getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado"}
+                      <div className="text-sm text-slate-700 truncate">
+                        {toTitleCase(getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado")}
                       </div>
                     </td>
                     <td className="px-3 py-4">
@@ -615,13 +609,9 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
-                        <span className="text-green-600 font-bold text-lg" title="Precisa de passagem">
-                          ✓
-                        </span>
+                        <Check className="w-4 h-4 text-green-600 mx-auto" title="Precisa de passagem" />
                       ) : (
-                        <span className="text-red-500 font-bold text-lg" title="Não precisa de passagem">
-                          ✗
-                        </span>
+                        <X className="w-4 h-4 text-red-400 mx-auto" title="Não precisa de passagem" />
                       )}
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">

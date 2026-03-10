@@ -1003,13 +1003,13 @@ export default function GridTeamInclusionForm() {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Grid3x3 className="w-5 h-5" />
-          Escalação por Grade - Modelo Planilha
+    <Card className="border-gray-200 shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="bg-slate-50/60 border-b border-gray-100 px-6 py-4">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
+          <Grid3x3 className="w-4 h-4 text-blue-600" />
+          Escalação por Grade
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-slate-400 mt-0.5">
           Configure as diárias por função e data. Números consecutivos iguais se tornam um registro único.
         </p>
       </CardHeader>
@@ -1122,7 +1122,7 @@ export default function GridTeamInclusionForm() {
             <Button
               type="button"
               onClick={generateGrid}
-              className="w-full"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4 mr-2" />
@@ -1134,7 +1134,7 @@ export default function GridTeamInclusionForm() {
               <div className="space-y-4">
                 {/* Header com controles */}
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Modo Planilha - Inclusões de Equipe</h3>
+                  <h3 className="text-sm font-semibold text-slate-700">Grade de Inclusões</h3>
                   <div className="flex gap-2">
                     <Button
                       type="button"
