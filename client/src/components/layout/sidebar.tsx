@@ -56,7 +56,7 @@ export default function Sidebar() {
   const allTabs = [
     { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       permission: "canAccessScreen0" as const },
     { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       permission: "canAccessAdminUsers" as const },
-    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   permission: "canAccessAdminUsers" as const },
+    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   permission: "canAccessCalendar" as const },
     { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         permission: "canAccessScreen0" as const },
     { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: UserCog,        permission: "canAccessCollaborators" as const },
     { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,          permission: "canAccessScreen1" as const },

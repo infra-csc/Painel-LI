@@ -19,6 +19,7 @@ export interface RolePermissions {
   canAccessAdminUsers: boolean; // admin users management - admin only
   canAccessCollaborators: boolean; // collaborator management
   canEditCollaborators: boolean; // edit collaborators
+  canAccessCalendar: boolean; // calendar view - all roles
 }
 
 export function getRolePermissions(role: UserRole): RolePermissions {
@@ -41,6 +42,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: true,
         canAccessCollaborators: true,
         canEditCollaborators: true,
+        canAccessCalendar: true,
       };
     case "production":
       return {
@@ -60,6 +62,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: false,
         canAccessCollaborators: true,
         canEditCollaborators: true,
+        canAccessCalendar: true,
       };
     case "function_area":
       return {
@@ -79,6 +82,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: false,
         canAccessCollaborators: true,
         canEditCollaborators: true,
+        canAccessCalendar: true,
       };
     case "purchasing":
       return {
@@ -98,6 +102,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: false,
         canAccessCollaborators: false,
         canEditCollaborators: false,
+        canAccessCalendar: true,
       };
     case "financial":
       return {
@@ -117,6 +122,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: false,
         canAccessCollaborators: false,
         canEditCollaborators: false,
+        canAccessCalendar: true,
       };
     default:
       return {
@@ -136,6 +142,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessAdminUsers: false,
         canAccessCollaborators: false,
         canEditCollaborators: false,
+        canAccessCalendar: false,
       };
   }
 }
