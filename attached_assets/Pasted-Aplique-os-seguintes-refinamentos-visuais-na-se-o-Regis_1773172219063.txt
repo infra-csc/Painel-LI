@@ -1,0 +1,59 @@
+Aplique os seguintes refinamentos visuais na seção "Registro Rápido em Lote" da tela de Compra de Passagens, sem alterar nenhuma lógica ou funcionalidade:
+
+1. Reagrupar campos administrativos em uma única linha:
+
+Mover o campo "Últimos 4 dígitos do cartão (opcional)" para a mesma linha dos campos "Valor", "LOC" e "Data da Compra"
+Resultado: uma linha com 4 colunas — Valor | LOC | Data da Compra | Últimos 4 dígitos
+Usar grid: grid-template-columns: 2fr 2fr 2fr 1fr
+Essa linha deve ter fundo #F0FDF4 (verde muito claro) com border-radius: 8px e padding: 12px 16px, indicando visualmente que são dados financeiros
+
+
+2. "Observações" e "Anexos" lado a lado:
+
+Colocar o textarea "Observações sobre a passagem" e o card "Anexos" em um grid de 2 colunas iguais (grid-template-columns: 1fr 1fr)
+O textarea deve ter height: 120px para alinhar visualmente com a altura do card de Anexos
+Manter os estilos atuais de cada um, apenas ajustar o layout
+
+
+3. Checkbox "Apenas ida" → Toggle switch estilizado:
+
+Substituir o <input type="checkbox"> pelo seguinte estilo de toggle:
+
+Pill oval com width: 44px; height: 24px
+Quando OFF: fundo #CBD5E1, bolinha branca à esquerda
+Quando ON: fundo #3B5BDB, bolinha branca à direita com transição suave transition: all 0.2s ease
+Label "Apenas ida" ao lado direito do toggle, fonte 14px cor #475569
+
+
+Manter o mesmo estado/handler existente, apenas trocar o visual
+
+
+4. Barra de progresso de campos preenchidos:
+
+Logo abaixo da linha de Tipo de Transporte, adicionar um indicador discreto:
+
+Texto: "X de 6 campos obrigatórios preenchidos" em fonte 12px cor #64748B
+Barra fina (height: 4px, border-radius: 2px) abaixo do texto
+Cor da barra: vazia = #E2E8F0, preenchida = #3B5BDB
+Campos obrigatórios a contar: Tipo de Transporte, Valor, LOC, Cidade Origem IDA, Aeroporto Origem IDA, Data IDA
+Atualizar contagem em tempo real conforme o usuário preenche
+
+
+
+
+5. Área de ação final — container destacado:
+
+Envolver a linha com o texto "Preencha os dados comuns..." e os botões "Aplicar a X Passagens" + "Limpar Campos" em um container com:
+
+background: #F8FAFC
+border-top: 1px solid #E2E8F0
+border-radius: 0 0 12px 12px
+padding: 16px 20px
+Texto de instrução à esquerda em #64748B italic
+Botões alinhados à direita
+Botão "Aplicar" desabilitado (opacity: 0.5, cursor: not-allowed) quando X = 0
+
+
+
+
+NÃO alterar: nenhuma lógica, estado, prop, rota, função ou estrutura de dados. Apenas ajustes visuais de CSS/JSX.

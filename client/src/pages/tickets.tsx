@@ -690,14 +690,15 @@ export default function Tickets() {
                 {/* Grade Organizada por Seções */}
                 <div className="space-y-4">
                   {/* Seção de Tipo de Transporte e Configurações */}
-                  <div className="grid grid-cols-3 gap-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-md">
-                    <div>
-                      <Label className="text-[10px] font-medium">Tipo de Transporte *</Label>
+                  {/* Tipo de transporte + Toggle Apenas Ida */}
+                  <div className="flex items-end gap-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="flex-1">
+                      <Label className="text-[10px] font-medium text-[#64748B] uppercase tracking-wide">Tipo de Transporte *</Label>
                       <Select
                         value={ticketData["quick"]?.transportType || "aereo"}
                         onValueChange={(value) => handleTicketDataChange("quick", "transportType", value)}
                       >
-                        <SelectTrigger className="h-6 text-xs px-1" data-testid="select-quick-transport-type">
+                        <SelectTrigger className="h-8 text-sm mt-1" data-testid="select-quick-transport-type">
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
@@ -706,50 +707,103 @@ export default function Tickets() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center space-x-2 mt-4">
-                      <Checkbox
-                        id="quick-one-way"
-                        checked={ticketData["quick"]?.isOneWay || false}
-                        onCheckedChange={(checked) => handleTicketDataChange("quick", "isOneWay", checked)}
+                    <div className="flex items-center gap-2 pb-1 shrink-0">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={ticketData["quick"]?.isOneWay || false}
                         data-testid="checkbox-quick-one-way"
-                      />
-                      <Label htmlFor="quick-one-way" className="text-[10px] font-medium">Apenas ida</Label>
+                        onClick={() => handleTicketDataChange("quick", "isOneWay", !(ticketData["quick"]?.isOneWay || false))}
+                        className="relative inline-flex items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#3B5BDB] focus:ring-offset-1"
+                        style={{
+                          width: 44, height: 24,
+                          backgroundColor: ticketData["quick"]?.isOneWay ? '#3B5BDB' : '#CBD5E1',
+                        }}
+                      >
+                        <span
+                          className="inline-block w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ease-in-out"
+                          style={{ transform: ticketData["quick"]?.isOneWay ? 'translateX(22px)' : 'translateX(2px)' }}
+                        />
+                      </button>
+                      <span className="text-sm text-[#475569] select-none">Apenas ida</span>
                     </div>
                   </div>
 
-                  {/* Seção de Informações Gerais */}
-                  <div className="grid grid-cols-3 gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-md">
-                    <div>
-                      <Label className="text-[10px] font-medium">Valor *</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="2500.50"
-                        value={ticketData["quick"]?.value || ""}
-                        onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
-                        className="h-6 text-xs px-1"
-                        data-testid="input-quick-value"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] font-medium">LOC *</Label>
-                      <Input
-                        placeholder="123"
-                        value={ticketData["quick"]?.purchaseOrderNumber || ""}
-                        onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                        className="h-6 text-xs px-1"
-                        data-testid="input-quick-purchase-order"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] font-medium">Data da Compra</Label>
-                      <Input
-                        type="date"
-                        value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
-                        onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                        className="h-6 text-xs px-1"
-                        data-testid="input-quick-purchase-date"
-                      />
+                  {/* Barra de progresso de campos obrigatórios */}
+                  {(() => {
+                    const q = ticketData["quick"];
+                    const filled = [
+                      !!(q?.transportType),
+                      !!(q?.value),
+                      !!(q?.purchaseOrderNumber),
+                      !!(q?.departureCityOrigin),
+                      !!(q?.departureAirport),
+                      !!(q?.actualDepartureDate),
+                    ].filter(Boolean).length;
+                    const pct = Math.round((filled / 6) * 100);
+                    return (
+                      <div>
+                        <p className="text-xs text-[#64748B] mb-1">{filled} de 6 campos obrigatórios preenchidos</p>
+                        <div className="h-1 rounded-full bg-[#E2E8F0] overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{ width: `${pct}%`, backgroundColor: '#3B5BDB' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Linha financeira: Valor | LOC | Data da Compra | Últimos 4 dígitos */}
+                  <div
+                    className="rounded-lg p-3"
+                    style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}
+                  >
+                    <p className="text-[10px] font-bold text-[#16A34A] uppercase tracking-widest mb-2">💳 Dados Financeiros</p>
+                    <div className="grid gap-3" style={{ gridTemplateColumns: '2fr 2fr 2fr 1fr' }}>
+                      <div>
+                        <Label className="text-[10px] font-medium text-[#64748B]">Valor *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="2500.50"
+                          value={ticketData["quick"]?.value || ""}
+                          onChange={(e) => handleTicketDataChange("quick", "value", e.target.value)}
+                          className="h-8 text-sm mt-1"
+                          data-testid="input-quick-value"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-medium text-[#64748B]">LOC *</Label>
+                        <Input
+                          placeholder="123"
+                          value={ticketData["quick"]?.purchaseOrderNumber || ""}
+                          onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
+                          className="h-8 text-sm mt-1"
+                          data-testid="input-quick-purchase-order"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-medium text-[#64748B]">Data da Compra</Label>
+                        <Input
+                          type="date"
+                          value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
+                          onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
+                          className="h-8 text-sm mt-1"
+                          data-testid="input-quick-purchase-date"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] font-medium text-[#64748B]">Cartão (4 dig.)</Label>
+                        <Input
+                          placeholder="1234"
+                          maxLength={4}
+                          value={ticketData["quick"]?.cardLastFourDigits || ""}
+                          onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          className="h-8 text-sm mt-1"
+                          data-testid="input-quick-card-digits"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -916,54 +970,47 @@ export default function Tickets() {
                     )}
                   </div>
 
-                  {/* Seção de Informações Adicionais */}
-                  <div className="grid grid-cols-1 gap-2 p-3 bg-gray-50 dark:bg-gray-950/30 rounded-md">
+                  {/* Observações + Anexos lado a lado */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-[10px] font-medium">Últimos 4 dígitos do cartão (opcional)</Label>
-                      <Input
-                        placeholder="1234"
-                        maxLength={4}
-                        value={ticketData["quick"]?.cardLastFourDigits || ""}
-                        onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        className="h-6 text-xs px-1 max-w-20"
-                        data-testid="input-quick-card-digits"
-                      />
-                    </div>
-                    <div className="mt-2">
-                      <Label className="text-[10px] font-medium">Observações sobre a passagem (opcional)</Label>
+                      <Label className="text-[10px] font-medium text-[#64748B] uppercase tracking-wide">Observações (opcional)</Label>
                       <Textarea
                         placeholder="Informações adicionais sobre a passagem..."
                         value={ticketData["quick"]?.ticketObservations || ""}
                         onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
-                        className="h-16 text-xs px-2 py-1 resize-none"
+                        className="text-sm px-3 py-2 resize-none mt-1"
+                        style={{ height: 120 }}
                         data-testid="textarea-quick-ticket-observations"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] font-medium text-[#64748B] uppercase tracking-wide mb-1 block">Anexos</Label>
+                      <AttachmentUpload
+                        attachmentIds={ticketData["quick"]?.attachmentIds || []}
+                        onAttachmentsChange={(attachmentIds) => 
+                          handleTicketDataChange("quick", "attachmentIds", attachmentIds)
+                        }
+                        disabled={!canEditScreen(user, 'tickets')}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Campo de Anexos na Tela Principal */}
-                <div className="mt-4">
-                  <AttachmentUpload
-                    attachmentIds={ticketData["quick"]?.attachmentIds || []}
-                    onAttachmentsChange={(attachmentIds) => 
-                      handleTicketDataChange("quick", "attachmentIds", attachmentIds)
-                    }
-                    disabled={!canEditScreen(user, 'tickets')}
-                  />
-                </div>
-
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Preencha os dados comuns (pode ser parcial) e selecione as passagens na tabela para aplicar
+                {/* Área de ação final */}
+                <div
+                  className="flex items-center justify-between rounded-b-xl"
+                  style={{ background: '#F8FAFC', borderTop: '1px solid #E2E8F0', padding: '16px 20px', margin: '0 -20px -20px' }}
+                >
+                  <div className="text-sm text-[#64748B] italic">
+                    Preencha os dados comuns e selecione as passagens na tabela para aplicar.
                     {selectedTickets.length > 0 && (
-                      <span className="text-blue-600 font-medium ml-2">
-                        ({selectedTickets.length} passagens selecionadas)
+                      <span className="text-[#3B5BDB] font-medium not-italic ml-2">
+                        ({selectedTickets.length} {selectedTickets.length === 1 ? 'passagem selecionada' : 'passagens selecionadas'})
                       </span>
                     )}
                   </div>
                   {canEditScreen(user, 'tickets') && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 shrink-0">
                       <Button
                         variant="default"
                         size="sm"
@@ -982,7 +1029,6 @@ export default function Tickets() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          // Limpar campos do registro rápido
                           setTicketData(prev => {
                             const newData = { ...prev };
                             delete newData["quick"];
