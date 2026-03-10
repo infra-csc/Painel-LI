@@ -17,8 +17,9 @@ import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schem
 import { isReadOnly } from "@/lib/interactions";
 
 // Convert ALL CAPS names to Title Case for better readability
+// Uses split-by-space to avoid issues with accented chars (ã, ç, etc.)
 const toTitleCase = (str: string) =>
-  str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  str.toLowerCase().split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -443,7 +444,7 @@ export default function TeamInclusionTable() {
       {/* Totals Summary */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-5 mb-6">
         <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Resumo dos Totais</h3>
-        <div className="flex flex-wrap divide-x divide-gray-100">
+        <div className="flex flex-wrap divide-x divide-slate-200">
           {[
             { value: totals.incluidos,           label: "Total",               color: "text-blue-600",    testId: "total-incluidos" },
             { value: totals.pendentes,           label: "Pendentes",           color: "text-red-500",     testId: "total-pendentes" },
@@ -520,10 +521,13 @@ export default function TeamInclusionTable() {
                 <SortableHeader field="collaborator" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                 <SortableHeader field="date" className="w-32" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
                 <SortableHeader field="status" className="w-24" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-16 px-3 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-14 px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Pass.
                 </th>
-                <th className="w-40 px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="w-14 px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  Hosp.
+                </th>
+                <th className="w-40 px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -531,7 +535,7 @@ export default function TeamInclusionTable() {
             <tbody className="divide-y divide-gray-50">
               {filteredAndSortedInclusions?.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={11} className="px-6 py-12 text-center text-slate-400 text-sm">
                     Nenhuma inclusão de equipe encontrada
                   </td>
                 </tr>
@@ -590,7 +594,10 @@ export default function TeamInclusionTable() {
                       </div>
                     </td>
                     <td className="px-3 py-4">
-                      <div className="text-sm text-slate-700 truncate">
+                      <div
+                        className="text-sm text-slate-700 truncate"
+                        title={toTitleCase(getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado")}
+                      >
                         {toTitleCase(getCollaboratorName(inclusion.collaboratorId || undefined) || "Não escalado")}
                       </div>
                     </td>
@@ -609,13 +616,20 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-3 py-4 text-center">
                       {inclusion.needsTicket ? (
-                        <Check className="w-4 h-4 text-green-600 mx-auto" title="Precisa de passagem" />
+                        <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de passagem" />
                       ) : (
-                        <X className="w-4 h-4 text-red-400 mx-auto" title="Não precisa de passagem" />
+                        <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de passagem" />
+                      )}
+                    </td>
+                    <td className="px-3 py-4 text-center">
+                      {inclusion.needsAccommodation ? (
+                        <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de hospedagem" />
+                      ) : (
+                        <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de hospedagem" />
                       )}
                     </td>
                     <td className="px-3 py-4 text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''}`}>
                         {/* Para registros cancelados, permitir apenas comentários se não for edição */}
                         <Button
                           size="sm"

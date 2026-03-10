@@ -110,7 +110,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
           />
         </div>
 
-        <div className="flex-1 min-w-48">
+        <div className="flex-1 min-w-64">
           <label className="block text-sm font-medium text-foreground mb-1">
             Colaborador
           </label>
