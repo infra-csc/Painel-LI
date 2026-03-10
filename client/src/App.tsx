@@ -26,6 +26,7 @@ import BudgetActual from "@/pages/budget-actual";
 import BudgetComparison from "@/pages/budget-comparison";
 import RhControl from "@/pages/rh-control";
 import SystemSettings from "@/pages/system-settings";
+import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -132,6 +133,7 @@ function Router() {
                 <SystemSettings />
               </ProtectedRoute>
             </Route>
+            <Route path="/calendar" component={CalendarPage} />
             <Route component={NotFound} />
           </Switch>
         </MainLayout>

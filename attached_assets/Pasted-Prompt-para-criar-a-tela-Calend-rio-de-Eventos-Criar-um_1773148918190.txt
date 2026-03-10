@@ -1,0 +1,58 @@
+Prompt para criar a tela "Calendário de Eventos":
+
+Criar uma tela de calendário mensal para visualização de eventos passados, presentes e futuros, integrada ao design system do sistema Norte (sidebar com módulos coloridos, fonte Inter/DM Sans, paleta azul/índigo).
+Header da tela:
+
+Ícone de calendário + título "Calendário de Eventos" + subtítulo "Visualize todos os eventos por período"
+Navegação de mês: botões < e > com mês/ano em destaque no centro ("Março 2026") como pill clicável
+Botão "Hoje" para voltar ao mês atual
+Toggle de visualização: "Mês / Lista" no canto direito
+
+Legenda de status:
+
+Pills horizontais abaixo do header: ● Concluído (verde) ● Em andamento (âmbar) ● Planejado (azul) ● Cancelado (cinza)
+
+Grade do calendário (visão Mês):
+
+7 colunas (Dom–Sáb) com header fixo em cinza claro
+Células de dias com número no canto superior esquerdo
+Dia atual com fundo azul claro (#eff6ff) e número em azul bold
+Dias de outros meses em cinza muito apagado
+Eventos como pills coloridos dentro da célula do dia: nome truncado + cor por status
+Se houver mais de 2 eventos no dia: mostrar "+N mais" em cinza clicável
+Fim de semana com fundo levemente diferente (#fafafa)
+Hover na célula com borda azul sutil
+
+Pills de evento na célula:
+
+Concluído: fundo verde claro (#dcfce7), texto verde escuro, ícone de check pequeno
+Em andamento: fundo âmbar claro (#fef3c7), texto âmbar escuro, ícone de play
+Planejado: fundo azul claro (#dbeafe), texto azul escuro, ícone de clock
+Cancelado: fundo cinza (#f1f5f9), texto cinza, texto tachado
+
+Painel lateral direito (ao clicar em um evento):
+
+Slide-in suave da direita, largura ~300px
+Nome do evento em bold, cidade, período completo
+Badge de status colorido
+Métricas rápidas: total de colaboradores escalados, orçamento planejado
+Botões: "Ver detalhes" e "Ir para Orçamento"
+Botão X para fechar
+
+Visão Lista (toggle alternativo):
+
+Eventos agrupados por mês em seções com header "Março 2026", "Abril 2026" etc.
+Cada evento como linha com: ícone colorido + nome + cidade + período + badge status + botão "Ver"
+Mês atual expandido, anteriores e futuros colapsáveis
+
+Mini calendário de navegação (opcional, canto superior direito):
+
+Calendário pequeno 7×5 para navegar rapidamente entre meses
+Dias com eventos marcados com ponto colorido
+
+Estilo geral:
+
+Fonte Inter ou DM Sans
+Consistente com o design system: sidebar com módulos coloridos, cards brancos com sombra suave
+Transições suaves ao trocar de mês e ao abrir o painel lateral
+Responsivo: em telas menores, painel lateral vira modal

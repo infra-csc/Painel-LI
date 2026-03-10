@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import {
   Users, UserCheck, Plane, Hotel, CheckCircle, Search,
-  UserPlus, Settings, Wrench, UserCog, Calendar, LogOut,
+  UserPlus, Settings, Wrench, UserCog, Calendar, CalendarDays, LogOut,
   Menu, X, ChevronLeft, ChevronRight, Minimize2, Maximize2,
   Sun, Moon, Focus, Calculator, ClipboardCheck, BarChart3, Shield
 } from "lucide-react";
@@ -40,7 +40,7 @@ const groupThemes: Record<string, GroupTheme> = {
 };
 
 const menuGroups = [
-  { title: "Cadastros",   items: ["user-registration", "events", "functions", "collaborators"] },
+  { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
   { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control"] },
   { title: "Gestão",      items: ["approval", "consultation", "admin-users"] },
@@ -57,6 +57,7 @@ export default function Sidebar() {
   const allTabs = [
     { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       permission: "canAccessScreen0" as const },
     { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       permission: "canAccessAdminUsers" as const },
+    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   permission: "canAccessAdminUsers" as const },
     { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         permission: "canAccessScreen0" as const },
     { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: UserCog,        permission: "canAccessCollaborators" as const },
     { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,          permission: "canAccessScreen1" as const },
