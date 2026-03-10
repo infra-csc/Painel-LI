@@ -4,45 +4,44 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
-  CheckCircle, Play, Ban, List, LayoutGrid, ExternalLink, ChevronDown,
+  CheckCircle, Play, Ban, List, LayoutGrid, ChevronDown,
   Users, Tag
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
-import { Link } from "wouter";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<string, {
   label: string; bg: string; text: string; border: string;
-  bar: string; barText: string;
+  bar: string; barText: string; iconText: string;
   panelBg: string; panelBorder: string; topBar: string; icon: any; strikethrough?: boolean;
   dot: string;
 }> = {
   concluido: {
     label: "Concluído",
     bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200",
-    bar: "bg-emerald-500", barText: "text-white",
+    bar: "bg-emerald-500", barText: "text-white", iconText: "text-emerald-600",
     panelBg: "bg-emerald-50", panelBorder: "border-emerald-200", topBar: "bg-emerald-500",
     icon: CheckCircle, dot: "bg-emerald-500",
   },
   em_andamento: {
     label: "Em andamento",
     bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200",
-    bar: "bg-amber-400", barText: "text-white",
+    bar: "bg-amber-400", barText: "text-white", iconText: "text-amber-500",
     panelBg: "bg-amber-50", panelBorder: "border-amber-200", topBar: "bg-amber-400",
     icon: Play, dot: "bg-amber-400",
   },
   planejado: {
     label: "Planejado",
     bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-200",
-    bar: "bg-blue-500", barText: "text-white",
+    bar: "bg-blue-500", barText: "text-white", iconText: "text-blue-500",
     panelBg: "bg-blue-50", panelBorder: "border-blue-200", topBar: "bg-blue-500",
     icon: Clock, dot: "bg-blue-500",
   },
   cancelado: {
     label: "Cancelado",
     bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200",
-    bar: "bg-slate-300", barText: "text-slate-600",
+    bar: "bg-slate-300", barText: "text-slate-600", iconText: "text-slate-400",
     panelBg: "bg-slate-50", panelBorder: "border-slate-200", topBar: "bg-slate-400",
     icon: Ban, strikethrough: true, dot: "bg-slate-400",
   },
@@ -170,13 +169,15 @@ function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
   return bars;
 }
 
+type SelectEventFn = (e: Event, pos: { x: number; y: number }) => void;
+
 // Render a single lane row for the event grid
 function LaneRow({
   lane, bars, onSelectEvent,
 }: {
   lane: number;
   bars: EventBar[];
-  onSelectEvent: (e: Event) => void;
+  onSelectEvent: SelectEventFn;
 }) {
   const laneBars = bars.filter(b => b.lane === lane).sort((a, b) => a.startCol - b.startCol);
   const items: React.ReactNode[] = [];
@@ -192,7 +193,7 @@ function LaneRow({
     items.push(
       <button
         key={bar.event.id}
-        onClick={() => onSelectEvent(bar.event)}
+        onClick={(e) => onSelectEvent(bar.event, { x: e.clientX, y: e.clientY })}
         style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
         title={`${bar.event.name} · ${bar.event.location}`}
         className={`h-[22px] text-[12px] font-semibold truncate transition-opacity hover:opacity-80 ${cfg.bar} ${cfg.barText} ${cfg.strikethrough ? "opacity-50 line-through" : ""} ${bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1"} ${bar.isEnd ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0"}`}
@@ -212,7 +213,16 @@ function LaneRow({
 
 // ─── Event detail panel ───────────────────────────────────────────────────────
 
-function EventPanel({ event, onClose }: { event: Event; onClose: () => void }) {
+const PANEL_W = 296;
+const PANEL_MARGIN = 14;
+
+function EventPanel({
+  event, onClose, clickPos,
+}: {
+  event: Event;
+  onClose: () => void;
+  clickPos: { x: number; y: number };
+}) {
   const cfg = getCfg(getEffectiveStatus(event));
   const StatusIcon = cfg.icon;
   const days = dayCount(event.startDate, event.endDate);
@@ -234,76 +244,92 @@ function EventPanel({ event, onClose }: { event: Event; onClose: () => void }) {
     [eventInclusions]
   );
 
+  // Smart positioning: open to the left if click is in right half of screen
+  const openLeft = clickPos.x > window.innerWidth / 2;
+  const rawLeft = openLeft
+    ? clickPos.x - PANEL_W - PANEL_MARGIN
+    : clickPos.x + PANEL_MARGIN;
+  const left = Math.max(PANEL_MARGIN, Math.min(window.innerWidth - PANEL_W - PANEL_MARGIN, rawLeft));
+
+  // Vertical: center on click, clamped. Panel height ~260px estimated
+  const PANEL_H_EST = 260;
+  const top = Math.max(PANEL_MARGIN, Math.min(window.innerHeight - PANEL_H_EST - PANEL_MARGIN, clickPos.y - PANEL_H_EST / 2));
+
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-[300px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in slide-in-from-right duration-200">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div
+        className="absolute bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        style={{
+          width: PANEL_W,
+          left,
+          top,
+          boxShadow: "0 12px 48px -4px rgba(0,0,0,0.22), 0 4px 16px -2px rgba(0,0,0,0.12)",
+        }}
+      >
         {/* Status color bar */}
         <div className={`h-[3px] w-full ${cfg.topBar}`} />
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3">
-          <div className="flex items-center justify-between gap-2 mb-2.5">
+        <div className="px-4 pt-3.5 pb-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <Badge className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
               <StatusIcon className="w-2.5 h-2.5 mr-1" />
               {cfg.label}
             </Badge>
             <button
               onClick={onClose}
-              className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              className="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
             >
               <X className="w-3 h-3 text-gray-500" />
             </button>
           </div>
-          <h2 className={`text-[15px] font-bold text-gray-900 dark:text-gray-100 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
+          <h2 className={`text-[14px] font-bold text-gray-900 dark:text-gray-100 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
             {event.name}
           </h2>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-gray-100 dark:border-gray-700 mx-5" />
+        <div className="border-t border-gray-100 dark:border-gray-700 mx-4" />
 
         {/* Info rows */}
-        <div className="px-5 py-4 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-[13px] text-gray-700 dark:text-gray-300">{event.location}</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-[13px] text-gray-700 dark:text-gray-300">{formatDateRange(event.startDate, event.endDate)}</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-[13px] text-gray-700 dark:text-gray-300">{days} {days === 1 ? "dia" : "dias"}</span>
+        <div className="px-4 pt-3.5 pb-4 space-y-3.5">
+          {/* Location, date, duration */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2.5">
+              <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{event.location}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{formatDateRange(event.startDate, event.endDate)}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Clock className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">{days} {days === 1 ? "dia" : "dias"}</span>
+            </div>
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-gray-100 dark:border-gray-700" />
+          {/* Subtle separator */}
+          <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
 
-          <div className="flex items-center gap-2.5">
-            <Users className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-[13px] text-gray-700 dark:text-gray-300">
-              <span className="font-semibold text-gray-900 dark:text-gray-100">{collaboratorCount}</span>
-              {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
-            </span>
+          {/* Collaborators & functions */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2.5">
+              <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{collaboratorCount}</span>
+                {" "}{collaboratorCount === 1 ? "colaborador escalado" : "colaboradores escalados"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Tag className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
+              <span className="text-[12.5px] text-gray-700 dark:text-gray-300">
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{functionCount}</span>
+                {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2.5">
-            <Tag className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-[13px] text-gray-700 dark:text-gray-300">
-              <span className="font-semibold text-gray-900 dark:text-gray-100">{functionCount}</span>
-              {" "}{functionCount === 1 ? "função envolvida" : "funções envolvidas"}
-            </span>
-          </div>
-        </div>
-
-        {/* Action */}
-        <div className="px-5 pb-5">
-          <Link href="/events">
-            <Button className="w-full h-9 text-sm bg-blue-600 hover:bg-blue-700 text-white gap-2">
-              Abrir evento <ExternalLink className="w-3.5 h-3.5" />
-            </Button>
-          </Link>
         </div>
       </div>
     </div>
@@ -318,7 +344,7 @@ function MonthView({
   year, month, events, onSelectEvent,
 }: {
   year: number; month: number; events: Event[];
-  onSelectEvent: (e: Event | null) => void;
+  onSelectEvent: SelectEventFn;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -438,7 +464,7 @@ function MonthView({
 
 // ─── List view ────────────────────────────────────────────────────────────────
 
-function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: (e: Event) => void }) {
+function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: SelectEventFn }) {
   const today = new Date();
   const currentMonthKey = `${today.getFullYear()}-${today.getMonth()}`;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -518,7 +544,7 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: (
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 shrink-0"
-                        onClick={() => onSelectEvent(ev)}
+                        onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
                       </Button>
@@ -542,7 +568,13 @@ export default function CalendarPage() {
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [view, setView] = useState<"month" | "list">("month");
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [clickPos, setClickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  function handleSelectEvent(e: Event, pos: { x: number; y: number }) {
+    setClickPos(pos);
+    setSelectedEvent(e);
+  }
 
   const { data: events = [], isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
 
@@ -693,18 +725,18 @@ export default function CalendarPage() {
             year={viewYear}
             month={viewMonth}
             events={filteredEvents}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
           />
         ) : (
           <div className="h-full overflow-y-auto">
-            <ListView events={filteredEvents} onSelectEvent={setSelectedEvent} />
+            <ListView events={filteredEvents} onSelectEvent={handleSelectEvent} />
           </div>
         )}
       </div>
 
       {/* ── Event detail panel ── */}
       {selectedEvent && (
-        <EventPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <EventPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} clickPos={clickPos} />
       )}
     </div>
   );
