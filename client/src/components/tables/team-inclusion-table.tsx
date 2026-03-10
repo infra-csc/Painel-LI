@@ -462,7 +462,7 @@ export default function TeamInclusionTable() {
 
       {/* Totals Summary */}
       <div className="mb-6">
-        <div className="grid grid-cols-4 xl:grid-cols-8 gap-3">
+        <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
           {([
             { value: totals.incluidos,           label: "Total",          color: "text-blue-600",    border: "border-t-blue-400",    activeBg: "bg-blue-50",    filterType: "all",        filterValue: "all",                 testId: "total-incluidos" },
             { value: totals.pendentes,           label: "Pendentes",      color: "text-red-500",     border: "border-t-red-400",     activeBg: "bg-red-50",     filterType: "escalation", filterValue: "pending",             testId: "total-pendentes" },
@@ -494,12 +494,12 @@ export default function TeamInclusionTable() {
               <div
                 key={testId}
                 onClick={handleClick}
-                className={`border border-slate-200 border-t-2 ${border} rounded-xl p-4 text-center cursor-pointer transition-all duration-150 select-none
+                className={`border border-slate-200 border-t-2 ${border} rounded-xl p-3 text-center cursor-pointer transition-all duration-150 select-none
                   ${isActive ? `${activeBg} shadow-md border-2` : "bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
                 data-testid={testId}
               >
-                <div className={`text-3xl font-bold tabular-nums ${color}`}>{value}</div>
-                <div className="text-[11px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
+                <div className={`text-2xl font-bold tabular-nums ${color}`}>{value}</div>
+                <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
               </div>
             );
           })}
@@ -539,7 +539,7 @@ export default function TeamInclusionTable() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-800">Lista de Inclusões de Equipe</h3>
           {filteredAndSortedInclusions.length > 0 && (
@@ -564,13 +564,13 @@ export default function TeamInclusionTable() {
                 <SortableHeader field="collaborator" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                 <SortableHeader field="date" className="w-32 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Data/Diárias</SortableHeader>
                 <SortableHeader field="status" className="w-24 text-[11px] uppercase tracking-widest text-slate-400 font-semibold" sortConfig={sortConfig} onSort={handleSort}>Status</SortableHeader>
-                <th className="w-14 px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-12 px-1 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-14 px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-12 px-1 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="w-40 px-3 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-32 px-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
@@ -659,21 +659,21 @@ export default function TeamInclusionTable() {
                     <td className="px-3 py-4">
                       <StatusBadge status={getDisplayStatus(inclusion)} />
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-1 py-4 text-center">
                       {inclusion.needsTicket ? (
                         <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de passagem" />
                       ) : (
                         <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de passagem" />
                       )}
                     </td>
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-1 py-4 text-center">
                       {inclusion.needsAccommodation ? (
                         <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de hospedagem" />
                       ) : (
                         <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de hospedagem" />
                       )}
                     </td>
-                    <td className="px-3 py-4 text-right text-sm font-medium">
+                    <td className="px-2 py-4 text-right text-sm font-medium">
                       <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
                         {/* Para registros cancelados, permitir apenas comentários se não for edição */}
                         <Button
