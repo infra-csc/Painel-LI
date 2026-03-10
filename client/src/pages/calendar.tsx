@@ -89,7 +89,8 @@ function dayCount(startStr: string, endStr: string) {
 
 function getEffectiveStatus(event: Event): string {
   const raw = (event.status || "").toLowerCase();
-  if (raw === "cancelado" || raw === "excluido" || raw === "inativo") return raw;
+  // Normalize: catch "excluído", "excluido", "excluíd", etc.
+  if (raw.startsWith("exclu") || raw === "cancelado" || raw === "inativo") return "excluido";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = parseLocalDate(event.startDate);
