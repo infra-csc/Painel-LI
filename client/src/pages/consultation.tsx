@@ -357,56 +357,56 @@ export default function SystemLogsPage() {
 
           {/* Entity type */}
           <Select value={filters.entityType} onValueChange={(v) => { setFilters(f => ({ ...f, entityType: v })); setPage(1); }}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
               <SelectValue placeholder="Módulo" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os módulos</SelectItem>
-              <SelectItem value="user">Usuários</SelectItem>
-              <SelectItem value="event">Eventos</SelectItem>
-              <SelectItem value="team_inclusion">Inclusão de Equipe</SelectItem>
-              <SelectItem value="budget_planned">Orçamento Planejado</SelectItem>
-              <SelectItem value="budget_actual">Prestação de Contas</SelectItem>
-              <SelectItem value="function">Funções</SelectItem>
-              <SelectItem value="collaborator">Colaboradores</SelectItem>
-              <SelectItem value="ticket">Passagens</SelectItem>
-              <SelectItem value="accommodation">Hospedagens</SelectItem>
-              <SelectItem value="budget_comparison">Comparativo</SelectItem>
-              <SelectItem value="system_settings">Configurações</SelectItem>
-              <SelectItem value="financial">Financeiro</SelectItem>
+            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px]">
+              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os módulos</SelectItem>
+              <SelectItem value="user" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Usuários</SelectItem>
+              <SelectItem value="event" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Eventos</SelectItem>
+              <SelectItem value="team_inclusion" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Inclusão de Equipe</SelectItem>
+              <SelectItem value="budget_planned" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Orçamento Planejado</SelectItem>
+              <SelectItem value="budget_actual" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Prestação de Contas</SelectItem>
+              <SelectItem value="function" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Funções</SelectItem>
+              <SelectItem value="collaborator" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Colaboradores</SelectItem>
+              <SelectItem value="ticket" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Passagens</SelectItem>
+              <SelectItem value="accommodation" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Hospedagens</SelectItem>
+              <SelectItem value="budget_comparison" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Comparativo</SelectItem>
+              <SelectItem value="system_settings" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Configurações</SelectItem>
+              <SelectItem value="financial" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Financeiro</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Action */}
           <Select value={filters.action} onValueChange={(v) => { setFilters(f => ({ ...f, action: v })); setPage(1); }}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
               <SelectValue placeholder="Ação" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as ações</SelectItem>
-              <SelectItem value="create">Criação</SelectItem>
-              <SelectItem value="update">Alteração</SelectItem>
-              <SelectItem value="delete">Exclusão</SelectItem>
-              <SelectItem value="login">Login</SelectItem>
-              <SelectItem value="logout">Logout</SelectItem>
-              <SelectItem value="send_review">Envio p/ RH</SelectItem>
-              <SelectItem value="approve">Aprovação</SelectItem>
-              <SelectItem value="reject">Rejeição</SelectItem>
-              <SelectItem value="reset_password">Reset de Senha</SelectItem>
+            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as ações</SelectItem>
+              <SelectItem value="create" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Criação</SelectItem>
+              <SelectItem value="update" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Alteração</SelectItem>
+              <SelectItem value="delete" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Exclusão</SelectItem>
+              <SelectItem value="login" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Login</SelectItem>
+              <SelectItem value="logout" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Logout</SelectItem>
+              <SelectItem value="send_review" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Envio p/ RH</SelectItem>
+              <SelectItem value="approve" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aprovação</SelectItem>
+              <SelectItem value="reject" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Rejeição</SelectItem>
+              <SelectItem value="reset_password" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Reset de Senha</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Period */}
           <Select value={filters.days} onValueChange={(v) => { setFilters(f => ({ ...f, days: v })); setPage(1); }}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Últimas 24h</SelectItem>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="30">Últimos 30 dias</SelectItem>
-              <SelectItem value="90">Últimos 90 dias</SelectItem>
-              <SelectItem value="365">Último ano</SelectItem>
+            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+              <SelectItem value="1" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimas 24h</SelectItem>
+              <SelectItem value="7" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 7 dias</SelectItem>
+              <SelectItem value="30" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 30 dias</SelectItem>
+              <SelectItem value="90" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Últimos 90 dias</SelectItem>
+              <SelectItem value="365" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Último ano</SelectItem>
             </SelectContent>
           </Select>
 

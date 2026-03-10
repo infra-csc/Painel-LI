@@ -278,15 +278,15 @@ export default function Events() {
               {/* Status */}
               <div className="flex-1 min-w-[130px]">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg" data-testid="select-status-filter">
+                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200" data-testid="select-status-filter">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os status</SelectItem>
-                    <SelectItem value="planejado">Planejado</SelectItem>
-                    <SelectItem value="em andamento">Em andamento</SelectItem>
-                    <SelectItem value="concluído">Concluído</SelectItem>
-                    <SelectItem value="excluído">Excluído</SelectItem>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os status</SelectItem>
+                    <SelectItem value="planejado" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado</SelectItem>
+                    <SelectItem value="em andamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Em andamento</SelectItem>
+                    <SelectItem value="concluído" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Concluído</SelectItem>
+                    <SelectItem value="excluído" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Excluído</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -294,13 +294,13 @@ export default function Events() {
               {/* Month */}
               <div className="flex-1 min-w-[120px]">
                 <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg">
+                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                     <SelectValue placeholder="Mês" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os meses</SelectItem>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px]">
+                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os meses</SelectItem>
                     {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
-                      <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      <SelectItem key={i+1} value={String(i+1)} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{m}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -309,13 +309,13 @@ export default function Events() {
               {/* Year */}
               <div className="w-[96px]">
                 <Select value={yearFilter} onValueChange={setYearFilter}>
-                  <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg">
+                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                     <SelectValue placeholder="Ano" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[120px]">
+                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
                     {availableYears.map(y => (
-                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      <SelectItem key={y} value={String(y)} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{y}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -1024,10 +1024,10 @@ export default function Scaling() {
               <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
                 <SelectValue placeholder="Selecionar status da passagem" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="purchased">✈️ Passagens Compradas</SelectItem>
-                <SelectItem value="not-purchased">❌ Passagens Não Compradas</SelectItem>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">✈️ Passagens Compradas</SelectItem>
+                <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">❌ Passagens Não Compradas</SelectItem>
               </SelectContent>
             </Select>
           </div>

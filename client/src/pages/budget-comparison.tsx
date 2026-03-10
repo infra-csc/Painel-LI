@@ -586,25 +586,25 @@ export default function BudgetComparisonPage() {
                   <Input placeholder="Buscar por nome..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 pl-8 text-xs rounded-xl border-gray-200" />
                 </div>
                 <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="h-8 text-xs w-40 border-gray-200 rounded-xl"><SelectValue placeholder="Função" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as funções</SelectItem>
-                    {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!}>{getFunctionName(fid)}</SelectItem>)}
+                  <SelectTrigger className="h-9 text-sm w-40 border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Função" /></SelectTrigger>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as funções</SelectItem>
+                    {usedFunctionIds.map(fid => <SelectItem key={fid} value={fid!} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{getFunctionName(fid)}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="h-8 text-xs w-28 border-gray-200 rounded-xl"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="casa">Casa</SelectItem>
-                    <SelectItem value="freelancer">Freela</SelectItem>
+                  <SelectTrigger className="h-9 text-sm w-28 border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
+                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                    <SelectItem value="casa" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Casa</SelectItem>
+                    <SelectItem value="freelancer" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Freela</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={sortBy} onValueChange={(v: 'difference' | 'total') => setSortBy(v)}>
-                  <SelectTrigger className="h-8 text-xs w-40 border-gray-200 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="difference">Maior diferença</SelectItem>
-                    <SelectItem value="total">Maior valor</SelectItem>
+                  <SelectTrigger className="h-9 text-sm w-40 border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                    <SelectItem value="difference" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Maior diferença</SelectItem>
+                    <SelectItem value="total" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Maior valor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

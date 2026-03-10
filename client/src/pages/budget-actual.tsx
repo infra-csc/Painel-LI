@@ -661,35 +661,35 @@ export default function BudgetActualPage() {
                 />
               </div>
               <Select value={filterFunction} onValueChange={setFilterFunction}>
-                <SelectTrigger className="w-40 h-9 text-xs rounded-xl">
+                <SelectTrigger className="w-40 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                   <SelectValue placeholder="Função" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas funções</SelectItem>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                  <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas funções</SelectItem>
                   {functions?.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{f.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-28 h-9 text-xs rounded-xl">
+                <SelectTrigger className="w-28 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="casa">Casa</SelectItem>
-                  <SelectItem value="freela">Freela</SelectItem>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
+                  <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                  <SelectItem value="casa" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Casa</SelectItem>
+                  <SelectItem value="freela" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Freela</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-44 h-9 text-xs rounded-xl">
+                <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                   <ArrowUpDown className="w-3 h-3 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="adjusted">Ajustadas primeiro</SelectItem>
-                  <SelectItem value="value">Maior valor</SelectItem>
-                  <SelectItem value="name">Nome A-Z</SelectItem>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                  <SelectItem value="adjusted" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Ajustadas primeiro</SelectItem>
+                  <SelectItem value="value" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Maior valor</SelectItem>
+                  <SelectItem value="name" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Nome A-Z</SelectItem>
                 </SelectContent>
               </Select>
             </div>
