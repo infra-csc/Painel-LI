@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
-  CheckCircle, Play, Ban, List, LayoutGrid, ChevronDown,
-  Users, Tag
+  CheckCircle, Play, List, LayoutGrid, ChevronDown,
+  Users, Tag, Search,
 } from "lucide-react";
 import type { Event, TeamInclusion } from "@shared/schema";
 
@@ -26,7 +26,7 @@ const STATUS_CFG: Record<string, {
   em_andamento: {
     label: "Em andamento",
     bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200",
-    bar: "bg-amber-400", barText: "text-white", iconText: "text-amber-500",
+    bar: "bg-amber-400", barText: "text-[#1e293b]", iconText: "text-amber-500",
     panelBg: "bg-amber-50", panelBorder: "border-amber-200", topBar: "bg-amber-400",
     icon: Play, dot: "bg-amber-400",
   },
@@ -37,14 +37,10 @@ const STATUS_CFG: Record<string, {
     panelBg: "bg-blue-50", panelBorder: "border-blue-200", topBar: "bg-blue-500",
     icon: Clock, dot: "bg-blue-500",
   },
-  cancelado: {
-    label: "Cancelado",
-    bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200",
-    bar: "bg-slate-300", barText: "text-slate-600", iconText: "text-slate-400",
-    panelBg: "bg-slate-50", panelBorder: "border-slate-200", topBar: "bg-slate-400",
-    icon: Ban, strikethrough: true, dot: "bg-slate-400",
-  },
 };
+
+// Only these statuses are shown in the calendar
+const VISIBLE_STATUSES = new Set(["concluido", "em_andamento", "planejado"]);
 
 function getCfg(status: string) {
   return STATUS_CFG[status] || STATUS_CFG["planejado"];
@@ -92,7 +88,8 @@ function dayCount(startStr: string, endStr: string) {
 }
 
 function getEffectiveStatus(event: Event): string {
-  if (event.status === "cancelado") return "cancelado";
+  const raw = (event.status || "").toLowerCase();
+  if (raw === "cancelado" || raw === "excluido" || raw === "inativo") return raw;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = parseLocalDate(event.startDate);
@@ -123,7 +120,11 @@ function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
   const weekStart = new Date(week[0]); weekStart.setHours(0, 0, 0, 0);
   const weekEnd = new Date(week[6]); weekEnd.setHours(23, 59, 59, 999);
 
+  // Deduplicate by ID before processing
+  const seenIds = new Set<string>();
   const overlapping = events.filter(ev => {
+    if (seenIds.has(ev.id)) return false;
+    seenIds.add(ev.id);
     const s = parseLocalDate(ev.startDate);
     const e = parseLocalDate(ev.endDate);
     return s <= weekEnd && e >= weekStart;
@@ -139,7 +140,6 @@ function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
   });
 
   const bars: EventBar[] = [];
-  // lanes[lane] = the Date after which this lane is free
   const lanesFreeAfter: Date[] = [];
 
   for (const ev of overlapping) {
@@ -151,7 +151,6 @@ function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
     const isStart = s >= weekStart;
     const isEnd = e <= weekEnd;
 
-    // Find first free lane for this event's column range
     let lane = -1;
     for (let l = 0; l < lanesFreeAfter.length; l++) {
       if (lanesFreeAfter[l] < s || (s <= weekStart && lanesFreeAfter[l] < weekStart)) {
@@ -189,15 +188,21 @@ function LaneRow({
       );
     }
     const cfg = getCfg(getEffectiveStatus(bar.event));
+    // Always show name — either from start or repeating at the first visible column
     items.push(
       <button
         key={bar.event.id}
         onClick={(e) => onSelectEvent(bar.event, { x: e.clientX, y: e.clientY })}
         style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
         title={`${bar.event.name} · ${bar.event.location}`}
-        className={`h-[22px] text-[12px] font-semibold truncate transition-opacity hover:opacity-80 ${cfg.bar} ${cfg.barText} ${cfg.strikethrough ? "opacity-50 line-through" : ""} ${bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1"} ${bar.isEnd ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0"}`}
+        className={[
+          "h-[22px] text-[12px] font-semibold transition-opacity hover:opacity-80 flex items-center",
+          cfg.bar, cfg.barText,
+          bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1.5",
+          bar.isEnd   ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0",
+        ].join(" ")}
       >
-        {bar.isStart ? bar.event.name : ""}
+        <span className="truncate overflow-hidden block w-full">{bar.event.name}</span>
       </button>
     );
     col = bar.endCol + 1;
@@ -243,14 +248,12 @@ function EventPanel({
     [eventInclusions]
   );
 
-  // Smart positioning: open to the left if click is in right half of screen
   const openLeft = clickPos.x > window.innerWidth / 2;
   const rawLeft = openLeft
     ? clickPos.x - PANEL_W - PANEL_MARGIN
     : clickPos.x + PANEL_MARGIN;
   const left = Math.max(PANEL_MARGIN, Math.min(window.innerWidth - PANEL_W - PANEL_MARGIN, rawLeft));
 
-  // Vertical: center on click, clamped. Panel height ~260px estimated
   const PANEL_H_EST = 260;
   const top = Math.max(PANEL_MARGIN, Math.min(window.innerHeight - PANEL_H_EST - PANEL_MARGIN, clickPos.y - PANEL_H_EST / 2));
 
@@ -266,10 +269,7 @@ function EventPanel({
           boxShadow: "0 12px 48px -4px rgba(0,0,0,0.22), 0 4px 16px -2px rgba(0,0,0,0.12)",
         }}
       >
-        {/* Status color bar */}
         <div className={`h-[3px] w-full ${cfg.topBar}`} />
-
-        {/* Header */}
         <div className="px-4 pt-3.5 pb-3">
           <div className="flex items-center justify-between gap-2 mb-2">
             <Badge className={`text-[10px] ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
@@ -288,12 +288,9 @@ function EventPanel({
           </h2>
         </div>
 
-        {/* Divider */}
         <div className="border-t border-gray-100 dark:border-gray-700 mx-4" />
 
-        {/* Info rows */}
         <div className="px-4 pt-3.5 pb-4 space-y-3.5">
-          {/* Location, date, duration */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
               <MapPin className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
@@ -309,10 +306,8 @@ function EventPanel({
             </div>
           </div>
 
-          {/* Subtle separator */}
           <div className="border-t border-dashed border-gray-200 dark:border-gray-700" />
 
-          {/* Collaborators & functions */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-2.5">
               <Users className={`w-3.5 h-3.5 shrink-0 ${cfg.iconText}`} />
@@ -369,11 +364,9 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
           boxShadow: "0 8px 32px -4px rgba(0,0,0,0.16), 0 2px 8px -1px rgba(0,0,0,0.08)",
         }}
       >
-        {/* Header */}
         <div className="px-3 py-2.5 border-b border-gray-100">
           <span className="text-[11px] font-semibold text-gray-400 capitalize">{title}</span>
         </div>
-        {/* Event list */}
         <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
           {dayEvents.map(ev => {
             const cfg = getCfg(getEffectiveStatus(ev));
@@ -496,7 +489,6 @@ function MonthView({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Build all day cells
   const firstDay = new Date(year, month, 1);
   const startPad = firstDay.getDay();
   const lastDayNum = new Date(year, month + 1, 0).getDate();
@@ -523,7 +515,6 @@ function MonthView({
     ? allDays.slice(0, -7)
     : allDays;
 
-  // Split into weeks
   const weeks: Date[][] = [];
   for (let i = 0; i < trimmedDays.length; i += 7) {
     weeks.push(trimmedDays.slice(i, i + 7));
@@ -540,10 +531,10 @@ function MonthView({
         ))}
       </div>
 
-      {/* Week rows — each gets 1fr of remaining height */}
+      {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
       <div
         className="flex-1 min-h-0"
-        style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, 1fr)` }}
+        style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(90px, 1fr))` }}
       >
         {weeks.map((week, wi) => {
           const bars = computeWeekBars(week, events);
@@ -553,8 +544,8 @@ function MonthView({
 
           return (
             <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
-              {/* Day number row */}
-              <div className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700 shrink-0">
+              {/* Day number row — z-10 keeps numbers above bars */}
+              <div className="relative z-10 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700 shrink-0">
                 {week.map((day, di) => {
                   const isCurrentMonth = day.getMonth() === month;
                   const isToday = isSameDay(day, today);
@@ -674,7 +665,6 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
 
         return (
           <div key={group.key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-            {/* Month header */}
             <button
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors border-b border-gray-100 dark:border-gray-700"
               onClick={() => toggleGroup(group.key)}
@@ -696,7 +686,6 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
             </button>
 
-            {/* Event rows */}
             {isOpen && (
               <div className="divide-y divide-gray-50 dark:divide-gray-700">
                 {group.events.map(ev => {
@@ -749,6 +738,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [clickPos, setClickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   function handleSelectEvent(e: Event, pos: { x: number; y: number }) {
     setClickPos(pos);
@@ -757,10 +747,25 @@ export default function CalendarPage() {
 
   const { data: events = [], isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
 
+  // Only show concluido / em_andamento / planejado — never cancelled/deleted/inactive
+  const visibleEvents = useMemo(() =>
+    events.filter(ev => VISIBLE_STATUSES.has(getEffectiveStatus(ev))),
+    [events]
+  );
+
   const filteredEvents = useMemo(() => {
-    if (statusFilter === "all") return events;
-    return events.filter(ev => getEffectiveStatus(ev) === statusFilter);
-  }, [events, statusFilter]);
+    let result = visibleEvents;
+    if (statusFilter !== "all") {
+      result = result.filter(ev => getEffectiveStatus(ev) === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(ev =>
+        ev.name.toLowerCase().includes(q) || ev.location.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [visibleEvents, statusFilter, searchQuery]);
 
   function prevMonth() {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
@@ -776,17 +781,17 @@ export default function CalendarPage() {
   }
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
 
+  // Counts based on visible events only (excludes cancelled/deleted/inactive)
   const statusCounts = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const ev of events) { const s = getEffectiveStatus(ev); map[s] = (map[s] || 0) + 1; }
+    for (const ev of visibleEvents) { const s = getEffectiveStatus(ev); map[s] = (map[s] || 0) + 1; }
     return map;
-  }, [events]);
+  }, [visibleEvents]);
 
   const legendItems = [
-    { key: "concluido", ...STATUS_CFG.concluido },
+    { key: "concluido",    ...STATUS_CFG.concluido    },
     { key: "em_andamento", ...STATUS_CFG.em_andamento },
-    { key: "planejado", ...STATUS_CFG.planejado },
-    { key: "cancelado", ...STATUS_CFG.cancelado },
+    { key: "planejado",    ...STATUS_CFG.planejado    },
   ];
 
   return (
@@ -864,8 +869,29 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── Status filter pills ── */}
+      {/* ── Filter row: search + status pills ── */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Search input */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Buscar evento ou cidade…"
+            className="h-[30px] pl-8 pr-3 text-[11px] rounded-full border border-gray-200 bg-white text-gray-700 placeholder-gray-400 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-100 transition-all w-52"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Status filter pills */}
         <button
           onClick={() => setStatusFilter("all")}
           className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
@@ -874,7 +900,7 @@ export default function CalendarPage() {
               : "border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-700 hover:bg-indigo-50 bg-white"
           }`}
         >
-          Todos <span className={statusFilter === "all" ? "text-indigo-200" : "text-gray-400"}>{events.length}</span>
+          Todos <span className={statusFilter === "all" ? "text-indigo-200" : "text-gray-400"}>{visibleEvents.length}</span>
         </button>
         {legendItems.map(item => {
           const count = statusCounts[item.key] || 0;
