@@ -1,0 +1,85 @@
+Prompt para o Replit — Melhorias visuais na tela de Hospedagem:
+
+Aplique as seguintes melhorias visuais na tela de Hospedagem, sem alterar nenhuma lógica ou funcionalidade:
+
+1. Header da página — cards de estatísticas:
+
+Os números 16/4/12 estão soltos no canto superior direito sem cards. Transformar em 3 cards idênticos ao padrão da tela de Compra de Passagens:
+
+Card 1: ícone 🏨 azul, número 16 azul #3B5BDB, label "HOSPEDAGENS"
+Card 2: ícone ✓ verde, número 4 verde #10B981, label "COMPRADAS"
+Card 3: ícone ⏰ laranja, número 12 laranja #F59E0B, label "PENDENTES"
+
+
+Cada card com background: white, border-radius: 12px, padding: 16px 24px, box-shadow: 0 1px 3px rgba(0,0,0,0.08), border: 1px solid #E2E8F0
+Cards dispostos em linha abaixo do título/subtítulo, ocupando largura total em grid de 3 colunas
+
+
+2. Seção de Filtros — unificar em um único card:
+
+Atualmente os filtros estão divididos em dois blocos separados (um com Evento/Funções/Colaborador e outro com Status da Hospedagem/Status da Inclusão). Unificar tudo em um único card:
+
+background: white, border-radius: 12px, padding: 20px, box-shadow: 0 1px 3px rgba(0,0,0,0.08), border: 1px solid #E2E8F0
+Linha 1: campo "Buscar por ID" com largura total
+Linha 2: grid 3 colunas — Evento | Funções | Colaborador
+Linha 3: grid 3 colunas — Status da Hospedagem | Status da Inclusão | (vazio)
+Botão "Limpar Filtros" com ícone X alinhado à direita da linha 3
+
+
+
+
+3. Seção "Registro Rápido em Lote" — estilizar igual ao de Compra de Passagens:
+
+Header do accordion com borda esquerda 4px solid #F59E0B, fundo #FFFBEB, border-radius: 8px
+Ícone e título em bold, subtítulo em cinza
+Seta de expand/collapse animada com transition: transform 0.2s ease
+Quando expandido, organizar campos em grid:
+
+Linha 1 (fundo verde claro #F0FDF4, border-radius: 8px, padding: 12px): Nome do Hotel | Localização | Valor da Diária em grid 3 colunas
+Cards CHECK-IN e CHECK-OUT lado a lado:
+
+CHECK-IN: borda esquerda 3px solid #3B5BDB, fundo #EEF2FF
+CHECK-OUT: borda esquerda 3px solid #F59E0B, fundo #FFF7ED
+
+
+Linha final: Reserva/LOC | Observações lado a lado em grid 2 colunas
+
+
+
+
+4. Tabela — badges de status padronizados:
+Substituir os textos de status atuais por badges pill com cores consistentes:
+
+"Hospedagem Comprada" → fundo #D1FAE5, texto #065F46, ícone ✓
+"Processando Hospedagem" → fundo #DBEAFE, texto #1E40AF, ícone ⏳
+"Processando Passagem" → fundo #EDE9FE, texto #5B21B6, ícone ✈️
+"Reaberto" → fundo #FEF3C7, texto #92400E, ícone 🔄
+"Pendente" → fundo #FEF9C3, texto #854D0E, ícone ⏰
+Todos os badges: border-radius: 20px, padding: 4px 12px, font-size: 12px, font-weight: 600
+
+
+5. Tabela — melhorias gerais:
+
+Zebra striping: linhas alternadas com fundo #F8FAFC
+Hover em todas as linhas: background: #EEF2FF !important
+Borda superior da tabela: border-top: 3px solid #3B5BDB
+Coluna ID: badge #XXX em azul pill (background: #EEF2FF, color: #3B5BDB, font-weight: 700)
+Coluna HOTEL: nome do hotel em font-weight: 600, endereço abaixo em font-size: 12px; color: #94A3B8
+Colunas CHECK-IN e CHECK-OUT: data em font-weight: 600, horário abaixo em font-size: 12px; color: #3B5BDB
+Padding vertical das linhas: padding: 18px 0
+Ícone de olho 👁️ e comentário 💬 com hover azul #3B5BDB
+
+
+6. Área de ação do lote — container destacado:
+
+Envolver o texto "Preencha os dados comuns..." e botões em container com:
+
+background: #F8FAFC, border-top: 1px solid #E2E8F0, border-radius: 0 0 12px 12px, padding: 16px 20px
+Texto à esquerda em itálico cinza
+Botão "Aplicar a 0 Hospedagens": desabilitado quando 0 (opacity: 0.5, cursor: not-allowed), azul quando > 0
+Botão "Limpar Campos": estilo outline cinza
+
+
+
+
+NÃO alterar: nenhuma lógica, estado, prop, rota, função ou estrutura de dados. Apenas ajustes visuais de CSS/JSX.
