@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -59,6 +59,12 @@ export default function Scaling() {
   
   // Estado para novo comentário inline
   const [newComment, setNewComment] = useState("");
+
+  // Estado para lightbox de imagens
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
+
+  // Cache de metadados de anexos { [id]: { name, type, viewUrl, downloadUrl } }
+  const [attachmentMeta, setAttachmentMeta] = useState<Record<string, { name?: string; type?: string; viewUrl?: string; downloadUrl?: string }>>({});
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -911,6 +917,73 @@ export default function Scaling() {
     }
   };
 
+  // Pre-fetch metadata for all attachment IDs when modal opens
+  useEffect(() => {
+    if (!showModal || !selectedInclusion) return;
+    const acc = accommodations?.find(a => a.teamInclusionId === selectedInclusion.id);
+    const ticket = tickets?.find(t => t.teamInclusionId === selectedInclusion.id && t.purchaseDate !== null);
+    const ids = [
+      ...(acc?.attachmentIds || []),
+      ...(ticket?.attachmentIds || []),
+    ].filter(id => !attachmentMeta[id]);
+    ids.forEach(async (id) => {
+      try {
+        const res = await fetch(`/api/attachments/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAttachmentMeta(prev => ({ ...prev, [id]: data }));
+        }
+      } catch (_) {}
+    });
+  }, [showModal, selectedInclusion]);
+
+  // Detecta tipo de arquivo pelo nome/mimetype e retorna badge info
+  const getFileBadge = (name?: string, type?: string) => {
+    const n = (name || '').toLowerCase();
+    if (n.match(/\.(jpe?g|png|gif|webp|bmp|svg)$/) || (type || '').includes('image')) {
+      const ext = (name?.split('.').pop() || 'IMG').toUpperCase();
+      return { ext, cls: 'bg-blue-100 text-blue-600' };
+    }
+    if (n.match(/\.pdf$/) || (type || '').includes('pdf')) {
+      return { ext: 'PDF', cls: 'bg-red-100 text-red-600' };
+    }
+    if (n.match(/\.(xlsx?|csv|ods)$/) || (type || '').includes('spreadsheet') || (type || '').includes('excel') || (type || '').includes('csv')) {
+      const ext = (name?.split('.').pop() || 'XLS').toUpperCase();
+      return { ext, cls: 'bg-green-100 text-green-600' };
+    }
+    const ext = (name?.split('.').pop() || 'ARQ').toUpperCase();
+    return { ext, cls: 'bg-slate-100 text-slate-600' };
+  };
+
+  const isImageFile = (name?: string, type?: string) => {
+    return (name || '').toLowerCase().match(/\.(jpe?g|png|gif|webp|bmp)$/) || (type || '').includes('image/');
+  };
+
+  // Abre anexo: lightbox para imagens, nova aba para PDF/planilhas
+  const openAttachment = async (attachmentId: string, fallbackLabel: string) => {
+    try {
+      let data = attachmentMeta[attachmentId];
+      if (!data) {
+        const res = await fetch(`/api/attachments/${attachmentId}`);
+        if (!res.ok) throw new Error('Erro ao buscar anexo');
+        data = await res.json();
+        setAttachmentMeta(prev => ({ ...prev, [attachmentId]: data! }));
+      }
+      const url = data?.viewUrl;
+      if (!url || url === '#') {
+        toast({ title: 'Anexo não disponível', description: 'O arquivo ainda não possui URL de visualização.', variant: 'destructive' });
+        return;
+      }
+      if (isImageFile(data?.name, data?.type)) {
+        setLightbox({ url, name: data?.name || fallbackLabel });
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      toast({ title: 'Erro', description: `Não foi possível abrir o anexo: ${err instanceof Error ? err.message : 'Erro desconhecido'}`, variant: 'destructive' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="bg-card rounded-lg shadow-sm border border-border p-6 animate-pulse">
@@ -1689,66 +1762,35 @@ export default function Scaling() {
                       <div className="mt-4">
                         <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Hospedagem</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {accommodation.attachmentIds.map((attachmentId, index) => (
+                          {accommodation.attachmentIds.map((attachmentId, index) => {
+                            const meta = attachmentMeta[attachmentId];
+                            const fallback = `Anexo ${index + 1} da Hospedagem`;
+                            const fileName = meta?.name || fallback;
+                            const badge = getFileBadge(meta?.name, meta?.type);
+                            return (
                             <div 
                               key={attachmentId} 
                               className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                              onClick={async () => {
-                                try {
-                                  // Buscar informações do anexo
-                                  const response = await fetch(`/api/attachments/${attachmentId}`);
-                                  const attachmentData = await response.json();
-                                  
-                                  if (response.ok) {
-                                    toast({
-                                      title: `📎 Anexo ${index + 1} da Hospedagem`,
-                                      description: `Nome: ${attachmentData.name || 'Anexo da hospedagem'}\\nTipo: ${attachmentData.type || 'N/A'}\\nTamanho: ${attachmentData.size || 'N/A'}`,
-                                    });
-                                    
-                                    // Abrir anexo se disponível
-                                    if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                      const isViewable = attachmentData.type?.includes('pdf') || 
-                                                       attachmentData.type?.includes('image');
-                                      
-                                      if (isViewable) {
-                                        window.open(attachmentData.viewUrl, '_blank');
-                                      } else {
-                                        // Download para outros tipos
-                                        const link = document.createElement('a');
-                                        link.href = attachmentData.downloadUrl || attachmentData.viewUrl;
-                                        link.download = attachmentData.name || `anexo-hospedagem-${index + 1}`;
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-                                      }
-                                    }
-                                  } else {
-                                    throw new Error(attachmentData.message || 'Erro ao buscar anexo');
-                                  }
-                                } catch (error) {
-                                  console.error('Erro ao abrir anexo da hospedagem:', error);
-                                  toast({
-                                    title: "Erro",
-                                    description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
+                              onClick={() => openAttachment(attachmentId, fallback)}
                             >
                               <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
                                 {index + 1}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-slate-700">
-                                  Anexo {index + 1} da Hospedagem
+                                <div className="text-sm font-medium text-slate-700 truncate">
+                                  {fileName}
                                 </div>
-                                <div className="text-xs text-slate-400">
-                                  Clique para visualizar
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badge.cls}`}>
+                                    {badge.ext}
+                                  </span>
+                                  <span className="text-xs text-slate-400">Clique para visualizar</span>
                                 </div>
                               </div>
                               <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1761,66 +1803,35 @@ export default function Scaling() {
                   <div className="border-t pt-4">
                     <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Passagem</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {selectedTicket.attachmentIds.map((attachmentId, index) => (
+                      {selectedTicket.attachmentIds.map((attachmentId, index) => {
+                        const meta = attachmentMeta[attachmentId];
+                        const fallback = `Anexo ${index + 1} da Passagem`;
+                        const fileName = meta?.name || fallback;
+                        const badge = getFileBadge(meta?.name, meta?.type);
+                        return (
                         <div 
                           key={attachmentId} 
                           className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                          onClick={async () => {
-                            try {
-                              // Buscar informações do anexo
-                              const response = await fetch(`/api/attachments/${attachmentId}`);
-                              const attachmentData = await response.json();
-                              
-                              if (response.ok) {
-                                toast({
-                                  title: `📎 Anexo ${index + 1}`,
-                                  description: `Nome: ${attachmentData.name || 'Anexo da passagem'}\\nTipo: ${attachmentData.type || 'N/A'}\\nTamanho: ${attachmentData.size || 'N/A'}`,
-                                });
-                                
-                                // Abrir anexo se disponível
-                                if (attachmentData.viewUrl && attachmentData.viewUrl !== "#") {
-                                  const isViewable = attachmentData.type?.includes('pdf') || 
-                                                   attachmentData.type?.includes('image');
-                                  
-                                  if (isViewable) {
-                                    window.open(attachmentData.viewUrl, '_blank');
-                                  } else {
-                                    // Download para outros tipos
-                                    const link = document.createElement('a');
-                                    link.href = attachmentData.downloadUrl || attachmentData.viewUrl;
-                                    link.download = attachmentData.name || `anexo-${index + 1}`;
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  }
-                                }
-                              } else {
-                                throw new Error(attachmentData.message || 'Erro ao buscar anexo');
-                              }
-                            } catch (error) {
-                              console.error('Erro ao abrir anexo:', error);
-                              toast({
-                                title: "Erro",
-                                description: `Não foi possível abrir o anexo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-                                variant: "destructive",
-                              });
-                            }
-                          }}
+                          onClick={() => openAttachment(attachmentId, fallback)}
                         >
                           <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-slate-700">
-                              Anexo {index + 1} da Passagem
+                            <div className="text-sm font-medium text-slate-700 truncate">
+                              {fileName}
                             </div>
-                            <div className="text-xs text-slate-400">
-                              Clique para visualizar
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badge.cls}`}>
+                                {badge.ext}
+                              </span>
+                              <span className="text-xs text-slate-400">Clique para visualizar</span>
                             </div>
                           </div>
                           <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
               )}
@@ -1991,6 +2002,46 @@ export default function Scaling() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Lightbox de imagens */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" />
+          <div
+            className="relative z-10 flex flex-col items-center gap-4 p-4 max-w-[90vw] max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between w-full gap-4">
+              <span className="text-white text-sm font-medium truncate flex-1">{lightbox.name}</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={lightbox.url}
+                  download={lightbox.name}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar
+                </a>
+                <button
+                  onClick={() => setLightbox(null)}
+                  className="bg-white/15 hover:bg-white/25 text-white rounded-lg p-1.5 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <img
+              src={lightbox.url}
+              alt={lightbox.name}
+              className="max-w-full max-h-[80vh] rounded-xl object-contain shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Modal de Comentários */}
       {selectedInclusionForComments && (
