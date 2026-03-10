@@ -624,43 +624,49 @@ export default function Tickets() {
 
   return (
     <>
-      <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
-          <div className="px-6 py-4 border-b border-border">
-            <div className="flex items-center justify-between">
+      <div className="space-y-4">
+          {/* Header */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Plane className="w-5 h-5 text-blue-500" />
+                Compra de Passagens
+              </h2>
+              <p className="text-sm text-slate-400 mt-0.5">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+            </div>
+            <div className="flex items-center gap-6">
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">✈️ Compra de Passagens</h2>
-                <p className="text-muted-foreground">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+                <div className="text-2xl font-bold text-slate-800">{filteredTicketInclusions.length}</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider">passagens</div>
               </div>
-              <div className="flex gap-4">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">{filteredTicketInclusions.length}</div>
-                  <div className="text-xs text-muted-foreground">passagens</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
-                  <div className="text-xs text-muted-foreground">compradas</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-orange-600">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
-                  <div className="text-xs text-muted-foreground">pendentes</div>
-                </div>
+              <div className="border-r border-slate-200 self-stretch" />
+              <div>
+                <div className="text-2xl font-bold text-green-600">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider">compradas</div>
+              </div>
+              <div className="border-r border-slate-200 self-stretch" />
+              <div>
+                <div className="text-2xl font-bold text-orange-500">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider">pendentes</div>
               </div>
             </div>
           </div>
 
           {/* Seção de Registro Rápido */}
-          <div className="px-6 py-4 border-b border-border bg-accent/20">
-            <div 
-              className="flex items-center gap-2 cursor-pointer mb-4"
-              onClick={() => toggleSection('basic')}
-            >
-              {expandedSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <h3 className="text-lg font-semibold text-foreground">📋 Registro Rápido em Lote</h3>
-              <span className="text-sm text-muted-foreground">(Aplicar mesmos dados a múltiplas passagens)</span>
+          <div
+            className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-amber-100 transition-colors"
+            onClick={() => toggleSection('basic')}
+          >
+            <FileText className="w-4 h-4 text-amber-500" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-700">Registro Rápido em Lote</p>
+              <p className="text-xs text-amber-500">Aplicar mesmos dados a múltiplas passagens</p>
             </div>
+            {expandedSections.basic ? <ChevronDown className="w-4 h-4 text-amber-400" /> : <ChevronRight className="w-4 h-4 text-amber-400" />}
+          </div>
 
-            {expandedSections.basic && (
-              <>
+          {expandedSections.basic && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                 {/* Grade Organizada por Seções */}
                 <div className="space-y-4">
                   {/* Seção de Tipo de Transporte e Configurações */}
@@ -971,53 +977,56 @@ export default function Tickets() {
                     </div>
                   )}
                 </div>
-              </>
-            )}
-          </div>
-
-          <SimpleFilters filters={filters} onFiltersChange={setFilters} />
-          
-          {/* Filtro de Status de Passagem */}
-          <div className="px-6 py-4 border-b border-border">
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-foreground">Status da Passagem:</label>
-                <select
-                  value={filters.ticketStatus}
-                  onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
-                  className="px-3 py-1 border border-border rounded bg-background text-foreground text-sm"
-                  data-testid="filter-ticket-status"
-                >
-                  <option value="all">Todos</option>
-                  <option value="pending">Pendentes</option>
-                  <option value="processed">Compradas</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-foreground">Status da Inclusão:</label>
-                <select
-                  value={filters.inclusionStatus}
-                  onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
-                  className="px-3 py-1 border border-border rounded bg-background text-foreground text-sm"
-                  data-testid="filter-inclusion-status"
-                >
-                  <option value="active">Ativas</option>
-                  <option value="all">Todas</option>
-                  <option value="cancelado">Canceladas</option>
-                </select>
-              </div>
             </div>
-          </div>
+          )}
 
+          <SimpleFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            extraItems={[
+              {
+                label: "Status da Passagem",
+                element: (
+                  <select
+                    value={filters.ticketStatus}
+                    onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
+                    className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
+                    data-testid="filter-ticket-status"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="pending">Pendentes</option>
+                    <option value="processed">Compradas</option>
+                  </select>
+                ),
+              },
+              {
+                label: "Status da Inclusão",
+                element: (
+                  <select
+                    value={filters.inclusionStatus}
+                    onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
+                    className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
+                    data-testid="filter-inclusion-status"
+                  >
+                    <option value="active">Ativas</option>
+                    <option value="all">Todas</option>
+                    <option value="cancelado">Canceladas</option>
+                  </select>
+                ),
+              },
+            ]}
+          />
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
-              <Plane className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
+              <Plane className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-slate-700 mb-2">
                 {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" : 
                  filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" : 
                  "Nenhuma passagem encontrada"}
               </h3>
-              <p className="text-muted-foreground">
+              <p className="text-slate-400">
                 {filters.ticketStatus === "pending" 
                   ? "Todas as passagens foram compradas ou não há colaboradores escalados."
                   : filters.ticketStatus === "processed"
@@ -1028,14 +1037,14 @@ export default function Tickets() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-muted">
+                <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">
                       <input
                         type="checkbox"
                         checked={selectedTickets.length > 0}
                         onChange={toggleAllTickets}
-                        className="rounded border-gray-300 mr-2"
+                        className="rounded border-gray-300 mr-2 accent-blue-500"
                         data-testid="checkbox-select-all"
                       />
                       Seleção
@@ -1043,28 +1052,20 @@ export default function Tickets() {
                     <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                     <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Destino
-                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Destino</th>
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Data Ida</SortableHeader>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Data Volta
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Voos Sugeridos
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Status
-                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Data Volta</th>
+                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Voos Sugeridos</th>
+                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="bg-card divide-y divide-border">
+                <tbody className="divide-y divide-slate-100">
                   {filteredTicketInclusions.map((inclusion) => {
                     const ticket = getTicket(inclusion.id);
                     return (
                       <tr 
                         key={inclusion.id} 
-                        className="hover:bg-muted/50 transition-colors"
+                        className="hover:bg-blue-50/40 transition-colors"
                       >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
@@ -1072,7 +1073,7 @@ export default function Tickets() {
                               type="checkbox"
                               checked={selectedTickets.includes(inclusion.id)}
                               onChange={() => toggleTicketSelection(inclusion.id)}
-                              className="rounded border-gray-300"
+                              className="rounded border-gray-300 accent-blue-500"
                               data-testid={`checkbox-ticket-${inclusion.id}`}
                             />
                           ) : (
@@ -1092,20 +1093,20 @@ export default function Tickets() {
                           </div>
                         </td>
                         <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-sm font-medium text-foreground">
+                          <div className="font-medium text-slate-800 text-sm">
                             {getEventName(inclusion.eventId)}
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-slate-400">
                             {getFunctionName(inclusion.functionId)}
                           </div>
                         </td>
                         <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-sm font-medium text-foreground">
+                          <div className="text-sm text-slate-700 capitalize">
                             {getCollaboratorName(inclusion.collaboratorId || undefined)}
                           </div>
                         </td>
                         <td className={`px-4 py-4 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                          <div className="text-blue-600 font-medium text-sm">
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
@@ -1116,7 +1117,7 @@ export default function Tickets() {
                                 <div>
                                   <div>{formatDate(ticket.actualDepartureDate)}</div>
                                   {(ticket.departureAirport || ticket.actualDepartureTime) && (
-                                    <div className="text-xs text-blue-600">
+                                    <div className="text-xs text-slate-400">
                                       {ticket.departureAirport && ticket.actualDepartureTime 
                                         ? `${ticket.departureAirport} às ${ticket.actualDepartureTime}`
                                         : ticket.departureAirport || `às ${ticket.actualDepartureTime}`
@@ -1139,7 +1140,7 @@ export default function Tickets() {
                                 <div>
                                   <div>{formatDate(ticket.actualReturnDate)}</div>
                                   {(ticket.destinationAirport || ticket.actualReturnTime) && (
-                                    <div className="text-xs text-blue-600">
+                                    <div className="text-xs text-slate-400">
                                       {ticket.destinationAirport && ticket.actualReturnTime 
                                         ? `${ticket.destinationAirport} às ${ticket.actualReturnTime}`
                                         : ticket.destinationAirport || `às ${ticket.actualReturnTime}`
@@ -1159,13 +1160,13 @@ export default function Tickets() {
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
                             return (
-                              <div className="text-xs text-blue-700 dark:text-blue-300">
+                              <div className="text-xs text-slate-600">
                                 <div className="mb-1">
-                                  <span className="font-medium">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
+                                  <span className="font-semibold text-blue-500">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
                                   {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
+                                  <span className="font-semibold text-blue-500">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
                                   {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
                                 </div>
                               </div>
@@ -1178,21 +1179,21 @@ export default function Tickets() {
                               if (ticket) {
                                 // Tem ticket = Comprada
                                 return (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  <span className="bg-green-50 text-green-700 border border-green-200 rounded-lg px-3 py-1 text-xs font-semibold">
                                     Passagem Comprada
                                   </span>
                                 );
                               } else {
                                 // Sem ticket = Pendente
                                 return (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg px-3 py-1 text-xs font-semibold">
                                     Pendente
                                   </span>
                                 );
                               }
                             })()}
                             {inclusion.status === "cancelado" && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <span className="bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-1 text-xs font-semibold">
                                 Cancelado
                               </span>
                             )}
@@ -1205,6 +1206,7 @@ export default function Tickets() {
               </table>
             </div>
           )}
+          </div>
         </div>
 
         {/* Modal de Detalhes da Passagem */}

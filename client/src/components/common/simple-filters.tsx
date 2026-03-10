@@ -15,9 +15,10 @@ interface SimpleFiltersProps {
     searchId: string;
   };
   onFiltersChange: (filters: any) => void;
+  extraItems?: Array<{ label: string; element: React.ReactNode }>;
 }
 
-export default function SimpleFilters({ filters, onFiltersChange }: SimpleFiltersProps) {
+export default function SimpleFilters({ filters, onFiltersChange, extraItems }: SimpleFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.searchId ?? "");
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className={`grid grid-cols-2 ${extraItems?.length ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3`}>
           <div>
             <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
               Evento
@@ -100,6 +101,15 @@ export default function SimpleFilters({ filters, onFiltersChange }: SimpleFilter
               testId="filter-collaborator"
             />
           </div>
+
+          {extraItems?.map((item, idx) => (
+            <div key={idx}>
+              <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+                {item.label}
+              </label>
+              {item.element}
+            </div>
+          ))}
         </div>
 
         <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
