@@ -157,10 +157,19 @@ export default function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 w-5 h-12 bg-white border border-l-0 border-slate-200 rounded-r-lg items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
+                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white transition-colors duration-150"
+                style={{
+                  width: 28,
+                  height: 48,
+                  background: "#6366f1",
+                  borderRadius: "0 8px 8px 0",
+                  boxShadow: "2px 0 12px rgba(99,102,241,0.35)",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#4f46e5")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#6366f1")}
                 onClick={toggleCollapsed}
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">Expandir menu</TooltipContent>
