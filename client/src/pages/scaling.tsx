@@ -1035,7 +1035,7 @@ export default function Scaling() {
                             <col style={{width: "28%"}} />
                             <col style={{width: "22%"}} />
                             <col style={{width: "140px"}} />
-                            <col style={{width: "auto"}} />
+                            <col style={{width: "220px"}} />
                           </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
@@ -1043,7 +1043,7 @@ export default function Scaling() {
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                              <th className="w-[220px] min-w-[220px] px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                                 Escalação
                               </th>
                             </tr>
@@ -1097,22 +1097,22 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-3">
-                                  <div className="flex flex-col gap-1 items-start">
+                                  <div className="flex flex-col gap-1">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
                                         Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold text-center">
                                         Escalado
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold text-center">
                                         Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold text-center">
                                         ✈️ Passagem Comprada
                                       </span>
                                     )}
@@ -1120,7 +1120,7 @@ export default function Scaling() {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold">
+                                        <span className="block w-full px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold text-center">
                                           🏨 Hospedagem Disponível
                                           {accommodationInfo.hasAttachments && (
                                             <span className="ml-1">📎</span>
@@ -1160,7 +1160,7 @@ export default function Scaling() {
                             <col style={{width: "28%"}} />
                             <col style={{width: "22%"}} />
                             <col style={{width: "140px"}} />
-                            <col style={{width: "auto"}} />
+                            <col style={{width: "220px"}} />
                           </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
@@ -1168,7 +1168,7 @@ export default function Scaling() {
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                              <th className="w-[220px] min-w-[220px] px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                                 Escalação
                               </th>
                             </tr>
@@ -1222,22 +1222,22 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-3">
-                                  <div className="flex flex-col gap-1 items-start">
+                                  <div className="flex flex-col gap-1">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
                                         Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold text-center">
                                         Escalado
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold text-center">
                                         Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold">
+                                      <span className="block w-full px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold text-center">
                                         ✈️ Passagem Comprada
                                       </span>
                                     )}
@@ -1245,7 +1245,7 @@ export default function Scaling() {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold">
+                                        <span className="block w-full px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold text-center">
                                           🏨 Hospedagem Disponível
                                           {accommodationInfo.hasAttachments && (
                                             <span className="ml-1">📎</span>
