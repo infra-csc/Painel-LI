@@ -1122,7 +1122,7 @@ export default function GridTeamInclusionForm() {
             <Button
               type="button"
               onClick={generateGrid}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all rounded-lg"
               data-testid="button-generate-grid"
             >
               <Calendar className="w-4 h-4 mr-2" />
@@ -1131,7 +1131,7 @@ export default function GridTeamInclusionForm() {
 
             {/* Grade de Escalação */}
             {showGrid && (
-              <div className="space-y-4">
+              <div className="space-y-4 border-t border-slate-100 mt-6 pt-6">
                 {/* Header com controles */}
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-semibold text-slate-700">Grade de Inclusões</h3>
@@ -1220,43 +1220,43 @@ export default function GridTeamInclusionForm() {
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
-                <div className="border rounded-lg overflow-hidden">
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto max-h-96">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted sticky top-0">
+                      <thead className="bg-slate-50 sticky top-0">
                         <tr>
-                          <th className="px-2 py-2 text-center border-r font-medium w-12">
+                          <th className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-12">
                             <Checkbox
                               checked={selectedRows.size === functionRows.length && functionRows.length > 0}
                               onCheckedChange={toggleSelectAll}
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r font-medium min-w-32">Função</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">
+                          <th className="px-3 py-2 text-left border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32">Função</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
-                              <span>Passagem</span>
+                              <span>Pass.</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-20">
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               🏨
-                              <span>Hospedagem</span>
+                              <span>Hosp.</span>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Ida</th>
-                          <th className="px-3 py-2 text-center border-r font-medium min-w-[120px]">Horário Chegada Sugerido</th>
-                          <th className="px-3 py-2 text-center border-r font-medium w-24">Data Voo Retorno</th>
-                          <th className="px-3 py-2 text-center border-r font-medium min-w-[120px]">Horário Partida Sugerido</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Voo Ida</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Chegada</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Retorno</th>
+                          <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Partida</th>
                           {dates.map(date => (
-                            <th key={date} className="px-2 py-2 text-center border-r font-medium w-16 bg-primary/10">
+                            <th key={date} className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16 bg-blue-50/50">
                               <div className="text-xs">
                                 {formatDateForDisplay(date)}
                               </div>
                             </th>
                           ))}
-                          <th className="px-2 py-2 text-center font-medium w-16">Ações</th>
+                          <th className="px-2 py-2 text-center border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1271,68 +1271,71 @@ export default function GridTeamInclusionForm() {
                           if (bIndex === -1) return -1;
                           
                           return aIndex - bIndex;
-                        }).map(row => (
-                          <tr key={row.functionId} className="border-t">
-                            <td className="px-2 py-2 border-r text-center">
+                        }).map((row, rowIdx) => (
+                          <tr key={row.functionId} className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
+                            <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
                                 checked={selectedRows.has(row.functionId)}
                                 onCheckedChange={() => toggleRowSelection(row.functionId)}
                                 aria-label={`Selecionar ${row.functionName}`}
+                                className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r font-medium bg-muted/30">
+                            <td className="px-3 py-2 border-r border-slate-100 font-medium text-slate-700 bg-slate-50/50">
                               {row.functionName}
                             </td>
-                            <td className="px-2 py-2 border-r text-center">
+                            <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
                                 checked={row.needsTicket}
                                 onCheckedChange={(checked) => updateNeedsTicket(row.functionId, checked === true)}
                                 data-testid={`checkbox-needs-ticket-${row.functionId}`}
+                                className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r text-center">
+                            <td className="px-2 py-2 border-r border-slate-100 text-center">
                               <Checkbox
                                 checked={row.needsAccommodation}
                                 onCheckedChange={(checked) => updateNeedsAccommodation(row.functionId, checked === true)}
                                 data-testid={`checkbox-needs-accommodation-${row.functionId}`}
+                                className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r">
+                            <td className="px-2 py-2 border-r border-slate-100">
                               <Input 
                                 type="date"
                                 value={row.dataVooIda} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooIda', e.target.value)}
-                                className="h-7 text-center text-xs"
+                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r min-w-[120px]">
+                            <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
                               <Input 
                                 value={row.horarioChegadaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioChegadaSugerido', e.target.value)}
                                 placeholder="Ex: 14h30"
-                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black w-full"
+                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full"
                                 maxLength={15}
                               />
                             </td>
-                            <td className="px-2 py-2 border-r">
+                            <td className="px-2 py-2 border-r border-slate-100">
                               <Input 
                                 type="date"
                                 value={row.dataVooRetorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooRetorno', e.target.value)}
-                                className="h-7 text-center text-xs"
+                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
                               />
                             </td>
-                            <td className="px-2 py-2 border-r min-w-[120px]">
+                            <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
                               <Input 
                                 value={row.horarioPartidaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioPartidaSugerido', e.target.value)}
                                 placeholder="Ex: 18h00"
-                                className="h-7 text-center text-xs !bg-white dark:!bg-white !text-black dark:!text-black w-full"
+                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full"
                                 maxLength={15}
                               />
                             </td>
                             {dates.map(date => (
-                              <td key={date} className="px-1 py-2 border-r text-center">
+                              <td key={date} className="px-1 py-2 border-r border-slate-100 text-center">
                                 <div 
                                   className="relative"
                                   onFocus={() => setFocusedCell({functionId: row.functionId, date})}
@@ -1343,7 +1346,7 @@ export default function GridTeamInclusionForm() {
                                     onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
                                   >
                                     <SelectTrigger 
-                                      className={`h-7 w-12 ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-primary' : ''}`}
+                                      className={`h-7 w-12 border-slate-200 rounded-md text-xs bg-slate-100 text-slate-600 font-medium ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
                                       onFocus={() => setFocusedCell({functionId: row.functionId, date})}
                                     >
                                       <SelectValue />
@@ -1366,7 +1369,7 @@ export default function GridTeamInclusionForm() {
                             <td className="px-2 py-2 text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                                     <MoreHorizontal className="w-3 h-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -1411,7 +1414,7 @@ export default function GridTeamInclusionForm() {
                   type="button"
                   onClick={openFunctionSelect}
                   variant="outline"
-                  className="w-full"
+                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 rounded-xl w-full py-3 transition-colors bg-transparent hover:bg-transparent"
                   disabled={dates.length === 0}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -1419,11 +1422,11 @@ export default function GridTeamInclusionForm() {
                 </Button>
 
                 {/* Preview dos resultados */}
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  <Label className="text-sm font-medium mb-3 block">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                  <Label className="text-sm font-medium mb-3 block text-blue-700">
                     Registros que serão criados ({processGrid().length}):
                   </Label>
-                  <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
+                  <div className="space-y-1 text-xs max-h-32 overflow-y-auto text-blue-700">
                     {processGrid().map((range, index) => {
                       // Busca o nome da função no functionRows primeiro, depois na lista de functions
                       const functionRow = functionRows.find(r => r.functionId === range.functionId);
@@ -1454,6 +1457,7 @@ export default function GridTeamInclusionForm() {
                       type="button"
                       onClick={saveDraft}
                       variant="outline"
+                      className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg font-medium transition-colors"
                       data-testid="button-save-draft"
                     >
                       <Save className="w-4 h-4 mr-2" />
@@ -1474,6 +1478,7 @@ export default function GridTeamInclusionForm() {
                         }
                       }}
                       variant="outline"
+                      className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg font-medium transition-colors"
                       data-testid="button-load-draft"
                     >
                       <Upload className="w-4 h-4 mr-2" />
@@ -1486,7 +1491,7 @@ export default function GridTeamInclusionForm() {
                     type="button"
                     onClick={handleSubmit}
                     disabled={isProcessing}
-                    className="w-full"
+                    className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all rounded-lg font-medium text-white"
                     data-testid="button-save-grid"
                   >
                     <Save className="w-4 h-4 mr-2" />
