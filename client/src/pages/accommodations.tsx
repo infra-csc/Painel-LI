@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -30,6 +30,55 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Accommodation, Comment, insertAccommodationSchema } from "@shared/schema";
+
+// Chips de anexos clicáveis para o modal pós-compra
+function AttachmentChips({ attachmentIds }: { attachmentIds: string[] }) {
+  const [meta, setMeta] = useState<Record<string, { name: string; downloadUrl: string }>>({});
+  const fetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    attachmentIds.forEach(async (id) => {
+      if (fetchedRef.current.has(id)) return;
+      fetchedRef.current.add(id);
+      try {
+        const res = await fetch(`/api/attachments/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMeta(prev => ({ ...prev, [id]: { name: data.name || `Anexo_${id.slice(-8)}`, downloadUrl: data.downloadUrl || '#' } }));
+        }
+      } catch {
+        setMeta(prev => ({ ...prev, [id]: { name: `Anexo_${id.slice(-8)}`, downloadUrl: '#' } }));
+      }
+    });
+  }, [attachmentIds]);
+
+  return (
+    <div>
+      <div style={{fontSize:13,fontWeight:600,color:'#3B5BDB',marginBottom:10}}>📎 Anexos da Hospedagem</div>
+      {attachmentIds.length === 0 ? (
+        <div style={{textAlign:'center',color:'#94A3B8',fontSize:13,padding:'16px 0'}}>Nenhum anexo registrado</div>
+      ) : (
+        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+          {attachmentIds.map(id => (
+            <a
+              key={id}
+              href={meta[id]?.downloadUrl || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{display:'flex',alignItems:'center',gap:8,background:'#EEF2FF',border:'1px solid #C7D2FE',borderRadius:8,padding:'8px 12px',cursor:'pointer',textDecoration:'none',color:'#1E293B',fontSize:13,transition:'background 0.15s'}}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#E0E7FF'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#EEF2FF'; }}
+            >
+              <span>📄</span>
+              <span>{meta[id]?.name || id.slice(-8)}</span>
+              <span style={{color:'#6366F1'}}>🔗</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Helper: Mostrar "Escalado" apenas quando não precisa passagem nem hospedagem
 const getDisplayStatus = (inclusion: TeamInclusion) => {
@@ -338,12 +387,18 @@ export default function Accommodations() {
                       <div>
                         <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Diária (R$)</div>
                         <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                          {accommodation.dailyRate ? `R$ ${(accommodation.dailyRate / 100).toFixed(2).replace('.', ',')}` : '—'}
+                          {accommodation.dailyRate != null && accommodation.dailyRate > 0
+                            ? `R$ ${(accommodation.dailyRate / 100).toFixed(2).replace('.', ',')}`
+                            : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
                         </div>
                       </div>
                       <div>
                         <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Reserva/LOC</div>
-                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.reservationNumber || '—'}</div>
+                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                          {accommodation.reservationNumber
+                            ? accommodation.reservationNumber
+                            : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -392,17 +447,8 @@ export default function Accommodations() {
                     </div>
                   )}
 
-                  {/* Anexos read-only */}
-                  {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
-                    <div>
-                      <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Anexos</div>
-                      <AttachmentUpload
-                        attachmentIds={accommodation.attachmentIds}
-                        onAttachmentsChange={() => {}}
-                        disabled={true}
-                      />
-                    </div>
-                  )}
+                  {/* Anexos read-only — chips clicáveis */}
+                  <AttachmentChips attachmentIds={accommodation.attachmentIds || []} />
                 </>
               )}
 
@@ -422,10 +468,10 @@ export default function Accommodations() {
                 {/* Seção: Informações Básicas */}
                 <div style={{border:'1px solid #E2E8F0',borderRadius:12,overflow:'hidden'}}>
                   <div
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',cursor:'pointer',background:'#FFFBEB',borderLeft:'4px solid #F59E0B'}}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',cursor:'pointer',background:'#FFFBEB',borderLeft:'4px solid #F59E0B',borderRadius:formSections.basic ? '8px 8px 0 0' : '8px'}}
                     onClick={() => toggleFormSection('basic')}
                   >
-                    <span style={{fontSize:16}}>🏨</span>
+                    <span style={{fontSize:15}}>🏨</span>
                     <span style={{fontWeight:700,fontSize:14,color:'#1E293B',flex:1}}>Informações Básicas</span>
                     <ChevronDown style={{width:16,height:16,color:'#94A3B8',transform:formSections.basic ? 'rotate(0deg)' : 'rotate(-90deg)',transition:'transform 0.2s'}} />
                   </div>
@@ -476,14 +522,14 @@ export default function Accommodations() {
                             <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Diária (R$)</FormLabel>
                             <FormControl>
                               <div style={{display:'flex',alignItems:'center',border:'1px solid #E2E8F0',borderRadius:8,height:42,overflow:'hidden',background: canEditRecord ? '#fff' : '#F8FAFC'}}>
-                                <span style={{padding:'0 12px',color:'#94A3B8',fontSize:14,fontWeight:600,borderRight:'1px solid #E2E8F0',height:'100%',display:'flex',alignItems:'center',background:'#F8FAFC',flexShrink:0}}>R$</span>
+                                <span style={{paddingLeft:12,paddingRight:12,color:'#64748B',fontSize:14,fontWeight:500,borderRight:'1px solid #E2E8F0',height:'100%',display:'flex',alignItems:'center',background:'#F8FAFC',flexShrink:0,whiteSpace:'nowrap'}}>R$</span>
                                 <input
                                   type="number" step="0.01" min="0" placeholder="0,00"
                                   data-testid="input-daily-rate"
                                   disabled={!canEditRecord}
                                   value={field.value || ''}
                                   onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                                  style={{flex:1,border:'none',outline:'none',padding:'0 12px',fontSize:14,color:'#1E293B',background:'transparent',minWidth:0}}
+                                  style={{flex:1,border:'none',outline:'none',paddingLeft:8,paddingRight:12,fontSize:14,color:'#1E293B',background:'transparent',minWidth:0,height:'100%'}}
                                 />
                               </div>
                             </FormControl>
