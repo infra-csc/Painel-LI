@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays, ChevronLeft, ChevronRight, X, MapPin, Clock,
@@ -542,10 +541,27 @@ function MonthView({
   );
 }
 
+// ─── List view helpers ────────────────────────────────────────────────────────
+
+function formatListDate(startStr: string, endStr: string): string {
+  const start = parseLocalDate(startStr);
+  const end = parseLocalDate(endStr);
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString("pt-BR", opts);
+  if (isSameDay(start, end)) {
+    return fmt(start, { day: "numeric", month: "short" });
+  }
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${start.getDate()} a ${fmt(end, { day: "numeric", month: "short" })}`;
+  }
+  return `${fmt(start, { day: "numeric", month: "short" })} a ${fmt(end, { day: "numeric", month: "short" })}`;
+}
+
 // ─── List view ────────────────────────────────────────────────────────────────
 
 function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: SelectEventFn }) {
   const today = new Date();
+  const currentMonthNum = today.getFullYear() * 12 + today.getMonth();
   const currentMonthKey = `${today.getFullYear()}-${today.getMonth()}`;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -559,7 +575,14 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
       }
       map.get(key)!.events.push(ev);
     }
-    return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+    return Array.from(map.values())
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(g => ({
+        ...g,
+        events: [...g.events].sort(
+          (a, b) => parseLocalDate(a.startDate).getTime() - parseLocalDate(b.startDate).getTime()
+        ),
+      }));
   }, [events]);
 
   const toggleGroup = (key: string) => {
@@ -570,34 +593,62 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
     });
   };
 
+  if (grouped.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+          <CalendarDays className="w-6 h-6 text-gray-400" />
+        </div>
+        <p className="text-sm font-semibold text-gray-500">Nenhum evento encontrado</p>
+        <p className="text-xs text-gray-400">Tente remover ou alterar os filtros aplicados</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      {grouped.map(group => {
+    <div className="space-y-4 pb-4">
+      {grouped.map((group) => {
         const isOpen = !collapsed.has(group.key);
         const isCurrent = group.key === currentMonthKey;
+        const [gy, gm] = group.key.split("-").map(Number);
+        const isPast = gy * 12 + gm < currentMonthNum;
+
         return (
           <div key={group.key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            {/* Month header */}
             <button
-              className={`w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors ${isCurrent ? "border-b-2 border-blue-500" : ""}`}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors border-b border-gray-100 dark:border-gray-700"
               onClick={() => toggleGroup(group.key)}
+              style={isPast ? { opacity: 0.65 } : undefined}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <span className={`text-sm font-bold ${isCurrent ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
                   {group.label}
                 </span>
+                {isCurrent && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                    Este mês
+                  </span>
+                )}
                 <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full font-medium">
                   {group.events.length}
                 </span>
               </div>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
             </button>
+
+            {/* Event rows */}
             {isOpen && (
               <div className="divide-y divide-gray-50 dark:divide-gray-700">
                 {group.events.map(ev => {
                   const cfg = getCfg(getEffectiveStatus(ev));
                   const StatusIcon = cfg.icon;
                   return (
-                    <div key={ev.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 dark:hover:bg-gray-750 transition-colors">
+                    <button
+                      key={ev.id}
+                      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#f8fafc] dark:hover:bg-gray-750"
+                    >
                       <div className={`w-8 h-8 rounded-xl ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
                         <StatusIcon className={`w-3.5 h-3.5 ${cfg.text}`} />
                       </div>
@@ -605,30 +656,19 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
                         <p className={`text-sm font-semibold text-gray-900 dark:text-gray-100 truncate ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
                           {ev.name}
                         </p>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                            <MapPin className="w-2.5 h-2.5" /> {ev.location}
-                          </span>
-                          <span className="text-[10px] text-gray-400">
-                            {parseLocalDate(ev.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                            {!isSameDay(parseLocalDate(ev.startDate), parseLocalDate(ev.endDate)) && (
-                              <> → {parseLocalDate(ev.endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</>
-                            )}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <MapPin className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                          <span className="text-[11px] text-gray-400 truncate">{ev.location}</span>
+                          <span className="text-[11px] text-gray-300 shrink-0">·</span>
+                          <span className="text-[11px] text-gray-400 shrink-0">
+                            {formatListDate(ev.startDate, ev.endDate)}
                           </span>
                         </div>
                       </div>
                       <Badge className={`text-[9px] h-[18px] px-1.5 shrink-0 ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
                         {cfg.label}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 shrink-0"
-                        onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                      >
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
