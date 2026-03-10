@@ -1,0 +1,85 @@
+norte e do app
+
+15:21
+Prompt:
+
+Refine o design do modal de Detalhes da Escalação para ficar mais polido e coeso com a identidade visual do app. Zero mudança em lógica.
+
+1. Modal geral
+
+Largura máxima max-w-2xl, padding interno p-6
+Fundo bg-white, rounded-2xl, sombra shadow-2xl
+Scrollbar estilizada: scrollbar-thin scrollbar-thumb-slate-200
+2. Header
+
+Fundo levemente destacado: bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6
+Título text-lg font-bold text-slate-800 com ícone azul ao lado
+Botão X: hover:bg-slate-200 rounded-lg p-1.5 transition-colors text-slate-400
+3. Grid de informações
+
+Cards individuais por campo: bg-slate-50 rounded-xl px-4 py-3
+Label text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5
+Valor text-sm font-semibold text-slate-700
+Evento em text-blue-600 font-semibold
+Badge de status inline com ponto colorido e rounded-full px-3 py-1 text-xs font-semibold
+4. Colaborador
+
+Label text-xs font-bold uppercase tracking-wider text-slate-400 mb-1
+Select: border border-slate-200 rounded-xl bg-white px-3 py-2.5 w-full text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-200
+Aviso amarelo: bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1
+5. Período de Trabalho
+
+Container: bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 rounded-2xl p-4
+Título: text-blue-700 font-bold flex items-center gap-2
+Datas em grid grid-cols-2 gap-4 mb-3
+Cards dos dias: bg-white border border-blue-100 rounded-xl p-2 text-center shadow-sm min-w-[52px]
+Dia semana: text-[10px] uppercase tracking-wider text-slate-400
+Número: text-xl font-bold text-slate-700
+Check: text-green-500 text-base
+6. Alertas (Passagem Pendente)
+
+bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3
+Ícone ⚠️ em text-amber-500
+Texto em text-sm font-medium text-amber-700
+7. Datas de Viagem Sugeridas / Emitidas
+
+Container: bg-blue-50 border border-blue-100 rounded-2xl p-4
+Cards IDA/VOLTA lado a lado: bg-white rounded-xl border border-slate-200 p-4 flex-1 shadow-sm
+Label IDA/VOLTA: text-xs font-bold uppercase tracking-wider — IDA em text-blue-600, VOLTA em text-slate-500
+Campo de label interno: text-[10px] uppercase tracking-wider text-slate-400
+Valor: text-sm font-semibold text-slate-700
+Horário preenchido: bg-green-50 border-l-4 border-green-400 rounded-lg px-3 py-2 text-base font-bold text-green-700 mt-1
+Horário vazio: mesma estrutura mas border-slate-200 text-slate-300
+8. Dados da Hospedagem
+
+Container: bg-green-50 border border-green-100 rounded-2xl p-4
+Título: text-green-700 font-bold
+Grid 2 colunas com labels text-[10px] uppercase tracking-wider text-slate-400 e valores text-sm font-semibold text-slate-700
+9. Anexos
+
+Título de seção: text-sm font-bold text-slate-600 uppercase tracking-wider mb-2
+Card: bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all
+Número: bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0
+Nome do arquivo: text-sm font-medium text-slate-700
+Subtexto: text-xs text-slate-400
+Ícone olho: text-blue-400 hover:text-blue-600 ml-auto
+10. Comentários
+
+Área vazia: bg-slate-50 rounded-xl border border-dashed border-slate-200 py-8 text-center text-slate-400 text-sm
+Textarea: border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-200 text-sm p-3 w-full resize-none min-h-[80px]
+Botão Enviar: bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-semibold shadow-sm transition-all
+11. Histórico de Alterações
+
+Título: text-sm font-bold text-slate-600 uppercase tracking-wider
+Container da timeline: border-l-2 border-slate-100 ml-3 pl-4 space-y-4
+Bullet: w-3 h-3 bg-blue-500 rounded-full -ml-[1.4rem] mt-1 flex-shrink-0 ring-4 ring-white
+Título do evento: text-sm font-semibold text-slate-700
+Descrição: text-xs text-slate-500 mt-0.5
+"por X": text-xs text-blue-500 font-medium
+Data: text-xs text-slate-400 ml-auto
+12. Rodapé
+
+border-t border-slate-100 pt-4 mt-2 flex justify-end gap-2
+"Cancelar": border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium
+"Salvar Alterações": border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium
+"Confirmar Escalação": bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all

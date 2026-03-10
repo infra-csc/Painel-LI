@@ -1269,8 +1269,8 @@ export default function Scaling() {
 
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="border-b border-slate-100 pb-4 mb-4">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+          <DialogHeader className="bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6">
             <DialogTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Eye className="w-5 h-5 text-blue-500" />
               Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
@@ -1280,40 +1280,38 @@ export default function Scaling() {
           {selectedInclusion && (
             <div className="space-y-6">
               {/* Informações Básicas */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Evento</div>
-                  <div className="text-sm font-medium text-blue-600">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Evento</div>
+                  <div className="text-sm font-semibold text-blue-600">
                     {getEventName(selectedInclusion.eventId)}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">ID</div>
-                  <div className="text-sm font-medium text-slate-700 font-mono">
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">ID</div>
+                  <div className="text-sm font-semibold text-slate-700 font-mono">
                     #{selectedInclusion.inclusionNumber || 'N/A'}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função</div>
-                  <div className="text-sm font-medium text-slate-700">
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Função</div>
+                  <div className="text-sm font-semibold text-slate-700">
                     {getFunctionName(selectedInclusion.functionId)}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status da Escalação</div>
-                  <div className="mt-1">
-                    {isEscalated(selectedInclusion) ? (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        Escalado
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full">
-                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                        Pendente
-                      </div>
-                    )}
-                  </div>
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Status</div>
+                  {isEscalated(selectedInclusion) ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mt-0.5">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                      Escalado
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full mt-0.5">
+                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
+                      Pendente
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1335,7 +1333,7 @@ export default function Scaling() {
                       // Se precisa de passagem e foi comprada
                       if (selectedInclusion.needsTicket && ticketPurchased) {
                         return (
-                          <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
                             ⚠️ Não é possível alterar - passagem já comprada
                           </div>
                         );
@@ -1343,7 +1341,7 @@ export default function Scaling() {
                       // Se não precisa de passagem mas precisa de hospedagem e foi reservada
                       if (!selectedInclusion.needsTicket && selectedInclusion.needsAccommodation && accommodationPurchased) {
                         return (
-                          <div className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 flex items-center gap-1 mt-1">
                             ⚠️ Não é possível alterar - hospedagem já reservada
                           </div>
                         );
@@ -1381,8 +1379,8 @@ export default function Scaling() {
               </div>
 
               {/* Período de Trabalho com Calendário Visual */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                <h3 className="text-blue-700 font-semibold mb-4 flex items-center gap-2">
+              <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 rounded-2xl p-4">
+                <h3 className="text-blue-700 font-bold mb-4 flex items-center gap-2">
                   📅 Período de Trabalho
                 </h3>
                 
@@ -1421,7 +1419,7 @@ export default function Scaling() {
                           return (
                             <div 
                               key={index}
-                              className="bg-white border border-blue-100 rounded-lg text-center px-3 py-2 shadow-sm"
+                              className="bg-white border border-blue-100 rounded-xl p-2 text-center shadow-sm min-w-[52px]"
                             >
                               <div className="text-xs text-slate-400 uppercase">
                                 {weekday}
@@ -1547,16 +1545,9 @@ export default function Scaling() {
                   ) : (
                     <>
                       {/* Status: Passagem Não Comprada */}
-                      <div className="flex items-center gap-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-sm rounded-full">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          Passagem Pendente
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          Passagem ainda não foi comprada
-                        </span>
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                        <span className="text-amber-500 text-lg">⚠️</span>
+                        <div className="text-sm font-medium text-amber-700">Passagem ainda não foi comprada</div>
                       </div>
                     </>
                   )}
@@ -1633,26 +1624,26 @@ export default function Scaling() {
                 return (
                   <div className="border-t pt-4">
                     <h3 className="text-base font-semibold text-slate-800 mb-3">🏨 Dados da Hospedagem</h3>
-                    <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4">
+                    <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Hotel */}
                         <div>
-                          <div className="text-xs text-slate-400 uppercase tracking-wider">Hotel</div>
-                          <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.hotelName || 'Não informado'}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Hotel</div>
+                          <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.hotelName || 'Não informado'}</div>
                         </div>
                         
                         {/* Localização */}
                         {accommodation.hotelLocation && (
                           <div>
-                            <div className="text-xs text-slate-400 uppercase tracking-wider">Localização</div>
-                            <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.hotelLocation}</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Localização</div>
+                            <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.hotelLocation}</div>
                           </div>
                         )}
                         
                         {/* Check-in */}
                         <div>
-                          <div className="text-xs text-slate-400 uppercase tracking-wider">Check-in</div>
-                          <div className="text-sm font-medium text-slate-700 mt-0.5">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Check-in</div>
+                          <div className="text-sm font-semibold text-slate-700 mt-0.5">
                             {accommodation.checkInDate ? formatDateWithWeekday(accommodation.checkInDate) : 'Não informado'}
                             {accommodation.checkInTime && ` às ${accommodation.checkInTime}`}
                           </div>
@@ -1660,8 +1651,8 @@ export default function Scaling() {
                         
                         {/* Check-out */}
                         <div>
-                          <div className="text-xs text-slate-400 uppercase tracking-wider">Check-out</div>
-                          <div className="text-sm font-medium text-slate-700 mt-0.5">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Check-out</div>
+                          <div className="text-sm font-semibold text-slate-700 mt-0.5">
                             {accommodation.checkOutDate ? formatDateWithWeekday(accommodation.checkOutDate) : 'Não informado'}
                             {accommodation.checkOutTime && ` às ${accommodation.checkOutTime}`}
                           </div>
@@ -1670,16 +1661,16 @@ export default function Scaling() {
                         {/* Valor da diária */}
                         {accommodation.dailyRate && (
                           <div>
-                            <div className="text-xs text-slate-400 uppercase tracking-wider">Valor da Diária</div>
-                            <div className="text-sm font-medium text-slate-700 mt-0.5">R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Valor da Diária</div>
+                            <div className="text-sm font-semibold text-slate-700 mt-0.5">R$ {(accommodation.dailyRate / 100).toFixed(2)}</div>
                           </div>
                         )}
                         
                         {/* Número da reserva */}
                         {accommodation.reservationNumber && (
                           <div>
-                            <div className="text-xs text-slate-400 uppercase tracking-wider">Nº da Reserva</div>
-                            <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.reservationNumber}</div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400">Nº da Reserva</div>
+                            <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.reservationNumber}</div>
                           </div>
                         )}
                       </div>
@@ -1687,8 +1678,8 @@ export default function Scaling() {
                       {/* Observações */}
                       {accommodation.accommodationObservations && (
                         <div className="mt-4 pt-4 border-t border-green-100">
-                          <div className="text-xs text-slate-400 uppercase tracking-wider">Observações</div>
-                          <div className="text-sm font-medium text-slate-700 mt-0.5">{accommodation.accommodationObservations}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400">Observações</div>
+                          <div className="text-sm font-semibold text-slate-700 mt-0.5">{accommodation.accommodationObservations}</div>
                         </div>
                       )}
                     </div>
@@ -1696,12 +1687,12 @@ export default function Scaling() {
                     {/* Anexos da Hospedagem */}
                     {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
                       <div className="mt-4">
-                        <h4 className="text-base font-medium mb-3">📎 Anexos da Hospedagem</h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Hospedagem</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {accommodation.attachmentIds.map((attachmentId, index) => (
                             <div 
                               key={attachmentId} 
-                              className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
+                              className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
                               onClick={async () => {
                                 try {
                                   // Buscar informações do anexo
@@ -1744,20 +1735,18 @@ export default function Scaling() {
                                 }
                               }}
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="bg-blue-100 text-blue-600 rounded-lg w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                  {index + 1}
+                              <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-slate-700">
+                                  Anexo {index + 1} da Hospedagem
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-slate-700">
-                                    Anexo {index + 1} da Hospedagem
-                                  </div>
-                                  <div className="text-xs text-slate-400">
-                                    Clique para visualizar
-                                  </div>
+                                <div className="text-xs text-slate-400">
+                                  Clique para visualizar
                                 </div>
                               </div>
-                              <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 flex-shrink-0" />
+                              <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
                             </div>
                           ))}
                         </div>
@@ -1770,12 +1759,12 @@ export default function Scaling() {
               {/* Seção de Anexos da Passagem */}
               {selectedTicket?.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
                   <div className="border-t pt-4">
-                    <h3 className="text-lg font-medium mb-3">Anexos da Passagem</h3>
+                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Passagem</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {selectedTicket.attachmentIds.map((attachmentId, index) => (
                         <div 
                           key={attachmentId} 
-                          className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
                           onClick={async () => {
                             try {
                               // Buscar informações do anexo
@@ -1818,20 +1807,18 @@ export default function Scaling() {
                             }
                           }}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="bg-blue-100 text-blue-600 rounded-lg w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                              {index + 1}
+                          <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-slate-700">
+                              Anexo {index + 1} da Passagem
                             </div>
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-slate-700">
-                                Anexo {index + 1} da Passagem
-                              </div>
-                              <div className="text-xs text-slate-400">
-                                Clique para visualizar
-                              </div>
+                            <div className="text-xs text-slate-400">
+                              Clique para visualizar
                             </div>
                           </div>
-                          <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 flex-shrink-0" />
+                          <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
                         </div>
                       ))}
                     </div>
@@ -1865,7 +1852,7 @@ export default function Scaling() {
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-6 mb-4">
+                  <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm text-center py-8 mb-4">
                     Nenhum comentário registrado para esta inclusão.
                   </div>
                 )}
@@ -1878,14 +1865,14 @@ export default function Scaling() {
                       placeholder="Adicionar comentário..."
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200"
+                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200 min-h-[80px]"
                       data-testid="textarea-comment-inline"
                       disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
                       disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-semibold shadow-sm transition-all"
                       data-testid="button-add-comment-inline"
                     >
                       {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
@@ -1897,14 +1884,11 @@ export default function Scaling() {
               {/* Seção de Histórico de Alterações */}
               {inclusionLogs && inclusionLogs.length > 0 && (
                 <div className="border-t pt-4 mt-4">
-                  <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">
                     Histórico de Alterações
                   </h3>
                   
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                  <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-4 max-h-80 overflow-y-auto">
                     {inclusionLogs
                       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                       .map((log, index) => {
@@ -1920,31 +1904,21 @@ export default function Scaling() {
                         };
                         
                         return (
-                          <div key={log.id} className="relative pl-6 pb-4">
-                            {/* Timeline line */}
-                            {index < inclusionLogs.length - 1 && (
-                              <div className="absolute left-[7px] top-4 bottom-0 w-0.5 bg-blue-100"></div>
-                            )}
-                            
-                            {/* Timeline dot */}
-                            <div className="absolute left-0 top-1.5 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                            </div>
-                            
-                            {/* Log content */}
-                            <div className="border-l-2 border-blue-200 pl-3 py-1">
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="text-sm font-medium text-slate-700">
+                          <div key={log.id} className="flex gap-3">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full -ml-[1.4rem] mt-1 flex-shrink-0 ring-4 ring-white"></div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="text-sm font-semibold text-slate-700">
                                   {actionLabels[log.action] || log.action}
                                 </div>
-                                <div className="text-xs text-slate-400">
+                                <div className="text-xs text-slate-400 ml-auto whitespace-nowrap flex-shrink-0">
                                   {log.createdAt && formatDateTime(log.createdAt)}
                                 </div>
                               </div>
-                              <div className="text-xs text-slate-500 mb-0.5">
+                              <div className="text-xs text-slate-500 mt-0.5">
                                 {log.details}
                               </div>
-                              <div className="text-xs text-blue-500">
+                              <div className="text-xs text-blue-500 font-medium mt-0.5">
                                 por {log.userName}
                               </div>
                             </div>
@@ -1956,8 +1930,8 @@ export default function Scaling() {
               )}
 
               {/* Botões */}
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowModal(false)} className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg px-4 py-2 text-sm font-medium">
+              <div className="flex gap-3 justify-end pt-4 border-t border-slate-100 mt-2">
+                <Button variant="outline" onClick={() => setShowModal(false)} className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-5 py-2 text-sm font-medium">
                   Cancelar
                 </Button>
                 {selectedInclusion && !isReadOnly(selectedInclusion) && (
@@ -1979,7 +1953,7 @@ export default function Scaling() {
                           if (!canConfirmEscalation(selectedInclusion)) return true;
                           return false;
                         })()}
-                        className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg px-4 py-2 text-sm font-medium"
+                        className="flex items-center gap-2 border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl px-5 py-2 text-sm font-medium"
                       >
                         <Save className="w-4 h-4" />
                         {updateTeamInclusionMutation.isPending ? "Salvando..." : "Salvar Alterações"}
@@ -1997,7 +1971,7 @@ export default function Scaling() {
                           if (!canConfirmEscalation(selectedInclusion)) return true;
                           return false;
                         })()}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold shadow-sm"
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all"
                       >
                         <Save className="w-4 h-4" />
                         {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
