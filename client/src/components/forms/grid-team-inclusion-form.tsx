@@ -1430,7 +1430,7 @@ export default function GridTeamInclusionForm() {
                   <Label className="text-sm font-semibold mb-3 block text-blue-700">
                     Registros que serão criados ({processGrid().length}):
                   </Label>
-                  <div className="max-h-32 overflow-y-auto">
+                  <div className="overflow-visible h-auto">
                     {processGrid().length === 0 ? (
                       <p className="text-slate-400 italic text-sm">Nenhum registro configurado.</p>
                     ) : (
