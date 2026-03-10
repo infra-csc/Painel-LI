@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -259,7 +259,7 @@ function EventPanel({
   const top = Math.max(PANEL_MARGIN, Math.min(window.innerHeight - PANEL_H_EST - PANEL_MARGIN, clickPos.y - PANEL_H_EST / 2));
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[1000]">
       <div className="absolute inset-0" onClick={onClose} />
       <div
         className="absolute bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
@@ -385,8 +385,20 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
   // Available height for the scroll container: viewport minus header minus edges
   const maxListH = Math.min(MAX_H - HEADER_H, window.innerHeight - top - HEADER_H - EDGE);
 
+  // Close on ESC key or any scroll
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    function onScroll() { onClose(); }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true); // capture: catches nested scrolls
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-[1000]">
       <div className="absolute inset-0" onClick={onClose} />
       <div
         className="absolute bg-white animate-in fade-in zoom-in-95 duration-150 flex flex-col"
@@ -452,16 +464,14 @@ const MONTH_NAMES_LOWER = [
   "julho","agosto","setembro","outubro","novembro","dezembro",
 ];
 
-function OverflowRow({ bars, week, allEvents, onSelectEvent }: {
+type OverflowPopoverState = { day: Date; dayEvents: Event[]; x: number; y: number };
+
+function OverflowRow({ bars, week, allEvents, onOpenPopover }: {
   bars: EventBar[];
   week: Date[];
   allEvents: Event[];
-  onSelectEvent: SelectEventFn;
+  onOpenPopover: (state: OverflowPopoverState) => void;
 }) {
-  const [popover, setPopover] = useState<{
-    day: Date; dayEvents: Event[]; x: number; y: number;
-  } | null>(null);
-
   const hiddenByCol = useMemo(() => {
     const map: Record<number, number> = {};
     bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
@@ -475,10 +485,6 @@ function OverflowRow({ bars, week, allEvents, onSelectEvent }: {
   const hasAny = Object.keys(hiddenByCol).length > 0;
   if (!hasAny) return null;
 
-  function getPopoverTitle(day: Date, count: number) {
-    return `${day.getDate()} de ${MONTH_NAMES_LOWER[day.getMonth()]} · ${count} ${count === 1 ? "evento" : "eventos"}`;
-  }
-
   function getDayEvents(day: Date): Event[] {
     return allEvents.filter(ev => {
       const start = parseLocalDate(ev.startDate);
@@ -488,41 +494,28 @@ function OverflowRow({ bars, week, allEvents, onSelectEvent }: {
   }
 
   return (
-    <>
-      <div className="grid grid-cols-7">
-        {Array.from({ length: 7 }).map((_, col) => {
-          const hiddenCount = hiddenByCol[col];
-          if (!hiddenCount) {
-            return <div key={col} className="h-[22px]" />;
-          }
-          return (
-            <button
-              key={col}
-              onClick={(e) => {
-                e.stopPropagation();
-                const day = week[col];
-                const dayEvents = getDayEvents(day);
-                setPopover({ day, dayEvents, x: e.clientX, y: e.clientY });
-              }}
-              className="h-[22px] mx-0.5 rounded-md px-2 text-[11px] font-semibold text-[#374151] bg-[#f1f5f9] hover:bg-[#e2e8f0] transition-colors text-left truncate"
-            >
-              + {hiddenCount} {hiddenCount === 1 ? "evento" : "eventos"}
-            </button>
-          );
-        })}
-      </div>
-
-      {popover && (
-        <HiddenEventsPopover
-          dayEvents={popover.dayEvents}
-          title={getPopoverTitle(popover.day, popover.dayEvents.length)}
-          x={popover.x}
-          y={popover.y}
-          onSelectEvent={(ev, pos) => { onSelectEvent(ev, pos); setPopover(null); }}
-          onClose={() => setPopover(null)}
-        />
-      )}
-    </>
+    <div className="grid grid-cols-7">
+      {Array.from({ length: 7 }).map((_, col) => {
+        const hiddenCount = hiddenByCol[col];
+        if (!hiddenCount) {
+          return <div key={col} className="h-[22px]" />;
+        }
+        return (
+          <button
+            key={col}
+            onClick={(e) => {
+              e.stopPropagation();
+              const day = week[col];
+              const dayEvents = getDayEvents(day);
+              onOpenPopover({ day, dayEvents, x: e.clientX, y: e.clientY });
+            }}
+            className="h-[22px] mx-0.5 rounded-md px-2 text-[11px] font-semibold text-[#374151] bg-[#f1f5f9] hover:bg-[#e2e8f0] transition-colors text-left truncate"
+          >
+            + {hiddenCount} {hiddenCount === 1 ? "evento" : "eventos"}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -538,6 +531,19 @@ function MonthView({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Single overflow popover state — only one can be open at a time
+  const [overflowPopover, setOverflowPopover] = useState<OverflowPopoverState | null>(null);
+
+  // Wrap onSelectEvent to close any open overflow popover first
+  function handleSelectEvent(ev: Event, pos: { x: number; y: number }) {
+    setOverflowPopover(null);
+    onSelectEvent(ev, pos);
+  }
+
+  function getPopoverTitle(day: Date, count: number) {
+    return `${day.getDate()} de ${MONTH_NAMES_LOWER[day.getMonth()]} · ${count} ${count === 1 ? "evento" : "eventos"}`;
+  }
 
   const firstDay = new Date(year, month, 1);
   const startPad = firstDay.getDay();
@@ -571,71 +577,94 @@ function MonthView({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-      {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70 shrink-0">
-        {WEEKDAY_LABELS.map(d => (
-          <div key={d} className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
-      <div
-        className="flex-1 min-h-0"
-        style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(90px, 1fr))` }}
-      >
-        {weeks.map((week, wi) => {
-          const bars = computeWeekBars(week, events);
-          const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
-          const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
-          const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
-
-          return (
-            <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
-              {/* ── DAY-NUMBER ZONE: exactly 28px, never receives bars, always visible ── */}
-              <div className="relative z-20 shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
-                {week.map((day, di) => {
-                  const isCurrentMonth = day.getMonth() === month;
-                  const isToday = isSameDay(day, today);
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  return (
-                    <div
-                      key={di}
-                      className={`h-full px-1.5 flex items-center ${
-                        !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
-                        isWeekend ? "bg-slate-50/40 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
-                      }`}
-                    >
-                      <div className={`text-[13px] font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0 ${
-                        isToday
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : isCurrentMonth
-                            ? "text-gray-700 dark:text-gray-300"
-                            : "text-gray-300 dark:text-gray-600"
-                      }`}>
-                        {day.getDate()}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* ── EVENT ZONE: starts strictly below the 28px header ── */}
-              <div className="relative z-10 flex-1 min-h-0 pt-0.5 pb-1 space-y-0.5">
-                {Array.from({ length: visibleLanes }).map((_, lane) => (
-                  <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
-                ))}
-                {hasOverflow && (
-                  <OverflowRow bars={bars} week={week} allEvents={events} onSelectEvent={onSelectEvent} />
-                )}
-              </div>
+    <>
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        {/* Weekday header */}
+        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70 shrink-0">
+          {WEEKDAY_LABELS.map(d => (
+            <div key={d} className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
+              {d}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* Week rows — minmax ensures minimum height so last row never gets clipped */}
+        <div
+          className="flex-1 min-h-0"
+          style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, minmax(90px, 1fr))` }}
+        >
+          {weeks.map((week, wi) => {
+            const bars = computeWeekBars(week, events);
+            const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
+            const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
+            const hasOverflow = bars.some(b => b.lane >= MAX_VISIBLE_LANES);
+
+            return (
+              <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
+                {/* ── DAY-NUMBER ZONE: exactly 28px, z-[40], never receives bars ── */}
+                <div className="relative z-[40] shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
+                  {week.map((day, di) => {
+                    const isCurrentMonth = day.getMonth() === month;
+                    const isToday = isSameDay(day, today);
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    return (
+                      <div
+                        key={di}
+                        className={`h-full px-1.5 flex items-center ${
+                          !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
+                          isWeekend ? "bg-slate-50/40 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
+                        }`}
+                      >
+                        {/* Today: z-[50] — highest inside the grid */}
+                        <div className={`text-[13px] font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0 ${
+                          isToday
+                            ? "bg-blue-600 text-white shadow-sm z-[50]"
+                            : isCurrentMonth
+                              ? "text-gray-700 dark:text-gray-300"
+                              : "text-gray-300 dark:text-gray-600"
+                        }`}>
+                          {day.getDate()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ── EVENT ZONE: z-[20], starts strictly below 28px header ── */}
+                <div className="relative z-[20] flex-1 min-h-0 pt-0.5 pb-1 space-y-0.5">
+                  {Array.from({ length: visibleLanes }).map((_, lane) => (
+                    <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={handleSelectEvent} />
+                  ))}
+                  {hasOverflow && (
+                    <OverflowRow
+                      bars={bars}
+                      week={week}
+                      allEvents={events}
+                      onOpenPopover={(state) => {
+                        // Replace any existing popover — only one at a time
+                        setOverflowPopover(state);
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Single overflow popover rendered outside the grid — always on top */}
+      {overflowPopover && (
+        <HiddenEventsPopover
+          dayEvents={overflowPopover.dayEvents}
+          title={getPopoverTitle(overflowPopover.day, overflowPopover.dayEvents.length)}
+          x={overflowPopover.x}
+          y={overflowPopover.y}
+          onSelectEvent={(ev, pos) => { handleSelectEvent(ev, pos); setOverflowPopover(null); }}
+          onClose={() => setOverflowPopover(null)}
+        />
+      )}
+    </>
   );
 }
 
