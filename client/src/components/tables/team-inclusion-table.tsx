@@ -346,8 +346,8 @@ export default function TeamInclusionTable() {
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
       if (filters.status !== "all" && inclusion.status !== filters.status) return false;
-      if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
-      if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
+      if (filters.escalationStatus === "pending" && (inclusion.collaboratorId || inclusion.status === "cancelado")) return false;
+      if (filters.escalationStatus === "escalated" && (!inclusion.collaboratorId || inclusion.status === "cancelado")) return false;
       if (filters.escalationStatus === "cancelado" && inclusion.status !== "cancelado") return false;
       // Busca exata por ID (número de inclusão)
       if (filters.searchId && !(
