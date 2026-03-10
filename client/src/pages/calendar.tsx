@@ -594,8 +594,8 @@ function MonthView({
 
           return (
             <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
-              {/* Day number row — z-10 keeps numbers above bars */}
-              <div className="relative z-10 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700 shrink-0">
+              {/* ── DAY-NUMBER ZONE: exactly 28px, never receives bars, always visible ── */}
+              <div className="relative z-20 shrink-0 h-7 grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
                 {week.map((day, di) => {
                   const isCurrentMonth = day.getMonth() === month;
                   const isToday = isSameDay(day, today);
@@ -603,12 +603,12 @@ function MonthView({
                   return (
                     <div
                       key={di}
-                      className={`h-10 px-2 flex items-center ${
+                      className={`h-full px-1.5 flex items-center ${
                         !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
-                        isWeekend ? "bg-slate-50/60 dark:bg-gray-850" : ""
+                        isWeekend ? "bg-slate-50/40 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
                       }`}
                     >
-                      <div className={`text-[15px] font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 ${
+                      <div className={`text-[13px] font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0 ${
                         isToday
                           ? "bg-blue-600 text-white shadow-sm"
                           : isCurrentMonth
@@ -622,17 +622,15 @@ function MonthView({
                 })}
               </div>
 
-              {/* Event bar rows + overflow pill row */}
-              {(visibleLanes > 0 || hasOverflow) && (
-                <div className="pt-1 pb-1.5 space-y-0.5">
-                  {Array.from({ length: visibleLanes }).map((_, lane) => (
-                    <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
-                  ))}
-                  {hasOverflow && (
-                    <OverflowRow bars={bars} week={week} allEvents={events} onSelectEvent={onSelectEvent} />
-                  )}
-                </div>
-              )}
+              {/* ── EVENT ZONE: starts strictly below the 28px header ── */}
+              <div className="relative z-10 flex-1 min-h-0 pt-0.5 pb-1 space-y-0.5">
+                {Array.from({ length: visibleLanes }).map((_, lane) => (
+                  <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
+                ))}
+                {hasOverflow && (
+                  <OverflowRow bars={bars} week={week} allEvents={events} onSelectEvent={onSelectEvent} />
+                )}
+              </div>
             </div>
           );
         })}
