@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatDiarias } from "@/lib/utils";
+import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -113,7 +113,7 @@ export default function Approval() {
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const formatCurrency = (value: number) => {
@@ -354,7 +354,7 @@ export default function Approval() {
                       <SelectItem value="all">Todos os colaboradores</SelectItem>
                       {collaborators?.map(collaborator => (
                         <SelectItem key={collaborator.id} value={collaborator.id}>
-                          {collaborator.fullName}
+                          {fixEncoding(collaborator.fullName)}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
 import SimpleFilters from "@/components/common/simple-filters";
@@ -161,7 +162,7 @@ export default function Tickets() {
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const getCollaborator = (collaboratorId?: string) => {

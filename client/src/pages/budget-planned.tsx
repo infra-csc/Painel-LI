@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { formatDias, formatDiarias, formatDiasUteis, formatFds } from "@/lib/utils";
+import { formatDias, formatDiarias, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -211,7 +211,7 @@ export default function BudgetPlannedPage() {
 
   const getCollaboratorName = (id?: string | null) => {
     if (!id) return "Não definido";
-    return collaborators?.find(c => c.id === id)?.fullName || "Não definido";
+    return fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "Não definido";
   };
 
   const getFunctionName = (id?: string | null) => {

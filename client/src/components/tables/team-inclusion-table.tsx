@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { formatDiarias } from "@/lib/utils";
+import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, MessageCircle, History, Check, X, Trash2, Copy, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export default function TeamInclusionTable() {
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const formatDate = (dateStr: string) => {

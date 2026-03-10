@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { formatDias, formatDiasUteis, formatFds } from "@/lib/utils";
+import { formatDias, formatDiasUteis, formatFds, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -295,7 +295,7 @@ export default function BudgetActualPage() {
 
   const getCollaboratorName = (id?: string | null) => {
     if (!id) return "Não definido";
-    return collaborators?.find(c => c.id === id)?.fullName || "Não definido";
+    return fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "Não definido";
   };
 
   const getFunctionName = (id?: string | null) => {

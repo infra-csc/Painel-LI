@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, fixEncoding } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -54,7 +54,7 @@ export default function CollaboratorCombobox({
         >
           <span className="truncate mr-2">
             {value === "all" ? "Todos os Colaboradores" : 
-             selectedCollaborator ? selectedCollaborator.fullName : placeholder}
+             selectedCollaborator ? fixEncoding(selectedCollaborator.fullName) : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -84,7 +84,7 @@ export default function CollaboratorCombobox({
               {sortedCollaborators.map((collaborator) => (
                 <CommandItem
                   key={collaborator.id}
-                  value={`${collaborator.fullName} ${collaborator.id}`}
+                  value={`${fixEncoding(collaborator.fullName)} ${collaborator.id}`}
                   onSelect={() => {
                     onValueChange(collaborator.id);
                     setOpen(false);
@@ -96,7 +96,7 @@ export default function CollaboratorCombobox({
                       value === collaborator.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {collaborator.fullName}
+                  {fixEncoding(collaborator.fullName)}
                 </CommandItem>
               ))}
             </CommandGroup>

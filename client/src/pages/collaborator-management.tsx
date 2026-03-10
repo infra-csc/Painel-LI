@@ -28,12 +28,26 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
+  const fixed = name
+    .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ãµ/g, 'õ')
+    .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
+    .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã /g, 'à')
+    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'")
+    .replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú');
+  const parts = fixed.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 function toTitleCase(str: string) {
-  return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  const fixed = str
+    .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ãµ/g, 'õ')
+    .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
+    .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã /g, 'à')
+    .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'")
+    .replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú');
+  return fixed.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 // ─── Config ────────────────────────────────────────────────────────────────

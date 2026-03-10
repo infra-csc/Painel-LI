@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -273,7 +274,7 @@ export default function Accommodations() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="font-medium text-foreground">Nome:</span>
-                    <div className="text-muted-foreground">{collaborator.fullName}</div>
+                    <div className="text-muted-foreground">{fixEncoding(collaborator.fullName)}</div>
                   </div>
                   {collaborator.officialDocument && (
                     <div>
@@ -863,7 +864,7 @@ export default function Accommodations() {
     switch (field) {
       case 'eventName': return event?.name || '';
       case 'functionName': return func?.name || '';
-      case 'collaboratorName': return collaborator?.fullName || '';
+      case 'collaboratorName': return fixEncoding(collaborator?.fullName) || '';
       case 'inclusionNumber': return inclusion.inclusionNumber || '';
       case 'checkInDate': return accommodation?.checkInDate || null;
       case 'checkOutDate': return accommodation?.checkOutDate || null;
@@ -1427,7 +1428,7 @@ export default function Accommodations() {
                       <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
                           data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}
                           onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewAccommodationDetails(inclusion)}>
-                        {collaborator?.fullName}
+                        {fixEncoding(collaborator?.fullName)}
                       </td>
                       <td className={`px-4 py-3 text-sm text-gray-700 dark:text-gray-300 ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} 
                           data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}
@@ -1590,7 +1591,7 @@ function AccommodationDetailForm({
           <div><strong>ID:</strong> {inclusion.inclusionNumber}</div>
           <div><strong>Evento:</strong> {event?.name}</div>
           <div><strong>Função:</strong> {func?.name}</div>
-          <div><strong>Colaborador:</strong> {collaborator?.fullName}</div>
+          <div><strong>Colaborador:</strong> {fixEncoding(collaborator?.fullName)}</div>
         </div>
       </div>
 

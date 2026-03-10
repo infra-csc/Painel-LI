@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { formatDias, formatDiarias } from "@/lib/utils";
+import { formatDias, formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,7 +189,7 @@ export default function Closure() {
 
   const getCollaboratorName = (collaboratorId?: string) => {
     if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   const formatCurrency = (value: number) => {

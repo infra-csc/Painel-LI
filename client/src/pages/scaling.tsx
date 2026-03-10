@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { formatDiarias } from "@/lib/utils";
+import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
 import { User, Eye, Save, FileSpreadsheet } from "lucide-react";
@@ -263,7 +263,7 @@ export default function Scaling() {
 
   const getCollaboratorName = (collaboratorId?: string | null) => {
     if (!collaboratorId) return "Não escalado";
-    return collaborators?.find(c => c.id === collaboratorId)?.fullName || "Colaborador não encontrado";
+    return fixEncoding(collaborators?.find(c => c.id === collaboratorId)?.fullName) || "Colaborador não encontrado";
   };
 
   // Helper function to get accommodation for an inclusion
@@ -571,7 +571,7 @@ export default function Scaling() {
         'Fim do Evento': event?.endDate ? formatDate(event.endDate) : 'N/A',
         'Função': func?.name || 'N/A',
         'Área': inclusion.area || 'N/A',
-        'Colaborador': collaborator?.fullName || 'Não escalado',
+        'Colaborador': fixEncoding(collaborator?.fullName) || 'Não escalado',
         'CPF Colaborador': cpfColaborador,
         'Data Nascimento': collaborator?.birthDate ? formatDate(collaborator.birthDate) : 'N/A',
         'Telefone Colaborador': collaborator?.phone || 'N/A',

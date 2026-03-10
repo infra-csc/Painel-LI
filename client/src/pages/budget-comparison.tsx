@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,7 +154,7 @@ export default function BudgetComparisonPage() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
   const getCollaboratorName = (id?: string | null) =>
-    id ? collaborators?.find(c => c.id === id)?.fullName || "-" : "-";
+    id ? fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "-" : "-";
 
   const getFunctionName = (id?: string | null) =>
     id ? functions?.find(f => f.id === id)?.name || "-" : "-";
