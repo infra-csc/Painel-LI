@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1990,12 +1990,13 @@ export default function Scaling() {
           className="fixed inset-0 z-[200] flex items-center justify-center"
           onClick={() => setLightbox(null)}
         >
-          <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div
-            className="relative z-10 flex flex-col items-center gap-4 p-4 max-w-[90vw] max-h-[90vh]"
+            className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-[80vw] max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-end w-full gap-2">
+            {/* Barra de ações */}
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-b border-slate-100 bg-white flex-shrink-0">
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
@@ -2014,23 +2015,33 @@ export default function Scaling() {
                     window.open(lightbox.url, '_blank');
                   }
                 }}
-                className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Baixar
               </button>
               <button
-                onClick={() => setLightbox(null)}
-                className="bg-white/15 hover:bg-white/25 text-white rounded-lg p-1.5 transition-colors"
+                onClick={(e) => { e.stopPropagation(); window.open(lightbox.url, '_blank', 'noopener,noreferrer'); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
               >
-                <X className="w-5 h-5" />
+                <ExternalLink className="w-4 h-4" />
+                Abrir em outra aba
+              </button>
+              <button
+                onClick={() => setLightbox(null)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <img
-              src={lightbox.url}
-              alt={lightbox.name}
-              className="max-w-full max-h-[80vh] rounded-xl object-contain shadow-2xl"
-            />
+            {/* Preview da imagem */}
+            <div className="overflow-auto p-4 flex items-center justify-center bg-slate-50">
+              <img
+                src={lightbox.url}
+                alt={lightbox.name}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+              />
+            </div>
           </div>
         </div>
       )}
