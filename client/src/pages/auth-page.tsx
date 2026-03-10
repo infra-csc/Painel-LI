@@ -1,84 +1,47 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import norteLogoUrl from "@assets/b7708c145100409.6298b4cbdc473_1756736810143.jpg";
-import { Lock, Mail, User, Building2, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import norteLogo from "@assets/image_1770316785096.png";
+
+// ── Schemas ────────────────────────────────────────────────────────────────────
 
 const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(1, "Senha é obrigatória"),
 });
 
-const registerSchema = z.object({
-  email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
-  confirmPassword: z.string(),
-  name: z.string().min(1, "Nome é obrigatório"),
-  role: z.enum(["admin", "production", "function_area", "purchasing", "financial"]),
-  area: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Senhas não coincidem",
-  path: ["confirmPassword"],
-});
-
-const forgotPasswordSchema = z.object({
+const forgotSchema = z.object({
   email: z.string().email("E-mail inválido"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
-type RegisterForm = z.infer<typeof registerSchema>;
-type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
+type ForgotForm = z.infer<typeof forgotSchema>;
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const { user, login } = useAuth();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"login" | "recover">("login");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Redirect if already logged in
   if (user) {
     setLocation("/");
     return null;
   }
 
+  // ── Login form ───────────────────────────────────────────────────────────────
+
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
-
-  const registerForm = useForm<RegisterForm>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-      name: "",
-      role: "production",
-      area: "",
-    },
-  });
-
-  const forgotPasswordForm = useForm<ForgotPasswordForm>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: {
-      email: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const handleLogin = async (data: LoginForm) => {
@@ -86,378 +49,241 @@ export default function AuthPage() {
     try {
       const success = await login(data.email, data.password);
       if (success) {
-        toast({
-          title: "Login realizado com sucesso",
-          description: "Bem-vindo ao sistema de Logística Interna",
-        });
         setLocation("/");
       } else {
-        toast({
-          title: "Erro no login",
-          description: "Credenciais inválidas ou conta não aprovada",
-          variant: "destructive",
-        });
+        loginForm.setError("email", { message: " " });
+        loginForm.setError("password", { message: "Credenciais inválidas. Verifique e-mail e senha." });
       }
-    } catch (error) {
-      toast({
-        title: "Erro no login",
-        description: "Erro interno do servidor",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Erro", description: "Erro interno do servidor.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegister = async (data: RegisterForm) => {
+  // ── Forgot-password form ─────────────────────────────────────────────────────
+
+  const forgotForm = useForm<ForgotForm>({
+    resolver: zodResolver(forgotSchema),
+    defaultValues: { email: "" },
+  });
+
+  const handleForgotPassword = async (data: ForgotForm) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast({
-          title: "Cadastro realizado com sucesso",
-          description: "Sua conta foi criada. Faça login para continuar.",
-        });
-        setActiveTab("login");
-        loginForm.setValue("email", data.email);
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Erro no cadastro",
-          description: error.message || "Erro ao criar conta",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Erro no cadastro",
-        description: "Erro interno do servidor",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (data: ForgotPasswordForm) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast({
-          title: "E-mail enviado",
-          description: result.message,
-        });
-        // In development, show the reset token
+      const result = await res.json();
+      if (res.ok) {
+        toast({ title: "E-mail enviado", description: result.message });
         if (result.resetToken) {
-          toast({
-            title: "Token de Reset (DEMO)",
-            description: `Token: ${result.resetToken}`,
-          });
+          toast({ title: "Token de Reset (DEMO)", description: `Token: ${result.resetToken}` });
         }
+        forgotForm.reset();
       } else {
-        const error = await response.json();
-        toast({
-          title: "Erro",
-          description: error.message || "Erro ao solicitar recuperação",
-          variant: "destructive",
-        });
+        toast({ title: "Erro", description: result.message || "Erro ao solicitar recuperação.", variant: "destructive" });
       }
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro interno do servidor",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Erro", description: "Erro interno do servidor.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getRoleLabel = (role: string) => {
-    const labels = {
-      admin: "Administrador",
-      production: "Logística Interna",
-      function_area: "Área responsável por funções",
-      purchasing: "Área de Compras/Viagem",
-      financial: "Área Financeira",
-    };
-    return labels[role as keyof typeof labels] || role;
-  };
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img 
-              src={norteLogoUrl} 
-              alt="NORTE Marketing Esportivo" 
-              className="h-20 w-auto object-contain"
-            />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">Logística Interna</h1>
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-10"
+      style={{ background: "linear-gradient(135deg, #f0f4ff 0%, #e8edf8 100%)" }}
+    >
+      <div
+        className="w-full"
+        style={{
+          maxWidth: 420,
+          background: "#ffffff",
+          borderRadius: 20,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
+          padding: 40,
+        }}
+      >
+        {/* ── Logo + Title ── */}
+        <div className="flex flex-col items-center mb-8">
+          <img
+            src={norteLogo}
+            alt="Norte"
+            style={{ width: 120, height: "auto", display: "block" }}
+          />
+          <h1
+            className="mt-3 font-bold text-gray-900"
+            style={{ fontSize: 24, letterSpacing: "-0.02em" }}
+          >
+            Logística Interna
+          </h1>
         </div>
 
-        <Card className="shadow-xl">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Acesso ao Sistema</CardTitle>
-            <CardDescription className="text-center">
-              Entre com sua conta ou crie uma nova
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="login">Entrar</TabsTrigger>
-                <TabsTrigger value="register">Cadastrar</TabsTrigger>
-                <TabsTrigger value="forgot">Recuperar</TabsTrigger>
-              </TabsList>
+        {/* ── Tabs ── */}
+        <div className="flex gap-1 p-1 mb-6" style={{ background: "#f1f5f9", borderRadius: 10 }}>
+          {(["login", "recover"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="flex-1 py-2 text-sm font-semibold transition-all duration-150"
+              style={{
+                borderRadius: 8,
+                background: activeTab === tab ? "#2563eb" : "transparent",
+                color: activeTab === tab ? "#ffffff" : "#64748b",
+              }}
+            >
+              {tab === "login" ? "Entrar" : "Recuperar"}
+            </button>
+          ))}
+        </div>
 
-              <TabsContent value="login" className="space-y-4">
-                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Digite seu e-mail"
-                        className="pl-10"
-                        {...loginForm.register("email")}
-                        data-testid="input-email"
-                      />
-                    </div>
-                    {loginForm.formState.errors.email && (
-                      <p className="text-sm text-red-600">{loginForm.formState.errors.email.message}</p>
-                    )}
-                  </div>
+        {/* ── Tab: Entrar ── */}
+        {activeTab === "login" && (
+          <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4" noValidate>
+            {/* E-mail */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700" htmlFor="login-email">
+                E-mail
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  data-testid="input-email"
+                  {...loginForm.register("email")}
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-lg outline-none transition-colors"
+                  style={{
+                    borderColor: loginForm.formState.errors.email ? "#ef4444" : "#e2e8f0",
+                    background: "#f8fafc",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = loginForm.formState.errors.email ? "#ef4444" : "#e2e8f0")}
+                />
+              </div>
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Digite sua senha"
-                        className="pl-10 pr-10"
-                        {...loginForm.register("password")}
-                        data-testid="input-password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                        onClick={() => setShowPassword(!showPassword)}
-                        data-testid="button-toggle-password"
-                      >
-                        {showPassword ? <EyeOff /> : <Eye />}
-                      </button>
-                    </div>
-                    {loginForm.formState.errors.password && (
-                      <p className="text-sm text-red-600">{loginForm.formState.errors.password.message}</p>
-                    )}
-                  </div>
+            {/* Senha */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700" htmlFor="login-password">
+                Senha
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  data-testid="input-password"
+                  {...loginForm.register("password")}
+                  className="w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg outline-none transition-colors"
+                  style={{
+                    borderColor: loginForm.formState.errors.password ? "#ef4444" : "#e2e8f0",
+                    background: "#f8fafc",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = loginForm.formState.errors.password ? "#ef4444" : "#e2e8f0")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {loginForm.formState.errors.password?.message && loginForm.formState.errors.password.message !== " " && (
+                <p className="text-xs text-red-500">{loginForm.formState.errors.password.message}</p>
+              )}
+            </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
-                    data-testid="button-login"
-                  >
-                    {isLoading ? "Entrando..." : "Entrar"}
-                  </Button>
-                </form>
-              </TabsContent>
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150 mt-2"
+              style={{
+                background: isLoading ? "#93c5fd" : "#2563eb",
+                cursor: isLoading ? "not-allowed" : "pointer",
+              }}
+              onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.background = "#1d4ed8"; }}
+              onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.background = "#2563eb"; }}
+              data-testid="button-login"
+            >
+              {isLoading ? "Entrando..." : (
+                <>Entrar <ArrowRight className="w-4 h-4" /></>
+              )}
+            </button>
+          </form>
+        )}
 
-              <TabsContent value="register" className="space-y-4">
-                <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-name">Nome Completo</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-name"
-                        placeholder="Digite seu nome completo"
-                        className="pl-10"
-                        {...registerForm.register("name")}
-                        data-testid="input-register-name"
-                      />
-                    </div>
-                    {registerForm.formState.errors.name && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.name.message}</p>
-                    )}
-                  </div>
+        {/* ── Tab: Recuperar ── */}
+        {activeTab === "recover" && (
+          <form onSubmit={forgotForm.handleSubmit(handleForgotPassword)} className="space-y-4" noValidate>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700" htmlFor="recover-email">
+                E-mail
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                <input
+                  id="recover-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  {...forgotForm.register("email")}
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-lg outline-none transition-colors"
+                  style={{
+                    borderColor: forgotForm.formState.errors.email ? "#ef4444" : "#e2e8f0",
+                    background: "#f8fafc",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#6366f1")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = forgotForm.formState.errors.email ? "#ef4444" : "#e2e8f0")}
+                />
+              </div>
+              {forgotForm.formState.errors.email && (
+                <p className="text-xs text-red-500">{forgotForm.formState.errors.email.message}</p>
+              )}
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">E-mail</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="Digite seu e-mail"
-                        className="pl-10"
-                        {...registerForm.register("email")}
-                        data-testid="input-register-email"
-                      />
-                    </div>
-                    {registerForm.formState.errors.email && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.email.message}</p>
-                    )}
-                  </div>
+            <p className="text-xs text-gray-400 text-center leading-relaxed">
+              Você receberá um e-mail com instruções para redefinir sua senha.
+            </p>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="register-role">Área</Label>
-                    <Select
-                      value={registerForm.watch("role")}
-                      onValueChange={(value) => registerForm.setValue("role", value as any)}
-                    >
-                      <SelectTrigger data-testid="select-register-role">
-                        <Building2 className="h-4 w-4 mr-2 text-gray-400" />
-                        <SelectValue placeholder="Selecione sua área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="production">Logística Interna</SelectItem>
-                        <SelectItem value="function_area">Área responsável por funções</SelectItem>
-                        <SelectItem value="purchasing">Área de Compras/Viagem</SelectItem>
-                        <SelectItem value="financial">Área Financeira</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {registerForm.formState.errors.role && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.role.message}</p>
-                    )}
-                  </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-150"
+              style={{
+                background: isLoading ? "#93c5fd" : "#2563eb",
+                cursor: isLoading ? "not-allowed" : "pointer",
+              }}
+              onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.background = "#1d4ed8"; }}
+              onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.background = "#2563eb"; }}
+            >
+              {isLoading ? "Enviando..." : (
+                <>Recuperar Senha <ArrowRight className="w-4 h-4" /></>
+              )}
+            </button>
+          </form>
+        )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="register-area">Área Específica (Opcional)</Label>
-                    <Input
-                      id="register-area"
-                      placeholder="Ex: Produção São Paulo, Compras RJ"
-                      {...registerForm.register("area")}
-                      data-testid="input-register-area"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Senha</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Digite sua senha"
-                        className="pl-10 pr-10"
-                        {...registerForm.register("password")}
-                        data-testid="input-register-password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff /> : <Eye />}
-                      </button>
-                    </div>
-                    {registerForm.formState.errors.password && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.password.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-confirm-password">Confirmar Senha</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-confirm-password"
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirme sua senha"
-                        className="pl-10 pr-10"
-                        {...registerForm.register("confirmPassword")}
-                        data-testid="input-register-confirm-password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? <EyeOff /> : <Eye />}
-                      </button>
-                    </div>
-                    {registerForm.formState.errors.confirmPassword && (
-                      <p className="text-sm text-red-600">{registerForm.formState.errors.confirmPassword.message}</p>
-                    )}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
-                    data-testid="button-register"
-                  >
-                    {isLoading ? "Criando conta..." : "Criar Conta"}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="forgot" className="space-y-4">
-                <form onSubmit={forgotPasswordForm.handleSubmit(handleForgotPassword)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="forgot-email">E-mail</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="forgot-email"
-                        type="email"
-                        placeholder="Digite seu e-mail cadastrado"
-                        className="pl-10"
-                        {...forgotPasswordForm.register("email")}
-                        data-testid="input-forgot-email"
-                      />
-                    </div>
-                    {forgotPasswordForm.formState.errors.email && (
-                      <p className="text-sm text-red-600">{forgotPasswordForm.formState.errors.email.message}</p>
-                    )}
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
-                    data-testid="button-forgot-password"
-                  >
-                    {isLoading ? "Enviando..." : "Recuperar Senha"}
-                  </Button>
-
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">
-                      Você receberá um e-mail com instruções para redefinir sua senha.
-                    </p>
-                  </div>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>
+        {/* ── Footer ── */}
+        <div className="mt-8 pt-6 border-t border-gray-100 text-center space-y-1.5">
+          <p className="text-xs text-gray-400 leading-relaxed">
             Problemas para acessar? Entre em contato com o administrador do sistema.
           </p>
+          <p className="text-[11px] text-gray-300 font-medium">v1.0.0</p>
         </div>
       </div>
     </div>
