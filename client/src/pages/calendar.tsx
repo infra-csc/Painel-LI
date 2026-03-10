@@ -185,27 +185,26 @@ function LaneRow({
   for (const bar of laneBars) {
     if (bar.startCol > col) {
       items.push(
-        <div key={`sp-${col}`} style={{ gridColumn: `${col + 1} / ${bar.startCol + 1}` }} className="h-5" />
+        <div key={`sp-${col}`} style={{ gridColumn: `${col + 1} / ${bar.startCol + 1}` }} className="h-[22px]" />
       );
     }
     const cfg = getCfg(getEffectiveStatus(bar.event));
-    const span = bar.endCol - bar.startCol + 1;
     items.push(
       <button
         key={bar.event.id}
         onClick={() => onSelectEvent(bar.event)}
         style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
         title={`${bar.event.name} · ${bar.event.location}`}
-        className={`h-5 text-[10px] font-semibold truncate transition-opacity hover:opacity-80 ${cfg.bar} ${cfg.barText} ${cfg.strikethrough ? "opacity-50 line-through" : ""} ${bar.isStart ? "rounded-l ml-0.5 pl-1.5" : "pl-0.5"} ${bar.isEnd ? "rounded-r mr-0.5 pr-1" : "pr-0"}`}
+        className={`h-[22px] text-[12px] font-semibold truncate transition-opacity hover:opacity-80 ${cfg.bar} ${cfg.barText} ${cfg.strikethrough ? "opacity-50 line-through" : ""} ${bar.isStart ? "rounded-l-md ml-0.5 pl-2" : "rounded-l-none pl-1"} ${bar.isEnd ? "rounded-r-md mr-0.5 pr-2" : "rounded-r-none pr-0"}`}
       >
-        {(bar.isStart || span > 1) ? bar.event.name : ""}
+        {bar.isStart ? bar.event.name : ""}
       </button>
     );
     col = bar.endCol + 1;
   }
 
   if (col < 7) {
-    items.push(<div key="sp-end" style={{ gridColumn: `${col + 1} / 8` }} className="h-5" />);
+    items.push(<div key="sp-end" style={{ gridColumn: `${col + 1} / 8` }} className="h-[22px]" />);
   }
 
   return <div className="grid grid-cols-7">{items}</div>;
@@ -358,9 +357,9 @@ function MonthView({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
       {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70">
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70 shrink-0">
         {WEEKDAY_LABELS.map(d => (
           <div key={d} className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
             {d}
@@ -368,71 +367,71 @@ function MonthView({
         ))}
       </div>
 
-      {/* Week rows */}
-      {weeks.map((week, wi) => {
-        const bars = computeWeekBars(week, events);
-        const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
-        const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
+      {/* Week rows — each gets 1fr of remaining height */}
+      <div
+        className="flex-1 min-h-0"
+        style={{ display: "grid", gridTemplateRows: `repeat(${weeks.length}, 1fr)` }}
+      >
+        {weeks.map((week, wi) => {
+          const bars = computeWeekBars(week, events);
+          const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
+          const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
 
-        // Count hidden events per day column
-        const hiddenByCol: Record<number, number> = {};
-        bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
-          for (let c = b.startCol; c <= b.endCol; c++) {
-            hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
-          }
-        });
+          // Count hidden events per day column
+          const hiddenByCol: Record<number, number> = {};
+          bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
+            for (let c = b.startCol; c <= b.endCol; c++) {
+              hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
+            }
+          });
 
-        return (
-          <div key={wi} className={wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}>
-            {/* Day number row */}
-            <div className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
-              {week.map((day, di) => {
-                const isCurrentMonth = day.getMonth() === month;
-                const isToday = isSameDay(day, today);
-                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                return (
-                  <div
-                    key={di}
-                    className={`h-8 px-1.5 flex items-center ${
-                      !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
-                      isWeekend ? "bg-slate-50/60 dark:bg-gray-850" : ""
-                    }`}
-                  >
-                    <div className={`text-[11px] font-bold w-6 h-6 flex items-center justify-center rounded-full ${
-                      isToday
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : isCurrentMonth
-                          ? "text-gray-700 dark:text-gray-300"
-                          : "text-gray-300 dark:text-gray-600"
-                    }`}>
-                      {day.getDate()}
+          return (
+            <div key={wi} className={`flex flex-col ${wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}`}>
+              {/* Day number row */}
+              <div className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700 shrink-0">
+                {week.map((day, di) => {
+                  const isCurrentMonth = day.getMonth() === month;
+                  const isToday = isSameDay(day, today);
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  return (
+                    <div
+                      key={di}
+                      className={`h-10 px-2 flex items-center ${
+                        !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
+                        isWeekend ? "bg-slate-50/60 dark:bg-gray-850" : ""
+                      }`}
+                    >
+                      <div className={`text-[15px] font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 ${
+                        isToday
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : isCurrentMonth
+                            ? "text-gray-700 dark:text-gray-300"
+                            : "text-gray-300 dark:text-gray-600"
+                      }`}>
+                        {day.getDate()}
+                      </div>
+                      {hiddenByCol[di] > 0 && (
+                        <span className="ml-auto text-[9px] text-gray-400 hover:text-blue-600 cursor-pointer font-medium">
+                          +{hiddenByCol[di]}
+                        </span>
+                      )}
                     </div>
-                    {hiddenByCol[di] > 0 && (
-                      <span className="ml-auto text-[9px] text-gray-400 hover:text-blue-600 cursor-pointer font-medium">
-                        +{hiddenByCol[di]}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Event bar rows */}
-            {visibleLanes > 0 && (
-              <div className={`pb-1.5 ${visibleLanes > 0 ? "pt-0.5" : ""}`}>
-                {Array.from({ length: visibleLanes }).map((_, lane) => (
-                  <div key={lane} className="mt-0.5">
-                    <LaneRow lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            )}
 
-            {/* Spacer for empty weeks */}
-            {visibleLanes === 0 && <div className="h-3" />}
-          </div>
-        );
-      })}
+              {/* Event bar rows */}
+              {visibleLanes > 0 && (
+                <div className="pt-1 pb-1.5 space-y-0.5">
+                  {Array.from({ length: visibleLanes }).map((_, lane) => (
+                    <LaneRow key={lane} lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -580,7 +579,7 @@ export default function CalendarPage() {
   ];
 
   return (
-    <div className="p-6 space-y-5 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-4 h-[calc(100vh-48px)] lg:h-[calc(100vh-64px)] max-w-6xl mx-auto">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center gap-4 justify-between">
         <div className="flex items-center gap-3">
@@ -684,20 +683,24 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Calendar / List ── */}
-      {isLoading ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-16 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : view === "month" ? (
-        <MonthView
-          year={viewYear}
-          month={viewMonth}
-          events={filteredEvents}
-          onSelectEvent={setSelectedEvent}
-        />
-      ) : (
-        <ListView events={filteredEvents} onSelectEvent={setSelectedEvent} />
-      )}
+      <div className="flex-1 min-h-0">
+        {isLoading ? (
+          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : view === "month" ? (
+          <MonthView
+            year={viewYear}
+            month={viewMonth}
+            events={filteredEvents}
+            onSelectEvent={setSelectedEvent}
+          />
+        ) : (
+          <div className="h-full overflow-y-auto">
+            <ListView events={filteredEvents} onSelectEvent={setSelectedEvent} />
+          </div>
+        )}
+      </div>
 
       {/* ── Event detail panel ── */}
       {selectedEvent && (
