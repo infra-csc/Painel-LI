@@ -155,12 +155,12 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
                 <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                   <SelectValue placeholder="Selecionar status" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg p-0 overflow-hidden min-w-[220px]">
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
                   {statusOptions.map((option) => (
                     <SelectItem
                       key={option.value}
                       value={option.value}
-                      className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium"
+                      className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium"
                     >
                       {option.label}
                     </SelectItem>
@@ -182,11 +182,11 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                 <SelectValue placeholder="Filtrar por escalação" />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg p-0 overflow-hidden min-w-[220px]">
-                <SelectItem value="all" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-                <SelectItem value="pending" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendentes de Escalação</SelectItem>
-                <SelectItem value="escalated" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Já Escalados</SelectItem>
-                <SelectItem value="cancelado" className="px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Cancelados</SelectItem>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                <SelectItem value="pending" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendentes de Escalação</SelectItem>
+                <SelectItem value="escalated" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Já Escalados</SelectItem>
+                <SelectItem value="cancelado" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Cancelados</SelectItem>
               </SelectContent>
             </Select>
           </div>

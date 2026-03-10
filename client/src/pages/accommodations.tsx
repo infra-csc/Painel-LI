@@ -1055,36 +1055,36 @@ export default function Accommodations() {
 
         <SimpleFilters filters={filters} onFiltersChange={setFilters} />
 
-        <div className="bg-card rounded-lg shadow-sm border border-border p-4 mb-6 flex gap-4 items-end">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex gap-4 items-end">
           <div className="flex-1">
-            <Label className="text-sm font-medium text-foreground">Status da Hospedagem:</Label>
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">Status da Hospedagem</label>
             <Select
               value={filters.accommodationStatus}
               onValueChange={(value) => setFilters({ ...filters, accommodationStatus: value })}
             >
-              <SelectTrigger className="mt-1" data-testid="select-accommodation-status">
+              <SelectTrigger className="w-full border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 mt-1" data-testid="select-accommodation-status">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendente</SelectItem>
-                <SelectItem value="processed">Processado</SelectItem>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                <SelectItem value="pending" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendente</SelectItem>
+                <SelectItem value="processed" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Processado</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="flex-1">
-            <Label className="text-sm font-medium text-foreground">Status da Inclusão:</Label>
+            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">Status da Inclusão</label>
             <Select
               value={filters.inclusionStatus}
               onValueChange={(value) => setFilters({ ...filters, inclusionStatus: value })}
             >
-              <SelectTrigger className="mt-1" data-testid="select-inclusion-status">
+              <SelectTrigger className="w-full border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 mt-1" data-testid="select-inclusion-status">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Ativas</SelectItem>
-                <SelectItem value="all">Todas</SelectItem>
-                <SelectItem value="cancelado">Canceladas</SelectItem>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
+                <SelectItem value="active" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Ativas</SelectItem>
+                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas</SelectItem>
+                <SelectItem value="cancelado" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Canceladas</SelectItem>
               </SelectContent>
             </Select>
           </div>

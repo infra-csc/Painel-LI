@@ -312,19 +312,19 @@ export default function Approval() {
                 />
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="min-w-[200px]">
                   <Select 
                     value={filters.eventId} 
                     onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value }))}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                       <SelectValue placeholder="Todos os eventos" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os eventos</SelectItem>
+                    <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                      <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os eventos</SelectItem>
                       {events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído').map(event => (
-                        <SelectItem key={event.id} value={event.id}>
+                        <SelectItem key={event.id} value={event.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">
                           {event.name}
                         </SelectItem>
                       ))}
@@ -337,13 +337,13 @@ export default function Approval() {
                     value={filters.functionId} 
                     onValueChange={(value) => setFilters(prev => ({ ...prev, functionId: value }))}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                       <SelectValue placeholder="Todas as funções" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as funções</SelectItem>
+                    <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px]">
+                      <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas as funções</SelectItem>
                       {functions?.map(func => (
-                        <SelectItem key={func.id} value={func.id}>
+                        <SelectItem key={func.id} value={func.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">
                           {func.name}
                         </SelectItem>
                       ))}
@@ -356,13 +356,13 @@ export default function Approval() {
                     value={filters.collaboratorId} 
                     onValueChange={(value) => setFilters(prev => ({ ...prev, collaboratorId: value }))}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                       <SelectValue placeholder="Todos os colaboradores" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os colaboradores</SelectItem>
+                    <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                      <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os colaboradores</SelectItem>
                       {collaborators?.map(collaborator => (
-                        <SelectItem key={collaborator.id} value={collaborator.id}>
+                        <SelectItem key={collaborator.id} value={collaborator.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">
                           {fixEncoding(collaborator.fullName)}
                         </SelectItem>
                       ))}
