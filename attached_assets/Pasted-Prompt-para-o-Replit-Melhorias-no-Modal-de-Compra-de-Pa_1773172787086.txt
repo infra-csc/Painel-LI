@@ -1,0 +1,69 @@
+Prompt para o Replit — Melhorias no Modal de Compra de Passagem:
+
+Aplique as seguintes melhorias no modal de detalhes/edição da passagem, sem alterar lógica existente:
+
+1. FUNCIONALIDADE — Toggle "Apenas Ida" no modal (obrigatório):
+
+Adicionar um toggle switch "Apenas ida" no modal de edição, logo após o título "Informações de Viagem", idêntico ao que existe no Registro Rápido em Lote
+Quando "Apenas ida" estiver ATIVO:
+O card "VOLTA" deve ser ocultado completamente (display: none)
+Os campos de VOLTA devem ter required: false e ser limpos automaticamente
+O toggle deve ter visual: pill width: 44px; height: 24px, OFF = 
+#CBD5E1, ON = 
+#3B5BDB, com transição suave
+Quando INATIVO: exibir ambos os cards IDA e VOLTA normalmente
+2. FUNCIONALIDADE — Campos obrigatórios IDA = VOLTA espelhados:
+
+Os campos obrigatórios do card IDA são: Cidade Origem, Cidade Destino, Aeroporto Origem, Aeroporto Destino, Data, Horário
+O card VOLTA deve ter exatamente os mesmos campos obrigatórios que IDA (atualmente VOLTA tem campos opcionais)
+Marcar todos os campos de VOLTA com asterisco * e required: true, exceto quando "Apenas ida" estiver ativo
+3. VISUAL — Header do modal:
+
+Aumentar o título para font-size: 18px; font-weight: 700; color: #1E293B
+Badge de status (ex: "Somente Leitura", "Passagem Comprada") como pill colorido:
+Somente Leitura → fundo 
+#FEF3C7 texto 
+#92400E
+Passagem Comprada → fundo 
+#D1FAE5 texto 
+#065F46
+Pendente → fundo 
+#FEF9C3 texto 
+#854D0E
+Botão X de fechar: estilizar como círculo 32px com hover background: #F1F5F9
+4. VISUAL — Seção "Informações Gerais":
+
+Card com background: #F8FAFC, border-radius: 12px, border: 1px solid #E2E8F0
+Grid 2 colunas para Colaborador/Função e Documento/Data de Nascimento
+Labels em font-size: 11px; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.05em
+Valores em font-size: 15px; font-weight: 600; color: #1E293B
+Remover o bloco amarelo duplicado do CPF — o CPF já aparece no campo "Documento" acima, o bloco amarelo é redundante e deve ser removido
+5. VISUAL — Seção "Sugestões de Viagem":
+
+Cards IDA e VOLTA lado a lado em grid 2 colunas (em vez de empilhados)
+Card IDA: borda esquerda 3px solid #3B5BDB, fundo 
+#EEF2FF
+Card VOLTA: borda esquerda 3px solid #F59E0B, fundo 
+#FFF7ED
+Quando "Não informado": exibir badge cinza pill background: #F1F5F9; color: #94A3B8 em vez de texto azul bold
+6. VISUAL — Seção "Passagem Comprada" (modal de visualização):
+
+Header da seção com badge verde ✓ Passagem Comprada em destaque
+Cards IDA e VOLTA lado a lado, com os horários em destaque (fundo verde claro já existente — manter)
+Campos Origem/Destino em UPPERCASE para padronizar (atualmente estão em lowercase: "gru", "rj")
+Adicionar label "Aeroporto" antes dos códigos para deixar mais claro
+7. VISUAL — Botões de ação (rodapé do modal):
+
+"Cancelar": estilo outline border: 1px solid #E2E8F0; color: #64748B
+"Salvar": fundo 
+#64748B texto branco
+"Registrar Passagem": fundo 
+#3B5BDB texto branco, com ícone ✓ à esquerda
+Separar os botões do conteúdo com border-top: 1px solid #E2E8F0; padding-top: 16px
+8. VISUAL — Seção "Comentários":
+
+Adicionar ícone 💬 ao lado do título
+Estado vazio: centralizar o texto "Nenhum comentário registrado" com ícone de balão cinza acima
+Botão "Ver/Adicionar Comentários": estilo outline azul com ícone
+NÃO alterar: nenhuma lógica de salvamento, rotas, handlers ou estrutura de dados. Apenas ajustes visuais e a adição do toggle "Apenas ida" com ocultação do card VOLTA.
+

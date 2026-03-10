@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { isReadOnly, canEdit, canPerformActions } from "@/lib/interactions";
 import { canView, canEdit as canEditScreen } from "@/lib/permissions";
@@ -733,13 +732,18 @@ export default function Tickets() {
                   {(() => {
                     const q = ticketData["quick"];
                     const isOneWay = !!(q?.isOneWay);
-                    const idaFields = [
+                    const financialFields = [
                       !!(q?.transportType),
                       !!(q?.value),
                       !!(q?.purchaseOrderNumber),
+                    ];
+                    const idaFields = [
                       !!(q?.departureCityOrigin),
+                      !!(q?.departureCityDestination),
                       !!(q?.departureAirport),
+                      !!(q?.destinationAirport),
                       !!(q?.actualDepartureDate),
+                      !!(q?.actualDepartureTime),
                     ];
                     const voltaFields = isOneWay ? [] : [
                       !!(q?.returnCityOrigin),
@@ -749,7 +753,7 @@ export default function Tickets() {
                       !!(q?.actualReturnDate),
                       !!(q?.actualReturnTime),
                     ];
-                    const allFields = [...idaFields, ...voltaFields];
+                    const allFields = [...financialFields, ...idaFields, ...voltaFields];
                     const total = allFields.length;
                     const filled = allFields.filter(Boolean).length;
                     const pct = Math.round((filled / total) * 100);
@@ -1311,63 +1315,58 @@ export default function Tickets() {
             {selectedInclusion && (
               <div>
                 <DialogHeader>
-                  <DialogTitle>
-                    Detalhes da Passagem #{selectedInclusion.inclusionNumber} - {getEventName(selectedInclusion.eventId)}
-                    {isReadOnly(selectedInclusion) && <span className="ml-2 text-sm text-red-600">(Somente Leitura)</span>}
-                  </DialogTitle>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-2">
+                      <DialogTitle style={{fontSize: 18, fontWeight: 700, color: '#1E293B'}}>
+                        Detalhes da Passagem #{selectedInclusion.inclusionNumber} — {getEventName(selectedInclusion.eventId)}
+                      </DialogTitle>
+                      {isReadOnly(selectedInclusion) ? (
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#FEF3C7',color:'#92400E',fontSize:12,fontWeight:600}}>
+                          Somente Leitura
+                        </span>
+                      ) : getTicket(selectedInclusion.id) ? (
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#D1FAE5',color:'#065F46',fontSize:12,fontWeight:600}}>
+                          ✓ Passagem Comprada
+                        </span>
+                      ) : (
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#FEF9C3',color:'#854D0E',fontSize:12,fontWeight:600}}>
+                          Pendente
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </DialogHeader>
 
                 <div className="space-y-6 mt-6">
-                  {/* Informações Básicas */}
-                  <div className="bg-muted p-4 rounded-lg">
-                    <h3 className="font-medium mb-3">Informações Gerais</h3>
+                  {/* Informações Gerais */}
+                  <div style={{background:'#F8FAFC',borderRadius:12,border:'1px solid #E2E8F0',padding:16}}>
+                    <h3 style={{fontSize:13,fontWeight:600,color:'#1E293B',marginBottom:12}}>Informações Gerais</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Colaborador</Label>
-                        <p className="font-medium">{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</p>
+                        <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Colaborador</label>
+                        <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Função</Label>
-                        <p className="font-medium">{getFunctionName(selectedInclusion.functionId)}</p>
+                        <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Função</label>
+                        <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>{getFunctionName(selectedInclusion.functionId)}</p>
                       </div>
-                      
-                      {/* Dados do Documento do Colaborador */}
                       {(() => {
                         const collaborator = getCollaborator(selectedInclusion.collaboratorId || undefined);
                         if (!collaborator) return null;
-                        
                         return (
                           <>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Documento</Label>
-                              <p className="font-medium">
+                              <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Documento</label>
+                              <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>
                                 {collaborator.documentType?.toUpperCase() || 'N/A'}: {collaborator.officialDocument || 'N/A'}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Data de Nascimento</Label>
-                              <p className="font-medium">
+                              <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Data de Nascimento</label>
+                              <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>
                                 {collaborator.birthDate ? formatDate(collaborator.birthDate) : 'N/A'}
                               </p>
                             </div>
-                            {/* CPF com Destaque */}
-                            {(() => {
-                              // Encontrar o CPF: pode estar no officialDocument ou secondaryDocument
-                              const cpf = collaborator.documentType === 'cpf' 
-                                ? collaborator.officialDocument 
-                                : (collaborator.secondaryDocumentType === 'cpf' ? collaborator.secondaryDocument : null);
-                              
-                              if (!cpf) return null;
-                              
-                              return (
-                                <div className="col-span-2 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md border-l-4 border-yellow-500">
-                                  <Label className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">CPF</Label>
-                                  <p className="font-bold text-lg text-yellow-900 dark:text-yellow-300">
-                                    {cpf}
-                                  </p>
-                                </div>
-                              );
-                            })()}
                           </>
                         );
                       })()}
@@ -1375,54 +1374,45 @@ export default function Tickets() {
                   </div>
 
                   {/* Sugestões de Viagem - SEMPRE VISÍVEL */}
-                  <div className="border-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-400 dark:border-blue-600 p-4">
-                    <h3 className="font-bold text-base text-blue-800 dark:text-blue-200 mb-4 flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div style={{border:'1px solid #E2E8F0',borderRadius:12,background:'#F8FAFC',padding:16}}>
+                    <h3 style={{fontSize:13,fontWeight:600,color:'#1E293B',marginBottom:12,display:'flex',alignItems:'center',gap:6}}>
+                      <svg className="w-4 h-4" fill="none" stroke="#3B5BDB" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
                       Sugestões de Viagem
-                      <span className="text-xs opacity-60 font-normal">(vindas da inclusão de equipe)</span>
+                      <span style={{fontSize:11,color:'#94A3B8',fontWeight:400}}>(vindas da inclusão de equipe)</span>
                     </h3>
                     {(() => {
                       const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
+                      const notInformed = (v: string) => v === 'N/A' || v === 'Não definido' || v === 'Não informado';
+                      const emptyBadge = <span style={{display:'inline-flex',padding:'2px 10px',borderRadius:999,background:'#F1F5F9',color:'#94A3B8',fontSize:12,fontWeight:500}}>Não informado</span>;
                       return (
-                        <div className="space-y-4">
-                          {/* Viagem de IDA */}
-                          <div className="border-2 rounded-md p-4 bg-white dark:bg-blue-950/50 border-blue-300 dark:border-blue-700">
-                            <div className="flex items-center gap-2 mb-3">
-                              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                              </svg>
-                              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">🛫 IDA</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* IDA */}
+                          <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:12}}>
+                            <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:8}}>🛫 IDA</div>
+                            <div className="space-y-2">
                               <div>
-                                <span className="text-sm text-muted-foreground block mb-1">Data:</span>
-                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{formatSuggestionDate(travelInfo.ida !== 'N/A' && travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : 'Não informado')}</div>
+                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Data</span>
+                                {notInformed(travelInfo.ida) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{formatSuggestionDate(travelInfo.ida)}</span>}
                               </div>
                               <div>
-                                <span className="text-sm text-muted-foreground block mb-1">Horário:</span>
-                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' ? travelInfo.chegada : 'Não informado'}</div>
+                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Horário</span>
+                                {notInformed(travelInfo.chegada) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{travelInfo.chegada}</span>}
                               </div>
                             </div>
                           </div>
-
-                          {/* Viagem de VOLTA */}
-                          <div className="border-2 rounded-md p-4 bg-white dark:bg-blue-950/50 border-blue-300 dark:border-blue-700">
-                            <div className="flex items-center gap-2 mb-3">
-                              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                              </svg>
-                              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">🛬 VOLTA</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                          {/* VOLTA */}
+                          <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:12}}>
+                            <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:8}}>🛬 VOLTA</div>
+                            <div className="space-y-2">
                               <div>
-                                <span className="text-sm text-muted-foreground block mb-1">Data:</span>
-                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{formatSuggestionDate(travelInfo.retorno !== 'N/A' && travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : 'Não informado')}</div>
+                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Data</span>
+                                {notInformed(travelInfo.retorno) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{formatSuggestionDate(travelInfo.retorno)}</span>}
                               </div>
                               <div>
-                                <span className="text-sm text-muted-foreground block mb-1">Horário:</span>
-                                <div className="text-base font-bold text-blue-800 dark:text-blue-200">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' ? travelInfo.horario : 'Não informado'}</div>
+                                <span style={{fontSize:11,color:'#64748B',display:'block'}}>Horário</span>
+                                {notInformed(travelInfo.horario) ? emptyBadge : <span style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{travelInfo.horario}</span>}
                               </div>
                             </div>
                           </div>
@@ -1472,12 +1462,12 @@ export default function Tickets() {
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Origem</Label>
-                                  <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                  <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Destino</Label>
-                                  <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                  <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data</Label>
@@ -1501,12 +1491,12 @@ export default function Tickets() {
                               </h4>
                               <div className="space-y-2">
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Origem</Label>
-                                  <p className="font-medium">{ticket.destinationAirport || "-"}</p>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Origem</Label>
+                                  <p className="font-medium uppercase">{ticket.destinationAirport || "-"}</p>
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground">Destino</Label>
-                                  <p className="font-medium">{ticket.departureAirport || "-"}</p>
+                                  <Label className="text-xs text-muted-foreground">Aeroporto Destino</Label>
+                                  <p className="font-medium uppercase">{ticket.departureAirport || "-"}</p>
                                 </div>
                                 <div>
                                   <Label className="text-xs text-muted-foreground">Data</Label>
@@ -1694,17 +1684,26 @@ export default function Tickets() {
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="flex items-center space-x-3 mt-6">
-                                <Checkbox
-                                  id={`one-way-${selectedInclusion.id}`}
-                                  checked={data.isOneWay || false}
-                                  onCheckedChange={(checked) => handleTicketDataChange(selectedInclusion.id, "isOneWay", checked)}
-                                  data-testid={`checkbox-one-way-${selectedInclusion.id}`}
-                                  disabled={isReadOnly(selectedInclusion) || !canEditScreen(user, 'tickets')}
-                                />
-                                <Label htmlFor={`one-way-${selectedInclusion.id}`} className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                              <div className="flex items-center gap-3 mt-6">
+                                <button
+                                  role="switch"
+                                  aria-checked={data.isOneWay || false}
+                                  onClick={() => !isReadOnly(selectedInclusion) && canEditScreen(user, 'tickets') && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}
+                                  style={{
+                                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: isReadOnly(selectedInclusion) ? 'not-allowed' : 'pointer',
+                                    background: data.isOneWay ? '#3B5BDB' : '#CBD5E1', position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0
+                                  }}
+                                >
+                                  <span style={{
+                                    position: 'absolute', top: 2, left: data.isOneWay ? 22 : 2,
+                                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                  }} />
+                                </button>
+                                <label style={{fontSize:14,fontWeight:500,color:'#7C3AED',cursor:'pointer'}}
+                                  onClick={() => !isReadOnly(selectedInclusion) && canEditScreen(user, 'tickets') && handleTicketDataChange(selectedInclusion.id, "isOneWay", !(data.isOneWay || false))}>
                                   Apenas ida (sem volta)
-                                </Label>
+                                </label>
                               </div>
                             </div>
                           </div>
@@ -1875,7 +1874,7 @@ export default function Tickets() {
                                     {/* Cidades */}
                                     <div>
                                       <Label htmlFor={`returnCityOrigin-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Cidade Origem
+                                        Cidade Origem *
                                       </Label>
                                       <Input
                                         id={`returnCityOrigin-${selectedInclusion.id}`}
@@ -1889,7 +1888,7 @@ export default function Tickets() {
                                     </div>
                                     <div>
                                       <Label htmlFor={`returnCityDestination-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Cidade Destino
+                                        Cidade Destino *
                                       </Label>
                                       <Input
                                         id={`returnCityDestination-${selectedInclusion.id}`}
@@ -1904,7 +1903,7 @@ export default function Tickets() {
                                     {/* Aeroportos/Rodoviárias */}
                                     <div>
                                       <Label htmlFor={`returnOriginAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"}
+                                        {data.transportType === "rodoviario" ? "Rodoviária Origem" : "Aeroporto Origem"} *
                                       </Label>
                                       <Input
                                         id={`returnOriginAirport-${selectedInclusion.id}`}
@@ -1918,7 +1917,7 @@ export default function Tickets() {
                                     </div>
                                     <div>
                                       <Label htmlFor={`returnDestinationAirport-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"}
+                                        {data.transportType === "rodoviario" ? "Rodoviária Destino" : "Aeroporto Destino"} *
                                       </Label>
                                       <Input
                                         id={`returnDestinationAirport-${selectedInclusion.id}`}
@@ -1932,7 +1931,7 @@ export default function Tickets() {
                                     </div>
                                     <div>
                                       <Label htmlFor={`actualReturnDate-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Data de Volta
+                                        Data de Volta *
                                       </Label>
                                       <Input
                                         id={`actualReturnDate-${selectedInclusion.id}`}
@@ -1946,7 +1945,7 @@ export default function Tickets() {
                                     </div>
                                     <div>
                                       <Label htmlFor={`actualReturnTime-${selectedInclusion.id}`} className="text-sm font-medium">
-                                        Horário de Volta
+                                        Horário de Volta *
                                       </Label>
                                       <Input
                                         id={`actualReturnTime-${selectedInclusion.id}`}
@@ -2017,13 +2016,17 @@ export default function Tickets() {
 
 
                         {/* Seção de Comentários */}
-                        <div className="space-y-4 border-t pt-4">
+                        <div className="space-y-3" style={{borderTop:'1px solid #E2E8F0',paddingTop:16}}>
                           <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-foreground">Comentários</h4>
+                            <h4 style={{fontSize:14,fontWeight:600,color:'#1E293B',display:'flex',alignItems:'center',gap:6}}>
+                              <MessageCircle className="w-4 h-4" style={{color:'#64748B'}} />
+                              Comentários
+                            </h4>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setShowCommentsModal(true)}
+                              style={{borderColor:'#3B5BDB',color:'#3B5BDB'}}
                               className="flex items-center gap-2"
                             >
                               <MessageCircle className="w-4 h-4" />
@@ -2031,8 +2034,7 @@ export default function Tickets() {
                             </Button>
                           </div>
                           
-                          {/* Últimos comentários */}
-                          <div className="bg-muted/50 rounded-lg p-3">
+                          <div className="rounded-lg p-3" style={{background:'#F8FAFC',border:'1px solid #E2E8F0'}}>
                             {comments && comments.length > 0 ? (
                               <div className="space-y-2">
                                 <p className="text-sm font-medium text-muted-foreground">
@@ -2063,16 +2065,17 @@ export default function Tickets() {
                                 )}
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">
-                                Nenhum comentário registrado para esta inclusão.
-                              </p>
+                              <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 0',gap:8}}>
+                                <MessageCircle style={{width:28,height:28,color:'#CBD5E1'}} />
+                                <p style={{fontSize:13,color:'#94A3B8',textAlign:'center'}}>Nenhum comentário registrado para esta inclusão.</p>
+                              </div>
                             )}
                           </div>
                         </div>
 
                         {/* Botões */}
-                        <div className="flex gap-3 justify-end pt-4 border-t">
-                          <Button variant="outline" onClick={() => {
+                        <div className="flex gap-3 justify-end" style={{borderTop:'1px solid #E2E8F0',paddingTop:16}}>
+                          <Button variant="outline" style={{border:'1px solid #E2E8F0',color:'#64748B'}} onClick={() => {
                             setShowModal(false);
                             setEditingTicketId(null);
                           }}>
@@ -2086,7 +2089,7 @@ export default function Tickets() {
                                 <>
                                   {/* Botão Salvar - para dados parciais */}
                                   <Button
-                                variant="secondary"
+                                style={{background:'#64748B',color:'#fff'}}
                                 onClick={async () => {
                                   try {
                                     if (editingTicketId || getTicket(selectedInclusion.id)) {
@@ -2267,10 +2270,11 @@ export default function Tickets() {
                                   }
                                 }}
                                 disabled={createTicketMutation.isPending || updateTicketMutation.isPending}
+                                style={{background:'#3B5BDB',color:'#fff'}}
                               >
                                 {(createTicketMutation.isPending || updateTicketMutation.isPending) 
                                   ? (editingTicketId ? "Atualizando..." : "Registrando...") 
-                                  : (editingTicketId ? "Atualizar Passagem" : "Registrar Passagem")
+                                  : <><span style={{marginRight:6}}>✓</span>{editingTicketId ? "Atualizar Passagem" : "Registrar Passagem"}</>
                                 }
                               </Button>
                                 </>
