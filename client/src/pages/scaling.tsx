@@ -1029,7 +1029,14 @@ export default function Scaling() {
                   ) : (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="table-fixed w-full">
+                          <colgroup>
+                            <col style={{width: "80px"}} />
+                            <col style={{width: "28%"}} />
+                            <col style={{width: "22%"}} />
+                            <col style={{width: "140px"}} />
+                            <col style={{width: "auto"}} />
+                          </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
@@ -1143,7 +1150,14 @@ export default function Scaling() {
                   ) : (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="table-fixed w-full">
+                          <colgroup>
+                            <col style={{width: "80px"}} />
+                            <col style={{width: "28%"}} />
+                            <col style={{width: "22%"}} />
+                            <col style={{width: "140px"}} />
+                            <col style={{width: "auto"}} />
+                          </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
