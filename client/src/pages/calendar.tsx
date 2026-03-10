@@ -342,45 +342,79 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
   onSelectEvent: SelectEventFn;
   onClose: () => void;
 }) {
-  // Smart horizontal positioning: prefer right of click, flip left if too close to right edge
-  const spaceRight = window.innerWidth - x - 8;
-  const spaceLeft  = x - 8;
+  const GAP = 6;
+  const EDGE = 8;
+  // Hard cap — content scrolls inside
+  const MAX_H = 280;
+  const HEADER_H = 38;
+
+  // ── Horizontal: prefer right, flip left, clamp ───────────────────────────
+  const spaceRight = window.innerWidth - x - GAP;
+  const spaceLeft  = x - GAP;
   let left: number;
   if (spaceRight >= POPOVER_W) {
-    left = x + 8;
+    left = x + GAP;
   } else if (spaceLeft >= POPOVER_W) {
-    left = x - POPOVER_W - 8;
+    left = x - POPOVER_W - GAP;
   } else {
-    // Neither side fits perfectly — clamp to whichever side has more space
     left = spaceRight >= spaceLeft
-      ? Math.max(8, window.innerWidth - POPOVER_W - 8)
-      : 8;
+      ? Math.max(EDGE, window.innerWidth - POPOVER_W - EDGE)
+      : EDGE;
   }
+  left = Math.max(EDGE, Math.min(window.innerWidth - POPOVER_W - EDGE, left));
 
-  // Estimate height: header 36 + items (allow ~56px each for 2-line names)
-  const ITEM_H = 56;
-  const HEADER_H = 36;
-  const popoverH = Math.min(dayEvents.length * ITEM_H + HEADER_H, 320);
-  const top = Math.max(8, Math.min(window.innerHeight - popoverH - 8, y - popoverH / 2));
+  // ── Vertical: prefer below click, flip above if too close to bottom ──────
+  const spaceBelow = window.innerHeight - y - GAP;
+  const spaceAbove = y - GAP;
+  // Estimate actual rendered height (generous: 68px/item for 2-line names)
+  const estimatedH = Math.min(dayEvents.length * 68 + HEADER_H, MAX_H);
+
+  let top: number;
+  if (spaceBelow >= estimatedH) {
+    // Enough room below — open just under click point
+    top = y + GAP;
+  } else if (spaceAbove >= estimatedH) {
+    // Not enough below but enough above — open above click point
+    top = y - estimatedH - GAP;
+  } else {
+    // Tight on both sides — center in viewport
+    top = Math.max(EDGE, Math.min(window.innerHeight - estimatedH - EDGE, (window.innerHeight - estimatedH) / 2));
+  }
+  top = Math.max(EDGE, Math.min(window.innerHeight - EDGE - estimatedH, top));
+
+  // Available height for the scroll container: viewport minus header minus edges
+  const maxListH = Math.min(MAX_H - HEADER_H, window.innerHeight - top - HEADER_H - EDGE);
 
   return (
     <div className="fixed inset-0 z-[60]">
       <div className="absolute inset-0" onClick={onClose} />
       <div
-        className="absolute bg-white overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="absolute bg-white animate-in fade-in zoom-in-95 duration-150 flex flex-col"
         style={{
           width: POPOVER_W,
           left,
           top,
+          maxHeight: MAX_H,
           borderRadius: 12,
           border: "1px solid #e5e7eb",
           boxShadow: "0 8px 32px -4px rgba(0,0,0,0.16), 0 2px 8px -1px rgba(0,0,0,0.08)",
+          overflow: "hidden",
         }}
       >
-        <div className="px-3 py-2.5 border-b border-gray-100">
+        {/* Header — always visible */}
+        <div className="px-3 py-2.5 border-b border-gray-100 shrink-0">
           <span className="text-[11px] font-semibold text-gray-400 capitalize">{title}</span>
         </div>
-        <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+
+        {/* Scrollable list */}
+        <div
+          className="overflow-y-auto divide-y divide-gray-50"
+          style={{
+            maxHeight: maxListH,
+            scrollbarWidth: "thin",
+            scrollbarColor: "#cbd5e1 transparent",
+          }}
+        >
           {dayEvents.map(ev => {
             const cfg = getCfg(getEffectiveStatus(ev));
             const StatusIcon = cfg.icon;
@@ -394,14 +428,12 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
                   <StatusIcon className={`w-3 h-3 ${cfg.text}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  {/* Name: allow wrapping to 2 lines, never truncate */}
                   <p
                     className={`text-[12.5px] font-semibold text-gray-800 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {ev.name}
                   </p>
-                  {/* Location: secondary info, ok to truncate */}
                   <p className="text-[11px] text-gray-400 truncate leading-tight mt-0.5">{ev.location}</p>
                 </div>
               </button>
