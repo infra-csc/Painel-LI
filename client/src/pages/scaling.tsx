@@ -1995,25 +1995,36 @@ export default function Scaling() {
             className="relative z-10 flex flex-col items-center gap-4 p-4 max-w-[90vw] max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between w-full gap-4">
-              <span className="text-white text-sm font-medium truncate flex-1">{lightbox.name}</span>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <a
-                  href={lightbox.url}
-                  download={lightbox.name}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Baixar
-                </a>
-                <button
-                  onClick={() => setLightbox(null)}
-                  className="bg-white/15 hover:bg-white/25 text-white rounded-lg p-1.5 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="flex items-center justify-end w-full gap-2">
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const res = await fetch(lightbox.url);
+                    const blob = await res.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = lightbox.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                  } catch {
+                    window.open(lightbox.url, '_blank');
+                  }
+                }}
+                className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Baixar
+              </button>
+              <button
+                onClick={() => setLightbox(null)}
+                className="bg-white/15 hover:bg-white/25 text-white rounded-lg p-1.5 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <img
               src={lightbox.url}
