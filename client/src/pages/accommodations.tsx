@@ -404,34 +404,38 @@ export default function Accommodations() {
                   </div>
 
                   {/* CHECK-IN + CHECK-OUT static */}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-                    <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:16}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'stretch'}}>
+                    <div style={{display:'flex',flexDirection:'column',border:'1px solid #C7D2FE',borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:10,padding:16}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                         <div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Data</div>
+                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Data</div>
                           <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkInDate ? formatDate(accommodation.checkInDate) : '—'}
+                            {accommodation.checkInDate ? formatDate(accommodation.checkInDate) : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
                           </div>
                         </div>
                         <div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Horário</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.checkInTime || '—'}</div>
+                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Horário</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                            {accommodation.checkInTime || <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:16}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:12}}>🗓 CHECK-OUT</div>
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    <div style={{display:'flex',flexDirection:'column',border:'1px solid #FED7AA',borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:10,padding:16}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#F59E0B',marginBottom:12}}>🗓 CHECK-OUT</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                         <div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Data</div>
+                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Data</div>
                           <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
-                            {accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}
+                            {accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
                           </div>
                         </div>
                         <div>
-                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Horário</div>
-                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.checkOutTime || '—'}</div>
+                          <div style={{fontSize:12,fontWeight:500,color:'#64748B',marginBottom:4}}>Horário</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                            {accommodation.checkOutTime || <span style={{background:'#F1F5F9',color:'#94A3B8',borderRadius:20,padding:'2px 10px',fontSize:12}}>Não informado</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -555,20 +559,20 @@ export default function Accommodations() {
                 </div>
 
                 {/* Seção: Datas e Horários — CHECK-IN + CHECK-OUT side by side */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,alignItems:'stretch'}}>
                   {/* CHECK-IN */}
-                  <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:16}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:14}}>🗓 CHECK-IN</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div style={{display:'flex',flexDirection:'column',border:'1px solid #C7D2FE',borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:10,padding:16}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                       <FormField control={form.control} name="checkInDate" render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Data *</FormLabel>
+                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
                                   disabled={!canEditRecord} data-testid="input-checkin-date"
-                                  style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}}>
+                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%'}}>
                                   {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
                                   <Calendar className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
@@ -584,11 +588,11 @@ export default function Accommodations() {
                       )} />
                       <FormField control={form.control} name="checkInTime" render={({ field }) => (
                         <FormItem>
-                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Horário *</FormLabel>
+                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
                           <FormControl>
                             <Input placeholder="--:--" data-testid="input-checkin-time"
                               disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}} />
+                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px'}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -597,18 +601,18 @@ export default function Accommodations() {
                   </div>
 
                   {/* CHECK-OUT */}
-                  <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:16}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:14}}>🗓 CHECK-OUT</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div style={{display:'flex',flexDirection:'column',border:'1px solid #FED7AA',borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:10,padding:16}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#F59E0B',marginBottom:12}}>🗓 CHECK-OUT</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                       <FormField control={form.control} name="checkOutDate" render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Data *</FormLabel>
+                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
                                   disabled={!canEditRecord} data-testid="input-checkout-date"
-                                  style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}}>
+                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%'}}>
                                   {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
                                   <Calendar className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
@@ -624,11 +628,11 @@ export default function Accommodations() {
                       )} />
                       <FormField control={form.control} name="checkOutTime" render={({ field }) => (
                         <FormItem>
-                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Horário *</FormLabel>
+                          <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
                           <FormControl>
                             <Input placeholder="--:--" data-testid="input-checkout-time"
                               disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}} />
+                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px'}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
