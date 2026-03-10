@@ -1305,7 +1305,7 @@ export default function GridTeamInclusionForm() {
                                 type="date"
                                 value={row.dataVooIda} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooIda', e.target.value)}
-                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${row.dataVooIda ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
                               />
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
@@ -1313,7 +1313,7 @@ export default function GridTeamInclusionForm() {
                                 value={row.horarioChegadaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioChegadaSugerido', e.target.value)}
                                 placeholder="Ex: 14h30"
-                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full"
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full placeholder:text-slate-300 ${row.horarioChegadaSugerido ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
                                 maxLength={15}
                               />
                             </td>
@@ -1322,7 +1322,7 @@ export default function GridTeamInclusionForm() {
                                 type="date"
                                 value={row.dataVooRetorno} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'dataVooRetorno', e.target.value)}
-                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${row.dataVooRetorno ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
                               />
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 min-w-[120px]">
@@ -1330,7 +1330,7 @@ export default function GridTeamInclusionForm() {
                                 value={row.horarioPartidaSugerido} 
                                 onChange={(e) => updateTravelInfo(row.functionId, 'horarioPartidaSugerido', e.target.value)}
                                 placeholder="Ex: 18h00"
-                                className="h-7 text-center text-xs border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full"
+                                className={`h-7 text-center text-xs rounded-lg transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full placeholder:text-slate-300 ${row.horarioPartidaSugerido ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200'}`}
                                 maxLength={15}
                               />
                             </td>
@@ -1346,7 +1346,11 @@ export default function GridTeamInclusionForm() {
                                     onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
                                   >
                                     <SelectTrigger 
-                                      className={`h-7 w-12 border-slate-200 rounded-md text-xs bg-slate-100 text-slate-600 font-medium ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
+                                      className={`h-7 w-12 rounded-lg text-xs font-semibold transition-colors ${
+                                        (row.dailyRates[date] || 0) > 0
+                                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                          : 'bg-white text-slate-300 border border-slate-200'
+                                      } ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
                                       onFocus={() => setFocusedCell({functionId: row.functionId, date})}
                                     >
                                       <SelectValue />
@@ -1422,30 +1426,33 @@ export default function GridTeamInclusionForm() {
                 </Button>
 
                 {/* Preview dos resultados */}
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                  <Label className="text-sm font-medium mb-3 block text-blue-700">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
+                  <Label className="text-sm font-semibold mb-3 block text-blue-700">
                     Registros que serão criados ({processGrid().length}):
                   </Label>
-                  <div className="space-y-1 text-xs max-h-32 overflow-y-auto text-blue-700">
-                    {processGrid().map((range, index) => {
-                      // Busca o nome da função no functionRows primeiro, depois na lista de functions
-                      const functionRow = functionRows.find(r => r.functionId === range.functionId);
-                      const functionName = functionRow?.functionName || 
-                                         functions?.find(f => f.id === range.functionId)?.name ||
-                                         functions?.find(f => f.id === range.functionId.split('-')[0])?.name || 
-                                         'Função não encontrada';
-                      
-                      return (
-                        <div key={index} className="flex justify-between">
-                          <span>
-                            {functionName} - {formatDiarias(range.dailyRate)}
-                          </span>
-                          <span>
-                            {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="max-h-32 overflow-y-auto">
+                    {processGrid().length === 0 ? (
+                      <p className="text-slate-400 italic text-sm">Nenhum registro configurado.</p>
+                    ) : (
+                      processGrid().map((range, index) => {
+                        const functionRow = functionRows.find(r => r.functionId === range.functionId);
+                        const functionName = functionRow?.functionName || 
+                                           functions?.find(f => f.id === range.functionId)?.name ||
+                                           functions?.find(f => f.id === range.functionId.split('-')[0])?.name || 
+                                           'Função não encontrada';
+                        
+                        return (
+                          <div key={index} className={`flex justify-between py-1.5 ${index < processGrid().length - 1 ? 'border-b border-blue-100' : ''}`}>
+                            <span className="text-blue-600 text-sm">
+                              {functionName} - {formatDiarias(range.dailyRate)}
+                            </span>
+                            <span className="text-blue-400 text-xs font-medium">
+                              {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
