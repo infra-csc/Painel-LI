@@ -385,16 +385,11 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
   // Available height for the scroll container: viewport minus header minus edges
   const maxListH = Math.min(MAX_H - HEADER_H, window.innerHeight - top - HEADER_H - EDGE);
 
-  // Close on ESC key or any scroll
+  // Close on ESC key
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    function onScroll() { onClose(); }
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true); // capture: catches nested scrolls
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-    };
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
   return (
