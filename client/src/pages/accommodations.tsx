@@ -563,16 +563,16 @@ export default function Accommodations() {
                   {/* CHECK-IN */}
                   <div style={{display:'flex',flexDirection:'column',border:'1px solid #C7D2FE',borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:10,padding:16}}>
                     <div style={{fontSize:13,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'end'}}>
                       <FormField control={form.control} name="checkInDate" render={({ field }) => (
-                        <FormItem className="flex flex-col">
+                        <FormItem className="flex flex-col" style={{margin:0}}>
                           <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
                                   disabled={!canEditRecord} data-testid="input-checkin-date"
-                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%'}}>
+                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',boxSizing:'border-box'}}>
                                   {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
                                   <Calendar className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
@@ -587,12 +587,12 @@ export default function Accommodations() {
                         </FormItem>
                       )} />
                       <FormField control={form.control} name="checkInTime" render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="flex flex-col" style={{margin:0}}>
                           <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
                           <FormControl>
                             <Input placeholder="--:--" data-testid="input-checkin-time"
                               disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px'}} />
+                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px',boxSizing:'border-box'}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -603,16 +603,16 @@ export default function Accommodations() {
                   {/* CHECK-OUT */}
                   <div style={{display:'flex',flexDirection:'column',border:'1px solid #FED7AA',borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:10,padding:16}}>
                     <div style={{fontSize:13,fontWeight:700,color:'#F59E0B',marginBottom:12}}>🗓 CHECK-OUT</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'end'}}>
                       <FormField control={form.control} name="checkOutDate" render={({ field }) => (
-                        <FormItem className="flex flex-col">
+                        <FormItem className="flex flex-col" style={{margin:0}}>
                           <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Data *</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
                                   disabled={!canEditRecord} data-testid="input-checkout-date"
-                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%'}}>
+                                  style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',boxSizing:'border-box'}}>
                                   {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
                                   <Calendar className="ml-auto h-4 w-4 opacity-50" />
                                 </Button>
@@ -627,12 +627,12 @@ export default function Accommodations() {
                         </FormItem>
                       )} />
                       <FormField control={form.control} name="checkOutTime" render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="flex flex-col" style={{margin:0}}>
                           <FormLabel style={{fontSize:12,color:'#64748B',fontWeight:500,marginBottom:4}}>Horário *</FormLabel>
                           <FormControl>
                             <Input placeholder="--:--" data-testid="input-checkout-time"
                               disabled={!canEditRecord} {...field}
-                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px'}} />
+                              style={{borderRadius:8,height:42,borderColor:'#CBD5E1',background:'#fff',fontSize:13,width:'100%',padding:'0 12px',boxSizing:'border-box'}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
