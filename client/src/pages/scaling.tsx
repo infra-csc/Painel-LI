@@ -1097,7 +1097,7 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-3">
-                                  <div className="flex flex-col gap-1">
+                                  <div className="flex flex-col gap-1.5">
                                     {inclusion.status === "cancelado" ? (
                                       <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
                                         Cancelado
@@ -1222,7 +1222,7 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-3">
-                                  <div className="flex flex-col gap-1">
+                                  <div className="flex flex-col gap-1.5">
                                     {inclusion.status === "cancelado" ? (
                                       <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
                                         Cancelado
