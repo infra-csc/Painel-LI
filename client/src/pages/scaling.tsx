@@ -925,16 +925,13 @@ export default function Scaling() {
   }
 
   return (
-    <>
-      <div className="bg-card rounded-lg shadow-sm border border-border">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-2xl font-bold text-foreground">Escalação - Visualização</h2>
-            <p className="text-muted-foreground mt-1">
-              Lista de escalações com informações detalhadas
-            </p>
-          </div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">Escalação - Visualização</h2>
+        <p className="text-sm text-slate-400 mt-0.5">Lista de escalações com informações detalhadas</p>
+      </div>
 
-          <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
+      <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
           
           {/* Filtro específico para status de passagem e botão de exportação */}
           <div className="px-6 pb-4">

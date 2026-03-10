@@ -1,0 +1,58 @@
+uuitlizar o app
+
+14:34
+Prompt:
+
+Melhore apenas o design visual da tela Escalação - Visualização. Zero mudança em lógica, estrutura ou fluxo do usuário.
+
+Paleta base (manter identidade do app):
+
+Fundo: 
+#f8fafc | Cards: 
+#ffffff | Borda: 
+#e2e8f0
+Azul: 
+#2563eb | Laranja: 
+#f97316 | Verde: 
+#16a34a
+Texto principal: 
+#0f172a | Texto secundário: 
+#64748b
+1. Header da tela
+
+Título "Escalação - Visualização" em text-xl font-bold text-slate-800
+Subtítulo em text-sm text-slate-400
+2. Bloco de filtros
+
+Container: bg-white rounded-2xl border border-slate-200 shadow-sm p-5
+Labels em text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1
+Selects e inputs: border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400
+Botão "Limpar Filtros": border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-1.5 text-sm transition-colors
+Botão "Exportar para Excel": border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors
+3. Barra "Sem Passagem / Com Passagem"
+
+Container: bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden
+Lado "Sem Passagem": fundo 
+#fff7ed (laranja suave), ponto text-orange-400, texto text-orange-700 font-medium
+Badge de pendentes "27 pendentes": bg-orange-100 text-orange-600 rounded-full px-2 py-0.5 text-xs font-semibold
+Divider central: border-r border-slate-200
+Lado "Com Passagem": fundo 
+#f0fdf4 (verde suave), ponto text-green-500, texto text-green-700 font-medium
+Badge "50 pendentes": bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 text-xs font-semibold
+4. Tabela
+
+Container: bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden
+Header: bg-slate-50 text-[11px] uppercase tracking-widest text-slate-400 font-semibold border-b border-slate-200
+Linhas: hover:bg-blue-50/40 transition-colors border-b border-slate-100
+Coluna ID: font-mono text-sm text-slate-500 com ícone olho em text-blue-400 hover:text-blue-600
+Coluna FUNÇÃO/EVENTO: função em font-medium text-slate-800, evento abaixo em text-xs text-slate-400
+Coluna COLABORADOR: nome em text-slate-700, "Não escalado" em italic text-slate-400
+Coluna PERÍODO: datas em text-slate-700 text-sm, diárias em text-xs text-slate-400
+5. Badges de escalação (coluna ESCALAÇÃO)
+
+"Pendente": bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs font-semibold w-full text-left
+"Escalado": bg-green-50 text-green-700 border border-green-200 rounded-lg
+"Cancelado": bg-slate-100 text-slate-400 border border-slate-200 rounded-lg
+"Passagem Comprada": bg-blue-50 text-blue-600 border border-blue-200 rounded-lg
+"Hospedagem Disponível": bg-purple-50 text-purple-600 border border-purple-200 rounded-lg
+Quando há múltiplos badges numa linha, exibir em flex flex-col gap-1
