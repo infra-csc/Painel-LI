@@ -761,21 +761,24 @@ export default function TeamInclusionTable() {
       
       {/* Modal de Edição */}
       {showEditModal && editingInclusion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[800px] max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">Editar Inclusão #{editingInclusion.inclusionNumber}</h2>
-            
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+
+            {/* Header */}
+            <div className="bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6">
+              <h2 className="text-lg font-bold text-slate-800">Editar Inclusão #{editingInclusion.inclusionNumber}</h2>
+            </div>
+
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const startDate = formData.get('scheduleStartDate') as string;
               const endDate = formData.get('scheduleEndDate') as string;
               
-              // Calcular diárias automaticamente
               const start = new Date(startDate);
               const end = new Date(endDate);
               const timeDiff = end.getTime() - start.getTime();
-              const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 para incluir ambos os dias
+              const dailyRates = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
               
               const data = {
                 functionId: formData.get('functionId') as string,
@@ -785,12 +788,10 @@ export default function TeamInclusionTable() {
                 needsAccommodation: formData.get('needsAccommodation') === 'true',
                 scheduleStartDate: startDate,
                 scheduleEndDate: endDate,
-                // Sugestões de viagem
                 flightDepartureDate: formData.get('ida') as string || null,
                 flightArrivalSuggestedTime: formData.get('chegada') as string || null,
                 flightReturnDate: formData.get('retorno') as string || null,
                 flightReturnSuggestedTime: formData.get('horarioRetorno') as string || null,
-                // PRESERVAR CAMPOS ESSENCIAIS que não aparecem no formulário
                 collaboratorId: editingInclusion.collaboratorId,
                 eventId: editingInclusion.eventId,
                 area: editingInclusion.area,
@@ -801,27 +802,25 @@ export default function TeamInclusionTable() {
                 {/* Coluna Esquerda */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Função *</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Função *</label>
                     <select
                       name="functionId"
                       defaultValue={editingInclusion.functionId}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                       required
                     >
                       {functions?.map((func) => (
-                        <option key={func.id} value={func.id}>
-                          {func.name}
-                        </option>
+                        <option key={func.id} value={func.id}>{func.name}</option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Status *</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Status *</label>
                     <select
                       name="status"
                       defaultValue={editingInclusion.status}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                       required
                     >
                       <option value="incluido">Incluído</option>
@@ -835,19 +834,18 @@ export default function TeamInclusionTable() {
                       <option value="cancelado">Cancelado</option>
                     </select>
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium mb-1">Data Início *</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Início *</label>
                     <input
                       type="date"
                       name="scheduleStartDate"
                       defaultValue={editingInclusion.scheduleStartDate || ""}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                       onChange={(e) => {
                         const startDate = e.target.value;
                         const endDateInput = e.target.form?.querySelector('input[name="scheduleEndDate"]') as HTMLInputElement;
                         const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
-                        
                         if (startDate && endDateInput?.value && dailyRatesDisplay) {
                           const start = new Date(startDate);
                           const end = new Date(endDateInput.value);
@@ -859,19 +857,18 @@ export default function TeamInclusionTable() {
                       required
                     />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium mb-1">Data Fim *</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data Fim *</label>
                     <input
                       type="date"
                       name="scheduleEndDate"
                       defaultValue={editingInclusion.scheduleEndDate || ""}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                       onChange={(e) => {
                         const endDate = e.target.value;
                         const startDateInput = e.target.form?.querySelector('input[name="scheduleStartDate"]') as HTMLInputElement;
                         const dailyRatesDisplay = e.target.form?.querySelector('#dailyRatesDisplay') as HTMLInputElement;
-                        
                         if (endDate && startDateInput?.value && dailyRatesDisplay) {
                           const start = new Date(startDateInput.value);
                           const end = new Date(endDate);
@@ -883,25 +880,25 @@ export default function TeamInclusionTable() {
                       required
                     />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium mb-1">Quantidade de Diárias (Calculado)</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Quantidade de Diárias</label>
                     <input
                       type="text"
                       id="dailyRatesDisplay"
                       defaultValue={editingInclusion.dailyRates.toString()}
-                      className="w-full p-2 border rounded bg-gray-100 text-gray-600"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-500 cursor-not-allowed w-full"
                       readOnly
                     />
-                    <small className="text-xs text-gray-500">Calculado automaticamente baseado nas datas</small>
+                    <p className="text-xs text-slate-400 mt-1">Calculado automaticamente baseado nas datas</p>
                   </div>
-                  
+
                   <div>
-                    <label className="block text-sm font-medium mb-1">Precisa de Passagem?</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Passagem?</label>
                     <select
                       name="needsTicket"
                       defaultValue={editingInclusion.needsTicket ? 'true' : 'false'}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                     >
                       <option value="false">Não</option>
                       <option value="true">Sim</option>
@@ -909,11 +906,11 @@ export default function TeamInclusionTable() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Precisa de Hospedagem?</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Precisa de Hospedagem?</label>
                     <select
                       name="needsAccommodation"
                       defaultValue={editingInclusion.needsAccommodation ? 'true' : 'false'}
-                      className="w-full p-2 border rounded"
+                      className="border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all"
                     >
                       <option value="false">Não</option>
                       <option value="true">Sim</option>
@@ -922,83 +919,80 @@ export default function TeamInclusionTable() {
                 </div>
 
                 {/* Coluna Direita - Sugestões de Viagem */}
-                <div className="space-y-4">
-                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
-                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                      Sugestões de Viagem <span className="text-xs opacity-60">(para escalação)</span>
-                    </h4>
-                    <div className="text-xs text-muted-foreground mb-3">
-                      Essas informações aparecerão como sugestões na tela de escalação
-                    </div>
-                    
+                <div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                    <h4 className="text-sm font-bold text-blue-700 mb-1">Sugestões de Viagem</h4>
+                    <p className="text-xs text-blue-500 mb-3">Essas informações aparecerão como sugestões na tela de escalação</p>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Dia de Ida</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Dia de Ida</label>
                         <input
                           type="date"
                           name="ida"
                           defaultValue={editingInclusion.flightDepartureDate || ''}
-                          className="w-full p-2 border rounded text-sm"
+                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium mb-1">Horário de Chegada</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Horário de Chegada</label>
                         <input
                           type="text"
                           name="chegada"
                           defaultValue={editingInclusion.flightArrivalSuggestedTime || ''}
                           placeholder="Ex: 9h, manhã"
-                          className="w-full p-2 border rounded text-sm bg-white"
+                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium mb-1">Dia de Retorno</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Dia de Retorno</label>
                         <input
                           type="date"
                           name="retorno"
                           defaultValue={editingInclusion.flightReturnDate || ''}
-                          className="w-full p-2 border rounded text-sm"
+                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium mb-1">Horário de Partida</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Horário de Partida</label>
                         <input
                           type="text"
                           name="horarioRetorno"
                           defaultValue={editingInclusion.flightReturnSuggestedTime || ''}
                           placeholder="Ex: 18h, final da tarde"
-                          className="w-full p-2 border rounded text-sm bg-white"
+                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
                         />
                       </div>
                     </div>
-                    
-                    <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950/20 rounded text-xs text-blue-700 dark:text-blue-300">
+
+                    <div className="bg-blue-100 rounded-lg px-3 py-2 text-xs text-blue-600 mt-2">
                       <strong>Dica:</strong> Use descrições claras como "sábado", "9h", "domingo", "18h" ou datas específicas
                     </div>
                   </div>
                 </div>
               </div>
-              
-              <div className="flex gap-2 mt-6 pt-4 border-t">
-                <button
-                  type="submit"
-                  disabled={updateTeamInclusionMutation.isPending}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
-                </button>
+
+              {/* Rodapé */}
+              <div className="border-t border-slate-100 pt-4 mt-4 flex gap-2 justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setShowEditModal(false);
                     setEditingInclusion(null);
                   }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+                  className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-6 py-2.5 text-sm font-medium transition-colors"
                 >
                   Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateTeamInclusionMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-2.5 text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50"
+                >
+                  {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>

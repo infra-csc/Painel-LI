@@ -1,0 +1,41 @@
+Prompt:
+
+Melhore o design dos modais "Comentários do Registro" e "Editar Inclusão". Zero mudança em lógica.
+MODAL COMENTÁRIOS:
+
+Container: bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6
+Header: border-b border-slate-100 pb-4 mb-4 flex items-center justify-between
+Título: text-lg font-bold text-slate-800
+Área vazia: bg-slate-50 rounded-xl border border-dashed border-slate-200 py-10 text-center text-slate-400 text-sm mb-4
+Textarea: border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 text-sm p-3 w-full resize-none min-h-[80px] transition-all
+Botão Enviar: bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-semibold shadow-sm transition-all
+
+
+MODAL EDITAR INCLUSÃO:
+
+Container: bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6
+Header: bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6
+Título: text-lg font-bold text-slate-800
+Layout: grid grid-cols-2 gap-6 — formulário à esquerda, sugestões de viagem à direita
+
+Campos do formulário:
+
+Labels: text-xs font-bold uppercase tracking-wider text-slate-400 mb-1
+Inputs e selects: border border-slate-200 rounded-xl bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 w-full transition-all
+Campo "Quantidade de Diárias": bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-500 cursor-not-allowed
+Texto auxiliar: text-xs text-slate-400 mt-1
+
+Bloco "Sugestões de Viagem":
+
+Container: bg-blue-50 border border-blue-100 rounded-2xl p-4
+Título: text-sm font-bold text-blue-700 mb-1
+Subtítulo: text-xs text-blue-500 mb-3
+Labels internos: text-xs font-bold uppercase tracking-wider text-slate-400 mb-1
+Inputs: border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full
+Dica: bg-blue-100 rounded-lg px-3 py-2 text-xs text-blue-600 mt-2
+
+Rodapé:
+
+border-t border-slate-100 pt-4 mt-4 flex gap-2 justify-end
+"Salvar Alterações": bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-2.5 text-sm font-semibold shadow-sm hover:shadow-md transition-all
+"Cancelar": border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl px-6 py-2.5 text-sm font-medium transition-colors
