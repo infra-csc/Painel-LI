@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit } from "lucide-react";
+import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon } from "lucide-react";
 import SimpleFilters from "@/components/common/simple-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import AttachmentUpload from "@/components/ui/attachment-upload";
@@ -626,47 +626,67 @@ export default function Tickets() {
     <>
       <div className="space-y-4">
           {/* Header */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Plane className="w-5 h-5 text-blue-500" />
-                Compra de Passagens
-              </h2>
-              <p className="text-sm text-slate-400 mt-0.5">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5" style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)'}}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center">
+                <Plane className="w-4 h-4 text-[#3B5BDB]" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-[#1E293B]">Compra de Passagens</h2>
+                <p className="text-xs text-[#64748B]">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+              </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div>
-                <div className="text-2xl font-bold text-slate-800">{filteredTicketInclusions.length}</div>
-                <div className="text-xs text-slate-400 uppercase tracking-wider">passagens</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-[#EEF2FF] rounded-xl p-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#3B5BDB] flex items-center justify-center shrink-0">
+                  <TicketIcon className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-[#3B5BDB]">{filteredTicketInclusions.length}</div>
+                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Total</div>
+                </div>
               </div>
-              <div className="border-r border-slate-200 self-stretch" />
-              <div>
-                <div className="text-2xl font-bold text-green-600">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
-                <div className="text-xs text-slate-400 uppercase tracking-wider">compradas</div>
+              <div className="bg-[#D1FAE5] rounded-xl p-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#10B981] flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-[#10B981]">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
+                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Compradas</div>
+                </div>
               </div>
-              <div className="border-r border-slate-200 self-stretch" />
-              <div>
-                <div className="text-2xl font-bold text-orange-500">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
-                <div className="text-xs text-slate-400 uppercase tracking-wider">pendentes</div>
+              <div className="bg-[#FEF3C7] rounded-xl p-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#F59E0B] flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-[#F59E0B]">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
+                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Pendentes</div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Seção de Registro Rápido */}
           <div
-            className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-amber-100 transition-colors"
+            className="bg-white border border-[#E2E8F0] rounded-xl flex items-center gap-3 cursor-pointer hover:bg-[#FFF7ED] transition-colors overflow-hidden"
+            style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)', borderLeft: '4px solid #F59E0B'}}
             onClick={() => toggleSection('basic')}
           >
-            <FileText className="w-4 h-4 text-amber-500" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-700">Registro Rápido em Lote</p>
-              <p className="text-xs text-amber-500">Aplicar mesmos dados a múltiplas passagens</p>
+            <div className="pl-4 pr-2 py-3 flex items-center gap-3 flex-1">
+              <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-[#F59E0B]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-[#1E293B]">Registro Rápido em Lote</p>
+                <p className="text-xs text-[#64748B]">Aplicar mesmos dados a múltiplas passagens</p>
+              </div>
+              {expandedSections.basic ? <ChevronDown className="w-4 h-4 text-[#F59E0B]" /> : <ChevronRight className="w-4 h-4 text-[#F59E0B]" />}
             </div>
-            {expandedSections.basic ? <ChevronDown className="w-4 h-4 text-amber-400" /> : <ChevronRight className="w-4 h-4 text-amber-400" />}
           </div>
 
           {expandedSections.basic && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5" style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)'}}>
                 {/* Grade Organizada por Seções */}
                 <div className="space-y-4">
                   {/* Seção de Tipo de Transporte e Configurações */}
@@ -736,8 +756,8 @@ export default function Tickets() {
                   {/* Seção de Viagem */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Trecho de IDA */}
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md">
-                      <h5 className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
+                    <div className="p-3 bg-[#EEF2FF] rounded-lg border border-[#C7D2FE]">
+                      <h5 className="text-xs font-semibold text-[#3B5BDB] mb-2 flex items-center gap-1">
                         {ticketData["quick"]?.transportType === "rodoviario" ? "🚌" : "🛫"} IDA
                       </h5>
                       {/* Cidades */}
@@ -816,8 +836,8 @@ export default function Tickets() {
 
                     {/* Trecho de VOLTA - Condicional */}
                     {!ticketData["quick"]?.isOneWay && (
-                      <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-md">
-                        <h5 className="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
+                      <div className="p-3 bg-[#FFF7ED] rounded-lg border border-[#FED7AA]">
+                        <h5 className="text-xs font-semibold text-[#F59E0B] mb-2 flex items-center gap-1">
                           {ticketData["quick"]?.transportType === "rodoviario" ? "🚌" : "🛬"} VOLTA
                         </h5>
                         {/* Cidades */}
@@ -953,7 +973,7 @@ export default function Tickets() {
                           createTicketMutation.isPending
                         }
                         data-testid="button-apply-to-selected"
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-[#3B5BDB] hover:bg-[#2F4DC4] text-white"
                       >
                         <Save className="w-4 h-4 mr-2" />
                         {createTicketMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedTickets.length} Passagens`}
@@ -1017,7 +1037,7 @@ export default function Tickets() {
             ]}
           />
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] overflow-hidden" style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)'}}>
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
               <Plane className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -1060,12 +1080,12 @@ export default function Tickets() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTicketInclusions.map((inclusion) => {
+                  {filteredTicketInclusions.map((inclusion, rowIndex) => {
                     const ticket = getTicket(inclusion.id);
                     return (
                       <tr 
                         key={inclusion.id} 
-                        className="hover:bg-blue-50/40 transition-colors"
+                        className={`transition-colors hover:bg-[#EEF2FF] ${rowIndex % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}
                       >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
@@ -1082,12 +1102,12 @@ export default function Tickets() {
                         </td>
                         <td className={`px-4 py-4 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-mono text-foreground">
-                              <span>#{inclusion.inclusionNumber || 'N/A'}</span>
-                            </div>
+                            <span className="inline-flex items-center gap-0.5 bg-[#EEF2FF] text-[#3B5BDB] text-xs font-bold px-2 py-0.5 rounded-md font-mono">
+                              <span className="text-[#3B5BDB] opacity-60">#</span>{inclusion.inclusionNumber || 'N/A'}
+                            </span>
                             <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
                               <Eye 
-                                className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'}`}
+                                className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-300 cursor-not-allowed' : 'text-[#64748B] hover:text-[#3B5BDB] cursor-pointer'}`}
                               />
                             </div>
                           </div>
@@ -1160,14 +1180,22 @@ export default function Tickets() {
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
                             return (
-                              <div className="text-xs text-slate-600">
-                                <div className="mb-1">
-                                  <span className="font-semibold text-blue-500">Ida:</span> {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
-                                  {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-xs text-gray-600">Chegada: {travelInfo.chegada}</div>}
+                              <div className="text-xs text-[#64748B] space-y-1">
+                                <div className="flex items-start gap-1">
+                                  <span className="text-base leading-none">✈️</span>
+                                  <div>
+                                    <span className="font-semibold text-[#3B5BDB]">Ida:</span>{' '}
+                                    {formatSuggestionDate(travelInfo.ida !== 'Não definido' && travelInfo.ida !== 'Não informado' ? travelInfo.ida : "Não informado")}
+                                    {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Chegada: {travelInfo.chegada}</div>}
+                                  </div>
                                 </div>
-                                <div>
-                                  <span className="font-semibold text-blue-500">Volta:</span> {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
-                                  {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-xs text-gray-600">Horário: {travelInfo.horario}</div>}
+                                <div className="flex items-start gap-1">
+                                  <span className="text-base leading-none">🔄</span>
+                                  <div>
+                                    <span className="font-semibold text-[#F59E0B]">Volta:</span>{' '}
+                                    {formatSuggestionDate(travelInfo.retorno !== 'Não definido' && travelInfo.retorno !== 'Não informado' ? travelInfo.retorno : "Não informado")}
+                                    {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Horário: {travelInfo.horario}</div>}
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -1177,23 +1205,21 @@ export default function Tickets() {
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (ticket) {
-                                // Tem ticket = Comprada
                                 return (
-                                  <span className="bg-green-50 text-green-700 border border-green-200 rounded-lg px-3 py-1 text-xs font-semibold">
-                                    Passagem Comprada
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#D1FAE5', color:'#065F46'}}>
+                                    <CheckCircle className="w-3 h-3" /> Comprada
                                   </span>
                                 );
                               } else {
-                                // Sem ticket = Pendente
                                 return (
-                                  <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg px-3 py-1 text-xs font-semibold">
-                                    Pendente
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#FEF3C7', color:'#92400E'}}>
+                                    <Clock className="w-3 h-3" /> Pendente
                                   </span>
                                 );
                               }
                             })()}
                             {inclusion.status === "cancelado" && (
-                              <span className="bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-1 text-xs font-semibold">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#FEE2E2', color:'#991B1B'}}>
                                 Cancelado
                               </span>
                             )}
