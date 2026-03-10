@@ -12,6 +12,7 @@ export function fixEncoding(str: string | null | undefined): string {
     .replace(/Ã©/g, 'é').replace(/Ã¡/g, 'á').replace(/Ã­/g, 'í')
     .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã /g, 'à')
     .replace(/Ã‰/g, 'É').replace(/Ã"/g, 'Ó').replace(/Ã•/g, 'Õ')
+    .replace(/Ã‡/g, 'Ç').replace(/Ãƒ/g, 'Ã')
     .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'")
     .replace(/Ã\u0081/g, 'Á').replace(/Ã\u009a/g, 'Ú');
 }
