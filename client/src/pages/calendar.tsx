@@ -333,7 +333,7 @@ function EventPanel({
 
 // ─── Hidden events popover ────────────────────────────────────────────────────
 
-const POPOVER_W = 248;
+const POPOVER_W = 320;
 
 function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }: {
   dayEvents: Event[];
@@ -342,13 +342,25 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
   onSelectEvent: SelectEventFn;
   onClose: () => void;
 }) {
-  const openLeft = x > window.innerWidth / 2;
-  const rawLeft = openLeft ? x - POPOVER_W - 8 : x + 8;
-  const left = Math.max(8, Math.min(window.innerWidth - POPOVER_W - 8, rawLeft));
+  // Smart horizontal positioning: prefer right of click, flip left if too close to right edge
+  const spaceRight = window.innerWidth - x - 8;
+  const spaceLeft  = x - 8;
+  let left: number;
+  if (spaceRight >= POPOVER_W) {
+    left = x + 8;
+  } else if (spaceLeft >= POPOVER_W) {
+    left = x - POPOVER_W - 8;
+  } else {
+    // Neither side fits perfectly — clamp to whichever side has more space
+    left = spaceRight >= spaceLeft
+      ? Math.max(8, window.innerWidth - POPOVER_W - 8)
+      : 8;
+  }
 
-  const ITEM_H = 52;
+  // Estimate height: header 36 + items (allow ~56px each for 2-line names)
+  const ITEM_H = 56;
   const HEADER_H = 36;
-  const popoverH = dayEvents.length * ITEM_H + HEADER_H;
+  const popoverH = Math.min(dayEvents.length * ITEM_H + HEADER_H, 320);
   const top = Math.max(8, Math.min(window.innerHeight - popoverH - 8, y - popoverH / 2));
 
   return (
@@ -368,7 +380,7 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
         <div className="px-3 py-2.5 border-b border-gray-100">
           <span className="text-[11px] font-semibold text-gray-400 capitalize">{title}</span>
         </div>
-        <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+        <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
           {dayEvents.map(ev => {
             const cfg = getCfg(getEffectiveStatus(ev));
             const StatusIcon = cfg.icon;
@@ -376,15 +388,20 @@ function HiddenEventsPopover({ dayEvents, title, x, y, onSelectEvent, onClose }:
               <button
                 key={ev.id}
                 onClick={(e) => { e.stopPropagation(); onSelectEvent(ev, { x: e.clientX, y: e.clientY }); onClose(); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#f8fafc] text-left transition-colors"
+                className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#f8fafc] text-left transition-colors"
               >
-                <div className={`w-6 h-6 rounded-lg ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
+                <div className={`w-6 h-6 rounded-lg ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0 mt-0.5`}>
                   <StatusIcon className={`w-3 h-3 ${cfg.text}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[12.5px] font-semibold text-gray-800 truncate leading-tight ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
+                  {/* Name: allow wrapping to 2 lines, never truncate */}
+                  <p
+                    className={`text-[12.5px] font-semibold text-gray-800 leading-snug ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}
+                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                  >
                     {ev.name}
                   </p>
+                  {/* Location: secondary info, ok to truncate */}
                   <p className="text-[11px] text-gray-400 truncate leading-tight mt-0.5">{ev.location}</p>
                 </div>
               </button>
