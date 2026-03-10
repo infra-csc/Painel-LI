@@ -1042,7 +1042,7 @@ export default function Scaling() {
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                              <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
+                              <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
                               <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                                 Escalação
                               </th>
@@ -1060,18 +1060,18 @@ export default function Scaling() {
                                 className={`hover:bg-orange-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
-                                <td className="px-3 py-4 whitespace-nowrap">
+                                <td className="px-3 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
                                     <div className="text-sm font-mono text-slate-500">
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </div>
                                     <Eye
-                                      className="w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
+                                      className="ml-2 w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
+                                <td className="px-3 py-3">
                                   <div className="text-sm font-medium text-slate-800">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
@@ -1079,12 +1079,16 @@ export default function Scaling() {
                                     {getEventName(inclusion.eventId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="text-sm text-slate-700">
-                                    {getCollaboratorName(inclusion.collaboratorId)}
-                                  </div>
+                                <td className="px-3 py-3">
+                                  {inclusion.collaboratorId ? (
+                                    <div className="text-sm text-slate-700">
+                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm italic text-slate-400">Não escalado</span>
+                                  )}
                                 </td>
-                                <td className="px-3 py-4 whitespace-nowrap">
+                                <td className="px-3 py-3 whitespace-nowrap">
                                   <div className="text-sm text-slate-700 whitespace-nowrap">
                                     {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
@@ -1092,8 +1096,8 @@ export default function Scaling() {
                                     {formatDiarias(inclusion.dailyRates)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="flex flex-col gap-1">
+                                <td className="px-3 py-3">
+                                  <div className="flex flex-col gap-1 items-start">
                                     {inclusion.status === "cancelado" ? (
                                       <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
                                         Cancelado
@@ -1163,7 +1167,7 @@ export default function Scaling() {
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                              <SortableHeader field="period" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
+                              <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
                               <th className="px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                                 Escalação
                               </th>
@@ -1181,18 +1185,18 @@ export default function Scaling() {
                                 className={`hover:bg-green-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
-                                <td className="px-3 py-4 whitespace-nowrap">
+                                <td className="px-3 py-3 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
                                     <div className="text-sm font-mono text-slate-500">
                                       #{inclusion.inclusionNumber || 'N/A'}
                                     </div>
                                     <Eye
-                                      className="w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
+                                      className="ml-2 w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
+                                <td className="px-3 py-3">
                                   <div className="text-sm font-medium text-slate-800">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
@@ -1200,12 +1204,16 @@ export default function Scaling() {
                                     {getEventName(inclusion.eventId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="text-sm text-slate-700">
-                                    {getCollaboratorName(inclusion.collaboratorId)}
-                                  </div>
+                                <td className="px-3 py-3">
+                                  {inclusion.collaboratorId ? (
+                                    <div className="text-sm text-slate-700">
+                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm italic text-slate-400">Não escalado</span>
+                                  )}
                                 </td>
-                                <td className="px-3 py-4 whitespace-nowrap">
+                                <td className="px-3 py-3 whitespace-nowrap">
                                   <div className="text-sm text-slate-700 whitespace-nowrap">
                                     {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
@@ -1213,8 +1221,8 @@ export default function Scaling() {
                                     {formatDiarias(inclusion.dailyRates)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-4">
-                                  <div className="flex flex-col gap-1">
+                                <td className="px-3 py-3">
+                                  <div className="flex flex-col gap-1 items-start">
                                     {inclusion.status === "cancelado" ? (
                                       <span className="px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold">
                                         Cancelado
