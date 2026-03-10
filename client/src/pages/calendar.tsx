@@ -13,47 +13,42 @@ import { Link } from "wouter";
 
 const STATUS_CFG: Record<string, {
   label: string; bg: string; text: string; border: string;
+  bar: string; barText: string;
   panelBg: string; panelBorder: string; icon: any; strikethrough?: boolean;
+  dot: string;
 }> = {
   concluido: {
     label: "Concluído",
     bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200",
+    bar: "bg-emerald-500", barText: "text-white",
     panelBg: "bg-emerald-50", panelBorder: "border-emerald-200",
-    icon: CheckCircle,
+    icon: CheckCircle, dot: "bg-emerald-500",
   },
   em_andamento: {
     label: "Em andamento",
     bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200",
+    bar: "bg-amber-400", barText: "text-white",
     panelBg: "bg-amber-50", panelBorder: "border-amber-200",
-    icon: Play,
+    icon: Play, dot: "bg-amber-400",
   },
   planejado: {
     label: "Planejado",
     bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-200",
+    bar: "bg-blue-500", barText: "text-white",
     panelBg: "bg-blue-50", panelBorder: "border-blue-200",
-    icon: Clock,
+    icon: Clock, dot: "bg-blue-500",
   },
   cancelado: {
     label: "Cancelado",
     bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200",
+    bar: "bg-slate-300", barText: "text-slate-600",
     panelBg: "bg-slate-50", panelBorder: "border-slate-200",
-    icon: Ban, strikethrough: true,
+    icon: Ban, strikethrough: true, dot: "bg-slate-400",
   },
 };
 
 function getCfg(status: string) {
   return STATUS_CFG[status] || STATUS_CFG["planejado"];
-}
-
-function getEffectiveStatus(event: Event): string {
-  if (event.status === "cancelado") return "cancelado";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = parseLocalDate(event.startDate);
-  const end = parseLocalDate(event.endDate);
-  if (today > end) return "concluido";
-  if (today >= start && today <= end) return "em_andamento";
-  return "planejado";
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -87,11 +82,123 @@ function dayCount(startStr: string, endStr: string) {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
 }
 
+function getEffectiveStatus(event: Event): string {
+  if (event.status === "cancelado") return "cancelado";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = parseLocalDate(event.startDate);
+  const end = parseLocalDate(event.endDate);
+  if (today > end) return "concluido";
+  if (today >= start && today <= end) return "em_andamento";
+  return "planejado";
+}
+
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
+
+// ─── Multi-day bar layout ─────────────────────────────────────────────────────
+
+type EventBar = {
+  event: Event;
+  startCol: number;
+  endCol: number;
+  lane: number;
+  isStart: boolean;
+  isEnd: boolean;
+};
+
+function computeWeekBars(week: Date[], events: Event[]): EventBar[] {
+  const weekStart = new Date(week[0]); weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(week[6]); weekEnd.setHours(23, 59, 59, 999);
+
+  const overlapping = events.filter(ev => {
+    const s = parseLocalDate(ev.startDate);
+    const e = parseLocalDate(ev.endDate);
+    return s <= weekEnd && e >= weekStart;
+  });
+
+  overlapping.sort((a, b) => {
+    const as = parseLocalDate(a.startDate).getTime();
+    const bs = parseLocalDate(b.startDate).getTime();
+    if (as !== bs) return as - bs;
+    const al = dayCount(a.startDate, a.endDate);
+    const bl = dayCount(b.startDate, b.endDate);
+    return bl - al;
+  });
+
+  const bars: EventBar[] = [];
+  // lanes[lane] = the Date after which this lane is free
+  const lanesFreeAfter: Date[] = [];
+
+  for (const ev of overlapping) {
+    const s = parseLocalDate(ev.startDate);
+    const e = parseLocalDate(ev.endDate);
+
+    const startCol = s < weekStart ? 0 : s.getDay();
+    const endCol = e > weekEnd ? 6 : e.getDay();
+    const isStart = s >= weekStart;
+    const isEnd = e <= weekEnd;
+
+    // Find first free lane for this event's column range
+    let lane = -1;
+    for (let l = 0; l < lanesFreeAfter.length; l++) {
+      if (lanesFreeAfter[l] < s || (s <= weekStart && lanesFreeAfter[l] < weekStart)) {
+        lane = l;
+        break;
+      }
+    }
+    if (lane === -1) lane = lanesFreeAfter.length;
+    lanesFreeAfter[lane] = e > weekEnd ? weekEnd : new Date(e.getTime() + 1);
+
+    bars.push({ event: ev, startCol, endCol, lane, isStart, isEnd });
+  }
+
+  return bars;
+}
+
+// Render a single lane row for the event grid
+function LaneRow({
+  lane, bars, onSelectEvent,
+}: {
+  lane: number;
+  bars: EventBar[];
+  onSelectEvent: (e: Event) => void;
+}) {
+  const laneBars = bars.filter(b => b.lane === lane).sort((a, b) => a.startCol - b.startCol);
+  const items: React.ReactNode[] = [];
+  let col = 0;
+
+  for (const bar of laneBars) {
+    if (bar.startCol > col) {
+      items.push(
+        <div key={`sp-${col}`} style={{ gridColumn: `${col + 1} / ${bar.startCol + 1}` }} className="h-5" />
+      );
+    }
+    const cfg = getCfg(getEffectiveStatus(bar.event));
+    const span = bar.endCol - bar.startCol + 1;
+    items.push(
+      <button
+        key={bar.event.id}
+        onClick={() => onSelectEvent(bar.event)}
+        style={{ gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}` }}
+        title={`${bar.event.name} · ${bar.event.location}`}
+        className={`h-5 text-[10px] font-semibold truncate transition-opacity hover:opacity-80 ${cfg.bar} ${cfg.barText} ${cfg.strikethrough ? "opacity-50 line-through" : ""} ${bar.isStart ? "rounded-l ml-0.5 pl-1.5" : "pl-0.5"} ${bar.isEnd ? "rounded-r mr-0.5 pr-1" : "pr-0"}`}
+      >
+        {(bar.isStart || span > 1) ? bar.event.name : ""}
+      </button>
+    );
+    col = bar.endCol + 1;
+  }
+
+  if (col < 7) {
+    items.push(<div key="sp-end" style={{ gridColumn: `${col + 1} / 8` }} className="h-5" />);
+  }
+
+  return <div className="grid grid-cols-7">{items}</div>;
+}
 
 // ─── Event detail panel ───────────────────────────────────────────────────────
 
@@ -155,98 +262,128 @@ function EventPanel({ event, onClose }: { event: Event; onClose: () => void }) {
   );
 }
 
-// ─── Event pill (calendar cell) ───────────────────────────────────────────────
-
-function EventPill({ event, onClick }: { event: Event; onClick: () => void }) {
-  const cfg = getCfg(getEffectiveStatus(event));
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={`w-full text-left text-[10px] font-medium px-1.5 py-0.5 rounded truncate border ${cfg.bg} ${cfg.text} ${cfg.border} hover:opacity-80 transition-opacity ${cfg.strikethrough ? "line-through opacity-60" : ""}`}
-    >
-      {event.name}
-    </button>
-  );
-}
-
 // ─── Month view ───────────────────────────────────────────────────────────────
 
+const MAX_VISIBLE_LANES = 3;
+
 function MonthView({
-  year, month, events, onSelectEvent, selectedEvent,
+  year, month, events, onSelectEvent,
 }: {
   year: number; month: number; events: Event[];
-  onSelectEvent: (e: Event | null) => void; selectedEvent: Event | null;
+  onSelectEvent: (e: Event | null) => void;
 }) {
   const today = new Date();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startPad = firstDay.getDay();
-  const totalCells = Math.ceil((startPad + lastDay.getDate()) / 7) * 7;
+  today.setHours(0, 0, 0, 0);
 
-  const cells: Date[] = [];
-  for (let i = 0; i < totalCells; i++) {
-    const d = new Date(year, month, 1 - startPad + i);
-    cells.push(d);
+  // Build all day cells
+  const firstDay = new Date(year, month, 1);
+  const startPad = firstDay.getDay();
+  const lastDayNum = new Date(year, month + 1, 0).getDate();
+
+  const allDays: Date[] = [];
+  for (let i = 0; i < startPad; i++) {
+    allDays.push(new Date(year, month, 1 - startPad + i));
+  }
+  for (let d = 1; d <= lastDayNum; d++) {
+    allDays.push(new Date(year, month, d));
+  }
+  while (allDays.length % 7 !== 0) {
+    const prev = allDays[allDays.length - 1];
+    allDays.push(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
   }
 
-  const MAX_VISIBLE = 2;
+  // Trim last row if all are next-month days with no events
+  const lastRow = allDays.slice(-7);
+  const lastRowAllOtherMonth = lastRow.every(d => d.getMonth() !== month);
+  const lastRowHasEvents = lastRow.some(day =>
+    events.some(ev => isInRange(day, parseLocalDate(ev.startDate), parseLocalDate(ev.endDate)))
+  );
+  const trimmedDays = (lastRowAllOtherMonth && !lastRowHasEvents)
+    ? allDays.slice(0, -7)
+    : allDays;
 
-  function eventsForDay(day: Date) {
-    return events.filter(ev => {
-      const s = parseLocalDate(ev.startDate);
-      const e = parseLocalDate(ev.endDate);
-      return isInRange(day, s, e);
-    });
+  // Split into weeks
+  const weeks: Date[][] = [];
+  for (let i = 0; i < trimmedDays.length; i += 7) {
+    weeks.push(trimmedDays.slice(i, i + 7));
   }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-      <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
+      {/* Weekday header */}
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70">
         {WEEKDAY_LABELS.map(d => (
-          <div key={d} className={`py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
+          <div key={d} className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
-        {cells.map((day, idx) => {
-          const isCurrentMonth = day.getMonth() === month;
-          const isToday = isSameDay(day, today);
-          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-          const dayEvents = eventsForDay(day);
-          const visibleEvents = dayEvents.slice(0, MAX_VISIBLE);
-          const overflow = dayEvents.length - MAX_VISIBLE;
-          const rowBorder = idx >= 7 ? "border-t border-gray-100 dark:border-gray-700" : "";
 
-          return (
-            <div
-              key={idx}
-              className={`min-h-[96px] p-1.5 flex flex-col gap-0.5 transition-colors group ${rowBorder} ${
-                !isCurrentMonth ? "bg-gray-50/60 dark:bg-gray-900/40" :
-                isWeekend ? "bg-slate-50/80 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
-              } hover:bg-blue-50/30 dark:hover:bg-blue-950/10 cursor-default`}
-            >
-              <div className={`text-[11px] font-bold w-6 h-6 flex items-center justify-center rounded-full mb-0.5 self-start ${
-                isToday
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : isCurrentMonth
-                    ? "text-gray-700 dark:text-gray-300"
-                    : "text-gray-300 dark:text-gray-600"
-              }`}>
-                {day.getDate()}
-              </div>
-              {visibleEvents.map(ev => (
-                <EventPill key={ev.id} event={ev} onClick={() => onSelectEvent(ev)} />
-              ))}
-              {overflow > 0 && (
-                <button className="text-[9px] text-gray-400 hover:text-blue-600 px-1 text-left font-medium transition-colors">
-                  +{overflow} mais
-                </button>
-              )}
+      {/* Week rows */}
+      {weeks.map((week, wi) => {
+        const bars = computeWeekBars(week, events);
+        const maxLane = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) : -1;
+        const visibleLanes = Math.min(maxLane + 1, MAX_VISIBLE_LANES);
+
+        // Count hidden events per day column
+        const hiddenByCol: Record<number, number> = {};
+        bars.filter(b => b.lane >= MAX_VISIBLE_LANES).forEach(b => {
+          for (let c = b.startCol; c <= b.endCol; c++) {
+            hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
+          }
+        });
+
+        return (
+          <div key={wi} className={wi > 0 ? "border-t border-gray-100 dark:border-gray-700" : ""}>
+            {/* Day number row */}
+            <div className="grid grid-cols-7 divide-x divide-gray-100 dark:divide-gray-700">
+              {week.map((day, di) => {
+                const isCurrentMonth = day.getMonth() === month;
+                const isToday = isSameDay(day, today);
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                return (
+                  <div
+                    key={di}
+                    className={`h-8 px-1.5 flex items-center ${
+                      !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
+                      isWeekend ? "bg-slate-50/60 dark:bg-gray-850" : ""
+                    }`}
+                  >
+                    <div className={`text-[11px] font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+                      isToday
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : isCurrentMonth
+                          ? "text-gray-700 dark:text-gray-300"
+                          : "text-gray-300 dark:text-gray-600"
+                    }`}>
+                      {day.getDate()}
+                    </div>
+                    {hiddenByCol[di] > 0 && (
+                      <span className="ml-auto text-[9px] text-gray-400 hover:text-blue-600 cursor-pointer font-medium">
+                        +{hiddenByCol[di]}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+
+            {/* Event bar rows */}
+            {visibleLanes > 0 && (
+              <div className={`pb-1.5 ${visibleLanes > 0 ? "pt-0.5" : ""}`}>
+                {Array.from({ length: visibleLanes }).map((_, lane) => (
+                  <div key={lane} className="mt-0.5">
+                    <LaneRow lane={lane} bars={bars} onSelectEvent={onSelectEvent} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Spacer for empty weeks */}
+            {visibleLanes === 0 && <div className="h-3" />}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -408,13 +545,23 @@ export default function CalendarPage() {
         </div>
 
         {/* Month navigation + view toggle */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {view === "month" && (
             <>
+              <button
+                onClick={goToday}
+                className={`h-8 text-xs px-3 rounded-lg font-semibold border transition-all ${
+                  isCurrentMonth
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-white text-gray-500 border-gray-200 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
+                }`}
+              >
+                Hoje
+              </button>
               <Button variant="outline" size="sm" onClick={prevMonth} className="h-8 w-8 p-0 rounded-lg">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="min-w-[140px] text-center">
+              <div className="min-w-[148px] text-center">
                 <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
                   {MONTH_NAMES[viewMonth]} {viewYear}
                 </span>
@@ -422,23 +569,29 @@ export default function CalendarPage() {
               <Button variant="outline" size="sm" onClick={nextMonth} className="h-8 w-8 p-0 rounded-lg">
                 <ChevronRight className="w-4 h-4" />
               </Button>
-              {!isCurrentMonth && (
-                <Button variant="outline" size="sm" onClick={goToday} className="h-8 text-xs px-3">
-                  Hoje
-                </Button>
-              )}
             </>
           )}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 gap-0.5">
+
+          {/* View toggle pills */}
+          <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
             <button
               onClick={() => setView("month")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${view === "month" ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
+                view === "month"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-gray-50"
+              }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" /> Mês
             </button>
+            <div className="w-px h-5 bg-gray-200" />
             <button
               onClick={() => setView("list")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${view === "list" ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
+                view === "list"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-gray-50"
+              }`}
             >
               <List className="w-3.5 h-3.5" /> Lista
             </button>
@@ -446,34 +599,39 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── Status legend / filter ── */}
+      {/* ── Status filter pills ── */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setStatusFilter("all")}
-          className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+          className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
             statusFilter === "all"
-              ? "bg-gray-800 text-white border-gray-800"
-              : "border-gray-200 text-gray-500 hover:border-gray-300 bg-white"
+              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+              : "border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-700 hover:bg-indigo-50 bg-white"
           }`}
         >
-          Todos
-          <span className="font-bold">{events.length}</span>
+          Todos <span className={statusFilter === "all" ? "text-indigo-200" : "text-gray-400"}>{events.length}</span>
         </button>
-        {legendItems.map(item => (
-          <button
-            key={item.key}
-            onClick={() => setStatusFilter(statusFilter === item.key ? "all" : item.key)}
-            className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
-              statusFilter === item.key
-                ? `${item.bg} ${item.text} ${item.border} shadow-sm`
-                : `border-gray-200 text-gray-500 hover:${item.border} hover:${item.bg} bg-white`
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${item.bg.replace("bg-", "bg-").replace("-100", "-500")}`} />
-            {item.label}
-            {statusCounts[item.key] ? <span className="font-bold">{statusCounts[item.key]}</span> : null}
-          </button>
-        ))}
+        {legendItems.map(item => {
+          const count = statusCounts[item.key] || 0;
+          const isActive = statusFilter === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => setStatusFilter(isActive ? "all" : item.key)}
+              className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
+                isActive
+                  ? `${item.bg} ${item.text} ${item.border} shadow-sm`
+                  : "border-gray-200 text-gray-500 hover:border-gray-300 bg-white"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
+              {item.label}
+              <span className={count === 0 ? "text-gray-300" : (isActive ? "opacity-70" : "text-gray-400")}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Calendar / List ── */}
@@ -487,7 +645,6 @@ export default function CalendarPage() {
           month={viewMonth}
           events={filteredEvents}
           onSelectEvent={setSelectedEvent}
-          selectedEvent={selectedEvent}
         />
       ) : (
         <ListView events={filteredEvents} onSelectEvent={setSelectedEvent} />
