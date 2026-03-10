@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
@@ -1984,22 +1985,22 @@ export default function Scaling() {
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox de imagens */}
-      {lightbox && (
+      {/* Lightbox de imagens — renderizado via Portal fora do Dialog para evitar focus trap */}
+      {lightbox && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center"
-          onClick={() => setLightbox(null)}
+          onMouseDown={() => setLightbox(null)}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div
             className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-w-[80vw] max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Barra de ações */}
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-b border-slate-100 bg-white flex-shrink-0">
               <button
-                onClick={async (e) => {
-                  e.stopPropagation();
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={async () => {
                   try {
                     const res = await fetch(lightbox.url);
                     const blob = await res.blob();
@@ -2021,13 +2022,15 @@ export default function Scaling() {
                 Baixar
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); window.open(lightbox.url, '_blank', 'noopener,noreferrer'); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => window.open(lightbox.url, '_blank', 'noopener,noreferrer')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
                 Abrir em outra aba
               </button>
               <button
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setLightbox(null)}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
               >
@@ -2043,7 +2046,8 @@ export default function Scaling() {
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Comentários */}
