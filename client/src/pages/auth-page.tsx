@@ -112,11 +112,18 @@ export default function AuthPage() {
       >
         {/* ── Logo + Title ── */}
         <div className="flex flex-col items-center mb-8">
-          <img
-            src={norteLogo}
-            alt="Norte"
-            style={{ width: 120, height: "auto", display: "block" }}
-          />
+          <div style={{ height: 40, overflow: "hidden", display: "flex", alignItems: "flex-start" }}>
+            <img
+              src={norteLogo}
+              alt="Norte"
+              className="object-contain object-left"
+              style={{
+                maxWidth: 160,
+                maxHeight: 54,
+                clipPath: "inset(0 0 25% 0)",
+              }}
+            />
+          </div>
           <h1
             className="mt-3 font-bold text-gray-900"
             style={{ fontSize: 24, letterSpacing: "-0.02em" }}
@@ -256,10 +263,6 @@ export default function AuthPage() {
               )}
             </div>
 
-            <p className="text-xs text-gray-400 text-center leading-relaxed">
-              Você receberá um e-mail com instruções para redefinir sua senha.
-            </p>
-
             <button
               type="submit"
               disabled={isLoading}
@@ -275,6 +278,10 @@ export default function AuthPage() {
                 <>Recuperar Senha <ArrowRight className="w-4 h-4" /></>
               )}
             </button>
+
+            <p className="text-xs text-gray-400 text-center leading-relaxed pt-1">
+              Você receberá um e-mail com instruções para redefinir sua senha.
+            </p>
           </form>
         )}
 
