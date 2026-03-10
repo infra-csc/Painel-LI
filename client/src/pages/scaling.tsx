@@ -959,7 +959,11 @@ export default function Scaling() {
     return (name || '').toLowerCase().match(/\.(jpe?g|png|gif|webp|bmp)$/) || (type || '').includes('image/');
   };
 
-  // Abre anexo: lightbox para imagens, nova aba para PDF/planilhas
+  const isPdfFile = (name?: string, type?: string) => {
+    return (name || '').toLowerCase().endsWith('.pdf') || (type || '').includes('pdf');
+  };
+
+  // Abre anexo: lightbox para imagens, nova aba para PDFs, Google Docs Viewer para outros
   const openAttachment = async (attachmentId: string, fallbackLabel: string) => {
     try {
       let data = attachmentMeta[attachmentId];
@@ -976,8 +980,11 @@ export default function Scaling() {
       }
       if (isImageFile(data?.name, data?.type)) {
         setLightbox({ url, name: data?.name || fallbackLabel });
-      } else {
+      } else if (isPdfFile(data?.name, data?.type)) {
         window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+        window.open(viewerUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
       toast({ title: 'Erro', description: `Não foi possível abrir o anexo: ${err instanceof Error ? err.message : 'Erro desconhecido'}`, variant: 'destructive' });
@@ -1690,6 +1697,31 @@ export default function Scaling() {
                 </section>
               )}
 
+              {/* Seção de Anexos da Passagem */}
+              {selectedTicket?.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Passagem</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedTicket.attachmentIds.map((attachmentId, index) => {
+                      const fallback = `Anexo ${index + 1} da Passagem`;
+                      return (
+                        <div
+                          key={attachmentId}
+                          className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
+                          onClick={() => openAttachment(attachmentId, fallback)}
+                        >
+                          <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {index + 1}
+                          </div>
+                          <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
+                          <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Seção de Hospedagem */}
               {(() => {
                 const accommodation = getAccommodation(selectedInclusion.id);
@@ -1763,31 +1795,18 @@ export default function Scaling() {
                         <h4 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Hospedagem</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {accommodation.attachmentIds.map((attachmentId, index) => {
-                            const meta = attachmentMeta[attachmentId];
                             const fallback = `Anexo ${index + 1} da Hospedagem`;
-                            const fileName = meta?.name || fallback;
-                            const badge = getFileBadge(meta?.name, meta?.type);
                             return (
-                            <div 
-                              key={attachmentId} 
+                            <div
+                              key={attachmentId}
                               className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
                               onClick={() => openAttachment(attachmentId, fallback)}
                             >
                               <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
                                 {index + 1}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-slate-700 truncate">
-                                  {fileName}
-                                </div>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badge.cls}`}>
-                                    {badge.ext}
-                                  </span>
-                                  <span className="text-xs text-slate-400">Clique para visualizar</span>
-                                </div>
-                              </div>
-                              <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
+                              <span className="flex-1 text-sm text-slate-400">Clique para visualizar</span>
+                              <Eye className="w-4 h-4 text-blue-400 flex-shrink-0" />
                             </div>
                             );
                           })}
@@ -1797,44 +1816,6 @@ export default function Scaling() {
                   </div>
                 );
               })()}
-
-              {/* Seção de Anexos da Passagem */}
-              {selectedTicket?.attachmentIds && selectedTicket.attachmentIds.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">📎 Anexos da Passagem</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {selectedTicket.attachmentIds.map((attachmentId, index) => {
-                        const meta = attachmentMeta[attachmentId];
-                        const fallback = `Anexo ${index + 1} da Passagem`;
-                        const fileName = meta?.name || fallback;
-                        const badge = getFileBadge(meta?.name, meta?.type);
-                        return (
-                        <div 
-                          key={attachmentId} 
-                          className="bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-all"
-                          onClick={() => openAttachment(attachmentId, fallback)}
-                        >
-                          <div className="bg-blue-100 text-blue-600 rounded-lg w-7 h-7 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-slate-700 truncate">
-                              {fileName}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badge.cls}`}>
-                                {badge.ext}
-                              </span>
-                              <span className="text-xs text-slate-400">Clique para visualizar</span>
-                            </div>
-                          </div>
-                          <Eye className="w-4 h-4 text-blue-400 hover:text-blue-600 ml-auto flex-shrink-0" />
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-              )}
 
               {/* Seção de Comentários */}
               <div className="border-t pt-4">
