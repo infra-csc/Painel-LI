@@ -44,20 +44,23 @@ const functionFormSchema = z.object({
 type FunctionFormData = z.infer<typeof functionFormSchema>;
 
 // ─── Managers popover ──────────────────────────────────────────────────────
-const MGPOP_W = 220;
+const MGPOP_W = 260;
 
 function ManagersPopover({
-  functionName, managers, users, x, y, onClose,
+  functionName, managers, users, x, y, onRemove, onClose,
 }: {
   functionName: string;
   managers: (FunctionManager & { user?: UserType })[];
   users: UserType[];
   x: number; y: number;
+  onRemove: (userId: string) => void;
   onClose: () => void;
 }) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
   const ITEM_H = 44;
-  const HEADER_H = 40;
-  const popH = managers.length * ITEM_H + HEADER_H + 8;
+  const HEADER_H = 44;
+  const popH = Math.min(managers.length * ITEM_H + HEADER_H + 8, 320);
   const openLeft = x > window.innerWidth / 2;
   const rawLeft = openLeft ? x - MGPOP_W - 8 : x + 8;
   const left = Math.max(8, Math.min(window.innerWidth - MGPOP_W - 8, rawLeft));
@@ -81,17 +84,45 @@ function ManagersPopover({
           <p className="text-[10px] text-slate-400 mt-0.5">{managers.length} {managers.length === 1 ? "responsável" : "responsáveis"}</p>
         </div>
         {/* List */}
-        <div className="py-1 divide-y divide-gray-50 max-h-64 overflow-y-auto">
+        <div className="py-1 divide-y divide-gray-50 max-h-72 overflow-y-auto">
           {managers.map((fm) => {
-            const u = users.find(x => x.id === fm.userId);
+            const u = users.find(uid => uid.id === fm.userId);
             const displayName = u?.name || u?.email || "Usuário";
             const col = avatarColor(fm.userId);
+            const isConfirming = confirmId === fm.userId;
             return (
-              <div key={fm.id} className="flex items-center gap-2.5 px-3 py-2.5">
+              <div key={fm.id} className="group flex items-center gap-2.5 px-3 py-2.5">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${col}`}>
                   {initials(displayName)}
                 </div>
-                <span className="text-[12px] font-medium text-slate-700 truncate">{displayName}</span>
+                <span className="text-[12px] font-medium text-slate-700 truncate flex-1">{displayName}</span>
+
+                {/* Two-step removal */}
+                {isConfirming ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-slate-500 font-medium">Remover?</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemove(fm.userId); setConfirmId(null); }}
+                      className="text-[10px] font-bold text-red-500 hover:text-red-600 px-1 py-0.5 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Sim
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmId(null); }}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                    >
+                      Não
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmId(fm.userId); }}
+                    className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Remover responsável"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             );
           })}
