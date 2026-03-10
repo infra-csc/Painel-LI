@@ -743,8 +743,11 @@ export default function Tickets() {
                     ];
                     const voltaFields = isOneWay ? [] : [
                       !!(q?.returnCityOrigin),
+                      !!(q?.returnCityDestination),
                       !!(q?.returnOriginAirport),
+                      !!(q?.returnDestinationAirport),
                       !!(q?.actualReturnDate),
+                      !!(q?.actualReturnTime),
                     ];
                     const allFields = [...idaFields, ...voltaFields];
                     const total = allFields.length;
