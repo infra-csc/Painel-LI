@@ -22,6 +22,10 @@ export function fixEncoding(str: string | null | undefined): string {
     .replace(/Ã‚/g, 'Â').replace(/Ãâ/g, 'Â').replace(/â€™/g, "'");
 }
 
+export function normalizeId(val: string | number | null | undefined): string {
+  return String(val ?? '').replace(/#/g, '').trim().toLowerCase();
+}
+
 export function formatDias(n: number): string {
   return `${n} ${n === 1 ? 'dia' : 'dias'}`;
 }

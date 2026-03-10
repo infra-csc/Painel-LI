@@ -356,8 +356,8 @@ export default function Scaling() {
     const filtered = filteredTeamInclusions?.filter(
       inclusion => {
         // Busca exata por ID (número de inclusão)
-        const idMatch = !filters.searchId || 
-          (inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId);
+        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+        const idMatch = !filters.searchId || String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q);
         
         // Apply universal filters
         if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;

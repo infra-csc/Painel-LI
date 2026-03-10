@@ -821,8 +821,9 @@ export default function Accommodations() {
       const matchesFunction = filters.functionId.length === 0 || filters.functionId.includes(inclusion.functionId);
       const matchesCollaborator = filters.collaboratorId === "all" || inclusion.collaboratorId === filters.collaboratorId;
       
+      const _q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
       const matchesSearchId = filters.searchId === "" || 
-        inclusion.inclusionNumber?.toString().toLowerCase().includes(filters.searchId.toLowerCase());
+        String(inclusion.inclusionNumber ?? '').toLowerCase().includes(_q);
 
       const accommodation = accommodationMap.get(inclusion.id);
       const accommodationStatus = accommodation ? "processed" : "pending";

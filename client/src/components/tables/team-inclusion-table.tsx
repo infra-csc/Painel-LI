@@ -350,9 +350,11 @@ export default function TeamInclusionTable() {
       if (filters.escalationStatus === "escalated" && (!inclusion.collaboratorId || inclusion.status === "cancelado")) return false;
       if (filters.escalationStatus === "cancelado" && inclusion.status !== "cancelado") return false;
       // Busca exata por ID (número de inclusão)
-      if (filters.searchId && !(
-        inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId
-      )) return false;
+      if (filters.searchId) {
+        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+        const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
+        if (!n.includes(q)) return false;
+      }
       return true;
     }) || [];
 
@@ -418,9 +420,11 @@ export default function TeamInclusionTable() {
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.searchId && !(
-        inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId
-      )) return false;
+      if (filters.searchId) {
+        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+        const n = String(inclusion.inclusionNumber ?? '').toLowerCase();
+        if (!n.includes(q)) return false;
+      }
       return true;
     }) || [];
   }, [teamInclusions, filters.eventId, filters.functionId, filters.collaboratorId, filters.searchId]);

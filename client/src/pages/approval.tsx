@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDiarias, fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,14 @@ export default function Approval() {
     functionId: "all", 
     collaboratorId: "all"
   });
+  const [searchInput, setSearchInput] = useState<string>("");
   const [searchId, setSearchId] = useState<string>("");
+
+  useEffect(() => {
+    if (searchInput === "") { setSearchId(""); return; }
+    const t = setTimeout(() => setSearchId(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -89,10 +96,12 @@ export default function Approval() {
     if (inclusion.status !== "aprovado" || !inclusion.collaboratorId) return false;
     
     // Apply ID search filter
-    const idMatch = !searchId || 
-      (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(searchId)) ||
-      inclusion.id.toLowerCase().includes(searchId.toLowerCase());
-    if (!idMatch) return false;
+    if (searchId) {
+      const q = searchId.replace(/#/g, '').trim().toLowerCase();
+      const idMatch = String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
+        inclusion.id.toLowerCase().includes(q);
+      if (!idMatch) return false;
+    }
     
     // Apply filters
     if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -296,8 +305,8 @@ export default function Approval() {
                 <input
                   type="text"
                   placeholder="Buscar por número..."
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="w-64 pl-10 pr-4 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   data-testid="input-search-id"
                 />

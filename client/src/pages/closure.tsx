@@ -121,10 +121,11 @@ export default function Closure() {
       if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
       if (filters.functionId.length > 0 && !filters.functionId.includes(inclusion.functionId)) return false;
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
-      if (filters.searchId && !(
-        (inclusion.inclusionNumber && inclusion.inclusionNumber.toString().includes(filters.searchId)) ||
-        inclusion.id.toLowerCase().includes(filters.searchId.toLowerCase())
-      )) return false;
+      if (filters.searchId) {
+        const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+        if (!(String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
+          inclusion.id.toLowerCase().includes(q))) return false;
+      }
       
       return statusMatch;
     }

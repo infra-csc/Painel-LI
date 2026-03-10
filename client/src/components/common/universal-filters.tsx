@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, Search } from "lucide-react";
@@ -22,6 +23,21 @@ interface UniversalFiltersProps {
 }
 
 export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false }: UniversalFiltersProps) {
+  const [searchInput, setSearchInput] = useState(filters.searchId ?? "");
+
+  useEffect(() => {
+    setSearchInput(filters.searchId ?? "");
+  }, [filters.searchId]);
+
+  useEffect(() => {
+    if (searchInput === "") {
+      onFiltersChange({ ...filters, searchId: "" });
+      return;
+    }
+    const t = setTimeout(() => onFiltersChange({ ...filters, searchId: searchInput }), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/events"],
   });
@@ -75,8 +91,8 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
           <input
             type="text"
             placeholder="Buscar por número..."
-            value={filters.searchId}
-            onChange={(e) => onFiltersChange({ ...filters, searchId: e.target.value })}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
             data-testid="input-search-id"
           />
