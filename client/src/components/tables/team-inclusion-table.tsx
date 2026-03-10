@@ -505,7 +505,7 @@ export default function TeamInclusionTable() {
         </div>
         
         <div>
-          <table className="w-full table-fixed">
+          <table className="w-full table-auto">
             <thead className="bg-slate-50/80 border-b border-gray-100">
               <tr>
                 <th className="w-12 px-3 py-3">
@@ -578,14 +578,12 @@ export default function TeamInclusionTable() {
                         </Button>
                       </div>
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="truncate">
-                        <div className="text-sm font-medium text-foreground truncate">
-                          {getEventName(inclusion.eventId)}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {getEventLocation(inclusion.eventId)}
-                        </div>
+                    <td className="px-3 py-4 min-w-[200px]">
+                      <div className="text-sm font-medium text-foreground whitespace-nowrap">
+                        {getEventName(inclusion.eventId)}
+                      </div>
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {getEventLocation(inclusion.eventId)}
                       </div>
                     </td>
                     <td className="px-3 py-4">
