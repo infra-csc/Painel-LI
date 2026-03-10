@@ -348,6 +348,7 @@ export default function TeamInclusionTable() {
       if (filters.status !== "all" && inclusion.status !== filters.status) return false;
       if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
       if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
+      if (filters.escalationStatus === "cancelado" && inclusion.status !== "cancelado") return false;
       // Busca exata por ID (número de inclusão)
       if (filters.searchId && !(
         inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId
@@ -410,16 +411,32 @@ export default function TeamInclusionTable() {
     });
   }, [teamInclusions, filters, sortConfig, events, functions, collaborators]);
 
-  // Calculate real totals
+  // Totals base: all filters EXCEPT status — so totals always reflect the full dataset for each status bucket
+  const totalsBase = useMemo(() => {
+    return teamInclusions?.filter(inclusion => {
+      if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
+      if (filters.functionId !== "all" && inclusion.functionId !== filters.functionId) return false;
+      if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
+      if (filters.escalationStatus === "pending" && inclusion.collaboratorId) return false;
+      if (filters.escalationStatus === "escalated" && !inclusion.collaboratorId) return false;
+      if (filters.escalationStatus === "cancelado" && inclusion.status !== "cancelado") return false;
+      if (filters.searchId && !(
+        inclusion.inclusionNumber && inclusion.inclusionNumber.toString() === filters.searchId
+      )) return false;
+      return true;
+    }) || [];
+  }, [teamInclusions, filters.eventId, filters.functionId, filters.collaboratorId, filters.escalationStatus, filters.searchId]);
+
+  // Calculate real totals from totalsBase (ignores status filter so cards always show correct counts)
   const totals = {
-    incluidos: filteredAndSortedInclusions.length,
-    pendentes: filteredAndSortedInclusions.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
-    escalados: filteredAndSortedInclusions.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
-    aguardando_passagem: filteredAndSortedInclusions.filter(i => i.needsTicket && i.status === 'passagem').length,
-    hospedagem: filteredAndSortedInclusions.filter(i => i.status === 'hospedagem').length,
-    passagem_comprada: filteredAndSortedInclusions.filter(i => i.status === 'passagem_comprada').length,
-    hospedagem_comprada: filteredAndSortedInclusions.filter(i => i.status === 'hospedagem_comprada').length,
-    cancelados: filteredAndSortedInclusions.filter(i => i.status === 'cancelado').length,
+    incluidos: totalsBase.length,
+    pendentes: totalsBase.filter(i => !i.collaboratorId && i.status !== 'cancelado').length,
+    escalados: totalsBase.filter(i => i.collaboratorId && i.status !== 'cancelado').length,
+    aguardando_passagem: totalsBase.filter(i => i.needsTicket && i.status === 'passagem').length,
+    hospedagem: totalsBase.filter(i => i.status === 'hospedagem').length,
+    passagem_comprada: totalsBase.filter(i => i.status === 'passagem_comprada').length,
+    hospedagem_comprada: totalsBase.filter(i => i.status === 'hospedagem_comprada').length,
+    cancelados: totalsBase.filter(i => i.status === 'cancelado').length,
   };
 
   if (isLoading) {
