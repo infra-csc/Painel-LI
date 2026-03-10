@@ -189,22 +189,23 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
       )}
 
       {visible.map((fm) => {
-        const u = users?.find(x => x.id === fm.userId);
+        const u = users?.find(uid => uid.id === fm.userId);
         const displayName = u?.name || u?.email || "Usuário";
         const col = avatarColor(fm.userId);
         return (
           <div
             key={fm.id}
-            className="group flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors cursor-default"
+            className="group flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors cursor-default"
           >
             <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 ${col}`}>
               {initials(displayName)}
             </div>
             <span className="text-xs text-slate-700 font-medium max-w-[120px] truncate">{displayName}</span>
             <button
-              className="w-3.5 h-3.5 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all ml-0.5"
+              className="w-3.5 h-3.5 flex items-center justify-center rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-40 group-hover:opacity-100 transition-all ml-0.5 shrink-0"
               onClick={() => removeManagerMutation.mutate(fm.userId)}
               data-testid={`button-remove-function-manager-${fm.userId}`}
+              title="Remover responsável"
             >
               <X className="w-2.5 h-2.5" />
             </button>
@@ -233,6 +234,7 @@ function FunctionManagersCell({ functionId, functionName }: { functionId: string
           users={users ?? []}
           x={popover.x}
           y={popover.y}
+          onRemove={(userId) => removeManagerMutation.mutate(userId)}
           onClose={() => setPopover(null)}
         />
       )}
