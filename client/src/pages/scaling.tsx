@@ -931,10 +931,7 @@ export default function Scaling() {
         <p className="text-sm text-slate-400 mt-0.5">Lista de escalações com informações detalhadas</p>
       </div>
 
-      <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true} />
-          
-      {/* Filtro específico para status de passagem e botão de exportação */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true}>
         <div className="flex items-end justify-between gap-4">
           <div className="w-64">
             <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
@@ -964,7 +961,7 @@ export default function Scaling() {
             Exportar para Excel
           </Button>
         </div>
-      </div>
+      </UniversalFilters>
 
           {scalingInclusions.length === 0 ? (
             <div className="p-12 text-center">
@@ -990,11 +987,11 @@ export default function Scaling() {
                   <TabsList className="grid w-full grid-cols-2 h-auto rounded-none bg-transparent p-0">
                     <TabsTrigger
                       value="without-ticket"
-                      className="flex items-center gap-2 rounded-none bg-[#fff7ed] hover:bg-orange-50 data-[state=active]:bg-[#fff7ed] data-[state=active]:shadow-none border-r border-slate-200 px-6 py-4"
+                      className="flex items-center gap-2 rounded-none bg-[#fff7ed] hover:bg-orange-50 data-[state=active]:bg-[#fff7ed] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-orange-400 border-r border-slate-200 px-6 py-4"
                       disabled={withoutTicket.length === 0}
                     >
                       <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                      <span className="text-orange-700 font-medium">Sem Passagem ({withoutTicket.length})</span>
+                      <span className="text-orange-700 data-[state=active]:font-bold font-medium">Sem Passagem ({withoutTicket.length})</span>
                       {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
                         <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs rounded-full font-semibold">
                           {withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''}
@@ -1003,7 +1000,7 @@ export default function Scaling() {
                     </TabsTrigger>
                     <TabsTrigger
                       value="with-ticket"
-                      className="flex items-center gap-2 rounded-none bg-[#f0fdf4] hover:bg-green-50 data-[state=active]:bg-[#f0fdf4] data-[state=active]:shadow-none px-6 py-4"
+                      className="flex items-center gap-2 rounded-none bg-[#f0fdf4] hover:bg-green-50 data-[state=active]:bg-[#f0fdf4] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-green-500 data-[state=active]:font-bold px-6 py-4"
                       disabled={withTicket.length === 0}
                     >
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -1045,10 +1042,15 @@ export default function Scaling() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
+                            <tr>
+                              <td colSpan={5} className="bg-orange-50 border-y border-orange-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-orange-500">
+                                ✈ Sem Passagem ({withoutTicket.length})
+                              </td>
+                            </tr>
                             {withoutTicket.map((inclusion) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`hover:bg-orange-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-3 py-4 whitespace-nowrap">
@@ -1094,7 +1096,7 @@ export default function Scaling() {
                                         Escalado
                                       </span>
                                     ) : (
-                                      <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold w-full text-left">
+                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold">
                                         Pendente
                                       </span>
                                     )}
@@ -1154,10 +1156,15 @@ export default function Scaling() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
+                            <tr>
+                              <td colSpan={5} className="bg-green-50 border-y border-green-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-green-600">
+                                ✈ Com Passagem ({withTicket.length})
+                              </td>
+                            </tr>
                             {withTicket.map((inclusion) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`hover:bg-green-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-3 py-4 whitespace-nowrap">
@@ -1203,7 +1210,7 @@ export default function Scaling() {
                                         Escalado
                                       </span>
                                     ) : (
-                                      <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold w-full text-left">
+                                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold">
                                         Pendente
                                       </span>
                                     )}

@@ -20,9 +20,10 @@ interface UniversalFiltersProps {
   };
   onFiltersChange: (filters: any) => void;
   hideStatusFilter?: boolean;
+  children?: React.ReactNode;
 }
 
-export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false }: UniversalFiltersProps) {
+export default function UniversalFilters({ filters, onFiltersChange, hideStatusFilter = false, children }: UniversalFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.searchId ?? "");
 
   useEffect(() => {
@@ -211,6 +212,11 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             Limpar Filtros
           </Button>
         </div>
+        {children && (
+          <div className="border-t border-slate-100 pt-4 mt-2">
+            {children}
+          </div>
+        )}
       </div>
     </div>
   );
