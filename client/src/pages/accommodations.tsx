@@ -171,7 +171,8 @@ export default function Accommodations() {
     const accommodation = selectedInclusion ? accommodationMap.get(selectedInclusion.id) : null;
     // Considera que está editando se existe um registro de accommodation
     const isEditing = !!accommodation;
-    const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado';
+    const isPostPurchase = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(selectedInclusion?.status || '');
+    const canEditRecord = selectedInclusion && user && canEdit(user) && selectedInclusion.status !== 'cancelado' && !isPostPurchase;
     
     // Usar estado do componente pai para anexos (evita reset por re-mount)
     
@@ -243,399 +244,400 @@ export default function Accommodations() {
     const func = functions?.find(f => f.id === selectedInclusion.functionId);
     const collaborator = collaborators?.find(c => c.id === selectedInclusion.collaboratorId);
     
+    const NA = () => <span style={{background:'#F1F5F9',color:'#94A3B8',fontSize:12,padding:'2px 8px',borderRadius:20}}>Não informado</span>;
+
     return (
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Hotel className="w-5 h-5" />
-            {isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing ? 'Edite os dados de hospedagem' : 'Preencha os dados de hospedagem'}
-          </DialogDescription>
-          
-          {/* Informações do colaborador e evento */}
-          <div className="space-y-3 mt-4">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
-                ID: {selectedInclusion.inclusionNumber || 'N/A'}
-              </Badge>
-              <Badge variant="outline">{event?.name}</Badge>
-              <Badge variant="outline">{func?.name}</Badge>
-              <StatusBadge status={getDisplayStatus(selectedInclusion)} />
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Accessibility title (screen reader only) */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}</DialogTitle>
+          <DialogDescription>Modal de hospedagem</DialogDescription>
+        </DialogHeader>
+
+        {/* Visual header */}
+        <div style={{padding:'24px 24px 16px',borderBottom:'1px solid #E2E8F0'}}>
+          <div style={{display:'flex',alignItems:'flex-start',gap:12,paddingRight:44}}>
+            <span style={{fontSize:22,lineHeight:1}}>🏨</span>
+            <div style={{flex:1}}>
+              <h2 style={{margin:0,fontSize:20,fontWeight:700,color:'#1E293B',lineHeight:1.2}}>
+                {isEditing ? 'Editar Hospedagem' : 'Nova Hospedagem'}
+              </h2>
+              <p style={{margin:'4px 0 0',fontSize:13,color:'#94A3B8'}}>
+                {isEditing ? 'Dados de hospedagem desta inclusão' : 'Preencha os dados de hospedagem para esta inclusão'}
+              </p>
             </div>
-            
-            {/* Dados do Colaborador */}
-            {collaborator && (
-              <div className="bg-muted/30 rounded-lg p-4 border">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                  Dados do Colaborador
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="font-medium text-foreground">Nome:</span>
-                    <div className="text-muted-foreground">{fixEncoding(collaborator.fullName)}</div>
+          </div>
+
+          {/* Badges row */}
+          <div style={{display:'flex',gap:6,marginTop:12,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{background:'#EEF2FF',color:'#3B5BDB',fontWeight:700,fontSize:12,padding:'3px 10px',borderRadius:20}}>
+              #{selectedInclusion.inclusionNumber || 'N/A'}
+            </span>
+            {event?.name && (
+              <span style={{background:'#F1F5F9',color:'#475569',fontSize:12,padding:'3px 10px',borderRadius:20}}>
+                {event.name}
+              </span>
+            )}
+            {func?.name && (
+              <span style={{background:'#F1F5F9',color:'#475569',fontSize:12,padding:'3px 10px',borderRadius:20}}>
+                {func.name}
+              </span>
+            )}
+            <StatusBadge status={getDisplayStatus(selectedInclusion)} />
+          </div>
+
+          {/* Collaborator card */}
+          {collaborator && (
+            <div style={{background:'#F8FAFC',borderRadius:12,border:'1px solid #E2E8F0',padding:'16px 20px',marginTop:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:12}}>
+                Dados do Colaborador
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 24px'}}>
+                <div>
+                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Nome:</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{fixEncoding(collaborator.fullName) || <NA />}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>{collaborator.documentType === 'cpf' ? 'CPF:' : 'RG:'}</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{collaborator.officialDocument || <NA />}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Cidade:</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{collaborator.city || <NA />}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#94A3B8',marginBottom:2}}>Nascimento:</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                    {collaborator.birthDate ? format(new Date(collaborator.birthDate), 'dd/MM/yyyy', { locale: ptBR }) : <NA />}
                   </div>
-                  {collaborator.officialDocument && (
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Main content */}
+        <div style={{padding:'20px 24px 24px'}}>
+          {isPostPurchase ? (
+            /* ───── Read-only post-purchase view ───── */
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              {/* Green locked banner */}
+              <div style={{background:'#D1FAE5',borderLeft:'4px solid #10B981',padding:'12px 16px',borderRadius:'0 8px 8px 0'}}>
+                <span style={{color:'#065F46',fontWeight:600,fontSize:14}}>✓ Hospedagem registrada — edição bloqueada</span>
+              </div>
+
+              {accommodation && (
+                <>
+                  {/* Hotel summary */}
+                  <div style={{background:'#F0FDF4',border:'1px solid #A7F3D0',borderRadius:12,padding:'16px 20px'}}>
+                    <div style={{fontSize:18,fontWeight:700,color:'#1E293B'}}>{accommodation.hotelName}</div>
+                    {accommodation.hotelLocation && (
+                      <div style={{fontSize:13,color:'#64748B',marginTop:4}}>{accommodation.hotelLocation}</div>
+                    )}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:16,paddingTop:16,borderTop:'1px solid #A7F3D0'}}>
+                      <div>
+                        <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Diária (R$)</div>
+                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                          {accommodation.dailyRate ? `R$ ${(accommodation.dailyRate / 100).toFixed(2).replace('.', ',')}` : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:11,color:'#64748B',marginBottom:4}}>Reserva/LOC</div>
+                        <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.reservationNumber || '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CHECK-IN + CHECK-OUT static */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                    <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:16}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:12}}>🗓 CHECK-IN</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                        <div>
+                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Data</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                            {accommodation.checkInDate ? formatDate(accommodation.checkInDate) : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Horário</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.checkInTime || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:16}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:12}}>🗓 CHECK-OUT</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                        <div>
+                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Data</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>
+                            {accommodation.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,color:'#64748B',marginBottom:2}}>Horário</div>
+                          <div style={{fontSize:14,fontWeight:600,color:'#1E293B'}}>{accommodation.checkOutTime || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Observações static */}
+                  {accommodation.accommodationObservations && (
                     <div>
-                      <span className="font-medium text-foreground">
-                        {collaborator.documentType === 'cpf' ? 'CPF:' : 'RG:'}
-                      </span>
-                      <div className="text-muted-foreground">{collaborator.officialDocument}</div>
+                      <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Observações</div>
+                      <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#1E293B'}}>
+                        {accommodation.accommodationObservations}
+                      </div>
                     </div>
                   )}
-                  {collaborator.phone && (
+
+                  {/* Anexos read-only */}
+                  {accommodation.attachmentIds && accommodation.attachmentIds.length > 0 && (
                     <div>
-                      <span className="font-medium text-foreground">Telefone:</span>
-                      <div className="text-muted-foreground">{collaborator.phone}</div>
+                      <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Anexos</div>
+                      <AttachmentUpload
+                        attachmentIds={accommodation.attachmentIds}
+                        onAttachmentsChange={() => {}}
+                        disabled={true}
+                      />
                     </div>
                   )}
-                  {collaborator.city && (
-                    <div>
-                      <span className="font-medium text-foreground">Cidade:</span>
-                      <div className="text-muted-foreground">{collaborator.city}</div>
-                    </div>
-                  )}
-                  {collaborator.birthDate && (
-                    <div>
-                      <span className="font-medium text-foreground">Nascimento:</span>
-                      <div className="text-muted-foreground">{format(new Date(collaborator.birthDate), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                </>
+              )}
+
+              {/* Footer — Fechar only */}
+              <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end'}}>
+                <Button variant="outline" onClick={() => setShowModal(false)}
+                  style={{borderColor:'#E2E8F0',color:'#64748B'}}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* ───── Editable form ───── */
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} style={{display:'flex',flexDirection:'column',gap:20}}>
+
+                {/* Seção: Informações Básicas */}
+                <div style={{border:'1px solid #E2E8F0',borderRadius:12,overflow:'hidden'}}>
+                  <div
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',cursor:'pointer',background:'#FFFBEB',borderLeft:'4px solid #F59E0B'}}
+                    onClick={() => toggleFormSection('basic')}
+                  >
+                    <span style={{fontSize:16}}>🏨</span>
+                    <span style={{fontWeight:700,fontSize:14,color:'#1E293B',flex:1}}>Informações Básicas</span>
+                    <ChevronDown style={{width:16,height:16,color:'#94A3B8',transform:formSections.basic ? 'rotate(0deg)' : 'rotate(-90deg)',transition:'transform 0.2s'}} />
+                  </div>
+
+                  {formSections.basic && (
+                    <div style={{padding:16,display:'flex',flexDirection:'column',gap:14}}>
+                      {/* Row 1: Hotel Name | Hotel Location */}
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                        <FormField control={form.control} name="hotelName" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Nome do Hotel *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: Hotel Copacabana Palace" data-testid="input-hotel-name"
+                                disabled={!canEditRecord} {...field}
+                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="hotelLocation" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Localização do Hotel *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: Copacabana, Rio de Janeiro" data-testid="input-hotel-location"
+                                disabled={!canEditRecord} {...field}
+                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      {/* Row 2: Reserva | Diária */}
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                        <FormField control={form.control} name="reservationNumber" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Número da Reserva</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ex: RES123456" data-testid="input-reservation"
+                                disabled={!canEditRecord} {...field}
+                                style={{borderRadius:8,height:42,borderColor:'#E2E8F0'}} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="dailyRate" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Diária (R$)</FormLabel>
+                            <FormControl>
+                              <div style={{display:'flex',alignItems:'center',border:'1px solid #E2E8F0',borderRadius:8,height:42,overflow:'hidden',background: canEditRecord ? '#fff' : '#F8FAFC'}}>
+                                <span style={{padding:'0 12px',color:'#94A3B8',fontSize:14,fontWeight:600,borderRight:'1px solid #E2E8F0',height:'100%',display:'flex',alignItems:'center',background:'#F8FAFC',flexShrink:0}}>R$</span>
+                                <input
+                                  type="number" step="0.01" min="0" placeholder="0,00"
+                                  data-testid="input-daily-rate"
+                                  disabled={!canEditRecord}
+                                  value={field.value || ''}
+                                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                                  style={{flex:1,border:'none',outline:'none',padding:'0 12px',fontSize:14,color:'#1E293B',background:'transparent',minWidth:0}}
+                                />
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      {/* Observações */}
+                      <FormField control={form.control} name="accommodationObservations" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel style={{fontSize:11,color:'#94A3B8',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Observações</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Observações adicionais sobre a hospedagem..."
+                              data-testid="textarea-observations" disabled={!canEditRecord} {...field}
+                              style={{borderRadius:8,minHeight:80,borderColor:'#E2E8F0'}} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        </DialogHeader>
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            
-            {/* Seção: Informações Básicas */}
-            <div className="border rounded-lg">
-              <div 
-                className="flex items-center gap-2 p-4 cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
-                onClick={() => toggleFormSection('basic')}
-              >
-                {formSections.basic ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                <h3 className="text-lg font-semibold">Informações Básicas</h3>
-              </div>
-              
-              {formSections.basic && (
-                <div className="p-4 pt-0 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="hotelName"
-                      render={({ field }) => (
+
+                {/* Seção: Datas e Horários — CHECK-IN + CHECK-OUT side by side */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                  {/* CHECK-IN */}
+                  <div style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF',borderRadius:8,padding:16}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#3B5BDB',marginBottom:14}}>🗓 CHECK-IN</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                      <FormField control={form.control} name="checkInDate" render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Data *</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
+                                  disabled={!canEditRecord} data-testid="input-checkin-date"
+                                  style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}}>
+                                  {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
+                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange}
+                                disabled={(date) => date < new Date("1900-01-01")} initialFocus />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="checkInTime" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Nome do Hotel *</FormLabel>
+                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Horário *</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="Ex: Hotel Copacabana Palace"
-                              data-testid="input-hotel-name"
-                              disabled={!canEditRecord}
-                              {...field} 
-                            />
+                            <Input placeholder="--:--" data-testid="input-checkin-time"
+                              disabled={!canEditRecord} {...field}
+                              style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="hotelLocation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Localização do Hotel *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Ex: Copacabana, Rio de Janeiro - RJ"
-                              data-testid="input-hotel-location"
-                              disabled={!canEditRecord}
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      )} />
+                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="reservationNumber"
-                      render={({ field }) => (
+
+                  {/* CHECK-OUT */}
+                  <div style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED',borderRadius:8,padding:16}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#B45309',marginBottom:14}}>🗓 CHECK-OUT</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                      <FormField control={form.control} name="checkOutDate" render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Data *</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button variant="outline" className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}
+                                  disabled={!canEditRecord} data-testid="input-checkout-date"
+                                  style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}}>
+                                  {field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : <span>dd/mm/aaaa</span>}
+                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange}
+                                disabled={(date) => date < new Date("1900-01-01")} initialFocus />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="checkOutTime" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Número da Reserva</FormLabel>
+                          <FormLabel style={{fontSize:11,color:'#64748B',fontWeight:600}}>Horário *</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="Ex: RES123456"
-                              data-testid="input-reservation"
-                              disabled={!canEditRecord}
-                              {...field} 
-                            />
+                            <Input placeholder="--:--" data-testid="input-checkout-time"
+                              disabled={!canEditRecord} {...field}
+                              style={{borderRadius:8,height:38,borderColor:'#CBD5E1',background:'#fff',fontSize:13}} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="dailyRate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Diária (R$)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Ex: 350.00"
-                              data-testid="input-daily-rate"
-                              disabled={!canEditRecord}
-                              {...field}
-                              value={field.value || ''}
-                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      )} />
+                    </div>
                   </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="accommodationObservations"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Observações</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Observações adicionais sobre a hospedagem..."
-                            data-testid="textarea-observations"
-                            disabled={!canEditRecord}
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+
+                {/* Anexos */}
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>
+                    📎 Anexos da Hospedagem
+                  </div>
+                  <AttachmentUpload
+                    attachmentIds={modalAttachmentIds}
+                    onAttachmentsChange={(newIds) => setModalAttachmentIds(newIds)}
+                    disabled={!canEditRecord}
                   />
                 </div>
-              )}
-            </div>
-            
-            {/* Seção: Datas e Horários */}
-            <div className="border rounded-lg">
-              <div 
-                className="flex items-center gap-2 p-4 cursor-pointer bg-muted/30 hover:bg-muted/50 transition-colors"
-                onClick={() => toggleFormSection('dates')}
-              >
-                {formSections.dates ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                <h3 className="text-lg font-semibold">Datas e Horários</h3>
-              </div>
-              
-              {formSections.dates && (
-                <div className="p-4 pt-0 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="checkInDate"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Data Check-in *</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                  disabled={!canEditRecord}
-                                  data-testid="input-checkin-date"
-                                >
-                                  {field.value ? (
-                                    format(field.value, "dd/MM/yyyy", { locale: ptBR })
-                                  ) : (
-                                    <span>dd/mm/aaaa</span>
-                                  )}
-                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) =>
-                                  date < new Date("1900-01-01")
-                                }
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="checkInTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hora Check-in *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="--:--"
-                              data-testid="input-checkin-time"
-                              disabled={!canEditRecord}
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="checkOutDate"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Data Check-out *</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                  disabled={!canEditRecord}
-                                  data-testid="input-checkout-date"
-                                >
-                                  {field.value ? (
-                                    format(field.value, "dd/MM/yyyy", { locale: ptBR })
-                                  ) : (
-                                    <span>dd/mm/aaaa</span>
-                                  )}
-                                  <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) =>
-                                  date < new Date("1900-01-01")
-                                }
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="checkOutTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hora Check-out *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="--:--"
-                              data-testid="input-checkout-time"
-                              disabled={!canEditRecord}
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Seção de Anexos */}
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div 
-                  className="flex items-center gap-2 cursor-pointer"
-                  onClick={() => toggleFormSection('attachments' as any)}
-                >
-                  <h4 className="text-base font-semibold text-foreground">📎 Anexos da Hospedagem</h4>
-                </div>
-              </div>
-              
-              <AttachmentUpload
-                attachmentIds={modalAttachmentIds}
-                onAttachmentsChange={(newIds) => {
-                  setModalAttachmentIds(newIds);
-                }}
-                disabled={!canEditRecord}
-                title="📎 Anexos da Hospedagem"
-              />
-              
-            </div>
-            
-            {/* Ações */}
-            {canEditRecord && (
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowModal(false);
-                    form.reset();
-                  }}
-                  data-testid="button-cancel"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="outline"
-                  disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
-                  data-testid="button-save"
-                >
-                  {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+
+                {/* Footer */}
+                <div style={{borderTop:'1px solid #E2E8F0',paddingTop:16,display:'flex',justifyContent:'flex-end',gap:8}}>
+                  <Button type="button" variant="outline"
+                    onClick={() => { setShowModal(false); form.reset(); }}
+                    data-testid="button-cancel"
+                    style={{borderColor:'#E2E8F0',color:'#64748B'}}>
+                    Cancelar
+                  </Button>
+                  {canEditRecord && (
+                    <>
+                      <Button type="submit" variant="outline"
+                        disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+                        data-testid="button-save"
+                        style={{background:'#64748B',color:'#fff',border:'none'}}>
+                        {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        )}
+                        Salvar
+                      </Button>
+                      <Button type="submit"
+                        disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
+                        data-testid="button-register"
+                        style={{background:'#3B5BDB',color:'#fff',border:'none'}}>
+                        {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        )}
+                        🏨 Registrar Hospedagem
+                      </Button>
+                    </>
                   )}
-                  Salvar
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createAccommodationMutation.isPending || updateAccommodationMutation.isPending}
-                  data-testid="button-register"
-                >
-                  {(createAccommodationMutation.isPending || updateAccommodationMutation.isPending) && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
-                  )}
-                  Registrar Hospedagem
-                </Button>
-              </div>
-            )}
-          </form>
-        </Form>
+                </div>
+              </form>
+            </Form>
+          )}
+        </div>
       </DialogContent>
     );
   };
@@ -1341,6 +1343,7 @@ export default function Accommodations() {
                   const accommodation = accommodationMap.get(inclusion.id);
                   const hasAccommodation = !!accommodation;
                   const isCanceled = inclusion.status === 'cancelado';
+                  const isPostPurchaseRow = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(inclusion.status);
                   const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
 
                   return (
@@ -1371,7 +1374,13 @@ export default function Accommodations() {
                           <span style={{background:'#EEF2FF',color:'#3B5BDB',fontWeight:700,fontSize:12,padding:'2px 8px',borderRadius:6,fontFamily:'monospace'}}>
                             #{inclusion.inclusionNumber || 'N/A'}
                           </span>
-                          {!isCanceled && <Eye style={{width:14,height:14,color:'#3B5BDB',flexShrink:0}} />}
+                          {!isCanceled && (
+                            <Eye style={{
+                              width:14,height:14,color:'#3B5BDB',flexShrink:0,
+                              opacity: isPostPurchaseRow ? 0.4 : 1,
+                              cursor: isPostPurchaseRow ? 'not-allowed' : 'pointer',
+                            }} />
+                          )}
                         </div>
                       </td>
                       <td style={{padding:'10px 16px',fontSize:13,color:'#1E293B',cursor: isCanceled ? 'default' : 'pointer'}}

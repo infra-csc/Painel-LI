@@ -1,0 +1,98 @@
+Prompt para o Replit — Melhorias no Modal de Hospedagem + Estado Pós-Compra:
+
+Aplique as seguintes melhorias no modal de hospedagem (Nova Hospedagem / Editar Hospedagem), sem alterar lógica existente, E crie o comportamento de bloqueio pós-compra:
+
+1. FUNCIONALIDADE — Bloquear edição quando status = "Hospedagem Comprada":
+
+Quando o modal abrir com status "Hospedagem Comprada", renderizar um modal de somente leitura (view mode) em vez do formulário editável
+Todos os campos devem aparecer como texto estático, não como inputs
+Exibir banner no topo do conteúdo: fundo #D1FAE5, borda esquerda 4px solid #10B981, texto "✓ Hospedagem registrada — edição bloqueada" em #065F46
+Botões do rodapé: remover "Salvar" e "Registrar Hospedagem", manter apenas "Fechar" (outline cinza)
+O botão de editar (lápis ✏️) na tabela deve ficar com opacity: 0.4 e cursor: not-allowed quando status = "Hospedagem Comprada", sem abrir o modal
+
+
+2. VISUAL — Header do modal:
+
+Título font-size: 20px; font-weight: 700; color: #1E293B com ícone à esquerda
+Subtítulo em font-size: 13px; color: #94A3B8
+Linha de badges abaixo do subtítulo com pills:
+
+ID: background: #EEF2FF; color: #3B5BDB; font-weight: 700
+Evento: background: #F1F5F9; color: #475569
+Função: background: #F1F5F9; color: #475569
+Status: colorido conforme tipo (verde/azul/laranja conforme padrão já definido)
+
+
+Botão X: círculo 32px, hover background: #F1F5F9, border-radius: 50%
+
+
+3. VISUAL — Seção "Dados do Colaborador":
+
+Card com background: #F8FAFC, border-radius: 12px, border: 1px solid #E2E8F0, padding: 16px 20px
+Label "DADOS DO COLABORADOR" em font-size: 11px; text-transform: uppercase; color: #94A3B8; letter-spacing: 0.08em; font-weight: 600
+Grid 2 colunas: Nome / RG na linha 1, Cidade / Nascimento na linha 2
+Labels (Nome:, RG:, etc.) em font-size: 11px; color: #94A3B8
+Valores em font-size: 14px; font-weight: 600; color: #1E293B
+"Não informado" em badge cinza pill background: #F1F5F9; color: #94A3B8; font-size: 12px
+
+
+4. VISUAL — Seção "Informações Básicas":
+
+Cabeçalho da seção com ícone 🏨, título bold, seta de collapse animada
+Linha 1: grid 2 colunas — Nome do Hotel | Localização do Hotel
+Linha 2: grid 2 colunas — Número da Reserva | Diária (R$)
+
+Campo Diária com prefixo R$ estilizado dentro do input (não como placeholder)
+
+
+Observações: textarea com border-radius: 8px, min-height: 80px
+Todos os inputs: border-radius: 8px, height: 42px, border: 1px solid #E2E8F0, focus border-color: #3B5BDB; box-shadow: 0 0 0 3px rgba(59,91,219,0.1)
+
+
+5. VISUAL — Seção "Datas e Horários":
+
+Substituir o layout atual (4 campos soltos) por 2 cards lado a lado:
+
+Card CHECK-IN: borda esquerda 3px solid #3B5BDB, fundo #EEF2FF, border-radius: 8px, padding: 16px
+
+Título "🗓 CHECK-IN" em color: #3B5BDB; font-weight: 700
+Data e Horário em grid 2 colunas dentro do card
+
+
+Card CHECK-OUT: borda esquerda 3px solid #F59E0B, fundo #FFF7ED, border-radius: 8px, padding: 16px
+
+Título "🗓 CHECK-OUT" em color: #F59E0B; font-weight: 700
+Data e Horário em grid 2 colunas dentro do card
+
+
+
+
+
+
+6. VISUAL — Modal de visualização pós-compra:
+Quando status = "Hospedagem Comprada", exibir layout de visualização com:
+
+Banner verde no topo (descrito no item 1)
+Seção "Dados do Colaborador" igual ao item 3
+Seção "Resumo da Hospedagem" com card verde claro #F0FDF4, borda #10B981:
+
+Nome do hotel em font-size: 18px; font-weight: 700
+Localização em font-size: 13px; color: #64748B
+Linha com: Diária (R$) | Número da Reserva lado a lado
+
+
+Cards CHECK-IN e CHECK-OUT lado a lado (mesmo estilo do item 5, mas como texto estático)
+Seção "Anexos" com lista de arquivos anexados como chips clicáveis
+Observações como texto estático com fundo #F8FAFC
+
+
+7. VISUAL — Rodapé do modal:
+
+Separar com border-top: 1px solid #E2E8F0; padding-top: 16px
+"Cancelar": outline border: 1px solid #E2E8F0; color: #64748B
+"Salvar": fundo #64748B texto branco
+"Registrar Hospedagem": fundo #3B5BDB texto branco, ícone 🏨 à esquerda
+Botões alinhados à direita
+
+
+NÃO alterar: nenhuma lógica de salvamento, rotas, handlers, estado global ou estrutura de dados. Apenas ajustes visuais, o bloqueio de edição no frontend e a criação do modal de visualização pós-compra.
