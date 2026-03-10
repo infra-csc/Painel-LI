@@ -1135,13 +1135,13 @@ export default function GridTeamInclusionForm() {
                 {/* Header com controles */}
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-semibold text-slate-700">Grade de Inclusões</h3>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <Button
                       type="button"
                       onClick={() => setShowHelp(!showHelp)}
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 rounded-lg px-3 py-2 text-sm font-medium transition-colors bg-white"
                     >
                       <HelpCircle className="w-4 h-4" />
                       Ajuda
@@ -1151,9 +1151,9 @@ export default function GridTeamInclusionForm() {
                       onClick={() => setShowPasteModal(true)}
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 rounded-lg px-3 py-2 text-sm font-medium transition-colors bg-white"
                     >
-                      <Upload className="w-4 h-4" />
+                      <Upload className="w-4 h-4 text-green-500" />
                       Colar do Excel
                     </Button>
                     {selectedRows.size > 0 && (
@@ -1171,7 +1171,7 @@ export default function GridTeamInclusionForm() {
                     <Button
                       type="button"
                       onClick={openFunctionSelect}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all"
                     >
                       <Plus className="w-4 h-4" />
                       Adicionar Função
