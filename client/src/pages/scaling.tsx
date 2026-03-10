@@ -980,6 +980,7 @@ export default function Scaling() {
         return;
       }
       if (isImageFile(data?.name, data?.type)) {
+        setShowModal(false);
         setLightbox({ url, name: data?.name || fallbackLabel });
       } else if (isPdfFile(data?.name, data?.type)) {
         window.open(url, '_blank', 'noopener,noreferrer');
@@ -1350,11 +1351,7 @@ export default function Scaling() {
 
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent
-          className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200"
-          onInteractOutside={(e) => { if (lightbox) e.preventDefault(); }}
-          onFocusOutside={(e) => { if (lightbox) e.preventDefault(); }}
-        >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
           <DialogHeader className="bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6">
             <DialogTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Eye className="w-5 h-5 text-blue-500" />
