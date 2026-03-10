@@ -207,7 +207,7 @@ export default function Sidebar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                    className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg bg-[#e8eaf6] hover:bg-[#c5cae9] text-[#3949ab] transition-colors shrink-0"
                     onClick={toggleCollapsed}
                   >
                     <ChevronLeft className="w-4 h-4" />

@@ -336,9 +336,73 @@ function EventPanel({
   );
 }
 
+// ─── Day popover (overflow events) ───────────────────────────────────────────
+
+const POPOVER_W = 240;
+
+function DayPopover({ day, x, y, events, onSelectEvent, onClose }: {
+  day: Date;
+  x: number; y: number;
+  events: Event[];
+  onSelectEvent: SelectEventFn;
+  onClose: () => void;
+}) {
+  const dayEvents = events.filter(ev => {
+    const start = parseLocalDate(ev.startDate);
+    const end = parseLocalDate(ev.endDate);
+    return isInRange(day, start, end);
+  });
+
+  const openLeft = x > window.innerWidth / 2;
+  const rawLeft = openLeft ? x - POPOVER_W - 8 : x + 8;
+  const left = Math.max(8, Math.min(window.innerWidth - POPOVER_W - 8, rawLeft));
+
+  const ITEM_H = 40;
+  const popoverH = dayEvents.length * ITEM_H + 48;
+  const top = Math.max(8, Math.min(window.innerHeight - popoverH - 8, y));
+
+  const dayLabel = day.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div
+        className="absolute bg-white rounded-xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        style={{
+          width: POPOVER_W,
+          left,
+          top,
+          boxShadow: "0 8px 32px -4px rgba(0,0,0,0.18), 0 2px 8px -1px rgba(0,0,0,0.10)",
+        }}
+      >
+        <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/80">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest capitalize">{dayLabel}</span>
+        </div>
+        <div className="py-1 max-h-64 overflow-y-auto">
+          {dayEvents.map(ev => {
+            const cfg = getCfg(getEffectiveStatus(ev));
+            return (
+              <button
+                key={ev.id}
+                onClick={(e) => { e.stopPropagation(); onSelectEvent(ev, { x: e.clientX, y: e.clientY }); onClose(); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 text-left transition-colors"
+              >
+                <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                <span className={`text-[12.5px] font-medium text-gray-800 truncate ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
+                  {ev.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Month view ───────────────────────────────────────────────────────────────
 
-const MAX_VISIBLE_LANES = 3;
+const MAX_VISIBLE_LANES = 2;
 
 function MonthView({
   year, month, events, onSelectEvent,
@@ -348,6 +412,7 @@ function MonthView({
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const [popover, setPopover] = useState<{ day: Date; x: number; y: number } | null>(null);
 
   // Build all day cells
   const firstDay = new Date(year, month, 1);
@@ -437,9 +502,12 @@ function MonthView({
                         {day.getDate()}
                       </div>
                       {hiddenByCol[di] > 0 && (
-                        <span className="ml-auto text-[9px] text-gray-400 hover:text-blue-600 cursor-pointer font-medium">
-                          +{hiddenByCol[di]}
-                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPopover({ day, x: e.clientX, y: e.clientY }); }}
+                          className="ml-auto text-[10px] font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded px-1.5 py-0.5 transition-colors leading-tight shrink-0"
+                        >
+                          +{hiddenByCol[di]} mais
+                        </button>
                       )}
                     </div>
                   );
@@ -458,6 +526,18 @@ function MonthView({
           );
         })}
       </div>
+
+      {/* Day overflow popover */}
+      {popover && (
+        <DayPopover
+          day={popover.day}
+          x={popover.x}
+          y={popover.y}
+          events={events}
+          onSelectEvent={(ev, pos) => { onSelectEvent(ev, pos); setPopover(null); }}
+          onClose={() => setPopover(null)}
+        />
+      )}
     </div>
   );
 }
@@ -638,17 +718,23 @@ export default function CalendarPage() {
               >
                 Hoje
               </button>
-              <Button variant="outline" size="sm" onClick={prevMonth} className="h-8 w-8 p-0 rounded-lg">
+              <button
+                onClick={prevMonth}
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#374151] transition-colors"
+              >
                 <ChevronLeft className="w-4 h-4" />
-              </Button>
+              </button>
               <div className="min-w-[148px] text-center">
                 <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
                   {MONTH_NAMES[viewMonth]} {viewYear}
                 </span>
               </div>
-              <Button variant="outline" size="sm" onClick={nextMonth} className="h-8 w-8 p-0 rounded-lg">
+              <button
+                onClick={nextMonth}
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#374151] transition-colors"
+              >
                 <ChevronRight className="w-4 h-4" />
-              </Button>
+              </button>
             </>
           )}
 
