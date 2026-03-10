@@ -1697,7 +1697,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const [metadata] = await objectFile.getMetadata();
         
         // Extrair nome original dos metadados customizados
-        const originalFileName = metadata.metadata?.['custom:originalFileName'] || metadata.name || `Anexo_${id.slice(-8)}`;
+        const rawName = metadata.metadata?.['custom:originalFileName'] || (metadata.name ? metadata.name.split('/').pop() : null) || `Anexo_${id.slice(-8)}`;
+        const originalFileName = rawName;
         
         // Retornar informações do arquivo real
         res.json({

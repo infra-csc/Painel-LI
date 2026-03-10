@@ -44,7 +44,9 @@ function AttachmentChips({ attachmentIds }: { attachmentIds: string[] }) {
         const res = await fetch(`/api/attachments/${id}`);
         if (res.ok) {
           const data = await res.json();
-          setMeta(prev => ({ ...prev, [id]: { name: data.name || `Anexo_${id.slice(-8)}`, downloadUrl: data.downloadUrl || '#' } }));
+          const rawName: string = data.name || `Anexo_${id.slice(-8)}`;
+          const displayName = rawName.includes('/') ? rawName.split('/').pop() || rawName : rawName;
+          setMeta(prev => ({ ...prev, [id]: { name: displayName, downloadUrl: data.downloadUrl || '#' } }));
         }
       } catch {
         setMeta(prev => ({ ...prev, [id]: { name: `Anexo_${id.slice(-8)}`, downloadUrl: '#' } }));
