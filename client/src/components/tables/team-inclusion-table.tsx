@@ -567,10 +567,10 @@ export default function TeamInclusionTable() {
                 <th className="w-[48px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Pass.
                 </th>
-                <th className="w-[48px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[64px] px-2 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Hosp.
                 </th>
-                <th className="w-[100px] whitespace-nowrap px-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                <th className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
                   Ações
                 </th>
               </tr>
@@ -673,7 +673,7 @@ export default function TeamInclusionTable() {
                         <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de hospedagem" />
                       )}
                     </td>
-                    <td className="w-[100px] whitespace-nowrap px-2 py-3 text-right text-sm font-medium">
+                    <td className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-sm font-medium">
                       <div className={`flex items-center justify-end gap-1 ${isCanceled ? 'opacity-50' : ''} [&>button]:hover:scale-110 [&>button]:transition-transform`}>
                         {/* Para registros cancelados, permitir apenas comentários se não for edição */}
                         <Button
