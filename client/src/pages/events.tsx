@@ -11,6 +11,7 @@ import {
   CalendarCheck, CalendarClock, CalendarX, LayoutList, Users
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
+import ConfirmModal from "@/components/common/confirm-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -87,6 +88,9 @@ export default function Events() {
   const [dateFilter, setDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean; title: string; message: string; confirmLabel: string; onConfirm: () => void;
+  }>({ open: false, title: '', message: '', confirmLabel: '', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -182,8 +186,13 @@ export default function Events() {
   const handleOpenModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
   const handleCloseModal = () => { setIsModalOpen(false); setEditingEvent(null); };
   const handleDelete = (event: Event) => {
-    if (confirm(`Tem certeza que deseja marcar o evento "${event.name}" como excluído? O evento continuará visível na lista.`))
-      deleteEventMutation.mutate(event);
+    setConfirmState({
+      open: true,
+      title: 'Marcar como excluído?',
+      message: `O evento "${event.name}" será marcado como excluído, mas continuará visível na lista.`,
+      confirmLabel: 'Marcar como excluído',
+      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); deleteEventMutation.mutate(event); },
+    });
   };
   const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all"); };
   const hasActiveFilters = searchTerm || statusFilter !== "all" || dateFilter || monthFilter !== "all" || yearFilter !== "all";
@@ -495,6 +504,16 @@ export default function Events() {
       </div>
 
       <EventModal open={isModalOpen} onClose={handleCloseModal} event={editingEvent} />
+
+      <ConfirmModal
+        open={confirmState.open}
+        variant="delete"
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+      />
     </TooltipProvider>
   );
 }

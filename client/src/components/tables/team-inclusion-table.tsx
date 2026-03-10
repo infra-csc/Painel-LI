@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import StatusBadge from "@/components/common/status-badge";
 import CommentsModal from "@/components/modals/comments-modal";
+import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import type { TeamInclusion, Event, Function, Collaborator } from "@shared/schema";
@@ -45,6 +46,11 @@ export default function TeamInclusionTable() {
     searchId: "",
   });
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean; variant: ConfirmVariant; title: string; message: string; confirmLabel: string; onConfirm: () => void;
+  }>({ open: false, variant: 'delete', title: '', message: '', confirmLabel: '', onConfirm: () => {} });
+  const openConfirm = (cfg: Omit<typeof confirmState, 'open'>) => setConfirmState({ ...cfg, open: true });
+  const closeConfirm = () => setConfirmState(prev => ({ ...prev, open: false }));
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -179,9 +185,13 @@ export default function TeamInclusionTable() {
   });
 
   const handleDelete = (inclusionId: string) => {
-    if (window.confirm('Tem certeza que deseja remover esta inclusão?')) {
-      deleteTeamInclusionMutation.mutate(inclusionId);
-    }
+    openConfirm({
+      variant: 'delete',
+      title: 'Remover inclusão?',
+      message: 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      onConfirm: () => { closeConfirm(); deleteTeamInclusionMutation.mutate(inclusionId); },
+    });
   };
 
   const cancelEscalationMutation = useMutation({
@@ -209,9 +219,13 @@ export default function TeamInclusionTable() {
   });
 
   const handleCancelEscalation = (inclusionId: string) => {
-    if (window.confirm('Tem certeza que deseja cancelar a escalação? Esta ação não pode ser desfeita.')) {
-      cancelEscalationMutation.mutate(inclusionId);
-    }
+    openConfirm({
+      variant: 'cancel',
+      title: 'Cancelar escalação?',
+      message: 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Cancelar escalação',
+      onConfirm: () => { closeConfirm(); cancelEscalationMutation.mutate(inclusionId); },
+    });
   };
 
 
@@ -236,106 +250,82 @@ export default function TeamInclusionTable() {
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedRows.size === 0) {
-      toast({
-        title: "Nenhuma seleção",
-        description: "Selecione pelo menos uma inclusão para excluir.",
-        variant: "destructive",
-      });
+      toast({ title: "Nenhuma seleção", description: "Selecione pelo menos uma inclusão para excluir.", variant: "destructive" });
       return;
     }
 
-    // Filtrar apenas as inclusões que podem ser excluídas
     const deletableIds = Array.from(selectedRows).filter(id => {
       const inclusion = teamInclusions?.find(i => i.id === id);
       return inclusion && canDeleteInclusion(inclusion);
     });
 
     if (deletableIds.length === 0) {
-      toast({
-        title: "Não é possível excluir",
-        description: "Nenhuma das inclusões selecionadas pode ser excluída (já foram confirmadas ou compradas).",
-        variant: "destructive",
-      });
+      toast({ title: "Não é possível excluir", description: "Nenhuma das inclusões selecionadas pode ser excluída (já foram confirmadas ou compradas).", variant: "destructive" });
       return;
     }
 
     const blockedCount = selectedRows.size - deletableIds.length;
     const confirmMessage = blockedCount > 0
       ? `${deletableIds.length} de ${selectedRows.size} inclusões podem ser excluídas. ${blockedCount} não podem ser excluídas (confirmadas/compradas). Deseja continuar?`
-      : `Tem certeza que deseja excluir ${deletableIds.length} inclusão(ões) selecionada(s)?`;
+      : `${deletableIds.length} inclusão(ões) serão removidas permanentemente.`;
 
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const id of deletableIds) {
-      try {
-        const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
-        if (response.ok) {
-          successCount++;
-        } else {
-          errorCount++;
+    openConfirm({
+      variant: 'delete',
+      title: 'Remover inclusões?',
+      message: confirmMessage,
+      confirmLabel: 'Remover',
+      onConfirm: async () => {
+        closeConfirm();
+        let successCount = 0;
+        let errorCount = 0;
+        for (const id of deletableIds) {
+          try {
+            const response = await apiRequest("DELETE", `/api/team-inclusions/${id}`);
+            if (response.ok) { successCount++; } else { errorCount++; }
+          } catch { errorCount++; }
         }
-      } catch (error) {
-        errorCount++;
-      }
-    }
-
-    queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    setSelectedRows(new Set());
-
-    toast({
-      title: successCount > 0 ? "Sucesso" : "Erro",
-      description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
-      variant: errorCount > 0 ? "destructive" : "default",
+        queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+        setSelectedRows(new Set());
+        toast({
+          title: successCount > 0 ? "Sucesso" : "Erro",
+          description: `${successCount} inclusão(ões) excluída(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+          variant: errorCount > 0 ? "destructive" : "default",
+        });
+      },
     });
   };
 
-  const handleBulkCancel = async () => {
+  const handleBulkCancel = () => {
     if (selectedRows.size === 0) {
-      toast({
-        title: "Nenhuma seleção",
-        description: "Selecione pelo menos uma inclusão para cancelar.",
-        variant: "destructive",
-      });
+      toast({ title: "Nenhuma seleção", description: "Selecione pelo menos uma inclusão para cancelar.", variant: "destructive" });
       return;
     }
 
-    if (!window.confirm(`Tem certeza que deseja cancelar ${selectedRows.size} escalação(ões) selecionada(s)?`)) {
-      return;
-    }
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const id of Array.from(selectedRows)) {
-      try {
-        const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, {
-          status: "cancelado",
-          phase: "cancelado"
-        });
-        if (response.ok) {
-          successCount++;
-        } else {
-          errorCount++;
+    openConfirm({
+      variant: 'cancel',
+      title: 'Cancelar escalações?',
+      message: `${selectedRows.size} escalação(ões) selecionada(s) serão canceladas. Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Cancelar escalações',
+      onConfirm: async () => {
+        closeConfirm();
+        let successCount = 0;
+        let errorCount = 0;
+        for (const id of Array.from(selectedRows)) {
+          try {
+            const response = await apiRequest("PATCH", `/api/team-inclusions/${id}`, { status: "cancelado", phase: "cancelado" });
+            if (response.ok) { successCount++; } else { errorCount++; }
+          } catch { errorCount++; }
         }
-      } catch (error) {
-        errorCount++;
-      }
-    }
-
-    queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
-    setSelectedRows(new Set());
-
-    toast({
-      title: successCount > 0 ? "Sucesso" : "Erro",
-      description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
-      variant: errorCount > 0 ? "destructive" : "default",
+        queryClient.invalidateQueries({ queryKey: ["/api/team-inclusions"] });
+        setSelectedRows(new Set());
+        toast({
+          title: successCount > 0 ? "Sucesso" : "Erro",
+          description: `${successCount} escalação(ões) cancelada(s). ${errorCount > 0 ? `${errorCount} erro(s).` : ''}`,
+          variant: errorCount > 0 ? "destructive" : "default",
+        });
+      },
     });
   };
 
@@ -1012,6 +1002,16 @@ export default function TeamInclusionTable() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmState.open}
+        variant={confirmState.variant}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={closeConfirm}
+      />
     </>
   );
 }

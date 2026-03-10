@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Tag, Plus, Edit, Trash2, X, Search, AlertTriangle, Check } from "lucide-react";
+import ConfirmModal from "@/components/common/confirm-modal";
 import type { Function, User as UserType, FunctionManager } from "@shared/schema";
 
 // ─── Avatar colours ────────────────────────────────────────────────────────
@@ -333,6 +334,9 @@ export default function Functions() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingFunction, setEditingFunction] = useState<Function | null>(null);
   const [search, setSearch] = useState("");
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean; title: string; message: string; confirmLabel: string; onConfirm: () => void;
+  }>({ open: false, title: '', message: '', confirmLabel: '', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -413,8 +417,13 @@ export default function Functions() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja remover esta função? Esta ação não pode ser desfeita."))
-      deleteFunctionMutation.mutate(id);
+    setConfirmState({
+      open: true,
+      title: 'Remover função?',
+      message: 'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); deleteFunctionMutation.mutate(id); },
+    });
   };
 
   return (
@@ -606,6 +615,16 @@ export default function Functions() {
 
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmState.open}
+        variant="delete"
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+      />
     </TooltipProvider>
   );
 }

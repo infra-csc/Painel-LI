@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import UserEditModal from "@/components/modals/user-edit-modal";
 import ResetPasswordModal from "@/components/modals/reset-password-modal";
+import ConfirmModal, { type ConfirmVariant } from "@/components/common/confirm-modal";
 import type { User } from "@shared/schema";
 
 // ─── Avatar helpers ─────────────────────────────────────────────────────────
@@ -95,6 +96,9 @@ export default function AdminUsers() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
   const [page, setPage] = useState(1);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean; variant: ConfirmVariant; title: string; message: string; confirmLabel: string; onConfirm: () => void;
+  }>({ open: false, variant: 'delete', title: '', message: '', confirmLabel: '', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -145,8 +149,15 @@ export default function AdminUsers() {
   };
 
   const handleApprove = (userId: string, status: "approved" | "rejected") => {
-    const verb = status === "approved" ? "aprovar" : "rejeitar";
-    if (window.confirm(`Tem certeza que deseja ${verb} este usuário?`)) approveUserMutation.mutate({ userId, status });
+    const isApprove = status === "approved";
+    setConfirmState({
+      open: true,
+      variant: isApprove ? 'confirm' : 'delete',
+      title: isApprove ? 'Aprovar usuário?' : 'Rejeitar usuário?',
+      message: isApprove ? 'O usuário terá acesso ao sistema.' : 'O usuário não poderá acessar o sistema.',
+      confirmLabel: isApprove ? 'Aprovar' : 'Rejeitar',
+      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); approveUserMutation.mutate({ userId, status }); },
+    });
   };
 
   // Counts (unfiltered)
@@ -495,6 +506,16 @@ export default function AdminUsers() {
           onConfirm={handleConfirmResetPassword}
         />
       </div>
+
+      <ConfirmModal
+        open={confirmState.open}
+        variant={confirmState.variant}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
+      />
     </TooltipProvider>
   );
 }
