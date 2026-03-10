@@ -920,56 +920,69 @@ export default function TeamInclusionTable() {
 
                 {/* Coluna Direita - Sugestões de Viagem */}
                 <div>
-                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                    <h4 className="text-sm font-bold text-blue-700 mb-1">Sugestões de Viagem</h4>
-                    <p className="text-xs text-blue-500 mb-3">Essas informações aparecerão como sugestões na tela de escalação</p>
+                  <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 rounded-2xl p-5">
+                    <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2 mb-1">
+                      ✈️ Sugestões de Viagem
+                    </h4>
+                    <p className="text-xs text-blue-400 mb-4">Essas informações aparecerão como sugestões na tela de escalação</p>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Dia de Ida</label>
-                        <input
-                          type="date"
-                          name="ida"
-                          defaultValue={editingInclusion.flightDepartureDate || ''}
-                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
-                        />
+                      {/* Card IDA */}
+                      <div className="bg-white rounded-xl border border-blue-100 p-3 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-2">IDA</p>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Dia</label>
+                            <input
+                              type="date"
+                              name="ida"
+                              defaultValue={editingInclusion.flightDepartureDate || ''}
+                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Horário</label>
+                            <input
+                              type="text"
+                              name="chegada"
+                              defaultValue={editingInclusion.flightArrivalSuggestedTime || ''}
+                              placeholder="Ex: 9h, manhã"
+                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                            />
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Horário de Chegada</label>
-                        <input
-                          type="text"
-                          name="chegada"
-                          defaultValue={editingInclusion.flightArrivalSuggestedTime || ''}
-                          placeholder="Ex: 9h, manhã"
-                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Dia de Retorno</label>
-                        <input
-                          type="date"
-                          name="retorno"
-                          defaultValue={editingInclusion.flightReturnDate || ''}
-                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Horário de Partida</label>
-                        <input
-                          type="text"
-                          name="horarioRetorno"
-                          defaultValue={editingInclusion.flightReturnSuggestedTime || ''}
-                          placeholder="Ex: 18h, final da tarde"
-                          className="border border-blue-100 rounded-lg bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 w-full"
-                        />
+                      {/* Card RETORNO */}
+                      <div className="bg-white rounded-xl border border-blue-100 p-3 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">RETORNO</p>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Dia</label>
+                            <input
+                              type="date"
+                              name="retorno"
+                              defaultValue={editingInclusion.flightReturnDate || ''}
+                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">Horário</label>
+                            <input
+                              type="text"
+                              name="horarioRetorno"
+                              defaultValue={editingInclusion.flightReturnSuggestedTime || ''}
+                              placeholder="Ex: 18h, final da tarde"
+                              className="border border-slate-200 rounded-lg bg-white px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-blue-200"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="bg-blue-100 rounded-lg px-3 py-2 text-xs text-blue-600 mt-2">
-                      <strong>Dica:</strong> Use descrições claras como "sábado", "9h", "domingo", "18h" ou datas específicas
+                    <div className="bg-blue-100/60 rounded-lg px-3 py-2 text-xs text-blue-600 mt-3 flex items-start gap-1.5">
+                      <span className="font-semibold">Dica:</span>
+                      <span>Use descrições claras como "sábado", "9h", "domingo", "18h" ou datas específicas</span>
                     </div>
                   </div>
                 </div>
