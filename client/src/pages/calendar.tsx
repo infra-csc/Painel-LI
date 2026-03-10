@@ -45,6 +45,17 @@ function getCfg(status: string) {
   return STATUS_CFG[status] || STATUS_CFG["planejado"];
 }
 
+function getEffectiveStatus(event: Event): string {
+  if (event.status === "cancelado") return "cancelado";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = parseLocalDate(event.startDate);
+  const end = parseLocalDate(event.endDate);
+  if (today > end) return "concluido";
+  if (today >= start && today <= end) return "em_andamento";
+  return "planejado";
+}
+
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
 function parseLocalDate(str: string): Date {
@@ -85,7 +96,7 @@ const MONTH_NAMES = [
 // ─── Event detail panel ───────────────────────────────────────────────────────
 
 function EventPanel({ event, onClose }: { event: Event; onClose: () => void }) {
-  const cfg = getCfg(event.status);
+  const cfg = getCfg(getEffectiveStatus(event));
   const StatusIcon = cfg.icon;
   const days = dayCount(event.startDate, event.endDate);
 
@@ -147,7 +158,7 @@ function EventPanel({ event, onClose }: { event: Event; onClose: () => void }) {
 // ─── Event pill (calendar cell) ───────────────────────────────────────────────
 
 function EventPill({ event, onClick }: { event: Event; onClick: () => void }) {
-  const cfg = getCfg(event.status);
+  const cfg = getCfg(getEffectiveStatus(event));
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -292,7 +303,7 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: (
             {isOpen && (
               <div className="divide-y divide-gray-50 dark:divide-gray-700">
                 {group.events.map(ev => {
-                  const cfg = getCfg(ev.status);
+                  const cfg = getCfg(getEffectiveStatus(ev));
                   const StatusIcon = cfg.icon;
                   return (
                     <div key={ev.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 dark:hover:bg-gray-750 transition-colors">
@@ -352,7 +363,7 @@ export default function CalendarPage() {
 
   const filteredEvents = useMemo(() => {
     if (statusFilter === "all") return events;
-    return events.filter(ev => ev.status === statusFilter);
+    return events.filter(ev => getEffectiveStatus(ev) === statusFilter);
   }, [events, statusFilter]);
 
   function prevMonth() {
@@ -371,7 +382,7 @@ export default function CalendarPage() {
 
   const statusCounts = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const ev of events) map[ev.status] = (map[ev.status] || 0) + 1;
+    for (const ev of events) { const s = getEffectiveStatus(ev); map[s] = (map[s] || 0) + 1; }
     return map;
   }, [events]);
 
