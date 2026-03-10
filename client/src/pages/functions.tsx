@@ -43,9 +43,68 @@ const functionFormSchema = z.object({
 });
 type FunctionFormData = z.infer<typeof functionFormSchema>;
 
+// ─── Managers popover ──────────────────────────────────────────────────────
+const MGPOP_W = 220;
+
+function ManagersPopover({
+  functionName, managers, users, x, y, onClose,
+}: {
+  functionName: string;
+  managers: (FunctionManager & { user?: UserType })[];
+  users: UserType[];
+  x: number; y: number;
+  onClose: () => void;
+}) {
+  const ITEM_H = 44;
+  const HEADER_H = 40;
+  const popH = managers.length * ITEM_H + HEADER_H + 8;
+  const openLeft = x > window.innerWidth / 2;
+  const rawLeft = openLeft ? x - MGPOP_W - 8 : x + 8;
+  const left = Math.max(8, Math.min(window.innerWidth - MGPOP_W - 8, rawLeft));
+  const top = Math.max(8, Math.min(window.innerHeight - popH - 8, y - popH / 2));
+
+  return (
+    <div className="fixed inset-0 z-[70]" onClick={onClose}>
+      <div
+        className="absolute bg-white overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        style={{
+          width: MGPOP_W, left, top,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 8px 32px -4px rgba(0,0,0,0.15), 0 2px 8px -1px rgba(0,0,0,0.08)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-3 pt-3 pb-2 border-b border-gray-100">
+          <p className="text-[12px] font-bold text-slate-800 capitalize truncate">{functionName}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{managers.length} {managers.length === 1 ? "responsável" : "responsáveis"}</p>
+        </div>
+        {/* List */}
+        <div className="py-1 divide-y divide-gray-50 max-h-64 overflow-y-auto">
+          {managers.map((fm) => {
+            const u = users.find(x => x.id === fm.userId);
+            const displayName = u?.name || u?.email || "Usuário";
+            const col = avatarColor(fm.userId);
+            return (
+              <div key={fm.id} className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${col}`}>
+                  {initials(displayName)}
+                </div>
+                <span className="text-[12px] font-medium text-slate-700 truncate">{displayName}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── FunctionManagersCell ─────────────────────────────────────────────────
-function FunctionManagersCell({ functionId }: { functionId: string }) {
+function FunctionManagersCell({ functionId, functionName }: { functionId: string; functionName: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
   const [selectedUserId, setSelectedUserId] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -123,9 +182,28 @@ function FunctionManagersCell({ functionId }: { functionId: string }) {
       })}
 
       {overflow > 0 && (
-        <span className="text-[11px] font-medium text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+        <button
+          className="w-5 h-5 rounded-full bg-[#e2e8f0] text-[9px] font-bold text-slate-600 flex items-center justify-center hover:bg-slate-300 transition-colors shrink-0 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPopover({ x: e.clientX, y: e.clientY });
+          }}
+          title="Ver todos os responsáveis"
+        >
           +{overflow}
-        </span>
+        </button>
+      )}
+
+      {/* Managers popover */}
+      {popover && (
+        <ManagersPopover
+          functionName={functionName}
+          managers={managers}
+          users={users ?? []}
+          x={popover.x}
+          y={popover.y}
+          onClose={() => setPopover(null)}
+        />
       )}
 
       {/* Add button */}
@@ -433,7 +511,7 @@ export default function Functions() {
                         <span className="font-semibold text-slate-800 capitalize">{func.name}</span>
                       </td>
                       <td className="px-4 py-4">
-                        <FunctionManagersCell functionId={func.id} />
+                        <FunctionManagersCell functionId={func.id} functionName={func.name} />
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1 justify-end">
