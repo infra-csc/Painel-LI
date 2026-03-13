@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck } from "lucide-react";
-import { EventSelect, EventSelectCTA } from "@/components/event-select";
+import { EventSearchSelect } from "@/components/event-select";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useSearch } from "wouter";
@@ -509,9 +509,7 @@ export default function BudgetActualPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {selectedEventId && (
-            <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
-          )}
+          <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
         </div>
       </div>
 
@@ -532,22 +530,8 @@ export default function BudgetActualPage() {
               Registre a prestação de contas. Preencha os valores efetivamente gastos em cada escala.
             </p>
             <div className="max-w-sm mx-auto">
-              <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} accentColor="purple" />
+              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
             </div>
-            {eventsWithPlanned && eventsWithPlanned.length > 0 && (
-              <div className="mt-6">
-                <p className="text-xs text-gray-400 mb-3">Eventos com orçamento planejado</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {eventsWithPlanned.slice(0, 5).map(ev => (
-                    <button key={ev.id} onClick={() => { setSelectedEventId(ev.id); setCollapsedCards(new Set()); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-violet-400 hover:text-violet-600 transition-colors shadow-sm">
-                      <Calendar className="w-3 h-3" />
-                      {ev.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       ) : isLoading ? (
