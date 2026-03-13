@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock } from "lucide-react";
-import { EventSelect, EventSelectCTA } from "@/components/event-select";
+import { EventSearchSelect } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
@@ -613,9 +613,7 @@ export default function BudgetPlannedPage() {
             <p className="text-xs text-gray-500">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        {selectedEventId && (
-          <EventSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
-        )}
+        <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
       </div>
 
       {/* ── Tela 1: Seleção de evento ── */}
@@ -638,7 +636,7 @@ export default function BudgetPlannedPage() {
             </p>
 
             <div className="max-w-sm mx-auto">
-              <EventSelectCTA value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} accentColor="blue" />
+              <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
             </div>
 
             {/* Pills de eventos recentes */}
