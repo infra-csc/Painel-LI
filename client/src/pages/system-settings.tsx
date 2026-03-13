@@ -11,7 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
-  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink
+  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink, Search
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { isAdmin } from "@/lib/permissions";
@@ -71,6 +71,10 @@ function getUserInitials(name: string): string {
   return name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
+function toTitleCase(str: string): string {
+  return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
 function CurrencyInput({ field }: { field: any }) {
   return (
     <div className="relative">
@@ -94,6 +98,7 @@ export default function SystemSettingsPage() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [lastSaved, setLastSaved] = useState<{ timestamp: string; user: string } | null>(null);
   const [functionDailyValues, setFunctionDailyValues] = useState<Record<string, string>>({});
+  const [functionSearch, setFunctionSearch] = useState("");
 
   useEffect(() => {
     try {
@@ -453,82 +458,146 @@ export default function SystemSettingsPage() {
           </div>
 
           {/* ── Card: Função ── */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
-            <div style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(79,70,229,0.3)' }}>
-                  <BadgeCheck style={{ width: 20, height: 20, color: '#fff' }} />
-                </div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 14, color: '#312E81', margin: 0 }}>Função</p>
-                  <p style={{ fontSize: 11, color: '#6366F1', margin: 0 }}>Valor padrão de diária por função escalada</p>
-                </div>
-              </div>
-              {allFunctions.length > 0 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={saveFunctionValuesMutation.isPending}
-                  onClick={() => saveFunctionValuesMutation.mutate()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-                >
-                  <Save className="w-3.5 h-3.5 mr-1.5" />
-                  {saveFunctionValuesMutation.isPending ? "Salvando..." : "Salvar Funções"}
-                </Button>
-              )}
-            </div>
+          {(() => {
+            const filteredFunctions = allFunctions.filter(fn =>
+              fn.name.toLowerCase().includes(functionSearch.toLowerCase())
+            );
+            const dirtyCount = allFunctions.filter(fn => {
+              const fv = allFunctionValues.find(v => v.functionId === fn.id);
+              const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
+              return parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedVal);
+            }).length;
 
-            {allFunctions.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center mx-auto mb-3">
-                  <BadgeCheck className="w-6 h-6 text-indigo-300" />
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Nenhuma função cadastrada.</p>
-                <Link href="/functions" className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline">
-                  Acesse Funções para adicionar
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            ) : (
-              <div className="px-5 py-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {allFunctions.map(fn => {
-                    const fv = allFunctionValues.find(v => v.functionId === fn.id);
-                    const currentVal = functionDailyValues[fn.id] ?? "0.00";
-                    const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
-                    const isDirty = parseFloat(currentVal) !== parseFloat(savedVal);
-                    return (
-                      <div
-                        key={fn.id}
-                        className={`rounded-lg border p-3 transition-colors ${isDirty ? 'border-indigo-200 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'}`}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
-                            <BadgeCheck className="w-3 h-3 text-indigo-500" />
-                          </div>
-                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={fn.name}>{fn.name}</span>
-                          {isDirty && <span className="ml-auto shrink-0 text-[9px] font-bold text-indigo-500 bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded-full">Alterado</span>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] text-gray-400 font-medium">R$</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={currentVal}
-                            onChange={e => setFunctionDailyValues(prev => ({ ...prev, [fn.id]: e.target.value }))}
-                            className="h-8 text-sm font-semibold pl-1 pr-2 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-600 rounded-md"
-                          />
-                        </div>
-                        <p className="text-[9px] text-gray-400 mt-1">R$ por dia trabalhado</p>
-                        {fv && <p className="text-[9px] text-gray-300 dark:text-gray-600 tabular-nums">atual: {formatCurrency(centavosToReais(fv.dailyValue))}</p>}
+            return (
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+
+                {/* Header */}
+                <div style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE', padding: '14px 20px' }}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(79,70,229,0.3)', flexShrink: 0 }}>
+                        <BadgeCheck style={{ width: 18, height: 18, color: '#fff' }} />
                       </div>
-                    );
-                  })}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p style={{ fontWeight: 700, fontSize: 14, color: '#312E81', margin: 0 }}>Função</p>
+                          {allFunctions.length > 0 && (
+                            <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded-full">
+                              {allFunctions.length} {allFunctions.length === 1 ? 'função' : 'funções'} cadastradas
+                            </span>
+                          )}
+                          {dirtyCount > 0 && (
+                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+                              {dirtyCount} alterada{dirtyCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 11, color: '#6366F1', margin: 0 }}>Valor padrão de diária por função escalada</p>
+                      </div>
+                    </div>
+                    {allFunctions.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={saveFunctionValuesMutation.isPending || dirtyCount === 0}
+                        onClick={() => saveFunctionValuesMutation.mutate()}
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-sm shrink-0"
+                      >
+                        <Save className="w-3.5 h-3.5 mr-1.5" />
+                        {saveFunctionValuesMutation.isPending ? "Salvando..." : "Salvar Funções"}
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Search bar */}
+                  {allFunctions.length > 0 && (
+                    <div className="relative mt-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-300 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Buscar função..."
+                        value={functionSearch}
+                        onChange={e => setFunctionSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-indigo-200 dark:border-indigo-700 bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600"
+                      />
+                    </div>
+                  )}
                 </div>
+
+                {/* Empty state */}
+                {allFunctions.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center mx-auto mb-4">
+                      <BadgeCheck className="w-7 h-7 text-indigo-200 dark:text-indigo-700" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Nenhuma função cadastrada ainda.</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Acesse a página de Funções para adicionar funções ao sistema.</p>
+                    <Link href="/functions" className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline">
+                      Ir para Funções
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                ) : filteredFunctions.length === 0 ? (
+                  <div className="px-6 py-8 text-center text-sm text-gray-400">
+                    Nenhuma função encontrada para "<span className="font-medium">{functionSearch}</span>".
+                  </div>
+                ) : (
+                  <>
+                    {/* Column header */}
+                    <div className="grid grid-cols-2 px-4 py-2 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Função</span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right pr-1">Valor / dia</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 px-4 pt-2 pb-1">Todos os valores são R$ por dia trabalhado</p>
+
+                    {/* Two-column list */}
+                    <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                      {filteredFunctions.map((fn, idx) => {
+                        const fv = allFunctionValues.find(v => v.functionId === fn.id);
+                        const currentVal = functionDailyValues[fn.id] ?? "0.00";
+                        const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
+                        const isDirty = parseFloat(currentVal) !== parseFloat(savedVal);
+                        const isEven = idx % 2 === 0;
+                        return (
+                          <div
+                            key={fn.id}
+                            className={`flex items-center gap-3 px-4 transition-colors ${isEven ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/60 dark:bg-gray-800/40'} ${isDirty ? 'ring-1 ring-inset ring-indigo-200 dark:ring-indigo-700' : ''}`}
+                            style={{ minHeight: 44 }}
+                          >
+                            {/* Left: icon + name */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isDirty ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'bg-indigo-50 dark:bg-indigo-950/30'}`}>
+                                <BadgeCheck className={`w-3 h-3 ${isDirty ? 'text-indigo-600' : 'text-indigo-300 dark:text-indigo-600'}`} />
+                              </div>
+                              <span className={`text-sm truncate ${isDirty ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'}`} title={fn.name}>
+                                {toTitleCase(fn.name)}
+                              </span>
+                              {isDirty && (
+                                <span className="shrink-0 text-[9px] font-bold text-indigo-500 bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded-full">●</span>
+                              )}
+                            </div>
+
+                            {/* Right: input */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[11px] text-gray-400 font-medium">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={currentVal}
+                                onChange={e => setFunctionDailyValues(prev => ({ ...prev, [fn.id]: e.target.value }))}
+                                className={`h-8 w-28 text-sm font-semibold text-right tabular-nums px-2 rounded-md border focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600 bg-white dark:bg-gray-900 transition-colors ${isDirty ? 'border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* ── Rodapé ── */}
           <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700 flex-wrap">
