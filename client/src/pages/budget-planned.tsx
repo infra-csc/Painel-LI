@@ -639,24 +639,6 @@ export default function BudgetPlannedPage() {
               <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
             </div>
 
-            {/* Pills de eventos recentes */}
-            {eventsWithInclusions && eventsWithInclusions.length > 0 && (
-              <div className="mt-6">
-                <p className="text-xs text-gray-400 mb-3">Eventos com escalações</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {eventsWithInclusions.slice(0, 5).map(ev => (
-                    <button
-                      key={ev.id}
-                      onClick={() => setSelectedEventId(ev.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 transition-colors shadow-sm"
-                    >
-                      <Calendar className="w-3 h-3" />
-                      {ev.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       ) : (
