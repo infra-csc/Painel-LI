@@ -541,6 +541,207 @@ export default function BudgetActualPage() {
     return colors[(name.charCodeAt(0) || 0) % colors.length];
   };
 
+  const formatWorkedDays = (days: string[]) => {
+    if (!days || days.length === 0) return null;
+    const DAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return [...days].sort().map(d => {
+      const dt = new Date(d + 'T12:00:00');
+      return `${dt.getDate()}/${MON[dt.getMonth()]} (${DAY[dt.getDay()]})`;
+    }).join(' · ');
+  };
+
+  const getGroupOriginalPeriod = (parentItem: BudgetActual) => {
+    const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const fmt = (d: string) => { const dt = new Date(d + 'T12:00:00'); return `${dt.getDate()}/${MON[dt.getMonth()]}`; };
+    const inclusion = getItemInclusion(parentItem);
+    const start = inclusion?.scheduleStartDate || selectedEvent?.startDate;
+    const end = inclusion?.scheduleEndDate || selectedEvent?.endDate;
+    if (!start || !end) return null;
+    return `${fmt(start)} a ${fmt(end)}`;
+  };
+
+  const renderSingleCard = (cardItem: BudgetActual, { isGParent = false, isGChild = false }: { isGParent?: boolean; isGChild?: boolean } = {}) => {
+    const isCollapsed = collapsedCards.has(cardItem.id);
+    const isCasa = cardItem.collaboratorType === 'casa';
+    const totalAlimentacao = cardItem.weekdayLunch + cardItem.weekdayDinner + cardItem.weekendLunch + cardItem.weekendDinner;
+    const isDuplicated = cardItem.observations?.includes('Duplicado no Realizado');
+    const diverges = isGChild ? false : hasItemDivergence(cardItem);
+    const cardDays = getItemDayCounts(cardItem);
+    const cardSubtotalDiarias = cardItem.totalValue - cardItem.weekdayLunch - cardItem.weekdayDinner - cardItem.weekendLunch - cardItem.weekendDinner - cardItem.mobility;
+    const cardTotalDays = cardDays.weekdays + cardDays.weekends;
+    let cardValorUtil = 0; let cardValorFds = 0;
+    if (cardTotalDays > 0 && cardSubtotalDiarias > 0) {
+      if (cardDays.weekdays === 0) { cardValorFds = Math.round(cardSubtotalDiarias / cardDays.weekends); }
+      else if (cardDays.weekends === 0) { cardValorUtil = Math.round(cardSubtotalDiarias / cardDays.weekdays); }
+      else {
+        const tw = cardDays.weekdays + cardDays.weekends * 2;
+        cardValorUtil = Math.round(cardSubtotalDiarias / tw);
+        cardValorFds = Math.round((cardSubtotalDiarias - cardDays.weekdays * cardValorUtil) / cardDays.weekends);
+      }
+    }
+    const isSelected = selectedCards.has(cardItem.id);
+    const isItemLocked = !!(cardItem.sentForReview && !["devolvido", "rejeitado"].includes(cardItem.rhStatus || ""));
+    const isItemEditable = !cardItem.sentForReview || cardItem.rhStatus === "devolvido" || cardItem.rhStatus === "rejeitado";
+    const hasBeenEdited = !!(cardItem.updatedAt && cardItem.createdAt && new Date(cardItem.updatedAt).getTime() > new Date(cardItem.createdAt).getTime() + 1000);
+    const fmtDT = (d: string | Date) => {
+      const dt = new Date(d);
+      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    };
+    const statusBadge = cardItem.sentForReview
+      ? cardItem.rhStatus === "aprovado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCheck className="w-2.5 h-2.5" /> Aprovado</span>
+        : cardItem.rhStatus === "devolvido" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200"><AlertCircle className="w-2.5 h-2.5" /> Devolvido</span>
+        : cardItem.rhStatus === "rejeitado" ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200"><AlertCircle className="w-2.5 h-2.5" /> Recusado</span>
+        : <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200"><Clock className="w-2.5 h-2.5" /> Em revisão</span>
+      : isDuplicated ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-violet-100 text-violet-700 border border-violet-200"><Copy className="w-2.5 h-2.5" /> Duplicado</span>
+      : hasBeenEdited ? <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-2.5 h-2.5" /> Salvo {fmtDT(cardItem.updatedAt!)}</span>
+      : <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-500 border border-gray-200">Não preenchido</span>;
+    const collabName = getCollaboratorName(cardItem.collaboratorId);
+    const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
+    const avatarBg = avatarColorAct(collabName);
+    const workedDaysStr = formatWorkedDays((cardItem.workedDays as string[]) || []);
+    const isInGroup = isGParent || isGChild;
+    return (
+      <div
+        data-card-id={cardItem.id}
+        className={[
+          'bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden transition-all duration-300',
+          isInGroup ? 'border-l-4 border-l-purple-400' : '',
+          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30'
+            : isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50'
+            : diverges ? 'border-amber-200 dark:border-amber-800/50'
+            : isInGroup ? 'border-purple-200 dark:border-purple-800/50'
+            : 'border-gray-200 dark:border-gray-700',
+        ].join(' ')}
+      >
+        {/* Card Header */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            {isItemLocked ? (
+              <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-default" />
+              </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
+            ) : isItemEditable ? (
+              <button onClick={() => toggleSelect(cardItem.id)} className="flex-shrink-0">
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300 dark:border-gray-600 hover:border-violet-400'}`}>
+                  {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+              </button>
+            ) : null}
+            <div className={`w-9 h-9 rounded-xl ${avatarBg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+              <span className="text-white text-xs font-bold">{initials || '?'}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{collabName}</span>
+              <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+                <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">{getFunctionName(cardItem.functionId)}</Badge>
+                <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${isCasa ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>{isCasa ? 'Casa' : 'Freela'}</Badge>
+                {statusBadge}
+                {diverges && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Divergência</Badge>}
+                {isGParent && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-100 text-purple-700 border border-purple-300 hover:bg-purple-100">Titular</Badge>}
+                {isGChild && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50 flex items-center gap-0.5"><GitFork className="w-2.5 h-2.5" />Divisão</Badge>}
+              </div>
+              {workedDaysStr && isInGroup && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <Calendar className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 leading-tight">{workedDaysStr}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5">
+            {isItemEditable ? (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditModal(cardItem)} title="Editar prestação"><Edit className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50" onClick={() => setSplittingItem(cardItem)} title="Dividir escalação" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
+              </>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toggleCollapse(cardItem.id)}>
+              {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            </Button>
+          </div>
+        </div>
+        {/* Card Body */}
+        {!isCollapsed && (() => {
+          const planned = isGChild ? null : getPlannedRef(cardItem);
+          const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
+          const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
+          const diffInline = (actual: number, plan: number) => {
+            if (!planned) return null;
+            const d = actual - plan;
+            if (Math.abs(d) <= 1) return null;
+            return <span className={`text-[10px] tabular-nums font-bold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
+          };
+          return (
+            <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-2xl p-3 border border-blue-100 dark:border-blue-900/40">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <div className="w-5 h-5 rounded-lg bg-blue-500 flex items-center justify-center"><Calendar className="w-3 h-3 text-white" /></div>
+                    <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                    {diffInline(cardSubtotalDiarias, plannedDiarias)}
+                  </div>
+                  {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
+                  <div className="mt-2 space-y-0.5">
+                    {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                    {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-2xl p-3 border border-orange-100 dark:border-orange-900/40">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="w-5 h-5 rounded-lg bg-orange-400 flex items-center justify-center"><Utensils className="w-3 h-3 text-white" /></div>
+                      <span className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      {diffInline(totalAlimentacao, plannedAlim)}
+                    </div>
+                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
+                  </div>
+                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-2xl p-3 border border-violet-100 dark:border-violet-900/40">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="w-5 h-5 rounded-lg bg-violet-500 flex items-center justify-center"><Car className="w-3 h-3 text-white" /></div>
+                      <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                      {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
+                    </div>
+                    {planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        {/* Card Footer */}
+        {(() => {
+          const planned = isGChild ? null : getPlannedRef(cardItem);
+          const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
+          return (
+            <div className={`flex items-center justify-between px-4 py-2.5 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
+                {planned && Math.abs(diff) > 1 && <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {planned && Math.abs(diff) > 1 && <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
+                <span className="font-bold text-base text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(cardItem.totalValue)}</span>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
 
@@ -767,7 +968,7 @@ export default function BudgetActualPage() {
           )}
 
           <div className="space-y-3.5">
-            {orderedRenderItems.map((item, renderIdx) => {
+            {orderedRenderItems.map((item) => {
               const isGroupParent = !item.splitParentId && splitGroupsMap.has(item.id);
               const isGroupChild = !!item.splitParentId;
               const groupChildren = splitGroupsMap.get(item.id) || [];
@@ -775,333 +976,43 @@ export default function BudgetActualPage() {
                 ? item.totalValue + groupChildren.reduce((s, c) => s + c.totalValue, 0)
                 : 0;
 
-              // Detect if this is the LAST child of its group (for showing group total footer)
-              const nextItem = orderedRenderItems[renderIdx + 1];
-              const isLastGroupChild = isGroupChild &&
-                (!nextItem || nextItem.splitParentId !== item.splitParentId);
+              if (isGroupChild) return null;
 
-              const isCollapsed = collapsedCards.has(item.id);
-              const isCasa = item.collaboratorType === 'casa';
-              const totalAlimentacao = item.weekdayLunch + item.weekdayDinner + item.weekendLunch + item.weekendDinner;
-              const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
-              const isDuplicated = item.observations?.includes('Duplicado no Realizado');
-              // Split children don't diverge vs. the full planned — only the parent card does
-              const diverges = isGroupChild ? false : hasItemDivergence(item);
-              const cardDays = getItemDayCounts(item);
-              const cardSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
-              const cardTotalDays = cardDays.weekdays + cardDays.weekends;
-              let cardValorUtil = 0;
-              let cardValorFds = 0;
-              if (cardTotalDays > 0 && cardSubtotalDiarias > 0) {
-                if (cardDays.weekdays === 0) {
-                  cardValorFds = Math.round(cardSubtotalDiarias / cardDays.weekends);
-                } else if (cardDays.weekends === 0) {
-                  cardValorUtil = Math.round(cardSubtotalDiarias / cardDays.weekdays);
-                } else {
-                  const tw = cardDays.weekdays + cardDays.weekends * 2;
-                  cardValorUtil = Math.round(cardSubtotalDiarias / tw);
-                  cardValorFds = Math.round((cardSubtotalDiarias - cardDays.weekdays * cardValorUtil) / cardDays.weekends);
-                }
+              if (!isGroupParent) {
+                return <div key={item.id}>{renderSingleCard(item)}</div>;
               }
-              const isSelected = selectedCards.has(item.id);
 
-              const isItemLocked = item.sentForReview && !["devolvido", "rejeitado"].includes(item.rhStatus || "");
-              const isItemEditable = !item.sentForReview || item.rhStatus === "devolvido" || item.rhStatus === "rejeitado";
-
-              const hasBeenEdited = item.updatedAt && item.createdAt && new Date(item.updatedAt).getTime() > new Date(item.createdAt).getTime() + 1000;
-              const formatDateTime = (d: string | Date) => {
-                const date = new Date(d);
-                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-              };
-
-              const getStatusBadge = () => {
-                if (item.sentForReview) {
-                  if (item.rhStatus === "aprovado") {
-                    return (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                        <CheckCheck className="w-2.5 h-2.5" /> Aprovado
-                      </span>
-                    );
-                  }
-                  if (item.rhStatus === "devolvido") {
-                    return (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                        <AlertCircle className="w-2.5 h-2.5" /> Devolvido
-                      </span>
-                    );
-                  }
-                  if (item.rhStatus === "rejeitado") {
-                    return (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-200">
-                        <AlertCircle className="w-2.5 h-2.5" /> Recusado
-                      </span>
-                    );
-                  }
-                  return (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                      <Clock className="w-2.5 h-2.5" /> Em revisão
-                    </span>
-                  );
-                }
-                if (isDuplicated) {
-                  return (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-violet-100 text-violet-700 border border-violet-200">
-                      <Copy className="w-2.5 h-2.5" /> Duplicado
-                    </span>
-                  );
-                }
-                if (hasBeenEdited) {
-                  return (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                      <CheckCircle2 className="w-2.5 h-2.5" /> Salvo {formatDateTime(item.updatedAt!)}
-                    </span>
-                  );
-                }
-                return (
-                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-gray-100 text-gray-500 border border-gray-200">
-                    Não preenchido
-                  </span>
-                );
-              };
-
-              const collabName = getCollaboratorName(item.collaboratorId);
-              const initials = collabName.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-              const avatarBg = avatarColorAct(collabName);
-
+              const origPeriod = getGroupOriginalPeriod(item);
               return (
-                <div key={item.id}>
-                  {/* Group parent header strip — subtle label */}
-                  {isGroupParent && groupChildren.length > 0 && (
-                    <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
-                      <div className="h-px flex-1 bg-purple-200 dark:bg-purple-800/40" />
-                      <GitFork className="w-3 h-3 text-purple-400" />
-                      <span className="text-[10px] text-purple-500 dark:text-purple-400 font-medium">
-                        Escalação dividida · {groupChildren.length + 1} colaboradores · total {formatCurrency(groupTotal)}
-                      </span>
-                      <div className="h-px flex-1 bg-purple-200 dark:bg-purple-800/40" />
-                    </div>
-                  )}
-
-                  {/* Card */}
-                  <div data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden transition-all duration-300 ${
-                    isGroupChild ? 'ml-5 border-l-4 border-l-purple-400' : ''
-                  } ${
-                    highlightCardId === item.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30' :
-                    isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50' :
-                    diverges ? 'border-amber-200 dark:border-amber-800/50' :
-                    isGroupChild ? 'border-purple-200 dark:border-purple-800/50' :
-                    'border-gray-200 dark:border-gray-700'
-                  }`}>
-
-                  {/* ── Card Header ── */}
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {/* Checkbox / Lock */}
-                      {isItemLocked ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-default" />
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="text-xs">
-                              Prestação bloqueada para edição
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : isItemEditable ? (
-                        <button onClick={() => toggleSelect(item.id)} className="flex-shrink-0">
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                            isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300 dark:border-gray-600 hover:border-violet-400'
-                          }`}>
-                            {isSelected && (
-                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                        </button>
-                      ) : null}
-                      {/* Avatar */}
-                      <div className={`w-9 h-9 rounded-xl ${avatarBg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                        <span className="text-white text-xs font-bold">{initials || '?'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{collabName}</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">
-                            {getFunctionName(item.functionId)}
-                          </Badge>
-                          <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${
-                            isCasa ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'
-                          }`}>{isCasa ? 'Casa' : 'Freela'}</Badge>
-                          {getStatusBadge()}
-                          {diverges && (
-                            <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">
-                              Divergência
-                            </Badge>
-                          )}
-                          {item.splitParentId && (
-                            <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50 flex items-center gap-0.5">
-                              <GitFork className="w-2.5 h-2.5" />
-                              Divisão
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      {isItemEditable ? (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => openEditModal(item)} title="Editar prestação">
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-                            onClick={() => setSplittingItem(item)} title="Dividir escalação (atribuir dias a outro colaborador)"
-                            disabled={splitMutation.isPending}>
-                            <GitFork className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => setConfirmDeleteId(item.id)} title="Remover">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                          onClick={() => openEditModal(item)} title="Visualizar">
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600"
-                        onClick={() => toggleCollapse(item.id)}>
-                        {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                      </Button>
-                    </div>
+                <div key={item.id} className="rounded-2xl border-2 border-purple-200 dark:border-purple-800/50 overflow-hidden bg-purple-50/20 dark:bg-purple-950/10">
+                  {/* Group banner */}
+                  <div className="bg-gradient-to-r from-purple-600 to-violet-600 px-4 py-2.5 flex items-center gap-3">
+                    <GitFork className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
+                    <span className="text-[12px] font-semibold text-white flex-1">
+                      Escalação dividida · {groupChildren.length + 1} colaboradores{origPeriod && ` · Período: ${origPeriod}`}
+                    </span>
+                    <span className="text-[12px] font-bold text-white tabular-nums">Total: {formatCurrency(groupTotal)}</span>
                   </div>
-
-                  {/* ── Card Body ── */}
-                  {!isCollapsed && (() => {
-                    // Split children have no meaningful comparison against the full planned reference
-                    const planned = isGroupChild ? null : getPlannedRef(item);
-                    const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
-                    const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
-                    const diffInline = (actual: number, plan: number) => {
-                      if (!planned) return null;
-                      const d = actual - plan;
-                      if (Math.abs(d) <= 1) return null;
-                      return (
-                        <span className={`text-[10px] tabular-nums font-bold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}
-                        </span>
-                      );
-                    };
-                    return (
-                      <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* ── Painel Esquerdo: Diárias ── */}
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-2xl p-3 border border-blue-100 dark:border-blue-900/40">
-                            <div className="flex items-center gap-1.5 mb-2.5">
-                              <div className="w-5 h-5 rounded-lg bg-blue-500 flex items-center justify-center">
-                                <Calendar className="w-3 h-3 text-white" />
-                              </div>
-                              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
-                              {diffInline(cardSubtotalDiarias, plannedDiarias)}
-                            </div>
-                            {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && (
-                              <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>
-                            )}
-                            <div className="mt-2 space-y-0.5">
-                              {cardDays.weekdays > 0 && (
-                                <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">
-                                  {formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}
-                                </div>
-                              )}
-                              {cardDays.weekends > 0 && (
-                                <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">
-                                  {formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* ── Painel Direito: Alimentação + Mobilidade empilhados ── */}
-                          <div className="space-y-2.5">
-                            <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-2xl p-3 border border-orange-100 dark:border-orange-900/40">
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <div className="w-5 h-5 rounded-lg bg-orange-400 flex items-center justify-center">
-                                  <Utensils className="w-3 h-3 text-white" />
-                                </div>
-                                <span className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
-                              </div>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                                {diffInline(totalAlimentacao, plannedAlim)}
-                              </div>
-                              {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>
-                              )}
-                            </div>
-                            <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-2xl p-3 border border-violet-100 dark:border-violet-900/40">
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <div className="w-5 h-5 rounded-lg bg-violet-500 flex items-center justify-center">
-                                  <Car className="w-3 h-3 text-white" />
-                                </div>
-                                <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
-                              </div>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(item.mobility)}</span>
-                                {diffInline(item.mobility, planned?.mobility ?? 0)}
-                              </div>
-                              {planned && Math.abs(item.mobility - (planned?.mobility ?? 0)) > 1 && (
-                                <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
-                              )}
-                            </div>
-                          </div>
+                  {/* Cards */}
+                  <div className="p-2 space-y-0">
+                    {renderSingleCard(item, { isGParent: true })}
+                    {groupChildren.map((child) => (
+                      <div key={child.id}>
+                        <div className="flex justify-center py-1.5">
+                          <div className="border-l-2 border-dashed border-purple-300 dark:border-purple-700 h-4" />
                         </div>
+                        {renderSingleCard(child, { isGChild: true })}
                       </div>
-                    );
-                  })()}
-
-                  {/* ── Card Footer: Total ── */}
-                  {(() => {
-                    // Split children: no comparison vs. full planned
-                    const planned = isGroupChild ? null : getPlannedRef(item);
-                    const diff = planned ? item.totalValue - planned.totalValue : 0;
-                    return (
-                      <div className={`flex items-center justify-between px-4 py-2.5 border-t ${
-                        planned && Math.abs(diff) > 1
-                          ? diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40'
-                            : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40'
-                          : 'border-gray-100 dark:border-gray-700/60'
-                      }`}>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
-                          {planned && Math.abs(diff) > 1 && (
-                            <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {planned && Math.abs(diff) > 1 && (
-                            <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {diff > 0 ? '+' : ''}{formatCurrency(diff)}
-                            </span>
-                          )}
-                          <span className="font-bold text-base text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(item.totalValue)}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                    ))}
                   </div>
-
-                  {/* Subtle spacer after last split child */}
-                  {isLastGroupChild && (
-                    <div className="ml-5 mt-1 mb-2 flex items-center gap-1.5 px-2">
-                      <div className="h-px flex-1 bg-purple-100 dark:bg-purple-900/30" />
+                  {/* Group total footer */}
+                  <div className="mx-2 mb-2 flex items-center justify-between px-4 py-2.5 bg-purple-100/60 dark:bg-purple-900/20 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <GitFork className="w-3.5 h-3.5 text-purple-500" />
+                      <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">Total da escalação</span>
                     </div>
-                  )}
+                    <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
+                  </div>
                 </div>
               );
             })}
