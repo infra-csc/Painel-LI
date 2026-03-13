@@ -762,7 +762,7 @@ export default function BudgetActualPage() {
             <div className={`flex items-center justify-between px-3 py-2 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
-                {planned && Math.abs(diff) > 1 && <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
+                {planned && <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
               </div>
               <div className="flex items-center gap-2">
                 {planned && Math.abs(diff) > 1 && <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
