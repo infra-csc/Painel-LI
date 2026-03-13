@@ -193,20 +193,42 @@ export default function BudgetComparisonPage() {
     return wd.length;
   };
 
-  // Helper: scale a planned record proportionally to a collaborator's worked days
-  const proportionalPlanned = (planned: BudgetPlanned, item: BudgetActual): BudgetPlanned => {
-    const totalDays = planned.dailyQuantity ?? 0;
-    const childDays = getWorkedDayCount(item);
-    if (totalDays <= 0 || childDays <= 0 || childDays >= totalDays) return planned;
-    const r = childDays / totalDays;
+  // Returns true if a YYYY-MM-DD string is Saturday or Sunday
+  const isWknd = (d: string) => { const day = new Date(d + 'T12:00:00').getDay(); return day === 0 || day === 6; };
+
+  // Helper: scale a planned record proportionally using real weekday/weekend counts from the split group
+  const proportionalPlanned = (planned: BudgetPlanned, item: BudgetActual, allGroupDays: string[]): BudgetPlanned => {
+    const myDays = (item.workedDays as string[] | null) || [];
+    if (myDays.length === 0 || allGroupDays.length === 0) return planned;
+    if (myDays.length >= allGroupDays.length) return planned;
+
+    const origWkdays = allGroupDays.filter(d => !isWknd(d)).length;
+    const origWknds  = allGroupDays.filter(d =>  isWknd(d)).length;
+    const myWkdays   = myDays.filter(d => !isWknd(d)).length;
+    const myWknds    = myDays.filter(d =>  isWknd(d)).length;
+
+    const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
+    const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
+    const dayRatio   = myDays.length / allGroupDays.length;
+
+    const propDiarias      = myDays.length * planned.dailyValue;
+    const propWkdayLunch   = Math.round(planned.weekdayLunch  * wkdayRatio);
+    const propWkdayDinner  = Math.round(planned.weekdayDinner * wkdayRatio);
+    const propWkndLunch    = Math.round(planned.weekendLunch   * wkndRatio);
+    const propWkndDinner   = Math.round(planned.weekendDinner  * wkndRatio);
+    const propMobility     = Math.round(planned.mobility       * dayRatio);
+    const propTransport    = Math.round(planned.transport      * dayRatio);
+
     return {
       ...planned,
-      totalValue: Math.round(planned.totalValue * r),
-      weekdayLunch: Math.round(planned.weekdayLunch * r),
-      weekdayDinner: Math.round(planned.weekdayDinner * r),
-      weekendLunch: Math.round(planned.weekendLunch * r),
-      weekendDinner: Math.round(planned.weekendDinner * r),
-      mobility: Math.round(planned.mobility * r),
+      dailyQuantity: myDays.length,
+      weekdayLunch:  propWkdayLunch,
+      weekdayDinner: propWkdayDinner,
+      weekendLunch:  propWkndLunch,
+      weekendDinner: propWkndDinner,
+      mobility:      propMobility,
+      transport:     propTransport,
+      totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
     };
   };
 
@@ -854,13 +876,13 @@ export default function BudgetComparisonPage() {
                                 {[a, ...row.splitChildren].map((colItem, ci) => {
                                   const isParent = ci === 0;
                                   const colItemName = getCollaboratorName(colItem.collaboratorId);
-                                  const colProp = p ? proportionalPlanned(p, colItem) : null;
+                                  // Collect all days from the entire split group for context (must be before proportionalPlanned call)
+                                  const allGroupDays = [...(a.workedDays as string[] || []), ...row.splitChildren.flatMap(c => (c.workedDays as string[] || []))].sort();
+                                  const colProp = p ? proportionalPlanned(p, colItem, allGroupDays) : null;
                                   const colPlanned = colProp?.totalValue || 0;
                                   const colActual = colItem.totalValue;
                                   const colDiff = colActual - colPlanned;
                                   const colDays = getWorkedDayCount(colItem);
-                                  // Collect all days from the entire split group for context
-                                  const allGroupDays = [...(a.workedDays as string[] || []), ...row.splitChildren.flatMap(c => (c.workedDays as string[] || []))].sort();
                                   return (
                                     <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] ${ci % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
                                       <div className="col-span-2 flex items-center gap-2 min-w-0">
@@ -1227,34 +1249,49 @@ export default function BudgetComparisonPage() {
                   </div>
 
                   {/* Period info — two blocks side by side */}
-                  {allDays.length > 0 && (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
-                          <p className="text-[11px] text-white font-medium leading-snug">
-                            {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
-                          </p>
-                          <p className="text-[10px] text-purple-200">{totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''} no total</p>
-                        </div>
-                      </div>
-                      {myDays.length > 0 && (
+                  {allDays.length > 0 && (() => {
+                    const origWkdays = allDays.filter(d => !isWknd(d)).length;
+                    const origWknds  = allDays.filter(d =>  isWknd(d)).length;
+                    const myWkdays   = myDays.filter(d => !isWknd(d)).length;
+                    const myWknds    = myDays.filter(d =>  isWknd(d)).length;
+                    const wkdayStr = (n: number) => n > 0 ? `${n} útil${n !== 1 ? 'is' : ''}` : '';
+                    const wkndStr  = (n: number) => n > 0 ? `${n} f${n !== 1 ? 'ds' : 'ds'}` : '';
+                    const joinParts = (...parts: string[]) => parts.filter(Boolean).join(' + ');
+                    return (
+                      <div className="mt-4 grid grid-cols-2 gap-2">
                         <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                          <GitFork className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
+                          <Calendar className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
+                            <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
                             <p className="text-[11px] text-white font-medium leading-snug">
-                              {myDays.length === 1
-                                ? fmtDate(myDays[0])
-                                : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
+                              {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
                             </p>
-                            <p className="text-[10px] text-purple-200">{myDayCount} dia{myDayCount !== 1 ? 's' : ''} atribuído{myDayCount !== 1 ? 's' : ''}</p>
+                            <p className="text-[10px] text-purple-200">
+                              {totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''}
+                              {' · '}{joinParts(wkdayStr(origWkdays), wkndStr(origWknds))}
+                            </p>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
+                        {myDays.length > 0 && (
+                          <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                            <GitFork className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
+                              <p className="text-[11px] text-white font-medium leading-snug">
+                                {myDays.length === 1
+                                  ? fmtDate(myDays[0])
+                                  : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
+                              </p>
+                              <p className="text-[10px] text-purple-200">
+                                {myDayCount} dia{myDayCount !== 1 ? 's' : ''}
+                                {' · '}{joinParts(wkdayStr(myWkdays), wkndStr(myWknds))}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* ── Table body ── */}

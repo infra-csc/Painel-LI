@@ -606,9 +606,7 @@ export default function BudgetActualPage() {
     const workedDaysStr = formatWorkedDays((cardItem.workedDays as string[]) || []);
     const isInGroup = isGParent || isGChild;
 
-    // Proportional planned for split cards:
-    // - child: scale parent's planned by (child_days / total_planned_days)
-    // - parent in group: scale own planned by (worked_days / total_planned_days)
+    // Proportional planned for split cards using real weekday/weekend counts from the group
     const cardPlanned = (() => {
       let rawPlan: BudgetPlanned | undefined;
       let parentItem: BudgetActual | undefined;
@@ -620,21 +618,42 @@ export default function BudgetActualPage() {
       }
       if (!rawPlan) return undefined;
       if (!isInGroup) return rawPlan;
-      const childDays = cardDays.weekdays + cardDays.weekends;
-      // Fallback for plannedDays: dailyQuantity → parent's actual day count → child's days (ratio=1)
-      const parentTotalDays = parentItem ? (() => { const d = getItemDayCounts(parentItem!); return d.weekdays + d.weekends; })() : 0;
-      const plannedDays = (rawPlan.dailyQuantity ?? 0) || parentTotalDays || childDays;
-      // If we can't determine a ratio, or the child covers all days, show full planned
-      if (plannedDays <= 0 || childDays <= 0 || childDays >= plannedDays) return rawPlan;
-      const r = childDays / plannedDays;
+
+      // Collect all worked days for the entire split group
+      const parentId = cardItem.splitParentId || cardItem.id;
+      const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+      const allGroupDays = [...new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))].sort();
+      const myDays = (cardItem.workedDays as string[] | null) || [];
+
+      if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlan;
+
+      const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
+      const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
+      const myWkdays   = myDays.filter(d => !isWeekendDate(d)).length;
+      const myWknds    = myDays.filter(d =>  isWeekendDate(d)).length;
+
+      const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
+      const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
+      const dayRatio   = myDays.length / allGroupDays.length;
+
+      const propDiarias     = myDays.length * rawPlan.dailyValue;
+      const propWkdayLunch  = Math.round(rawPlan.weekdayLunch  * wkdayRatio);
+      const propWkdayDinner = Math.round(rawPlan.weekdayDinner * wkdayRatio);
+      const propWkndLunch   = Math.round(rawPlan.weekendLunch   * wkndRatio);
+      const propWkndDinner  = Math.round(rawPlan.weekendDinner  * wkndRatio);
+      const propMobility    = Math.round(rawPlan.mobility       * dayRatio);
+      const propTransport   = Math.round(rawPlan.transport      * dayRatio);
+
       return {
         ...rawPlan,
-        totalValue: Math.round(rawPlan.totalValue * r),
-        weekdayLunch: Math.round(rawPlan.weekdayLunch * r),
-        weekdayDinner: Math.round(rawPlan.weekdayDinner * r),
-        weekendLunch: Math.round(rawPlan.weekendLunch * r),
-        weekendDinner: Math.round(rawPlan.weekendDinner * r),
-        mobility: Math.round(rawPlan.mobility * r),
+        dailyQuantity: myDays.length,
+        weekdayLunch:  propWkdayLunch,
+        weekdayDinner: propWkdayDinner,
+        weekendLunch:  propWkndLunch,
+        weekendDinner: propWkndDinner,
+        mobility:      propMobility,
+        transport:     propTransport,
+        totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
       } as BudgetPlanned;
     })();
 
@@ -1158,24 +1177,45 @@ export default function BudgetActualPage() {
               }
               return undefined;
             })();
-            // For split children: scale the planned values proportionally to their worked days
+            // For split children: scale using real weekday/weekend counts from the group
             const planned = (() => {
               if (!rawPlannedModal) return undefined;
               if (!editingItem.splitParentId) return rawPlannedModal;
-              const childDays = itemDays.weekdays + itemDays.weekends;
-              const parentItem = budgetActual?.find(a => a.id === editingItem.splitParentId);
-              const parentTotalDays = parentItem ? (() => { const d = getItemDayCounts(parentItem); return d.weekdays + d.weekends; })() : 0;
-              const plannedDays = (rawPlannedModal.dailyQuantity ?? 0) || parentTotalDays || childDays;
-              if (plannedDays <= 0 || childDays <= 0 || childDays >= plannedDays) return rawPlannedModal;
-              const r = childDays / plannedDays;
+
+              const parentId = editingItem.splitParentId;
+              const allGroupItems = budgetActual?.filter(a => a.id === parentId || a.splitParentId === parentId) || [];
+              const allGroupDays = [...new Set(allGroupItems.flatMap(a => (a.workedDays as string[] | null) || []))].sort();
+              const myDays = (editingItem.workedDays as string[] | null) || [];
+
+              if (myDays.length === 0 || allGroupDays.length === 0 || myDays.length >= allGroupDays.length) return rawPlannedModal;
+
+              const origWkdays = allGroupDays.filter(d => !isWeekendDate(d)).length;
+              const origWknds  = allGroupDays.filter(d =>  isWeekendDate(d)).length;
+              const myWkdays   = myDays.filter(d => !isWeekendDate(d)).length;
+              const myWknds    = myDays.filter(d =>  isWeekendDate(d)).length;
+
+              const wkdayRatio = origWkdays > 0 ? myWkdays / origWkdays : 0;
+              const wkndRatio  = origWknds  > 0 ? myWknds  / origWknds  : 0;
+              const dayRatio   = myDays.length / allGroupDays.length;
+
+              const propDiarias     = myDays.length * rawPlannedModal.dailyValue;
+              const propWkdayLunch  = Math.round(rawPlannedModal.weekdayLunch  * wkdayRatio);
+              const propWkdayDinner = Math.round(rawPlannedModal.weekdayDinner * wkdayRatio);
+              const propWkndLunch   = Math.round(rawPlannedModal.weekendLunch   * wkndRatio);
+              const propWkndDinner  = Math.round(rawPlannedModal.weekendDinner  * wkndRatio);
+              const propMobility    = Math.round(rawPlannedModal.mobility       * dayRatio);
+              const propTransport   = Math.round(rawPlannedModal.transport      * dayRatio);
+
               return {
                 ...rawPlannedModal,
-                totalValue: Math.round(rawPlannedModal.totalValue * r),
-                weekdayLunch: Math.round(rawPlannedModal.weekdayLunch * r),
-                weekdayDinner: Math.round(rawPlannedModal.weekdayDinner * r),
-                weekendLunch: Math.round(rawPlannedModal.weekendLunch * r),
-                weekendDinner: Math.round(rawPlannedModal.weekendDinner * r),
-                mobility: Math.round(rawPlannedModal.mobility * r),
+                dailyQuantity: myDays.length,
+                weekdayLunch:  propWkdayLunch,
+                weekdayDinner: propWkdayDinner,
+                weekendLunch:  propWkndLunch,
+                weekendDinner: propWkndDinner,
+                mobility:      propMobility,
+                transport:     propTransport,
+                totalValue:    propDiarias + propWkdayLunch + propWkdayDinner + propWkndLunch + propWkndDinner + propMobility + propTransport,
               } as BudgetPlanned;
             })();
             const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility : 0;
