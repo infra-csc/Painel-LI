@@ -615,7 +615,7 @@ export default function BudgetActualPage() {
         ].join(' ')}
       >
         {/* Card Header */}
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-3">
             {isItemLocked ? (
               <TooltipProvider><Tooltip><TooltipTrigger asChild>
@@ -673,45 +673,45 @@ export default function BudgetActualPage() {
             if (!planned) return null;
             const d = actual - plan;
             if (Math.abs(d) <= 1) return null;
-            return <span className={`text-[10px] tabular-nums font-bold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
+            return <span className={`text-[10px] tabular-nums font-semibold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
           };
           return (
-            <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-2xl p-3 border border-blue-100 dark:border-blue-900/40">
-                  <div className="flex items-center gap-1.5 mb-2.5">
-                    <div className="w-5 h-5 rounded-lg bg-blue-500 flex items-center justify-center"><Calendar className="w-3 h-3 text-white" /></div>
-                    <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
+            <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700/60 pt-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-xl p-2.5 border border-blue-100 dark:border-blue-900/40">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className="w-4 h-4 rounded-md bg-blue-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
+                    <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
                   </div>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                    <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
                     {diffInline(cardSubtotalDiarias, plannedDiarias)}
                   </div>
                   {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
-                  <div className="mt-2 space-y-0.5">
-                    {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-                    {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                  <div className="mt-1.5 space-y-0.5">
+                    {cardDays.weekdays > 0 && <div className="text-[11px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                    {cardDays.weekends > 0 && <div className="text-[11px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
                   </div>
                 </div>
-                <div className="space-y-2.5">
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-2xl p-3 border border-orange-100 dark:border-orange-900/40">
+                <div className="space-y-2">
+                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-xl p-2.5 border border-orange-100 dark:border-orange-900/40">
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className="w-5 h-5 rounded-lg bg-orange-400 flex items-center justify-center"><Utensils className="w-3 h-3 text-white" /></div>
-                      <span className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
+                      <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
+                      <span className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
                     {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                   </div>
-                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-2xl p-3 border border-violet-100 dark:border-violet-900/40">
+                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-xl p-2.5 border border-violet-100 dark:border-violet-900/40">
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className="w-5 h-5 rounded-lg bg-violet-500 flex items-center justify-center"><Car className="w-3 h-3 text-white" /></div>
-                      <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
+                      <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
+                      <span className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-black text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                      <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>}
@@ -726,14 +726,14 @@ export default function BudgetActualPage() {
           const planned = isGChild ? null : getPlannedRef(cardItem);
           const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
           return (
-            <div className={`flex items-center justify-between px-4 py-2.5 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
+            <div className={`flex items-center justify-between px-3 py-2 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
                 {planned && Math.abs(diff) > 1 && <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
               </div>
               <div className="flex items-center gap-2">
                 {planned && Math.abs(diff) > 1 && <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
-                <span className="font-bold text-base text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(cardItem.totalValue)}</span>
+                <span className="font-semibold text-[15px] text-violet-700 dark:text-violet-300 tabular-nums">{formatCurrency(cardItem.totalValue)}</span>
               </div>
             </div>
           );
@@ -1006,12 +1006,12 @@ export default function BudgetActualPage() {
                     ))}
                   </div>
                   {/* Group total footer */}
-                  <div className="mx-2 mb-2 flex items-center justify-between px-4 py-2.5 bg-purple-100/60 dark:bg-purple-900/20 rounded-xl">
+                  <div className="mx-2 mb-2 flex items-center justify-between px-3 py-2 bg-purple-100/60 dark:bg-purple-900/20 rounded-xl">
                     <div className="flex items-center gap-2">
                       <GitFork className="w-3.5 h-3.5 text-purple-500" />
-                      <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">Total da escalação</span>
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">Total da escalação</span>
                     </div>
-                    <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
+                    <span className="text-[15px] font-semibold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
                   </div>
                 </div>
               );
