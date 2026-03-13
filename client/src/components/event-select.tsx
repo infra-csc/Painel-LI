@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, Search, X, ChevronDown } from "lucide-react";
 import {
   Select,
@@ -82,6 +83,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -92,18 +94,15 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     return sorted.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
   }, [sorted, search]);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-        setSearch("");
-      }
+  function updateRect() {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownRect({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: rect.width });
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }
 
   function handleOpen() {
+    updateRect();
     setIsOpen(true);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
@@ -114,9 +113,80 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     setSearch("");
   }
 
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      const portal = document.getElementById("event-search-portal");
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        portal && !portal.contains(target)
+      ) {
+        setIsOpen(false);
+        setSearch("");
+      }
+    }
+    function handleScroll() { updateRect(); }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [isOpen]);
+
+  const dropdown = isOpen && dropdownRect && createPortal(
+    <div
+      id="event-search-portal"
+      style={{
+        position: 'absolute',
+        top: dropdownRect.top,
+        left: dropdownRect.left,
+        width: dropdownRect.width,
+        zIndex: 9999,
+        background: '#fff',
+        border: '1px solid #E2E8F0',
+        borderRadius: 10,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+        maxHeight: 220,
+        overflowY: 'auto',
+      }}
+    >
+      {filtered.length === 0 ? (
+        <div style={{ padding: '14px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+          Nenhum evento encontrado
+        </div>
+      ) : (
+        filtered.map((event, i) => (
+          <button
+            key={event.id}
+            onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+              padding: '10px 14px', border: 'none',
+              background: event.id === value ? '#EEF2FF' : 'transparent',
+              cursor: 'pointer', fontSize: 14,
+              color: event.id === value ? '#3B5BDB' : '#1E293B',
+              textAlign: 'left', fontWeight: event.id === value ? 600 : 400,
+              borderBottom: i < filtered.length - 1 ? '1px solid #F1F5F9' : 'none',
+            }}
+            onMouseEnter={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+            onMouseLeave={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = event.id === value ? '#EEF2FF' : 'transparent'; }}
+          >
+            <Calendar style={{ width: 15, height: 15, color: event.id === value ? '#3B5BDB' : '#94A3B8', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.name}</span>
+          </button>
+        ))
+      )}
+    </div>,
+    document.body
+  );
+
   return (
     <div ref={containerRef} style={{ position: 'relative', minWidth: 280 }} className={className}>
-      {/* Trigger button — shows selected event or placeholder */}
+      {/* Trigger button */}
       {!isOpen ? (
         <button
           onClick={handleOpen}
@@ -151,7 +221,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
           />
           {search && (
             <button
-              onClick={() => setSearch("")}
+              onMouseDown={e => { e.preventDefault(); setSearch(""); }}
               style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center' }}
             >
               <X style={{ width: 15, height: 15 }} />
@@ -160,41 +230,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
         </div>
       )}
 
-      {/* Dropdown list */}
-      {isOpen && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
-          background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto',
-        }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: '14px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
-              Nenhum evento encontrado
-            </div>
-          ) : (
-            filtered.map((event, i) => (
-              <button
-                key={event.id}
-                onClick={() => handleSelect(event.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '10px 14px', border: 'none',
-                  background: event.id === value ? '#EEF2FF' : 'transparent',
-                  cursor: 'pointer', fontSize: 14,
-                  color: event.id === value ? '#3B5BDB' : '#1E293B',
-                  textAlign: 'left', fontWeight: event.id === value ? 600 : 400,
-                  borderBottom: i < filtered.length - 1 ? '1px solid #F1F5F9' : 'none',
-                }}
-                onMouseEnter={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
-                onMouseLeave={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                <Calendar style={{ width: 15, height: 15, color: event.id === value ? '#3B5BDB' : '#94A3B8', flexShrink: 0 }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.name}</span>
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {dropdown}
     </div>
   );
 }
