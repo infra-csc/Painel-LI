@@ -1008,6 +1008,7 @@ export default function BudgetActualPage() {
               const groupTotal = isGroupParent
                 ? item.totalValue + groupChildren.reduce((s, c) => s + c.totalValue, 0)
                 : 0;
+              const groupPlannedTotal = isGroupParent ? getPlannedRef(item)?.totalValue : undefined;
 
               if (isGroupChild) return null;
 
@@ -1043,8 +1044,18 @@ export default function BudgetActualPage() {
                     <div className="flex items-center gap-2">
                       <GitFork className="w-3.5 h-3.5 text-purple-500" />
                       <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">Total da escalação</span>
+                      {groupPlannedTotal !== undefined && (
+                        <span className="text-[10px] text-purple-400/70 tabular-nums">plan: {formatCurrency(groupPlannedTotal)}</span>
+                      )}
                     </div>
-                    <span className="text-[15px] font-semibold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
+                    <div className="flex items-center gap-2">
+                      {groupPlannedTotal !== undefined && Math.abs(groupTotal - groupPlannedTotal) > 1 && (
+                        <span className={`text-[11px] font-semibold tabular-nums ${groupTotal - groupPlannedTotal < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {groupTotal - groupPlannedTotal > 0 ? '+' : ''}{formatCurrency(groupTotal - groupPlannedTotal)}
+                        </span>
+                      )}
+                      <span className="text-[15px] font-semibold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(groupTotal)}</span>
+                    </div>
                   </div>
                 </div>
               );
