@@ -226,6 +226,13 @@ export default function BudgetPlannedPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
+  function formatEventDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return "";
+    const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    const [year, month, day] = dateStr.split("-");
+    return `${parseInt(day)} de ${months[parseInt(month) - 1]} de ${year}`;
+  }
+
   const countWeekdaysAndWeekends = (startDate: string | null, qtdDiarias: number): { weekdays: number; weekends: number } => {
     if (!startDate || qtdDiarias <= 0) return { weekdays: 0, weekends: 0 };
     const start = new Date(startDate + 'T00:00:00');
@@ -613,7 +620,15 @@ export default function BudgetPlannedPage() {
             <p className="text-xs text-gray-500">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
+          {selectedEvent?.startDate && (
+            <span style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Calendar className="w-3 h-3" style={{ color: '#94A3B8' }} />
+              {formatEventDate(selectedEvent.startDate)}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Tela 1: Seleção de evento ── */}
@@ -653,6 +668,12 @@ export default function BudgetPlannedPage() {
               <div className="relative flex items-center justify-between">
                 <div>
                   <p className="text-emerald-100 text-xs font-semibold uppercase tracking-widest mb-1">Total Planejado do Evento</p>
+                  {selectedEvent?.startDate && (
+                    <p style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'rgba(255,255,255,0.75)', marginBottom: 6 }}>
+                      <Calendar style={{ width: 12, height: 12, flexShrink: 0 }} />
+                      {formatEventDate(selectedEvent.startDate)}
+                    </p>
+                  )}
                   <div className="text-3xl font-black text-white">{formatCurrency(totalGeral)}</div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
