@@ -516,11 +516,15 @@ export default function BudgetActualPage() {
   const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
   const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
   const totalPlanejado = useMemo(() => {
-    return filteredItems.reduce((sum, item) => {
-      const planned = getPlannedRef(item);
-      return sum + (planned ? planned.totalValue : item.totalValue);
-    }, 0);
+    // Only count non-split-child items: a split group is ONE prestação with ONE planned budget
+    return filteredItems
+      .filter(item => !item.splitParentId)
+      .reduce((sum, item) => {
+        const planned = getPlannedRef(item);
+        return sum + (planned ? planned.totalValue : item.totalValue);
+      }, 0);
   }, [filteredItems, budgetPlanned]);
+  const prestacaoCount = filteredItems.filter(item => !item.splitParentId).length;
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
     ? { text: "Dentro do planejado", color: "text-gray-500" }
@@ -908,7 +912,7 @@ export default function BudgetActualPage() {
                   {totalDifference === 0 && <CheckCircle2 className="w-3.5 h-3.5" />}
                   <span className={totalDifference < 0 ? 'text-emerald-300' : ''}>{diffLabel.text}</span>
                 </div>
-                <div className="text-violet-200 text-xs">{filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}</div>
+                <div className="text-violet-200 text-xs">{prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}</div>
               </div>
             </div>
           </div>
@@ -1074,7 +1078,7 @@ export default function BudgetActualPage() {
               </div>
               <div className="h-8 w-px bg-gray-200 dark:bg-gray-700" />
               <div className="text-xs text-gray-400">
-                {filteredItems.length} {filteredItems.length === 1 ? 'prestação' : 'prestações'}
+                {prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}
                 {selectedCards.size > 0 && (
                   <span className="ml-2 text-violet-600 font-medium">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
                 )}
