@@ -56,6 +56,7 @@ export default function BudgetComparisonPage() {
   });
   const [actionModal, setActionModal] = useState<{ type: 'approve' | 'reject' | 'return' } | null>(null);
   const [actionNote, setActionNote] = useState("");
+  const [applyCommentToAll, setApplyCommentToAll] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const [sortBy, setSortBy] = useState<'difference' | 'total'>('difference');
   const [searchTerm, setSearchTerm] = useState("");
@@ -144,6 +145,7 @@ export default function BudgetComparisonPage() {
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setActionModal(null);
       setActionNote("");
+      setApplyCommentToAll(true);
       setSelectedItems(new Set());
     },
   });
@@ -796,6 +798,12 @@ export default function BudgetComparisonPage() {
                                 </span>
                               )}
                             </div>
+                            {/* RH comment snippet — visible in collapsed view */}
+                            {isDecided && a.rhComment && (itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido') && (
+                              <p className={`text-[10px] italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-red-500 dark:text-red-400' : 'text-orange-500 dark:text-orange-400'}`}>
+                                "{a.rhComment}"
+                              </p>
+                            )}
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[10px] text-gray-400">{getFunctionName(row.functionId)}</span>
                               <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -1418,50 +1426,88 @@ export default function BudgetComparisonPage() {
       </Dialog>
 
       {/* ── Action confirmation modal ── */}
-      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
+      <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); setApplyCommentToAll(true); }}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              {actionModal?.type === 'approve' && <><div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar para Faturamento</>}
-              {actionModal?.type === 'reject' && <><div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center"><XCircle className="w-4 h-4 text-red-600" /></div> Recusar Prestação</>}
-              {actionModal?.type === 'return' && <><div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center"><RotateCcw className="w-4 h-4 text-amber-600" /></div> Devolver para Ajustes</>}
+              {actionModal?.type === 'approve' && (
+                <><div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar para Faturamento</>
+              )}
+              {actionModal?.type === 'reject' && (
+                <><div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-red-600" /></div> <span className="text-red-700 dark:text-red-400">Recusar prestação</span></>
+              )}
+              {actionModal?.type === 'return' && (
+                <><div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-amber-600" /></div> <span className="text-amber-700 dark:text-amber-400">Devolver para correção</span></>
+              )}
             </DialogTitle>
+            {/* Subtitle: collaborator names */}
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 pl-1 leading-relaxed">
+              {Array.from(selectedItems).map(idx => sortedData[idx]).filter(Boolean).map(row => getCollaboratorName(row!.collaboratorId).split(' ')[0]).join(', ')}
+            </p>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-3 max-h-32 overflow-y-auto">
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5">
-                {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} selecionado{selectedItems.size !== 1 ? 's' : ''}
+          <div className="space-y-4">
+            {/* Collaborator chips */}
+            <div className={`rounded-xl p-3 border ${actionModal?.type === 'reject' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' : actionModal?.type === 'return' ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-800' : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-700'}`}>
+              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-2">
+                {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} afetado{selectedItems.size !== 1 ? 's' : ''}
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                 {Array.from(selectedItems).map(idx => {
                   const row = sortedData[idx];
                   if (!row) return null;
                   const n = getCollaboratorName(row.collaboratorId);
                   return (
                     <div key={idx} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-semibold text-white ${avatarColor(n)}`}>
-                      {initials(n)} <span className="opacity-90">{n.split(' ')[0]}</span>
+                      {initials(n)} <span className="opacity-90">{n}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {/* Comment field */}
             <div>
-              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">Comentário (opcional)</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Comentário <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
               <Textarea
-                className="mt-1.5 rounded-xl text-sm"
+                className="mt-1.5 rounded-xl text-sm resize-none"
                 value={actionNote}
                 onChange={e => setActionNote(e.target.value)}
                 placeholder={
-                  actionModal?.type === 'approve' ? 'Adicionar um comentário...' :
-                  actionModal?.type === 'reject' ? 'Informe o motivo da recusa...' :
-                  'Informe o que precisa ser corrigido...'
+                  actionModal?.type === 'approve'
+                    ? 'Adicionar um comentário...'
+                    : actionModal?.type === 'reject'
+                    ? 'Adicione um motivo para o colaborador (opcional)...'
+                    : 'Descreva o que precisa ser corrigido (opcional)...'
                 }
                 rows={3}
+                autoFocus={actionModal?.type !== 'approve'}
               />
+              {actionModal?.type !== 'approve' && actionNote.trim() && (
+                <p className="text-[10px] text-gray-400 mt-1.5 italic">
+                  Este comentário ficará visível para o(s) colaborador(es) no card de prestação.
+                </p>
+              )}
             </div>
+
+            {/* "Apply to all" checkbox — only shown for multiple collaborators on reject/return */}
+            {selectedItems.size > 1 && actionModal?.type !== 'approve' && (
+              <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                <Checkbox
+                  checked={applyCommentToAll}
+                  onCheckedChange={v => setApplyCommentToAll(!!v)}
+                  className="border-gray-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">
+                  Aplicar o mesmo comentário para todos os {selectedItems.size} colaboradores
+                </span>
+              </label>
+            )}
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); }}>Cancelar</Button>
+
+          <DialogFooter className="gap-2 mt-1">
+            <Button variant="ghost" className="rounded-xl" onClick={() => { setActionModal(null); setActionNote(""); setApplyCommentToAll(true); }}>Cancelar</Button>
             <Button
               onClick={handleAction}
               disabled={rhActionMutation.isPending}
