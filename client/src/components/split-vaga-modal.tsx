@@ -3,10 +3,11 @@ import { createPortal } from "react-dom";
 import {
   X, Search, UserPlus, Check, AlertTriangle, Info,
   Calendar, Briefcase, Sun, Moon, Car, Utensils,
-  TrendingUp, TrendingDown, ChevronRight, ArrowLeft, CheckCheck,
+  TrendingUp, TrendingDown, ChevronRight, ArrowLeft, CheckCheck, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fixEncoding } from "@/lib/utils";
 import type { BudgetActual, Collaborator, TeamInclusion } from "@shared/schema";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,6 +58,10 @@ function avatarColor(name: string): string {
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?";
+}
+
+function capitalizeName(name: string): string {
+  return name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function SmLabel({ children }: { children: React.ReactNode }) {
@@ -205,9 +210,9 @@ export function SplitVagaModal({
     const q = collabSearch.toLowerCase();
     return collaborators
       .filter(c => c.id !== item.collaboratorId)
-      .filter(c => !q || (c.fullName || "").toLowerCase().includes(q))
-      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "pt-BR"))
-      .slice(0, 40);
+      .filter(c => !q || fixEncoding(c.fullName || "").toLowerCase().includes(q))
+      .sort((a, b) => fixEncoding(a.fullName || "").localeCompare(fixEncoding(b.fullName || ""), "pt-BR"))
+      .slice(0, 60);
   }, [collaborators, collabSearch, item.collaboratorId]);
 
   const selectedCollab = collaborators.find(c => c.id === selectedCollabId);
@@ -370,50 +375,106 @@ export function SplitVagaModal({
               {/* Collaborator picker */}
               <div>
                 <SmLabel>Colaborador</SmLabel>
-                <div ref={dropRef} style={{ position: "relative" }}>
-                  {!collabDropOpen ? (
-                    <button
-                      onClick={openDrop}
-                      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", height: 42, padding: "0 12px", border: "1px solid #CBD5E1", borderRadius: 8, background: "#F8FAFC", cursor: "pointer", fontSize: 14, color: selectedCollab ? "#1E293B" : "#94A3B8", textAlign: "left", boxSizing: "border-box" }}
-                    >
-                      <Search style={{ width: 15, height: 15, color: "#94A3B8", flexShrink: 0 }} />
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: selectedCollab ? 600 : 400 }}>
-                        {selectedCollab ? (selectedCollab.fullName || "") : "Buscar colaborador..."}
-                      </span>
-                    </button>
-                  ) : (
-                    <div style={{ position: "relative" }}>
-                      <Search style={{ position: "absolute", left: 10, top: 13, width: 15, height: 15, color: "#94A3B8", pointerEvents: "none" }} />
-                      <input
-                        ref={inputRef}
-                        value={collabSearch}
-                        onChange={e => setCollabSearch(e.target.value)}
-                        placeholder="Buscar colaborador..."
-                        style={{ width: "100%", height: 42, paddingLeft: 32, paddingRight: 12, border: "1px solid #3B5BDB", borderRadius: 8, fontSize: 14, outline: "none", boxShadow: "0 0 0 3px rgba(59,91,219,0.1)", color: "#1E293B", background: "#fff", boxSizing: "border-box" }}
-                      />
+                <div ref={dropRef}>
+                  {/* Trigger button */}
+                  <button
+                    onClick={openDrop}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                      width: "100%", height: 44, padding: "0 12px",
+                      border: collabDropOpen ? "1.5px solid #7C3AED" : "1.5px solid #E2E8F0",
+                      borderRadius: 10, background: "#fff",
+                      cursor: "pointer", textAlign: "left", boxSizing: "border-box",
+                      boxShadow: collabDropOpen ? "0 0 0 3px rgba(124,58,237,0.1)" : "0 1px 2px rgba(0,0,0,0.05)",
+                      transition: "border-color 0.15s, box-shadow 0.15s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                      {selectedCollab ? (
+                        <>
+                          <div style={{
+                            width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                            background: "linear-gradient(135deg,#7C3AED,#4F46E5)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 800, color: "#fff",
+                          }}>
+                            {fixEncoding(selectedCollab.fullName || "?").charAt(0).toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {capitalizeName(fixEncoding(selectedCollab.fullName || ""))}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Search style={{ width: 15, height: 15, color: "#94A3B8", flexShrink: 0 }} />
+                          <span style={{ fontSize: 14, color: "#94A3B8" }}>Buscar colaborador...</span>
+                        </>
+                      )}
                     </div>
-                  )}
+                    <ChevronDown style={{ width: 15, height: 15, color: "#94A3B8", flexShrink: 0, transform: collabDropOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                  </button>
+
+                  {/* Dropdown portal */}
                   {collabDropOpen && dropRect && createPortal(
                     <div
                       id="split-collab-portal"
-                      style={{ position: "absolute", top: dropRect.top, left: dropRect.left, width: dropRect.width, zIndex: 10000, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 200, overflowY: "auto" }}
+                      style={{
+                        position: "absolute", top: dropRect.top, left: dropRect.left, width: dropRect.width,
+                        zIndex: 10000, background: "#fff",
+                        border: "1.5px solid #E2E8F0", borderRadius: 12,
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+                        overflow: "hidden",
+                      }}
                     >
-                      {filteredCollabs.length === 0 ? (
-                        <div style={{ padding: "12px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Nenhum colaborador encontrado</div>
-                      ) : filteredCollabs.map((c, i) => (
-                        <button
-                          key={c.id}
-                          onMouseDown={e => { e.preventDefault(); setSelectedCollabId(c.id); setCollabDropOpen(false); setCollabSearch(""); }}
-                          style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 14px", border: "none", background: c.id === selectedCollabId ? "#EEF2FF" : "transparent", cursor: "pointer", fontSize: 14, color: c.id === selectedCollabId ? "#3B5BDB" : "#1E293B", textAlign: "left", borderBottom: i < filteredCollabs.length - 1 ? "1px solid #F1F5F9" : "none", fontWeight: c.id === selectedCollabId ? 600 : 400 }}
-                          onMouseEnter={e => { if (c.id !== selectedCollabId) (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
-                          onMouseLeave={e => { if (c.id !== selectedCollabId) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                        >
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#7C3AED,#4F46E5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                            {(c.fullName || "?").charAt(0).toUpperCase()}
-                          </div>
-                          <span>{c.fullName}</span>
-                        </button>
-                      ))}
+                      {/* Search input */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
+                        <Search style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
+                        <input
+                          ref={inputRef}
+                          value={collabSearch}
+                          onChange={e => setCollabSearch(e.target.value)}
+                          placeholder="Buscar colaborador..."
+                          style={{ flex: 1, border: "none", outline: "none", fontSize: 13, color: "#1E293B", background: "transparent" }}
+                        />
+                      </div>
+                      {/* List */}
+                      <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                        {filteredCollabs.length === 0 ? (
+                          <div style={{ padding: "14px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Nenhum colaborador encontrado</div>
+                        ) : filteredCollabs.map(c => {
+                          const name = capitalizeName(fixEncoding(c.fullName || ""));
+                          const isSel = c.id === selectedCollabId;
+                          const ini = fixEncoding(c.fullName || "?").charAt(0).toUpperCase();
+                          return (
+                            <button
+                              key={c.id}
+                              onMouseDown={e => { e.preventDefault(); setSelectedCollabId(c.id); setCollabDropOpen(false); setCollabSearch(""); }}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 10, width: "100%",
+                                padding: "8px 14px", border: "none",
+                                background: isSel ? "#EDE9FE" : "transparent",
+                                cursor: "pointer", textAlign: "left",
+                                borderBottom: "1px solid #F8FAFC",
+                              }}
+                              onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
+                              onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                            >
+                              <div style={{
+                                width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+                                background: isSel ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "linear-gradient(135deg,#94A3B8,#64748B)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 11, fontWeight: 800, color: "#fff",
+                              }}>
+                                {ini}
+                              </div>
+                              <span style={{ fontSize: 13, fontWeight: isSel ? 600 : 400, color: isSel ? "#6D28D9" : "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {name}
+                              </span>
+                              {isSel && <Check style={{ width: 13, height: 13, color: "#7C3AED", marginLeft: "auto", flexShrink: 0 }} />}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>,
                     document.body
                   )}
