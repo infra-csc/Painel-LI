@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "DA8XXzPUbObXRTuY85kr-"
+uri = "file://docs/financeiro-manual.md"
+type = "text"
+title = "Manual do Módulo Financeiro — Prestações de Contas"
