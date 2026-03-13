@@ -468,6 +468,40 @@ export default function BudgetActualPage() {
     return items;
   }, [budgetActual, selectedEventId, searchTerm, filterType, filterFunction, sortBy, collaborators, functions, budgetPlanned]);
 
+  // ── Split group computation ─────────────────────────────────────────────
+  // Map from parentId → list of split children in the filtered set
+  const splitGroupsMap = useMemo(() => {
+    const map = new Map<string, BudgetActual[]>();
+    for (const item of filteredItems) {
+      if (item.splitParentId) {
+        const arr = map.get(item.splitParentId) || [];
+        arr.push(item);
+        map.set(item.splitParentId, arr);
+      }
+    }
+    return map;
+  }, [filteredItems]);
+
+  // Ordered render list: parents first, children follow immediately after their parent; standalone items unchanged
+  const orderedRenderItems = useMemo(() => {
+    const result: BudgetActual[] = [];
+    const childrenSeen = new Set<string>();
+    for (const item of filteredItems) {
+      if (item.splitParentId) continue; // will be inserted after parent
+      result.push(item);
+      const children = splitGroupsMap.get(item.id) || [];
+      for (const child of children) {
+        result.push(child);
+        childrenSeen.add(child.id);
+      }
+    }
+    // Orphaned children (whose parent isn't in filteredItems) rendered at end
+    for (const item of filteredItems) {
+      if (item.splitParentId && !childrenSeen.has(item.id)) result.push(item);
+    }
+    return result;
+  }, [filteredItems, splitGroupsMap]);
+
   const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
   const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
   const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
@@ -723,7 +757,19 @@ export default function BudgetActualPage() {
           )}
 
           <div className="space-y-3.5">
-            {filteredItems.map(item => {
+            {orderedRenderItems.map((item, renderIdx) => {
+              const isGroupParent = !item.splitParentId && splitGroupsMap.has(item.id);
+              const isGroupChild = !!item.splitParentId;
+              const groupChildren = splitGroupsMap.get(item.id) || [];
+              const groupTotal = isGroupParent
+                ? item.totalValue + groupChildren.reduce((s, c) => s + c.totalValue, 0)
+                : 0;
+
+              // Detect if this is the LAST child of its group (for showing group total footer)
+              const nextItem = orderedRenderItems[renderIdx + 1];
+              const isLastGroupChild = isGroupChild &&
+                (!nextItem || nextItem.splitParentId !== item.splitParentId);
+
               const isCollapsed = collapsedCards.has(item.id);
               const isCasa = item.collaboratorType === 'casa';
               const totalAlimentacao = item.weekdayLunch + item.weekdayDinner + item.weekendLunch + item.weekendDinner;
@@ -812,12 +858,30 @@ export default function BudgetActualPage() {
               const avatarBg = avatarColorAct(collabName);
 
               return (
-                <div key={item.id} data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden transition-all duration-300 ${
-                  highlightCardId === item.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30' :
-                  isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50' :
-                  diverges ? 'border-amber-200 dark:border-amber-800/50' :
-                  'border-gray-200 dark:border-gray-700'
-                }`}>
+                <div key={item.id}>
+                  {/* Group parent header strip */}
+                  {isGroupParent && groupChildren.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 mb-1 rounded-xl bg-purple-50 border border-purple-200 dark:bg-purple-950/30 dark:border-purple-800/50">
+                      <GitFork className="w-3 h-3 text-purple-500" />
+                      <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                        Escalação dividida — {groupChildren.length + 1} colaboradores
+                      </span>
+                      <span className="ml-auto text-[11px] font-bold text-purple-700 dark:text-purple-300 tabular-nums">
+                        Total do grupo: {formatCurrency(groupTotal)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Card */}
+                  <div data-card-id={item.id} className={`bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden transition-all duration-300 ${
+                    isGroupChild ? 'ml-5 border-l-4 border-l-purple-400' : ''
+                  } ${
+                    highlightCardId === item.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30' :
+                    isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50' :
+                    diverges ? 'border-amber-200 dark:border-amber-800/50' :
+                    isGroupChild ? 'border-purple-200 dark:border-purple-800/50' :
+                    'border-gray-200 dark:border-gray-700'
+                  }`}>
 
                   {/* ── Card Header ── */}
                   <div className="flex items-center justify-between px-4 py-3">
@@ -1018,6 +1082,22 @@ export default function BudgetActualPage() {
                       </div>
                     );
                   })()}
+                  </div>
+
+                  {/* Group total footer after last split child */}
+                  {isLastGroupChild && (
+                    <div className="ml-5 mt-1 flex items-center justify-between px-4 py-2 rounded-xl bg-purple-50 border border-purple-200 dark:bg-purple-950/30 dark:border-purple-800/50">
+                      <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">Total do grupo (comparativo vs planejado)</span>
+                      <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">
+                        {(() => {
+                          const parentItem = filteredItems.find(i => i.id === item.splitParentId);
+                          const siblingChildren = filteredItems.filter(i => i.splitParentId === item.splitParentId);
+                          const total = (parentItem?.totalValue || 0) + siblingChildren.reduce((s, c) => s + c.totalValue, 0);
+                          return formatCurrency(total);
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1628,19 +1708,25 @@ export default function BudgetActualPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Split Vaga Modal ── */}
-      {splittingItem && (
-        <SplitVagaModal
-          item={splittingItem}
-          collaborators={collaborators || []}
-          teamInclusion={getItemInclusion(splittingItem)}
-          onClose={() => setSplittingItem(null)}
-          isPending={splitMutation.isPending}
-          onConfirm={(payload) => {
-            splitMutation.mutate({ id: splittingItem.id, payload });
-          }}
-        />
-      )}
+      {/* ── Split Escalação Modal ── */}
+      {splittingItem && (() => {
+        const takenDays = (budgetActual || [])
+          .filter((a: any) => a.splitParentId === splittingItem.id)
+          .flatMap((a: any) => (a.workedDays as string[]) || []);
+        return (
+          <SplitVagaModal
+            item={splittingItem}
+            collaborators={collaborators || []}
+            teamInclusion={getItemInclusion(splittingItem)}
+            takenDays={takenDays}
+            onClose={() => setSplittingItem(null)}
+            isPending={splitMutation.isPending}
+            onConfirm={(payload) => {
+              splitMutation.mutate({ id: splittingItem.id, payload });
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

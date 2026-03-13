@@ -2180,37 +2180,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parent = await storage.getBudgetActualById(req.params.id);
       if (!parent) return res.status(404).json({ message: "Item não encontrado" });
 
-      const { collaboratorId, workedDays, collaboratorType, mobility } = req.body;
+      const {
+        collaboratorId, workedDays, parentWorkedDays, collaboratorType,
+        mobility, weekdayLunch, weekdayDinner, weekendLunch, weekendDinner,
+        dailyValue, dailyQuantity, totalValue,
+      } = req.body;
       if (!collaboratorId || !Array.isArray(workedDays) || workedDays.length === 0) {
         return res.status(400).json({ message: "collaboratorId e workedDays são obrigatórios" });
       }
 
-      // Count weekdays and weekends in the selected days
-      let weekdayCount = 0;
-      let weekendCount = 0;
-      for (const d of workedDays) {
-        const day = new Date(d + "T12:00:00");
-        const dow = day.getDay();
-        if (dow === 0 || dow === 6) weekendCount++;
-        else weekdayCount++;
-      }
-
-      // Determine per-day rates from parent
-      const parentTotalDays = parent.dailyQuantity || 1;
-      const dailyValue = parent.dailyValue;
-      const perDayWeekdayLunch = parentTotalDays > 0 ? Math.round((parent.weekdayLunch || 0) / Math.max(1, parentTotalDays)) : 0;
-      const perDayWeekdayDinner = parentTotalDays > 0 ? Math.round((parent.weekdayDinner || 0) / Math.max(1, parentTotalDays)) : 0;
-      const perDayWeekendLunch = parentTotalDays > 0 ? Math.round((parent.weekendLunch || 0) / Math.max(1, parentTotalDays)) : 0;
-      const perDayWeekendDinner = parentTotalDays > 0 ? Math.round((parent.weekendDinner || 0) / Math.max(1, parentTotalDays)) : 0;
-
-      const childWeekdayLunch = weekdayCount * perDayWeekdayLunch;
-      const childWeekdayDinner = weekdayCount * perDayWeekdayDinner;
-      const childWeekendLunch = weekendCount * perDayWeekendLunch;
-      const childWeekendDinner = weekendCount * perDayWeekendDinner;
+      // Accept pre-calculated values from frontend, or fall back to parent's values
       const childMobility = typeof mobility === 'number' ? mobility : (parent.mobility || 0);
-      const childDailyQty = workedDays.length;
-      const childDailyTotal = childDailyQty * dailyValue;
-      const childTotal = childDailyTotal + childWeekdayLunch + childWeekdayDinner + childWeekendLunch + childWeekendDinner + childMobility;
+      const childDailyValue = typeof dailyValue === 'number' ? dailyValue : parent.dailyValue;
+      const childDailyQty = typeof dailyQuantity === 'number' ? dailyQuantity : workedDays.length;
+      const childWeekdayLunch = typeof weekdayLunch === 'number' ? weekdayLunch : 0;
+      const childWeekdayDinner = typeof weekdayDinner === 'number' ? weekdayDinner : 0;
+      const childWeekendLunch = typeof weekendLunch === 'number' ? weekendLunch : 0;
+      const childWeekendDinner = typeof weekendDinner === 'number' ? weekendDinner : 0;
+      const childTotal = typeof totalValue === 'number' ? totalValue :
+        (childDailyQty * childDailyValue + childWeekdayLunch + childWeekdayDinner + childWeekendLunch + childWeekendDinner + childMobility);
 
       const splitData = {
         splitParentId: parent.id,
@@ -2220,7 +2208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         functionId: parent.functionId,
         collaboratorType: collaboratorType || parent.collaboratorType,
         dailyQuantity: childDailyQty,
-        dailyValue,
+        dailyValue: childDailyValue,
         costAssistance: 0,
         weekdayLunch: childWeekdayLunch,
         weekdayDinner: childWeekdayDinner,
@@ -2230,18 +2218,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transport: 0,
         totalValue: childTotal,
         workedDays,
-        observations: `Divisão de vaga — colaborador adicional`,
+        observations: `Divisão de escalação — colaborador adicional`,
         createdBy: req.session?.userId || null,
       };
 
       const created = await storage.createBudgetActual(splitData as any);
 
-      // Update the parent's workedDays to store its own tracked days (if not already set)
-      if (req.body.parentWorkedDays) {
-        await storage.updateBudgetActual(parent.id, {
-          workedDays: req.body.parentWorkedDays,
-        } as any);
-      }
+      // Always update the parent's workedDays to reflect remaining days
+      await storage.updateBudgetActual(parent.id, {
+        workedDays: Array.isArray(parentWorkedDays) ? parentWorkedDays : [],
+      } as any);
 
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
