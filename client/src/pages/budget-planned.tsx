@@ -99,7 +99,7 @@ export default function BudgetPlannedPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name_asc");
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
-  const [notAttendedModal, setNotAttendedModal] = useState<{ id: string; name: string; functionName: string } | null>(null);
+  const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
@@ -187,6 +187,44 @@ export default function BudgetPlannedPage() {
       }
     },
     onError: () => toast({ title: "Erro ao atualizar participação", variant: "destructive" }),
+  });
+
+  const createAndMarkNotAttendedMutation = useMutation({
+    mutationFn: async ({ budget, reason }: { budget: any; reason: string }) => {
+      const weightedDailyValue = budget.qtdDiarias > 0
+        ? Math.round(budget.subtotalDiarias / budget.qtdDiarias)
+        : budget.valorDiariaUtil;
+      const plannedData = {
+        eventId: budget.inclusion.eventId,
+        collaboratorId: budget.inclusion.collaboratorId,
+        functionId: budget.inclusion.functionId,
+        collaboratorType: budget.collaborator?.type || "freela",
+        dailyQuantity: budget.qtdDiarias,
+        dailyValue: weightedDailyValue,
+        costAssistance: 0,
+        weekdayLunch: budget.almocoSemana,
+        weekdayDinner: budget.jantarSemana,
+        weekendLunch: budget.almocoFds,
+        weekendDinner: budget.jantarFds,
+        mobility: budget.mobilidade,
+        mobilityIda: budget.mobilidadeIda,
+        mobilityVolta: budget.mobilidadeVolta,
+        transport: 0,
+        totalValue: budget.totalFinal,
+        createdBy: user?.id,
+      };
+      const res = await apiRequest("POST", "/api/budget-planned", plannedData);
+      const created = await res.json();
+      const toggleRes = await apiRequest("POST", `/api/budget-planned/${created.id}/toggle-not-attended`, { reason });
+      return toggleRes.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
+      setNotAttendedModal(null);
+      setNotAttendedReason("");
+      toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
+    },
+    onError: () => toast({ title: "Erro ao marcar como não participou", variant: "destructive" }),
   });
 
   const { data: allTeamInclusions } = useQuery<TeamInclusion[]>({
@@ -593,8 +631,23 @@ export default function BudgetPlannedPage() {
       createdBy: user?.id,
     };
 
-    const plannedRes = await apiRequest("POST", "/api/budget-planned", plannedData);
-    const savedPlanned = await plannedRes.json();
+    // Reutiliza registro planejado já existente (ex: marcado como "não participou" antes de enviar)
+    const existingPlan = allBudgetPlanned?.find(
+      (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
+    );
+
+    let savedPlanned: any;
+    if (existingPlan) {
+      const patchRes = await apiRequest("PATCH", `/api/budget-planned/${existingPlan.id}`, {
+        ...plannedData,
+        didNotAttend: (existingPlan as any).didNotAttend,
+        didNotAttendReason: (existingPlan as any).didNotAttendReason,
+      });
+      savedPlanned = await patchRes.json();
+    } else {
+      const plannedRes = await apiRequest("POST", "/api/budget-planned", plannedData);
+      savedPlanned = await plannedRes.json();
+    }
 
     const actualRes = await apiRequest("POST", "/api/budget-actual", {
       ...plannedData,
@@ -1066,14 +1119,14 @@ export default function BudgetPlannedPage() {
 
                         {/* Ações */}
                         <div className="flex items-center gap-0.5">
-                          {/* Não participou — sempre visível para RH/Admin em cards enviados */}
-                          {canMarkNotAttended && isSent && planRecord && (
+                          {/* Não participou — visível para RH/Admin em todos os cards */}
+                          {canMarkNotAttended && (
                             isNotAttended ? (
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                      onClick={() => toggleNotAttendedMutation.mutate({ id: planRecord.id, reason: "" })}
+                                      onClick={() => planRecord && toggleNotAttendedMutation.mutate({ id: planRecord.id, reason: "" })}
                                       disabled={toggleNotAttendedMutation.isPending}>
                                       <Undo2 className="w-3.5 h-3.5" />
                                     </Button>
@@ -1086,7 +1139,12 @@ export default function BudgetPlannedPage() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                      onClick={() => setNotAttendedModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}>
+                                      onClick={() => setNotAttendedModal({
+                                        id: planRecord?.id,
+                                        budget: planRecord ? undefined : budget,
+                                        name,
+                                        functionName: getFunctionName(budget.inclusion.functionId)
+                                      })}>
                                       <UserX className="w-3.5 h-3.5" />
                                     </Button>
                                   </TooltipTrigger>
@@ -1663,11 +1721,17 @@ export default function BudgetPlannedPage() {
                 </Button>
                 <Button
                   className="rounded-xl bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-sm"
-                  onClick={() => toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason })}
-                  disabled={toggleNotAttendedMutation.isPending}
+                  onClick={() => {
+                    if (notAttendedModal.id) {
+                      toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason });
+                    } else if (notAttendedModal.budget) {
+                      createAndMarkNotAttendedMutation.mutate({ budget: notAttendedModal.budget, reason: notAttendedReason });
+                    }
+                  }}
+                  disabled={toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending}
                 >
                   <UserX className="w-3.5 h-3.5 mr-1.5" />
-                  {toggleNotAttendedMutation.isPending ? 'Confirmando...' : 'Confirmar'}
+                  {(toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending) ? 'Confirmando...' : 'Confirmar'}
                 </Button>
               </div>
             </div>
