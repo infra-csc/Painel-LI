@@ -607,17 +607,21 @@ export default function BudgetActualPage() {
     // - parent in group: scale own planned by (worked_days / total_planned_days)
     const cardPlanned = (() => {
       let rawPlan: BudgetPlanned | undefined;
+      let parentItem: BudgetActual | undefined;
       if (isGChild) {
-        const parent = budgetActual?.find(a => a.id === cardItem.splitParentId);
-        rawPlan = parent ? getPlannedRef(parent) : undefined;
+        parentItem = budgetActual?.find(a => a.id === cardItem.splitParentId);
+        rawPlan = parentItem ? getPlannedRef(parentItem) : undefined;
       } else {
         rawPlan = getPlannedRef(cardItem);
       }
       if (!rawPlan) return undefined;
       if (!isInGroup) return rawPlan;
       const childDays = cardDays.weekdays + cardDays.weekends;
-      const plannedDays = rawPlan.dailyQuantity ?? 0;
-      if (plannedDays <= 0 || childDays <= 0) return undefined;
+      // Fallback for plannedDays: dailyQuantity → parent's actual day count → child's days (ratio=1)
+      const parentTotalDays = parentItem ? (() => { const d = getItemDayCounts(parentItem!); return d.weekdays + d.weekends; })() : 0;
+      const plannedDays = (rawPlan.dailyQuantity ?? 0) || parentTotalDays || childDays;
+      // If we can't determine a ratio, or the child covers all days, show full planned
+      if (plannedDays <= 0 || childDays <= 0 || childDays >= plannedDays) return rawPlan;
       const r = childDays / plannedDays;
       return {
         ...rawPlan,
@@ -1144,8 +1148,10 @@ export default function BudgetActualPage() {
               if (!rawPlannedModal) return undefined;
               if (!editingItem.splitParentId) return rawPlannedModal;
               const childDays = itemDays.weekdays + itemDays.weekends;
-              const plannedDays = rawPlannedModal.dailyQuantity ?? 0;
-              if (plannedDays <= 0 || childDays <= 0) return rawPlannedModal;
+              const parentItem = budgetActual?.find(a => a.id === editingItem.splitParentId);
+              const parentTotalDays = parentItem ? (() => { const d = getItemDayCounts(parentItem); return d.weekdays + d.weekends; })() : 0;
+              const plannedDays = (rawPlannedModal.dailyQuantity ?? 0) || parentTotalDays || childDays;
+              if (plannedDays <= 0 || childDays <= 0 || childDays >= plannedDays) return rawPlannedModal;
               const r = childDays / plannedDays;
               return {
                 ...rawPlannedModal,
