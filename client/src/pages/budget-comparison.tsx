@@ -1116,7 +1116,7 @@ export default function BudgetComparisonPage() {
 
       {/* ── Split collaborator detail modal ── */}
       <Dialog open={!!splitDetail} onOpenChange={() => setSplitDetail(null)}>
-        <DialogContent className="max-w-lg rounded-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden gap-0">
           {splitDetail && (() => {
             const sd = splitDetail;
             const sdName = getCollaboratorName(sd.actual.collaboratorId);
@@ -1125,34 +1125,33 @@ export default function BudgetComparisonPage() {
             const allDays = sd.allGroupDays;
             const totalGroupDays = allDays.length;
             const myDayCount = myDays.length;
-
-            // Proportional planned values
             const pp = sd.propPlanned;
             const fa = sd.actual;
 
             const dailyPlan = pp ? pp.dailyQuantity * pp.dailyValue : 0;
             const dailyAct = fa.dailyQuantity * fa.dailyValue;
-
             const mealPlan = pp ? (pp.weekdayLunch + pp.weekdayDinner + pp.weekendLunch + pp.weekendDinner) : 0;
             const mealAct = fa.weekdayLunch + fa.weekdayDinner + fa.weekendLunch + fa.weekendDinner;
-
             const mobPlan = pp ? (pp.mobility + pp.transport) : 0;
             const mobAct = fa.mobility + fa.transport;
-
             const totalPlan = pp?.totalValue || 0;
             const totalAct = fa.totalValue;
             const totalDiff = totalAct - totalPlan;
 
-            const DetailRow = ({ label, planned, actual, sub }: { label: string; planned: number; actual: number; sub?: boolean }) => {
+            // Sub-row inside a section (zebra handled by caller)
+            const SubRow = ({ label, planned, actual, rowIndex }: { label: string; planned: number; actual: number; rowIndex: number }) => {
               const d = actual - planned;
               return (
-                <div className={`grid grid-cols-4 gap-3 py-2 items-center text-[11px] ${sub ? 'pl-4 bg-gray-50/60 dark:bg-gray-800/30' : ''}`}>
-                  <span className={`${sub ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300 font-medium'}`}>{label}</span>
-                  <span className="text-right tabular-nums text-blue-600 dark:text-blue-400">{fmt(planned)}</span>
-                  <span className={`text-right tabular-nums ${d !== 0 ? 'text-violet-700 dark:text-violet-300 font-semibold' : 'text-violet-500 dark:text-violet-400'}`}>{fmt(actual)}</span>
+                <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/70 dark:bg-gray-800/40'}`}>
+                  <div className="flex items-center gap-1.5 pl-3">
+                    <span className="text-gray-300 dark:text-gray-600 text-[10px] select-none">└</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{label}</span>
+                  </div>
+                  <span className="text-right tabular-nums text-[11px] text-blue-500 dark:text-blue-400">{fmt(planned)}</span>
+                  <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600 dark:text-violet-300' : 'text-violet-400 dark:text-violet-500'}`}>{fmt(actual)}</span>
                   <div className="text-right">
-                    {d === 0 ? <span className="text-gray-300 dark:text-gray-600">—</span> : (
-                      <span className={`font-bold text-[10px] ${d > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {d === 0 ? <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span> : (
+                      <span className={`text-[10px] font-semibold ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                         {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
                       </span>
                     )}
@@ -1161,51 +1160,91 @@ export default function BudgetComparisonPage() {
               );
             };
 
+            // Section block with colored header
+            const SectionBlock = ({ title, icon: Icon, headerBg, iconColor, titleColor, subtotalPlan, subtotalAct, children }: {
+              title: string; icon: any; headerBg: string; iconColor: string; titleColor: string;
+              subtotalPlan: number; subtotalAct: number; children: React.ReactNode;
+            }) => {
+              const d = subtotalAct - subtotalPlan;
+              return (
+                <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-700">
+                  {/* Section header */}
+                  <div className={`flex items-center justify-between px-4 py-2 ${headerBg}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+                      <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-right">
+                      <span className="text-[10px] tabular-nums text-blue-600 dark:text-blue-400 font-semibold">{fmt(subtotalPlan)}</span>
+                      <span className={`text-[10px] tabular-nums font-semibold ${d !== 0 ? 'text-violet-700 dark:text-violet-300' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
+                      <span className={`text-[10px] font-bold tabular-nums w-16 text-right ${d === 0 ? 'text-gray-300 dark:text-gray-600' : d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {d === 0 ? '—' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}`}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Sub-rows */}
+                  <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                    {children}
+                  </div>
+                </div>
+              );
+            };
+
+            let subRowIdx = 0;
+
             return (
               <>
-                {/* Header */}
-                <div className="bg-gradient-to-r from-purple-50 to-violet-50/60 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800 px-5 py-4">
+                {/* ── Modal header — dark purple gradient ── */}
+                <div className="bg-gradient-to-br from-violet-600 to-purple-700 px-6 py-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-md ${avatarColor(sdName)}`}>
+                    <div className="flex items-center gap-3.5">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-black shadow-lg ring-2 ring-white/20 ${avatarColor(sdName)}`}>
                         {initials(sdName)}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-base font-black text-gray-800 dark:text-gray-100">{sdName}</span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className="text-base font-black text-white">{sdName}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${sd.isParent
+                            ? 'bg-blue-200/30 text-blue-100 ring-1 ring-blue-200/40'
+                            : 'bg-purple-200/30 text-purple-100 ring-1 ring-purple-200/40'}`}>
                             {sd.isParent ? 'Titular' : 'Divisão'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{sdFn}</p>
+                        <p className="text-[11px] text-purple-200">{sdFn}</p>
                       </div>
                     </div>
-                    <button onClick={() => setSplitDetail(null)} className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors">
+                    <button
+                      onClick={() => setSplitDetail(null)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Period info */}
+                  {/* Period info — two blocks side by side */}
                   {allDays.length > 0 && (
-                    <div className="mt-3 space-y-1.5">
-                      <div className="flex items-start gap-1.5">
-                        <Calendar className="w-3 h-3 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
                         <div>
-                          <span className="text-[9px] uppercase text-purple-500 font-bold tracking-wider">Vaga original</span>
-                          <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                          <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Vaga original</p>
+                          <p className="text-[11px] text-white font-medium leading-snug">
                             {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
-                            <span className="text-gray-400 ml-1">({totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''})</span>
                           </p>
+                          <p className="text-[10px] text-purple-200">{totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''} no total</p>
                         </div>
                       </div>
                       {myDays.length > 0 && (
-                        <div className="flex items-start gap-1.5">
-                          <GitFork className="w-3 h-3 text-purple-400 mt-0.5 flex-shrink-0" />
+                        <div className="bg-white/10 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                          <GitFork className="w-3.5 h-3.5 text-purple-200 mt-0.5 flex-shrink-0" />
                           <div>
-                            <span className="text-[9px] uppercase text-purple-500 font-bold tracking-wider">Dias deste colaborador</span>
-                            <p className="text-[11px] text-gray-600 dark:text-gray-300">
-                              {myDays.map(fmtDate).join(', ')}
+                            <p className="text-[9px] uppercase font-bold tracking-wider text-purple-200 mb-0.5">Dias atribuídos</p>
+                            <p className="text-[11px] text-white font-medium leading-snug">
+                              {myDays.length === 1
+                                ? fmtDate(myDays[0])
+                                : `${fmtDateShort(myDays[0])} a ${fmtDateShort(myDays[myDays.length - 1])}`}
                             </p>
+                            <p className="text-[10px] text-purple-200">{myDayCount} dia{myDayCount !== 1 ? 's' : ''} atribuído{myDayCount !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
                       )}
@@ -1213,10 +1252,10 @@ export default function BudgetComparisonPage() {
                   )}
                 </div>
 
-                {/* Table */}
-                <div className="px-5 py-4 space-y-0.5">
-                  {/* Column headers */}
-                  <div className="grid grid-cols-4 gap-3 pb-2 border-b border-gray-100 dark:border-gray-700">
+                {/* ── Table body ── */}
+                <div className="px-5 py-4 space-y-3 bg-white dark:bg-gray-900 max-h-[50vh] overflow-y-auto">
+                  {/* Column header row */}
+                  <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-gray-100 dark:border-gray-700">
                     <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Item</span>
                     <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
                     <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
@@ -1224,70 +1263,100 @@ export default function BudgetComparisonPage() {
                   </div>
 
                   {/* Diárias */}
-                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
-                    <DetailRow label="Diárias" planned={dailyPlan} actual={dailyAct} />
+                  <SectionBlock
+                    title="Diárias"
+                    icon={Calendar}
+                    headerBg="bg-blue-50/80 dark:bg-blue-950/30"
+                    iconColor="text-blue-600 dark:text-blue-400"
+                    titleColor="text-blue-700 dark:text-blue-300"
+                    subtotalPlan={dailyPlan}
+                    subtotalAct={dailyAct}
+                  >
                     {(pp || fa.dailyQuantity > 0) && (
-                      <DetailRow
-                        label={`└ ${pp?.dailyQuantity || 0}d × ${fmt(pp?.dailyValue || 0)} → ${fa.dailyQuantity}d × ${fmt(fa.dailyValue)}`}
+                      <SubRow
+                        rowIndex={subRowIdx++}
+                        label={`${pp?.dailyQuantity || 0} diária(s) × ${fmt(pp?.dailyValue || 0)}/dia → ${fa.dailyQuantity} × ${fmt(fa.dailyValue)}`}
                         planned={dailyPlan}
                         actual={dailyAct}
-                        sub
                       />
                     )}
-                  </div>
+                  </SectionBlock>
 
                   {/* Alimentação */}
-                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
-                    <DetailRow label="Alimentação" planned={mealPlan} actual={mealAct} />
-                    {(pp?.weekdayLunch || fa.weekdayLunch) ? <DetailRow label="└ Almoço (dias úteis)" planned={pp?.weekdayLunch || 0} actual={fa.weekdayLunch} sub /> : null}
-                    {(pp?.weekdayDinner || fa.weekdayDinner) ? <DetailRow label="└ Jantar (dias úteis)" planned={pp?.weekdayDinner || 0} actual={fa.weekdayDinner} sub /> : null}
-                    {(pp?.weekendLunch || fa.weekendLunch) ? <DetailRow label="└ Almoço (fins de sem.)" planned={pp?.weekendLunch || 0} actual={fa.weekendLunch} sub /> : null}
-                    {(pp?.weekendDinner || fa.weekendDinner) ? <DetailRow label="└ Jantar (fins de sem.)" planned={pp?.weekendDinner || 0} actual={fa.weekendDinner} sub /> : null}
-                  </div>
+                  <SectionBlock
+                    title="Alimentação"
+                    icon={Utensils}
+                    headerBg="bg-orange-50/80 dark:bg-orange-950/30"
+                    iconColor="text-orange-600 dark:text-orange-400"
+                    titleColor="text-orange-700 dark:text-orange-300"
+                    subtotalPlan={mealPlan}
+                    subtotalAct={mealAct}
+                  >
+                    {(pp?.weekdayLunch || fa.weekdayLunch) ? <SubRow rowIndex={subRowIdx++} label="Almoço (dias úteis)" planned={pp?.weekdayLunch || 0} actual={fa.weekdayLunch} /> : null}
+                    {(pp?.weekdayDinner || fa.weekdayDinner) ? <SubRow rowIndex={subRowIdx++} label="Jantar (dias úteis)" planned={pp?.weekdayDinner || 0} actual={fa.weekdayDinner} /> : null}
+                    {(pp?.weekendLunch || fa.weekendLunch) ? <SubRow rowIndex={subRowIdx++} label="Almoço (fins de sem.)" planned={pp?.weekendLunch || 0} actual={fa.weekendLunch} /> : null}
+                    {(pp?.weekendDinner || fa.weekendDinner) ? <SubRow rowIndex={subRowIdx++} label="Jantar (fins de sem.)" planned={pp?.weekendDinner || 0} actual={fa.weekendDinner} /> : null}
+                  </SectionBlock>
 
                   {/* Mobilidade */}
-                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
-                    <DetailRow label="Mobilidade" planned={mobPlan} actual={mobAct} />
-                    {(pp?.mobility || fa.mobility) ? <DetailRow label="└ Mobilidade" planned={pp?.mobility || 0} actual={fa.mobility} sub /> : null}
-                    {(pp?.transport || fa.transport) ? <DetailRow label="└ Translado" planned={pp?.transport || 0} actual={fa.transport} sub /> : null}
-                  </div>
+                  <SectionBlock
+                    title="Mobilidade"
+                    icon={Car}
+                    headerBg="bg-violet-50/80 dark:bg-violet-950/30"
+                    iconColor="text-violet-600 dark:text-violet-400"
+                    titleColor="text-violet-700 dark:text-violet-300"
+                    subtotalPlan={mobPlan}
+                    subtotalAct={mobAct}
+                  >
+                    {(pp?.mobility || fa.mobility) ? <SubRow rowIndex={subRowIdx++} label="Mobilidade" planned={pp?.mobility || 0} actual={fa.mobility} /> : null}
+                    {(pp?.transport || fa.transport) ? <SubRow rowIndex={subRowIdx++} label="Translado" planned={pp?.transport || 0} actual={fa.transport} /> : null}
+                  </SectionBlock>
 
-                  {/* Total */}
-                  <div className={`grid grid-cols-4 gap-3 pt-2 mt-1 rounded-xl px-3 py-3 ${totalDiff > 0 ? 'bg-red-50 dark:bg-red-950/20' : totalDiff < 0 ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-gray-50 dark:bg-gray-800/40'}`}>
-                    <span className="text-[11px] font-black uppercase tracking-wide text-gray-600 dark:text-gray-300">Total</span>
-                    <span className="text-right tabular-nums font-black text-blue-700 dark:text-blue-300 text-[13px]">{fmt(totalPlan)}</span>
-                    <span className="text-right tabular-nums font-black text-violet-700 dark:text-violet-300 text-[13px]">{fmt(totalAct)}</span>
+                  {/* Total row */}
+                  <div className={`grid grid-cols-4 gap-4 px-4 py-3.5 rounded-xl border-2 font-semibold ${
+                    totalDiff > 0 ? 'bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-800'
+                    : totalDiff < 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800'
+                    : 'bg-gray-50 dark:bg-gray-800/60 border-gray-100 dark:border-gray-700'
+                  }`}>
+                    <span className="text-[12px] font-black uppercase tracking-wide text-gray-700 dark:text-gray-200">TOTAL</span>
+                    <span className="text-right tabular-nums text-blue-700 dark:text-blue-300 text-[13px] font-black">{fmt(totalPlan)}</span>
+                    <span className="text-right tabular-nums text-violet-700 dark:text-violet-300 text-[13px] font-black">{fmt(totalAct)}</span>
                     <div className="text-right">
-                      {totalDiff === 0 ? <span className="text-gray-300 tabular-nums font-black text-[13px]">—</span> : (
-                        <span className={`tabular-nums font-black text-[13px] ${totalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {totalDiff > 0 ? '+' : '−'}{fmt(Math.abs(totalDiff))}
-                        </span>
-                      )}
+                      {totalDiff === 0
+                        ? <span className="text-gray-300 dark:text-gray-600 tabular-nums text-[13px] font-black">—</span>
+                        : <span className={`tabular-nums text-[13px] font-black ${totalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {totalDiff > 0 ? '+' : '−'}{fmt(Math.abs(totalDiff))}
+                          </span>
+                      }
                     </div>
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div className="px-5 pb-4 space-y-3">
-                  {!sd.isParent && totalGroupDays > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-800">
-                      <GitFork className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                      <span className="text-[11px] text-purple-700 dark:text-purple-300">
-                        Este colaborador cobriu <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
+                {/* ── Footer ── */}
+                <div className="px-5 pb-5 pt-1 bg-white dark:bg-gray-900 space-y-3 border-t border-gray-100 dark:border-gray-800">
+                  {((!sd.isParent && totalGroupDays > 0) || (sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays)) && (
+                    <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border ${sd.isParent
+                      ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-800'
+                      : 'bg-purple-50 dark:bg-purple-950/20 border-purple-100 dark:border-purple-800'}`}>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-purple-100 dark:bg-purple-900/40'}`}>
+                        <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-blue-500' : 'text-purple-500'}`} />
+                      </div>
+                      <span className={`text-[11px] font-medium ${sd.isParent ? 'text-blue-700 dark:text-blue-300' : 'text-purple-700 dark:text-purple-300'}`}>
+                        {sd.isParent ? 'Titular cobriu' : 'Este colaborador cobriu'} <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
+                        {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-[10px] px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300'}`}>
+                          {Math.round(myDayCount / totalGroupDays * 100)}%
+                        </span>}
                       </span>
                     </div>
                   )}
-                  {sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 rounded-xl border border-blue-100 dark:border-blue-800">
-                      <GitFork className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                      <span className="text-[11px] text-blue-700 dark:text-blue-300">
-                        Titular cobriu <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
-                      </span>
-                    </div>
-                  )}
-                  <Button onClick={() => setSplitDetail(null)} variant="outline" className="w-full h-9 text-sm rounded-xl border-gray-200">
-                    Fechar
-                  </Button>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => setSplitDetail(null)}
+                      className="h-9 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-md shadow-violet-200 dark:shadow-violet-900/30"
+                    >
+                      Fechar
+                    </Button>
+                  </div>
                 </div>
               </>
             );
