@@ -223,9 +223,23 @@ export function SplitVagaModal({
   const s2SubDiarias = s2SubDiariasUtil + s2SubDiariasFds;
   const s2TotalAlim = step2Form.weekdayLunch + step2Form.weekdayDinner + step2Form.weekendLunch + step2Form.weekendDinner;
   const s2Realizado = s2SubDiarias + step2Form.mobility + s2TotalAlim;
-  const proportionalPlanned = parentWorkedDays.length > 0
-    ? Math.round(item.totalValue * selectedDays.size / parentWorkedDays.length)
+  const plannedDiariasUtil = selWeekdays * item.dailyValue;
+  const plannedDiariasFds = selWeekends * item.dailyValue;
+  const plannedMobility = parentWorkedDays.length > 0
+    ? Math.round((item.mobility || 0) * selectedDays.size / parentWorkedDays.length)
     : 0;
+  const plannedAlimUtil = selWeekdays * (perDayWeekdayLunch + perDayWeekdayDinner);
+  const plannedAlimFds = selWeekends * (perDayWeekendLunch + perDayWeekendDinner);
+  const proportionalPlanned = plannedDiariasUtil + plannedDiariasFds + plannedMobility + plannedAlimUtil + plannedAlimFds;
+  const proportionalPlannedBreakdown = (() => {
+    const parts: string[] = [];
+    if (selWeekdays > 0) parts.push(`${selWeekdays} dia(s) útil × ${fmtR$(item.dailyValue)}`);
+    if (selWeekends > 0) parts.push(`${selWeekends} fim de sem. × ${fmtR$(item.dailyValue)}`);
+    if (plannedMobility > 0) parts.push(`mobilidade ${fmtR$(plannedMobility)}`);
+    const totalAlim = plannedAlimUtil + plannedAlimFds;
+    if (totalAlim > 0) parts.push(`alimentação ${fmtR$(totalAlim)}`);
+    return parts.join(" + ");
+  })();
   const s2Difference = s2Realizado - proportionalPlanned;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -825,9 +839,12 @@ export function SplitVagaModal({
                 <div className="border-t border-gray-200 bg-white" style={{ flexShrink: 0 }}>
                   {/* Totals bar: PLANEJADO / REALIZADO / DIFERENÇA */}
                   <div className="grid grid-cols-3 divide-x divide-gray-200">
-                    <div className="px-4 py-3 text-center">
+                    <div className="px-3 py-3 text-center">
                       <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Planejado proporcional</div>
                       <div className="text-sm font-black text-gray-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
+                      {proportionalPlannedBreakdown && (
+                        <div className="text-[9px] text-gray-400 mt-1 leading-tight">{proportionalPlannedBreakdown}</div>
+                      )}
                     </div>
                     <div className="px-4 py-3 text-center bg-violet-50/50">
                       <div className="text-[9px] uppercase text-violet-500 font-bold tracking-widest mb-1">Realizado</div>
