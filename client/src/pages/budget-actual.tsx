@@ -615,7 +615,7 @@ export default function BudgetActualPage() {
         ].join(' ')}
       >
         {/* Card Header */}
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center justify-between px-3 py-1.5">
           <div className="flex items-center gap-3">
             {isItemLocked ? (
               <TooltipProvider><Tooltip><TooltipTrigger asChild>
@@ -676,42 +676,42 @@ export default function BudgetActualPage() {
             return <span className={`text-[10px] tabular-nums font-semibold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
           };
           return (
-            <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700/60 pt-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-xl p-2.5 border border-blue-100 dark:border-blue-900/40">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <div className="w-4 h-4 rounded-md bg-blue-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
-                    <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
+            <div className="px-2.5 pb-2 border-t border-gray-100 dark:border-gray-700/60 pt-2">
+              <div className="grid grid-cols-2 gap-1.5 items-start">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40">
+                  <div className="flex items-center gap-1 mb-1">
+                    <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center"><Calendar className="w-2 h-2 text-white" /></div>
+                    <span className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
                   </div>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                    <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
                     {diffInline(cardSubtotalDiarias, plannedDiarias)}
                   </div>
                   {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
-                  <div className="mt-1.5 space-y-0.5">
-                    {cardDays.weekdays > 0 && <div className="text-[11px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-                    {cardDays.weekends > 0 && <div className="text-[11px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                  <div className="mt-1 space-y-0.5">
+                    {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                    {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-xl p-2.5 border border-orange-100 dark:border-orange-900/40">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
+                <div className="space-y-1.5">
+                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-lg p-2 border border-orange-100 dark:border-orange-900/40">
+                    <div className="flex items-center gap-1 mb-1">
+                      <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center"><Utensils className="w-2 h-2 text-white" /></div>
+                      <span className="text-[9px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
                     {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                   </div>
-                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-xl p-2.5 border border-violet-100 dark:border-violet-900/40">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
+                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-lg p-2 border border-violet-100 dark:border-violet-900/40">
+                    <div className="flex items-center gap-1 mb-1">
+                      <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center"><Car className="w-2 h-2 text-white" /></div>
+                      <span className="text-[9px] font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-[15px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                      <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>}
