@@ -71,7 +71,7 @@ export default function Sidebar() {
     { id: "approval",          path: "/approval",          label: "Aprovação",             icon: CheckCircle,    permission: "canAccessScreen5" as const },
     { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         permission: "canAccessScreen6" as const },
     { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Settings,       permission: "canAccessAdminUsers" as const },
-    { id: "system-settings",   path: "/system-settings",   label: "Configurações",         icon: Settings,       permission: "canAccessAdminUsers" as const },
+    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Calculator,     permission: "canAccessAdminUsers" as const },
   ];
 
   const tabs = allTabs.filter(tab =>

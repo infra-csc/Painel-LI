@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Save, DollarSign, Car, Utensils, ShieldAlert, Lock, ChevronDown, ChevronUp, History, AlertTriangle } from "lucide-react";
+import {
+  Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
+  Lock, ChevronDown, ChevronUp, Clock, Info
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { isAdmin } from "@/lib/permissions";
 
@@ -60,11 +63,21 @@ function formatDateTime(iso: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} às ${pad(d.getHours())}h${pad(d.getMinutes())}`;
 }
 
+function getUserInitials(name: string): string {
+  return name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
 function CurrencyInput({ field }: { field: any }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium select-none">R$</span>
-      <Input type="number" step="0.01" min="0" {...field} className="pl-9 h-10" />
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold select-none">R$</span>
+      <Input
+        type="number"
+        step="0.01"
+        min="0"
+        {...field}
+        className="pl-10 h-11 text-base font-semibold bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 rounded-lg"
+      />
     </div>
   );
 }
@@ -141,7 +154,13 @@ export default function SystemSettingsPage() {
           const oldVal = centavosToReais((settings as any)[key] ?? (settings as any)["default_daily_value"] ?? 0);
           const newVal = values[key];
           if (parseFloat(oldVal) !== parseFloat(newVal)) {
-            newEntries.push({ timestamp: now, user: userName, field: FIELD_LABELS[key] ?? key, oldValue: formatCurrency(oldVal), newValue: formatCurrency(newVal) });
+            newEntries.push({
+              timestamp: now,
+              user: userName,
+              field: FIELD_LABELS[key] ?? key,
+              oldValue: formatCurrency(oldVal),
+              newValue: formatCurrency(newVal),
+            });
           }
         }
       }
@@ -154,7 +173,7 @@ export default function SystemSettingsPage() {
       setLastSaved(savedInfo);
       localStorage.setItem(LAST_SAVED_KEY, JSON.stringify(savedInfo));
 
-      toast({ title: "Configurações salvas", description: "Os novos valores padrão serão aplicados em orçamentos futuros." });
+      toast({ title: "Valores padrão salvos", description: "Os novos valores serão aplicados em orçamentos de novos eventos." });
     },
     onError: () => {
       toast({ title: "Erro ao salvar", variant: "destructive" });
@@ -169,7 +188,7 @@ export default function SystemSettingsPage() {
             <ShieldAlert className="w-8 h-8 text-red-500" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Acesso restrito</h2>
-          <p className="text-gray-500 dark:text-gray-400 max-w-xs">Apenas administradores podem acessar as configurações do sistema.</p>
+          <p className="text-gray-500 dark:text-gray-400 max-w-xs">Apenas administradores podem acessar os valores padrão do sistema.</p>
         </div>
       </div>
     );
@@ -178,51 +197,52 @@ export default function SystemSettingsPage() {
   const last5 = history.slice(0, 5);
 
   return (
-    <div className="p-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-950 flex items-center justify-center">
-          <Settings className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+    <div className="p-6 max-w-6xl space-y-6">
+
+      {/* ── Cabeçalho ── */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-200 dark:shadow-purple-900/30">
+          <Calculator className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Configurações</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Valores padrão para cálculo de orçamentos</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Valores Padrão</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Defina os valores base utilizados no cálculo de novos eventos</p>
         </div>
       </div>
 
-      {/* Alert */}
-      <div style={{ display: 'flex', gap: 10, padding: '10px 14px', marginBottom: 24, borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', alignItems: 'flex-start' }}>
-        <AlertTriangle style={{ width: 16, height: 16, color: '#D97706', flexShrink: 0, marginTop: 2 }} />
-        <p style={{ fontSize: 13, color: '#92400E', margin: 0, lineHeight: 1.5 }}>
-          <strong>Atenção:</strong> Estes valores são utilizados como base no momento em que um novo evento é criado. Eventos já cadastrados no sistema não são afetados por alterações aqui.
+      {/* ── Banner informativo azul ── */}
+      <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', alignItems: 'flex-start' }}>
+        <Info style={{ width: 16, height: 16, color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
+        <p style={{ fontSize: 13, color: '#1E40AF', margin: 0, lineHeight: 1.55 }}>
+          Estes valores são utilizados como base no momento em que um novo evento é criado.
+          <strong> Eventos já cadastrados no sistema não são afetados</strong> por alterações aqui.
         </p>
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))}>
+        <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-6">
 
-          {/* Cards */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6" style={{ alignItems: 'stretch' }}>
+          {/* ── Cards ── */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5" style={{ alignItems: 'stretch' }}>
 
             {/* Diárias */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden flex flex-col">
-              <div className="flex items-center gap-3 px-5 py-4">
-                <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex flex-col">
+              <div style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', borderBottom: '1px solid #BFDBFE', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>
+                  <DollarSign style={{ width: 20, height: 20, color: '#fff' }} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Diárias</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Valor por dia de trabalho</p>
+                  <p style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', margin: 0 }}>Diárias</p>
+                  <p style={{ fontSize: 11, color: '#3B82F6', margin: 0 }}>Valor por dia de trabalho</p>
                 </div>
               </div>
-              <div className="border-t border-gray-100 dark:border-gray-700" />
-              <div className="px-5 py-4 flex flex-col gap-4 flex-1">
+              <div className="px-5 py-5 flex flex-col gap-4 flex-1">
                 <FormField
                   control={form.control}
                   name="default_daily_value_weekday"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Dia Útil</FormLabel>
+                      <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Dia Útil</FormLabel>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -233,7 +253,7 @@ export default function SystemSettingsPage() {
                   name="default_daily_value_weekend"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Fim de Semana</FormLabel>
+                      <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Fim de Semana</FormLabel>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -243,24 +263,23 @@ export default function SystemSettingsPage() {
             </div>
 
             {/* Mobilidade */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden flex flex-col">
-              <div className="flex items-center gap-3 px-5 py-4">
-                <div className="w-9 h-9 rounded-lg bg-orange-100 dark:bg-orange-950 flex items-center justify-center flex-shrink-0">
-                  <Car className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex flex-col">
+              <div style={{ background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)', borderBottom: '1px solid #FED7AA', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F97316', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(249,115,22,0.3)' }}>
+                  <Car style={{ width: 20, height: 20, color: '#fff' }} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Mobilidade</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Ajuda de custo de deslocamento</p>
+                  <p style={{ fontWeight: 700, fontSize: 14, color: '#9A3412', margin: 0 }}>Mobilidade</p>
+                  <p style={{ fontSize: 11, color: '#F97316', margin: 0 }}>Ajuda de custo de deslocamento</p>
                 </div>
               </div>
-              <div className="border-t border-gray-100 dark:border-gray-700" />
-              <div className="px-5 py-4 flex flex-col gap-4 flex-1">
+              <div className="px-5 py-5 flex flex-col gap-4 flex-1">
                 <FormField
                   control={form.control}
                   name="default_mobility"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Valor por Evento</FormLabel>
+                      <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Valor por Evento</FormLabel>
                       <FormControl><CurrencyInput field={field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -270,27 +289,26 @@ export default function SystemSettingsPage() {
             </div>
 
             {/* Alimentação */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden flex flex-col">
-              <div className="flex items-center gap-3 px-5 py-4">
-                <div className="w-9 h-9 rounded-lg bg-green-100 dark:bg-green-950 flex items-center justify-center flex-shrink-0">
-                  <Utensils className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden flex flex-col">
+              <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', borderBottom: '1px solid #BBF7D0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}>
+                  <Utensils style={{ width: 20, height: 20, color: '#fff' }} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Alimentação</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Almoço e jantar por dia</p>
+                  <p style={{ fontWeight: 700, fontSize: 14, color: '#065F46', margin: 0 }}>Alimentação</p>
+                  <p style={{ fontSize: 11, color: '#10B981', margin: 0 }}>Almoço e jantar por dia</p>
                 </div>
               </div>
-              <div className="border-t border-gray-100 dark:border-gray-700" />
-              <div className="px-5 py-4 flex flex-col gap-5 flex-1">
+              <div className="px-5 py-5 flex flex-col gap-5 flex-1">
                 <div>
-                  <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Dias Úteis</p>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3">Dias Úteis</p>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
                       name="default_weekday_lunch"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-gray-600 dark:text-gray-400">Almoço</FormLabel>
+                          <FormLabel className="text-xs text-gray-500">Almoço</FormLabel>
                           <FormControl><CurrencyInput field={field} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -301,7 +319,7 @@ export default function SystemSettingsPage() {
                       name="default_weekday_dinner"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-gray-600 dark:text-gray-400">Jantar</FormLabel>
+                          <FormLabel className="text-xs text-gray-500">Jantar</FormLabel>
                           <FormControl><CurrencyInput field={field} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -309,15 +327,15 @@ export default function SystemSettingsPage() {
                     />
                   </div>
                 </div>
-                <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                  <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Fim de Semana</p>
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16 }}>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3">Fim de Semana</p>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
                       name="default_weekend_lunch"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-gray-600 dark:text-gray-400">Almoço</FormLabel>
+                          <FormLabel className="text-xs text-gray-500">Almoço</FormLabel>
                           <FormControl><CurrencyInput field={field} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -328,7 +346,7 @@ export default function SystemSettingsPage() {
                       name="default_weekend_dinner"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-gray-600 dark:text-gray-400">Jantar</FormLabel>
+                          <FormLabel className="text-xs text-gray-500">Jantar</FormLabel>
                           <FormControl><CurrencyInput field={field} /></FormControl>
                           <FormMessage />
                         </FormItem>
@@ -340,70 +358,89 @@ export default function SystemSettingsPage() {
             </div>
           </div>
 
-          {/* Footer */}
+          {/* ── Rodapé ── */}
           <div className="flex items-center justify-between gap-4 py-4 border-t border-gray-200 dark:border-gray-700 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
               <span>Apenas administradores podem alterar estes valores</span>
             </div>
             {lastSaved && (
-              <span className="text-xs text-gray-400 dark:text-gray-500 hidden md:block">
-                Última alteração: {formatDateTime(lastSaved.timestamp)} por {lastSaved.user}
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Última alteração: {formatDateTime(lastSaved.timestamp)} por <span className="font-medium">{lastSaved.user}</span>
               </span>
             )}
             <Button
               type="submit"
               disabled={saveMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6"
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 shadow-md shadow-purple-200 dark:shadow-purple-900/30"
             >
               <Save className="w-4 h-4 mr-2" />
-              {saveMutation.isPending ? "Salvando..." : "Salvar Configurações"}
+              {saveMutation.isPending ? "Salvando..." : "Salvar Valores Padrão"}
             </Button>
           </div>
         </form>
       </Form>
 
-      {/* Histórico de Alterações */}
-      <div className="mt-4 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      {/* ── Histórico de Alterações ── */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <button
           type="button"
           onClick={() => setHistoryOpen(o => !o)}
-          className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+          className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
         >
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-            <History className="w-4 h-4 text-gray-400" />
+          <div className="flex items-center gap-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Clock className="w-4 h-4 text-purple-500" />
             Histórico de alterações
             {last5.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 text-xs font-semibold">
+              <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 text-xs font-bold">
                 {last5.length}
               </span>
             )}
           </div>
-          {historyOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {historyOpen
+            ? <ChevronUp className="w-4 h-4 text-gray-400" />
+            : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </button>
 
         {historyOpen && (
-          <div className="bg-white dark:bg-gray-800 px-5 py-4">
+          <div className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
             {last5.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">Nenhuma alteração registrada ainda.</p>
+              <div className="px-5 py-8 text-center text-sm text-gray-400">
+                Nenhuma alteração registrada ainda.
+              </div>
             ) : (
-              <div className="space-y-2">
-                {last5.map((entry, i) => (
-                  <div key={i} className="flex items-start gap-3 py-2.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                    <div className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0 mt-1.5" />
-                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                      <span className="text-xs text-gray-400 dark:text-gray-500 font-mono mr-2">{formatDateTime(entry.timestamp)}</span>
-                      <span className="font-medium">{entry.user}</span>
-                      {" alterou "}
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">{entry.field}</span>
-                      {": "}
-                      <span className="text-red-500 line-through">{entry.oldValue}</span>
-                      {" → "}
-                      <span className="text-green-600 font-semibold">{entry.newValue}</span>
+              last5.map((entry, i) => {
+                const initials = getUserInitials(entry.user);
+                return (
+                  <div key={i} className="flex items-start gap-4 px-5 py-4">
+                    {/* Avatar com iniciais */}
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                      background: 'linear-gradient(135deg, #7C3AED, #4F46E5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, color: '#fff',
+                    }}>
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{entry.user}</span>
+                        <span className="text-xs text-gray-400 font-mono">{formatDateTime(entry.timestamp)}</span>
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        alterou{" "}
+                        <span className="font-semibold text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">
+                          {entry.field}
+                        </span>
+                        {": "}
+                        <span className="text-red-500 font-medium line-through">{entry.oldValue}</span>
+                        <span className="mx-1.5 text-gray-400">→</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">{entry.newValue}</span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })
             )}
           </div>
         )}
