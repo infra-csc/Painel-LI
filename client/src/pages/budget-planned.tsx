@@ -1065,18 +1065,14 @@ export default function BudgetPlannedPage() {
                         </div>
 
                         {/* Ações */}
-                        <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                          {canEdit && !isSent && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
-                              <Edit className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
+                        <div className="flex items-center gap-0.5">
+                          {/* Não participou — sempre visível para RH/Admin em cards enviados */}
                           {canMarkNotAttended && isSent && planRecord && (
                             isNotAttended ? (
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
                                       onClick={() => toggleNotAttendedMutation.mutate({ id: planRecord.id, reason: "" })}
                                       disabled={toggleNotAttendedMutation.isPending}>
                                       <Undo2 className="w-3.5 h-3.5" />
@@ -1089,7 +1085,7 @@ export default function BudgetPlannedPage() {
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
                                       onClick={() => setNotAttendedModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}>
                                       <UserX className="w-3.5 h-3.5" />
                                     </Button>
@@ -1098,6 +1094,12 @@ export default function BudgetPlannedPage() {
                                 </Tooltip>
                               </TooltipProvider>
                             )
+                          )}
+                          <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                          {canEdit && !isSent && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
                           )}
                           {!isSent && (
                             <Button 
@@ -1117,6 +1119,7 @@ export default function BudgetPlannedPage() {
                           >
                             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                           </Button>
+                          </div>
                         </div>
                       </div>
                       
