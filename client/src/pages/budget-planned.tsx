@@ -1119,8 +1119,8 @@ export default function BudgetPlannedPage() {
 
                         {/* Ações */}
                         <div className="flex items-center gap-0.5">
-                          {/* Não participou — visível para RH/Admin em todos os cards */}
-                          {canMarkNotAttended && (
+                          {/* Não participou — visível para RH/Admin apenas em cards não enviados */}
+                          {canMarkNotAttended && !isSent && (
                             isNotAttended ? (
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
