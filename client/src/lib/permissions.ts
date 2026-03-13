@@ -143,6 +143,15 @@ export function isAdmin(user: User | null): boolean {
 }
 
 /**
+ * Verifica se o usuário é RH (Financeiro) ou administrador
+ */
+export function isRhOrAdmin(user: User | null): boolean {
+  if (!user) return false;
+  const normalizedRole = normalizeRole(user.role);
+  return normalizedRole === 'admin' || normalizedRole === 'financial';
+}
+
+/**
  * Obtém o nível de acesso do usuário para uma funcionalidade
  */
 export function getAccessLevel(user: User | null, feature: string): AccessLevel {

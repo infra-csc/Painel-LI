@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, UserX, Undo2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { isAdmin } from "@/lib/permissions";
+import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
@@ -116,7 +116,7 @@ export default function BudgetActualPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const canMarkNotAttended = isAdmin(user);
+  const canMarkNotAttended = isRhOrAdmin(user);
 
   const toggleNotAttendedMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
