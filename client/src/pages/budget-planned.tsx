@@ -101,6 +101,7 @@ export default function BudgetPlannedPage() {
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
+  const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -1136,7 +1137,7 @@ export default function BudgetPlannedPage() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                      onClick={() => planRecord && toggleNotAttendedMutation.mutate({ id: planRecord.id, reason: "" })}
+                                      onClick={() => planRecord && setRestoreModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}
                                       disabled={toggleNotAttendedMutation.isPending}>
                                       <Undo2 className="w-3.5 h-3.5" />
                                     </Button>
@@ -1690,7 +1691,49 @@ export default function BudgetPlannedPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Marcar como não participou ── */}
+      {/* ── Modal de confirmação de restauração ── */}
+      <Dialog open={!!restoreModal} onOpenChange={() => setRestoreModal(null)}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                <Undo2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <span>Restaurar participação</span>
+            </DialogTitle>
+          </DialogHeader>
+          {restoreModal && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-700">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{restoreModal.name}</p>
+                  <p className="text-[10px] text-gray-400">{restoreModal.functionName}</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                O colaborador voltará a ser contabilizado normalmente nos totais financeiros do planejado.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" className="rounded-xl" onClick={() => setRestoreModal(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  onClick={() => {
+                    toggleNotAttendedMutation.mutate({ id: restoreModal.id, reason: "" });
+                    setRestoreModal(null);
+                  }}
+                  disabled={toggleNotAttendedMutation.isPending}
+                >
+                  <Undo2 className="w-3.5 h-3.5 mr-1.5" />
+                  {toggleNotAttendedMutation.isPending ? 'Restaurando...' : 'Restaurar'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!notAttendedModal} onOpenChange={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
