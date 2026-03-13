@@ -128,7 +128,7 @@ export function SplitVagaModal({ item, collaborators, teamInclusion, onClose, on
               <UserPlus style={{ width: 18, height: 18, color: '#fff' }} />
             </div>
             <div>
-              <p style={{ fontWeight: 700, fontSize: 15, color: '#1E293B', margin: 0 }}>Dividir vaga</p>
+              <p style={{ fontWeight: 700, fontSize: 15, color: '#1E293B', margin: 0 }}>Dividir escalação</p>
               <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>Atribua dias específicos a outro colaborador</p>
             </div>
           </div>

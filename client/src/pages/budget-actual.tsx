@@ -277,20 +277,6 @@ export default function BudgetActualPage() {
     },
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("POST", `/api/budget-actual/${id}/duplicate`, { userId: user?.id });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prestação duplicada" });
-      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
-    },
-    onError: () => {
-      toast({ title: "Erro", description: "Erro ao duplicar prestação", variant: "destructive" });
-    },
-  });
-
   const splitMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
       const res = await apiRequest("POST", `/api/budget-actual/${id}/split`, payload);
@@ -896,13 +882,8 @@ export default function BudgetActualPage() {
                             onClick={() => openEditModal(item)} title="Editar prestação">
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-violet-500 hover:text-violet-700 hover:bg-violet-50"
-                            onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar"
-                            disabled={duplicateMutation.isPending}>
-                            <Copy className="w-3.5 h-3.5" />
-                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
-                            onClick={() => setSplittingItem(item)} title="Dividir vaga (atribuir dias a outro colaborador)"
+                            onClick={() => setSplittingItem(item)} title="Dividir escalação (atribuir dias a outro colaborador)"
                             disabled={splitMutation.isPending}>
                             <GitFork className="w-3.5 h-3.5" />
                           </Button>
