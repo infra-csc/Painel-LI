@@ -42,8 +42,8 @@ const groupThemes: Record<string, GroupTheme> = {
 const menuGroups = [
   { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
-  { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control"] },
-  { title: "Gestão",      items: ["approval", "consultation", "admin-users", "system-settings"] },
+  { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "system-settings"] },
+  { title: "Gestão",      items: ["approval", "consultation", "admin-users"] },
 ];
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
