@@ -121,7 +121,12 @@ export default function BudgetPlannedPage() {
   };
 
   const selectAllCards = () => {
-    const pending = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id));
+    const pending = calculatedBudgets.filter(b => {
+      if (sentToActual.has(b.inclusion.id)) return false;
+      const plan = allBudgetPlanned?.find((p: any) => p.collaboratorId === b.inclusion.collaboratorId && p.functionId === b.inclusion.functionId);
+      if ((plan as any)?.didNotAttend) return false;
+      return true;
+    });
     setSelectedCards(new Set(pending.map(b => b.inclusion.id)));
   };
 
@@ -175,12 +180,15 @@ export default function BudgetPlannedPage() {
       const res = await apiRequest("POST", `/api/budget-planned/${id}/toggle-not-attended`, { reason });
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, { id }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
       qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
       setNotAttendedModal(null);
       setNotAttendedReason("");
       if (data.didNotAttend) {
+        // Remove de seleção se estava selecionado
+        const budget = calculatedBudgets.find(b => allBudgetPlanned?.find((p: any) => p.id === id && p.collaboratorId === b.inclusion.collaboratorId && p.functionId === b.inclusion.functionId));
+        if (budget) setSelectedCards(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
         toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
       } else {
         toast({ title: "Participação restaurada", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
@@ -218,10 +226,11 @@ export default function BudgetPlannedPage() {
       const toggleRes = await apiRequest("POST", `/api/budget-planned/${created.id}/toggle-not-attended`, { reason });
       return toggleRes.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, { budget }) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
       setNotAttendedModal(null);
       setNotAttendedReason("");
+      setSelectedCards(prev => { const s = new Set(Array.from(prev)); s.delete(budget.inclusion.id); return s; });
       toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
     },
     onError: () => toast({ title: "Erro ao marcar como não participou", variant: "destructive" }),
@@ -1060,7 +1069,8 @@ export default function BudgetPlannedPage() {
                           {!isSent ? (
                             <Checkbox 
                               checked={isSelected}
-                              onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
+                              disabled={isNotAttended}
+                              onCheckedChange={() => !isNotAttended && toggleCardSelection(budget.inclusion.id)}
                             />
                           ) : (
                             <TooltipProvider delayDuration={200}>
@@ -1154,12 +1164,12 @@ export default function BudgetPlannedPage() {
                             )
                           )}
                           <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                          {canEdit && !isSent && (
+                          {canEdit && !isSent && !isNotAttended && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
                           )}
-                          {!isSent && (
+                          {!isSent && !isNotAttended && (
                             <Button 
                               variant="ghost" size="icon" 
                               className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
