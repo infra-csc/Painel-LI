@@ -1168,18 +1168,23 @@ export default function BudgetComparisonPage() {
               const d = subtotalAct - subtotalPlan;
               return (
                 <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-700">
-                  {/* Section header */}
-                  <div className={`flex items-center justify-between px-4 py-2 ${headerBg}`}>
-                    <div className="flex items-center gap-1.5">
-                      <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
-                      <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-right">
-                      <span className="text-[10px] tabular-nums text-blue-600 dark:text-blue-400 font-semibold">{fmt(subtotalPlan)}</span>
-                      <span className={`text-[10px] tabular-nums font-semibold ${d !== 0 ? 'text-violet-700 dark:text-violet-300' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
-                      <span className={`text-[10px] font-bold tabular-nums w-16 text-right ${d === 0 ? 'text-gray-300 dark:text-gray-600' : d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {d === 0 ? '—' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}`}
-                      </span>
+                  {/* Section title — icon + name only */}
+                  <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 dark:border-black/10 ${headerBg}`}>
+                    <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+                    <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
+                  </div>
+                  {/* Subtotal row — aligned to the 4-column grid */}
+                  <div className={`grid grid-cols-4 gap-4 px-4 py-2 ${headerBg}`}>
+                    <span className={`text-[10px] font-semibold ${titleColor} opacity-70`}>Total</span>
+                    <span className="text-right tabular-nums text-[11px] text-blue-600 dark:text-blue-400 font-semibold">{fmt(subtotalPlan)}</span>
+                    <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700 dark:text-violet-300' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
+                    <div className="text-right">
+                      {d === 0
+                        ? <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span>
+                        : <span className={`text-[11px] font-bold tabular-nums ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                            {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
+                          </span>
+                      }
                     </div>
                   </div>
                   {/* Sub-rows */}
