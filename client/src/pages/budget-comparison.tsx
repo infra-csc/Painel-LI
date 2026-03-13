@@ -16,7 +16,7 @@ import {
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus, GitFork, ClipboardList, X
+  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
@@ -268,7 +268,8 @@ export default function BudgetComparisonPage() {
 
       const children = splitChildrenMap.get(a.id) || [];
       const isSplit = children.length > 0;
-      const groupActualTotal = a.totalValue + children.reduce((s, c) => s + c.totalValue, 0);
+      // If marked as not attended, their values are excluded from totals
+      const groupActualTotal = a.didNotAttend ? 0 : (a.totalValue + children.reduce((s, c) => s + c.totalValue, 0));
 
       data.push({
         collaboratorId: a.collaboratorId,
@@ -276,8 +277,8 @@ export default function BudgetComparisonPage() {
         functionId: a.functionId,
         planned: matchingPlanned || null,
         actual: a,
-        // For split groups: variance is based on the group total vs original full planned
-        variance: matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal,
+        // For split groups: variance is based on the group total vs original full planned; 0 if not attended
+        variance: a.didNotAttend ? 0 : (matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal),
         isSplit,
         splitChildren: children,
         groupActualTotal,
@@ -744,11 +745,14 @@ export default function BudgetComparisonPage() {
                   const colName = getCollaboratorName(row.collaboratorId);
                   const cardKey = `${row.collaboratorId}-${row.functionId}`;
 
+                  const isNotAttended = !!a.didNotAttend;
+
                   return (
                     <div
                       key={idx}
                       data-card-id={cardKey}
                       className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
+                        isNotAttended ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-300 dark:border-gray-600 border-dashed opacity-75' :
                         highlightCardId === cardKey ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30' :
                         isDecided ? `${decidedStyle.cardBg} ${decidedStyle.cardBorder}` :
                         selectedItems.has(idx) ? 'bg-white dark:bg-gray-800 border-emerald-400 ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 shadow-md shadow-emerald-100/60' :
@@ -797,7 +801,18 @@ export default function BudgetComparisonPage() {
                                   <RotateCcw className="w-2.5 h-2.5" /> Reenviado
                                 </span>
                               )}
+                              {isNotAttended && (
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-[9px] font-semibold text-gray-500 dark:text-gray-400">
+                                  <UserX className="w-2.5 h-2.5" /> Não participou
+                                </span>
+                              )}
                             </div>
+                            {/* Not-attended reason snippet */}
+                            {isNotAttended && a.didNotAttendReason && (
+                              <p className="text-[10px] italic mt-0.5 text-gray-400 leading-snug max-w-xs truncate">
+                                {a.didNotAttendReason}
+                              </p>
+                            )}
                             {/* RH comment snippet — visible in collapsed view */}
                             {isDecided && a.rhComment && (itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido') && (
                               <p className={`text-[10px] italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-red-500 dark:text-red-400' : 'text-orange-500 dark:text-orange-400'}`}>
@@ -861,6 +876,18 @@ export default function BudgetComparisonPage() {
                       {isExpanded && (
                         <div className="border-t-2 border-emerald-100 dark:border-emerald-900/60 bg-gray-50/60 dark:bg-gray-900/40">
                           <div className="p-4 space-y-3">
+
+                            {/* ── Not attended notice ── */}
+                            {isNotAttended && (
+                              <div className="flex items-start gap-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                                <UserX className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Colaborador não participou do evento</p>
+                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
+                                  {a.didNotAttendReason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">Motivo: {a.didNotAttendReason}</p>}
+                                </div>
+                              </div>
+                            )}
 
                             {/* ── Split group sub-rows ── */}
                             {row.isSplit && (

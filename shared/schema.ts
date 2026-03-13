@@ -312,6 +312,8 @@ export const budgetActual = pgTable("budget_actual", {
   resubmitted: boolean("resubmitted").notNull().default(false), // true quando reenviado após devolução/recusa
   splitParentId: varchar("split_parent_id"), // se preenchido, este é um registro de divisão de vaga
   workedDays: text("worked_days").array(), // dias específicos trabalhados [YYYY-MM-DD]
+  didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
+  didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
 });
 
 // Comparativo e aprovação do RH

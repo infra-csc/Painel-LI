@@ -2254,6 +2254,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/budget-actual/:id/toggle-not-attended", async (req, res) => {
+    try {
+      const { reason } = req.body as { reason?: string };
+      const item = await storage.getBudgetActualById(req.params.id);
+      if (!item) return res.status(404).json({ message: "Item não encontrado" });
+      const toggled = !item.didNotAttend;
+      const updated = await storage.updateBudgetActual(req.params.id, {
+        didNotAttend: toggled,
+        didNotAttendReason: toggled ? (reason || null) : null,
+      } as any);
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('update', 'budget_actual', req.params.id, updated, actorId, actor?.name || 'Sistema', item, req);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error toggling not-attended:", error);
+      res.status(400).json({ message: "Erro ao atualizar participação" });
+    }
+  });
+
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
       const prev = await storage.getBudgetActualById(req.params.id);

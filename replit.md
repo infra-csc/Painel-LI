@@ -57,6 +57,14 @@ Preferred communication style: Simple, everyday language.
 - **Architecture**: Global defaults → used as fallback in budget-planned.tsx calculations → `budget_planned` stores its own independent copy → existing events unaffected
 - **Access**: Admin-only page at `/system-settings`, shown in sidebar under "Sistema"
 
+## "Não Participou" Feature (Did Not Attend)
+- **Purpose**: Allows Admin to mark a `budget_actual` record as "did not attend" — removing it from financial totals while keeping it visible for historical record
+- **Schema**: `budget_actual` has `didNotAttend boolean DEFAULT false` and `didNotAttendReason text`
+- **API**: `POST /api/budget-actual/:id/toggle-not-attended` — toggles the flag; accepts optional `reason` body param
+- **Access**: Admin-only (`isAdmin(user)` check)
+- **UI (Orçamento Realizado)**: UserX icon button in card action area opens confirmation modal with optional reason field; card gets grey/dashed border + opacity; "Não participou" badge; reason shown in italic; Undo2 icon button to restore; Total banner shows "X colaborador(es) não contabilizados" note
+- **UI (Comparativo)**: Card gets grey/dashed style; "Não participou" badge in header; expanded section shows notice explaining values excluded; `groupActualTotal` = 0 so it's excluded from totals
+
 ## Split Vacancy Feature (Divisão de Vaga)
 - **Purpose**: Allows a `budget_actual` record to be split — assigning specific days to a different collaborator
 - **Schema**: `budget_actual` has `splitParentId varchar` (null = original, set = split child) and `workedDays text[]` (YYYY-MM-DD strings per collaborator)
