@@ -2224,10 +2224,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const created = await storage.createBudgetActual(splitData as any);
 
-      // Always update the parent's workedDays to reflect remaining days
-      await storage.updateBudgetActual(parent.id, {
-        workedDays: Array.isArray(parentWorkedDays) ? parentWorkedDays : [],
-      } as any);
+      // Update parent's workedDays AND recalculate financial values for remaining days
+      const remainingDays: string[] = Array.isArray(parentWorkedDays) ? parentWorkedDays : [];
+      const { parentValues } = req.body;
+      let parentUpdate: Record<string, unknown> = { workedDays: remainingDays };
+      if (parentValues && typeof parentValues === 'object') {
+        // Frontend sent pre-computed parent values for remaining days
+        parentUpdate = {
+          ...parentUpdate,
+          weekdayLunch: parentValues.weekdayLunch ?? parent.weekdayLunch,
+          weekdayDinner: parentValues.weekdayDinner ?? parent.weekdayDinner,
+          weekendLunch: parentValues.weekendLunch ?? parent.weekendLunch,
+          weekendDinner: parentValues.weekendDinner ?? parent.weekendDinner,
+          mobility: parentValues.mobility ?? parent.mobility,
+          dailyQuantity: parentValues.dailyQuantity ?? parent.dailyQuantity,
+          totalValue: parentValues.totalValue ?? parent.totalValue,
+        };
+      }
+      await storage.updateBudgetActual(parent.id, parentUpdate as any);
 
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;

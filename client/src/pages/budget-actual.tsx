@@ -333,7 +333,17 @@ export default function BudgetActualPage() {
     );
   };
 
+  const isWeekendDate = (d: string) => { const day = new Date(d + 'T12:00:00').getDay(); return day === 0 || day === 6; };
+
   const getItemDayCounts = (item: BudgetActual): { weekdays: number; weekends: number; startDate: string | null; endDate: string | null } => {
+    // When workedDays is set (after a split), derive counts from it for accuracy
+    const wd = item.workedDays as string[] | null | undefined;
+    if (wd && wd.length > 0) {
+      const weekdays = wd.filter(d => !isWeekendDate(d)).length;
+      const weekends = wd.filter(d => isWeekendDate(d)).length;
+      const sorted = [...wd].sort();
+      return { weekdays, weekends, startDate: sorted[0] || null, endDate: sorted[sorted.length - 1] || null };
+    }
     const inclusion = getItemInclusion(item);
     if (inclusion?.scheduleStartDate && inclusion?.scheduleEndDate) {
       const counts = countWeekdaysAndWeekends(inclusion.scheduleStartDate, inclusion.scheduleEndDate);
@@ -775,7 +785,8 @@ export default function BudgetActualPage() {
               const totalAlimentacao = item.weekdayLunch + item.weekdayDinner + item.weekendLunch + item.weekendDinner;
               const isFromPlanned = !!item.plannedId || item.observations?.includes('Enviado do planejado');
               const isDuplicated = item.observations?.includes('Duplicado no Realizado');
-              const diverges = hasItemDivergence(item);
+              // Split children don't diverge vs. the full planned — only the parent card does
+              const diverges = isGroupChild ? false : hasItemDivergence(item);
               const cardDays = getItemDayCounts(item);
               const cardSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
               const cardTotalDays = cardDays.weekdays + cardDays.weekends;
@@ -859,16 +870,15 @@ export default function BudgetActualPage() {
 
               return (
                 <div key={item.id}>
-                  {/* Group parent header strip */}
+                  {/* Group parent header strip — subtle label */}
                   {isGroupParent && groupChildren.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 mb-1 rounded-xl bg-purple-50 border border-purple-200 dark:bg-purple-950/30 dark:border-purple-800/50">
-                      <GitFork className="w-3 h-3 text-purple-500" />
-                      <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
-                        Escalação dividida — {groupChildren.length + 1} colaboradores
+                    <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                      <div className="h-px flex-1 bg-purple-200 dark:bg-purple-800/40" />
+                      <GitFork className="w-3 h-3 text-purple-400" />
+                      <span className="text-[10px] text-purple-500 dark:text-purple-400 font-medium">
+                        Escalação dividida · {groupChildren.length + 1} colaboradores · total {formatCurrency(groupTotal)}
                       </span>
-                      <span className="ml-auto text-[11px] font-bold text-purple-700 dark:text-purple-300 tabular-nums">
-                        Total do grupo: {formatCurrency(groupTotal)}
-                      </span>
+                      <div className="h-px flex-1 bg-purple-200 dark:bg-purple-800/40" />
                     </div>
                   )}
 
@@ -971,7 +981,8 @@ export default function BudgetActualPage() {
 
                   {/* ── Card Body ── */}
                   {!isCollapsed && (() => {
-                    const planned = getPlannedRef(item);
+                    // Split children have no meaningful comparison against the full planned reference
+                    const planned = isGroupChild ? null : getPlannedRef(item);
                     const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
                     const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
                     const diffInline = (actual: number, plan: number) => {
@@ -1056,7 +1067,8 @@ export default function BudgetActualPage() {
 
                   {/* ── Card Footer: Total ── */}
                   {(() => {
-                    const planned = getPlannedRef(item);
+                    // Split children: no comparison vs. full planned
+                    const planned = isGroupChild ? null : getPlannedRef(item);
                     const diff = planned ? item.totalValue - planned.totalValue : 0;
                     return (
                       <div className={`flex items-center justify-between px-4 py-2.5 border-t ${
@@ -1084,18 +1096,10 @@ export default function BudgetActualPage() {
                   })()}
                   </div>
 
-                  {/* Group total footer after last split child */}
+                  {/* Subtle spacer after last split child */}
                   {isLastGroupChild && (
-                    <div className="ml-5 mt-1 flex items-center justify-between px-4 py-2 rounded-xl bg-purple-50 border border-purple-200 dark:bg-purple-950/30 dark:border-purple-800/50">
-                      <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">Total do grupo (comparativo vs planejado)</span>
-                      <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">
-                        {(() => {
-                          const parentItem = filteredItems.find(i => i.id === item.splitParentId);
-                          const siblingChildren = filteredItems.filter(i => i.splitParentId === item.splitParentId);
-                          const total = (parentItem?.totalValue || 0) + siblingChildren.reduce((s, c) => s + c.totalValue, 0);
-                          return formatCurrency(total);
-                        })()}
-                      </span>
+                    <div className="ml-5 mt-1 mb-2 flex items-center gap-1.5 px-2">
+                      <div className="h-px flex-1 bg-purple-100 dark:bg-purple-900/30" />
                     </div>
                   )}
                 </div>

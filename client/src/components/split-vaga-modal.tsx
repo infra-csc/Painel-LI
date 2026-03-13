@@ -136,6 +136,15 @@ interface SplitVagaModalProps {
     dailyValue: number;
     dailyQuantity: number;
     totalValue: number;
+    parentValues: {
+      weekdayLunch: number;
+      weekdayDinner: number;
+      weekendLunch: number;
+      weekendDinner: number;
+      mobility: number;
+      dailyQuantity: number;
+      totalValue: number;
+    };
   }) => void;
   isPending?: boolean;
 }
@@ -312,6 +321,20 @@ export function SplitVagaModal({
     const totalAlim = step2Form.weekdayLunch + step2Form.weekdayDinner + step2Form.weekendLunch + step2Form.weekendDinner;
     const totalValue = subDiarias + step2Form.mobility + totalAlim;
     const dailyValue = totalDays > 0 ? Math.round(subDiarias / totalDays) : 0;
+
+    // Compute parent's new values for remaining days
+    const remWkdys = remainingForParent.filter(d => !isWeekend(d)).length;
+    const remWknds = remainingForParent.filter(d => isWeekend(d)).length;
+    const parentNewWeekdayLunch = remWkdys * perDayWeekdayLunch;
+    const parentNewWeekdayDinner = remWkdys * perDayWeekdayDinner;
+    const parentNewWeekendLunch = remWknds * perDayWeekendLunch;
+    const parentNewWeekendDinner = remWknds * perDayWeekendDinner;
+    const parentNewMobility = parentWorkedDays.length > 0
+      ? Math.round((item.mobility || 0) * remainingForParent.length / parentWorkedDays.length)
+      : 0;
+    const parentNewDiarias = remainingForParent.length * item.dailyValue;
+    const parentNewTotal = parentNewDiarias + parentNewMobility + parentNewWeekdayLunch + parentNewWeekdayDinner + parentNewWeekendLunch + parentNewWeekendDinner;
+
     onConfirm({
       collaboratorId: selectedCollabId,
       workedDays: selDaysSorted,
@@ -324,6 +347,15 @@ export function SplitVagaModal({
       dailyValue,
       dailyQuantity: totalDays,
       totalValue,
+      parentValues: {
+        weekdayLunch: parentNewWeekdayLunch,
+        weekdayDinner: parentNewWeekdayDinner,
+        weekendLunch: parentNewWeekendLunch,
+        weekendDinner: parentNewWeekendDinner,
+        mobility: parentNewMobility,
+        dailyQuantity: remainingForParent.length,
+        totalValue: parentNewTotal,
+      },
     });
   }
 
