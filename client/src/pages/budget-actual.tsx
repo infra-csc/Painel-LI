@@ -601,6 +601,35 @@ export default function BudgetActualPage() {
     const avatarBg = avatarColorAct(collabName);
     const workedDaysStr = formatWorkedDays((cardItem.workedDays as string[]) || []);
     const isInGroup = isGParent || isGChild;
+
+    // Proportional planned for split cards:
+    // - child: scale parent's planned by (child_days / total_planned_days)
+    // - parent in group: scale own planned by (worked_days / total_planned_days)
+    const cardPlanned = (() => {
+      let rawPlan: BudgetPlanned | undefined;
+      if (isGChild) {
+        const parent = budgetActual?.find(a => a.id === cardItem.splitParentId);
+        rawPlan = parent ? getPlannedRef(parent) : undefined;
+      } else {
+        rawPlan = getPlannedRef(cardItem);
+      }
+      if (!rawPlan) return undefined;
+      if (!isInGroup) return rawPlan;
+      const childDays = cardDays.weekdays + cardDays.weekends;
+      const plannedDays = rawPlan.dailyQuantity ?? 0;
+      if (plannedDays <= 0 || childDays <= 0) return undefined;
+      const r = childDays / plannedDays;
+      return {
+        ...rawPlan,
+        totalValue: Math.round(rawPlan.totalValue * r),
+        weekdayLunch: Math.round(rawPlan.weekdayLunch * r),
+        weekdayDinner: Math.round(rawPlan.weekdayDinner * r),
+        weekendLunch: Math.round(rawPlan.weekendLunch * r),
+        weekendDinner: Math.round(rawPlan.weekendDinner * r),
+        mobility: Math.round(rawPlan.mobility * r),
+      } as BudgetPlanned;
+    })();
+
     return (
       <div
         data-card-id={cardItem.id}
@@ -666,7 +695,7 @@ export default function BudgetActualPage() {
         </div>
         {/* Card Body */}
         {!isCollapsed && (() => {
-          const planned = isGChild ? null : getPlannedRef(cardItem);
+          const planned = cardPlanned;
           const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
           const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
           const diffInline = (actual: number, plan: number) => {
@@ -677,8 +706,8 @@ export default function BudgetActualPage() {
           };
           return (
             <div className="px-2.5 pb-2 border-t border-gray-100 dark:border-gray-700/60 pt-2">
-              <div className="grid grid-cols-2 gap-1.5 items-start">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40">
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40 h-full flex flex-col justify-between">
                   <div className="flex items-center gap-1 mb-1">
                     <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center"><Calendar className="w-2 h-2 text-white" /></div>
                     <span className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
@@ -723,7 +752,7 @@ export default function BudgetActualPage() {
         })()}
         {/* Card Footer */}
         {(() => {
-          const planned = isGChild ? null : getPlannedRef(cardItem);
+          const planned = cardPlanned;
           const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
           return (
             <div className={`flex items-center justify-between px-3 py-2 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
@@ -1100,7 +1129,34 @@ export default function BudgetActualPage() {
               editFormData.weekendLunch - editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
-            const planned = getPlannedRef(editingItem);
+            const rawPlannedModal = (() => {
+              const own = getPlannedRef(editingItem);
+              if (own) return own;
+              // Split child: no planned for the new collaborator — fall back to parent's planned
+              if (editingItem.splitParentId) {
+                const parent = budgetActual?.find(a => a.id === editingItem.splitParentId);
+                return parent ? getPlannedRef(parent) : undefined;
+              }
+              return undefined;
+            })();
+            // For split children: scale the planned values proportionally to their worked days
+            const planned = (() => {
+              if (!rawPlannedModal) return undefined;
+              if (!editingItem.splitParentId) return rawPlannedModal;
+              const childDays = itemDays.weekdays + itemDays.weekends;
+              const plannedDays = rawPlannedModal.dailyQuantity ?? 0;
+              if (plannedDays <= 0 || childDays <= 0) return rawPlannedModal;
+              const r = childDays / plannedDays;
+              return {
+                ...rawPlannedModal,
+                totalValue: Math.round(rawPlannedModal.totalValue * r),
+                weekdayLunch: Math.round(rawPlannedModal.weekdayLunch * r),
+                weekdayDinner: Math.round(rawPlannedModal.weekdayDinner * r),
+                weekendLunch: Math.round(rawPlannedModal.weekendLunch * r),
+                weekendDinner: Math.round(rawPlannedModal.weekendDinner * r),
+                mobility: Math.round(rawPlannedModal.mobility * r),
+              } as BudgetPlanned;
+            })();
             const plannedSubDiarias = planned ? planned.totalValue - planned.weekdayLunch - planned.weekdayDinner - planned.weekendLunch - planned.weekendDinner - planned.mobility : 0;
             let plannedValorUtil = 0;
             let plannedValorFds = 0;
