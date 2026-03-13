@@ -16,7 +16,7 @@ import {
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus, GitFork
+  AlertCircle, Check, Minus, GitFork, ClipboardList, X
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
@@ -62,6 +62,13 @@ export default function BudgetComparisonPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [splitDetail, setSplitDetail] = useState<{
+    actual: BudgetActual;
+    planned: BudgetPlanned | null;
+    propPlanned: BudgetPlanned | null;
+    isParent: boolean;
+    allGroupDays: string[];
+  } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -158,6 +165,19 @@ export default function BudgetComparisonPage() {
 
   const fmt = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
+  const fmtDate = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00");
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    return `${d.getDate()}/${monthNames[d.getMonth()]} (${dayNames[d.getDay()]})`;
+  };
+
+  const fmtDateShort = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00");
+    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    return `${d.getDate()}/${monthNames[d.getMonth()]}`;
+  };
 
   const getCollaboratorName = (id?: string | null) =>
     id ? fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "-" : "-";
@@ -823,11 +843,12 @@ export default function BudgetComparisonPage() {
                                   </span>
                                 </div>
                                 {/* Column headers */}
-                                <div className="grid grid-cols-5 gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-100 dark:border-gray-700">
+                                <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-100 dark:border-gray-700">
                                   <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider col-span-2">Colaborador</span>
                                   <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. (prop.)</span>
                                   <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
                                   <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider text-right">Diferença</span>
+                                  <span className="text-[9px] uppercase text-gray-300 font-semibold tracking-wider text-center"></span>
                                 </div>
                                 {/* One row per collaborator */}
                                 {[a, ...row.splitChildren].map((colItem, ci) => {
@@ -838,8 +859,10 @@ export default function BudgetComparisonPage() {
                                   const colActual = colItem.totalValue;
                                   const colDiff = colActual - colPlanned;
                                   const colDays = getWorkedDayCount(colItem);
+                                  // Collect all days from the entire split group for context
+                                  const allGroupDays = [...(a.workedDays as string[] || []), ...row.splitChildren.flatMap(c => (c.workedDays as string[] || []))].sort();
                                   return (
-                                    <div key={ci} className={`grid grid-cols-5 gap-2 px-3 py-2.5 items-center text-[11px] ${ci % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
+                                    <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] ${ci % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
                                       <div className="col-span-2 flex items-center gap-2 min-w-0">
                                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 shadow-sm ${avatarColor(colItemName)}`}>
                                           {initials(colItemName)}
@@ -867,15 +890,28 @@ export default function BudgetComparisonPage() {
                                           </span>
                                         )}
                                       </div>
+                                      {/* Ver detalhes button */}
+                                      <div className="flex justify-center">
+                                        <button
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            setSplitDetail({ actual: colItem, planned: p, propPlanned: colProp, isParent, allGroupDays });
+                                          }}
+                                          className="w-6 h-6 rounded-md flex items-center justify-center bg-gray-100 hover:bg-purple-100 dark:bg-gray-700 dark:hover:bg-purple-900/40 text-gray-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
+                                          title="Ver detalhes completos"
+                                        >
+                                          <ClipboardList className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   );
                                 })}
                                 {/* Group totals row */}
-                                <div className={`grid grid-cols-5 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-gray-100 dark:border-gray-700 font-bold ${diff > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : diff < 0 ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}>
+                                <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-gray-100 dark:border-gray-700 font-bold ${diff > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : diff < 0 ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}>
                                   <span className="text-gray-500 dark:text-gray-400 uppercase text-[9px] tracking-wider col-span-2">Total do Grupo</span>
                                   <span className="text-right tabular-nums text-blue-700 dark:text-blue-300">{fmt(plannedTotal)}</span>
                                   <span className="text-right tabular-nums text-violet-700 dark:text-violet-300">{fmt(actualTotal)}</span>
-                                  <div className="text-right">
+                                  <div className="text-right col-span-2">
                                     {diff === 0 ? (
                                       <span className="text-gray-300 tabular-nums">—</span>
                                     ) : (
@@ -1077,6 +1113,187 @@ export default function BudgetComparisonPage() {
           </div>
         </div>
       )}
+
+      {/* ── Split collaborator detail modal ── */}
+      <Dialog open={!!splitDetail} onOpenChange={() => setSplitDetail(null)}>
+        <DialogContent className="max-w-lg rounded-2xl p-0 overflow-hidden">
+          {splitDetail && (() => {
+            const sd = splitDetail;
+            const sdName = getCollaboratorName(sd.actual.collaboratorId);
+            const sdFn = getFunctionName(sd.actual.functionId);
+            const myDays = (sd.actual.workedDays as string[] | null) || [];
+            const allDays = sd.allGroupDays;
+            const totalGroupDays = allDays.length;
+            const myDayCount = myDays.length;
+
+            // Proportional planned values
+            const pp = sd.propPlanned;
+            const fa = sd.actual;
+
+            const dailyPlan = pp ? pp.dailyQuantity * pp.dailyValue : 0;
+            const dailyAct = fa.dailyQuantity * fa.dailyValue;
+
+            const mealPlan = pp ? (pp.weekdayLunch + pp.weekdayDinner + pp.weekendLunch + pp.weekendDinner) : 0;
+            const mealAct = fa.weekdayLunch + fa.weekdayDinner + fa.weekendLunch + fa.weekendDinner;
+
+            const mobPlan = pp ? (pp.mobility + pp.transport) : 0;
+            const mobAct = fa.mobility + fa.transport;
+
+            const totalPlan = pp?.totalValue || 0;
+            const totalAct = fa.totalValue;
+            const totalDiff = totalAct - totalPlan;
+
+            const DetailRow = ({ label, planned, actual, sub }: { label: string; planned: number; actual: number; sub?: boolean }) => {
+              const d = actual - planned;
+              return (
+                <div className={`grid grid-cols-4 gap-3 py-2 items-center text-[11px] ${sub ? 'pl-4 bg-gray-50/60 dark:bg-gray-800/30' : ''}`}>
+                  <span className={`${sub ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300 font-medium'}`}>{label}</span>
+                  <span className="text-right tabular-nums text-blue-600 dark:text-blue-400">{fmt(planned)}</span>
+                  <span className={`text-right tabular-nums ${d !== 0 ? 'text-violet-700 dark:text-violet-300 font-semibold' : 'text-violet-500 dark:text-violet-400'}`}>{fmt(actual)}</span>
+                  <div className="text-right">
+                    {d === 0 ? <span className="text-gray-300 dark:text-gray-600">—</span> : (
+                      <span className={`font-bold text-[10px] ${d > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            return (
+              <>
+                {/* Header */}
+                <div className="bg-gradient-to-r from-purple-50 to-violet-50/60 dark:from-purple-950/30 dark:to-violet-950/20 border-b border-purple-100 dark:border-purple-800 px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-md ${avatarColor(sdName)}`}>
+                        {initials(sdName)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-black text-gray-800 dark:text-gray-100">{sdName}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                            {sd.isParent ? 'Titular' : 'Divisão'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{sdFn}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setSplitDetail(null)} className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Period info */}
+                  {allDays.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-start gap-1.5">
+                        <Calendar className="w-3 h-3 text-purple-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="text-[9px] uppercase text-purple-500 font-bold tracking-wider">Vaga original</span>
+                          <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                            {fmtDateShort(allDays[0])} a {fmtDateShort(allDays[allDays.length - 1])}
+                            <span className="text-gray-400 ml-1">({totalGroupDays} dia{totalGroupDays !== 1 ? 's' : ''})</span>
+                          </p>
+                        </div>
+                      </div>
+                      {myDays.length > 0 && (
+                        <div className="flex items-start gap-1.5">
+                          <GitFork className="w-3 h-3 text-purple-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-[9px] uppercase text-purple-500 font-bold tracking-wider">Dias deste colaborador</span>
+                            <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                              {myDays.map(fmtDate).join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Table */}
+                <div className="px-5 py-4 space-y-0.5">
+                  {/* Column headers */}
+                  <div className="grid grid-cols-4 gap-3 pb-2 border-b border-gray-100 dark:border-gray-700">
+                    <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Item</span>
+                    <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
+                    <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
+                    <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider text-right">Diferença</span>
+                  </div>
+
+                  {/* Diárias */}
+                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
+                    <DetailRow label="Diárias" planned={dailyPlan} actual={dailyAct} />
+                    {(pp || fa.dailyQuantity > 0) && (
+                      <DetailRow
+                        label={`└ ${pp?.dailyQuantity || 0}d × ${fmt(pp?.dailyValue || 0)} → ${fa.dailyQuantity}d × ${fmt(fa.dailyValue)}`}
+                        planned={dailyPlan}
+                        actual={dailyAct}
+                        sub
+                      />
+                    )}
+                  </div>
+
+                  {/* Alimentação */}
+                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
+                    <DetailRow label="Alimentação" planned={mealPlan} actual={mealAct} />
+                    {(pp?.weekdayLunch || fa.weekdayLunch) ? <DetailRow label="└ Almoço (dias úteis)" planned={pp?.weekdayLunch || 0} actual={fa.weekdayLunch} sub /> : null}
+                    {(pp?.weekdayDinner || fa.weekdayDinner) ? <DetailRow label="└ Jantar (dias úteis)" planned={pp?.weekdayDinner || 0} actual={fa.weekdayDinner} sub /> : null}
+                    {(pp?.weekendLunch || fa.weekendLunch) ? <DetailRow label="└ Almoço (fins de sem.)" planned={pp?.weekendLunch || 0} actual={fa.weekendLunch} sub /> : null}
+                    {(pp?.weekendDinner || fa.weekendDinner) ? <DetailRow label="└ Jantar (fins de sem.)" planned={pp?.weekendDinner || 0} actual={fa.weekendDinner} sub /> : null}
+                  </div>
+
+                  {/* Mobilidade */}
+                  <div className="border-b border-gray-50 dark:border-gray-800 pb-1">
+                    <DetailRow label="Mobilidade" planned={mobPlan} actual={mobAct} />
+                    {(pp?.mobility || fa.mobility) ? <DetailRow label="└ Mobilidade" planned={pp?.mobility || 0} actual={fa.mobility} sub /> : null}
+                    {(pp?.transport || fa.transport) ? <DetailRow label="└ Translado" planned={pp?.transport || 0} actual={fa.transport} sub /> : null}
+                  </div>
+
+                  {/* Total */}
+                  <div className={`grid grid-cols-4 gap-3 pt-2 mt-1 rounded-xl px-3 py-3 ${totalDiff > 0 ? 'bg-red-50 dark:bg-red-950/20' : totalDiff < 0 ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'bg-gray-50 dark:bg-gray-800/40'}`}>
+                    <span className="text-[11px] font-black uppercase tracking-wide text-gray-600 dark:text-gray-300">Total</span>
+                    <span className="text-right tabular-nums font-black text-blue-700 dark:text-blue-300 text-[13px]">{fmt(totalPlan)}</span>
+                    <span className="text-right tabular-nums font-black text-violet-700 dark:text-violet-300 text-[13px]">{fmt(totalAct)}</span>
+                    <div className="text-right">
+                      {totalDiff === 0 ? <span className="text-gray-300 tabular-nums font-black text-[13px]">—</span> : (
+                        <span className={`tabular-nums font-black text-[13px] ${totalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {totalDiff > 0 ? '+' : '−'}{fmt(Math.abs(totalDiff))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 pb-4 space-y-3">
+                  {!sd.isParent && totalGroupDays > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-800">
+                      <GitFork className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                      <span className="text-[11px] text-purple-700 dark:text-purple-300">
+                        Este colaborador cobriu <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
+                      </span>
+                    </div>
+                  )}
+                  {sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 rounded-xl border border-blue-100 dark:border-blue-800">
+                      <GitFork className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                      <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                        Titular cobriu <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
+                      </span>
+                    </div>
+                  )}
+                  <Button onClick={() => setSplitDetail(null)} variant="outline" className="w-full h-9 text-sm rounded-xl border-gray-200">
+                    Fechar
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Action confirmation modal ── */}
       <Dialog open={!!actionModal} onOpenChange={() => { setActionModal(null); setActionNote(""); }}>
