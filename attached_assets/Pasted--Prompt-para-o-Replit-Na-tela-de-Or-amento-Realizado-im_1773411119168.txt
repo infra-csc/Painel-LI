@@ -1,0 +1,39 @@
+
+Prompt para o Replit:
+
+Na tela de Orçamento Realizado, implemente a lógica de divisão de escalação entre múltiplos colaboradores:
+CONCEITO:
+Uma vaga escalada no Planejado pode ser executada por mais de uma pessoa no Realizado. Exemplo: colaborador A estava escalado do dia 1 ao dia 3, mas apenas foi no dia 1. Os dias 2 e 3 foram cobertos por colaboradores B e C. O custo total da vaga deve ser dividido corretamente entre quem realmente trabalhou cada dia.
+LÓGICA DE NEGÓCIO:
+
+Cada linha de colaborador deve mostrar quais dias ele efetivamente trabalhou
+Os valores de Diárias, Alimentação e Mobilidade são calculados com base nos dias reais trabalhados
+Uma vaga do Planejado pode ter 1 ou mais colaboradores vinculados no Realizado
+O sistema deve alertar visualmente se os dias de uma vaga não estão 100% cobertos: badge amarelo "Cobertura incompleta" ou badge vermelho "Excede o planejado"
+
+FLUXO DO BOTÃO "Dividir vaga":
+
+Ao clicar em "+ Dividir vaga" no card de um colaborador, abre um painel/modal com:
+
+Os dias do evento listados, mostrando quais já estão atribuídos ao colaborador original e quais estão disponíveis para redistribuir
+Um seletor de colaborador com busca por nome, buscando da lista de colaboradores já cadastrados no sistema — igual ao padrão de busca do app
+Seleção dos dias específicos que o novo colaborador irá cobrir (checkboxes por dia)
+Ao confirmar, os dias são redistribuídos e os valores recalculados automaticamente
+
+
+É possível dividir em quantas pessoas forem necessárias, repetindo o processo
+O colaborador adicionado na divisão deve já existir no cadastro — não é possível criar um novo colaborador por aqui
+
+INTERFACE — card de vaga dividida:
+
+Agrupar visualmente todos os colaboradores da mesma vaga sob um bloco único com label da vaga de origem
+Cada sub-linha mostra: nome do colaborador, dias que trabalhou, e valores calculados para esses dias
+Botão "+ Adicionar outro colaborador" ao final do grupo para continuar dividindo
+Botão de remover (🗑️) em cada sub-linha para desfazer a divisão daquele colaborador
+
+NO CARD ROXO DE TOTAL:
+
+Somar o total correto independente de quantas pessoas cobriram cada vaga
+Exibir indicador: "X vagas com substituição parcial"
+
+Mantenha o estilo visual do app (cores, bordas, fontes).

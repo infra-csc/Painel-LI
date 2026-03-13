@@ -57,6 +57,13 @@ Preferred communication style: Simple, everyday language.
 - **Architecture**: Global defaults → used as fallback in budget-planned.tsx calculations → `budget_planned` stores its own independent copy → existing events unaffected
 - **Access**: Admin-only page at `/system-settings`, shown in sidebar under "Sistema"
 
+## Split Vacancy Feature (Divisão de Vaga)
+- **Purpose**: Allows a `budget_actual` record to be split — assigning specific days to a different collaborator
+- **Schema**: `budget_actual` has `splitParentId varchar` (null = original, set = split child) and `workedDays text[]` (YYYY-MM-DD strings per collaborator)
+- **API**: `POST /api/budget-actual/:id/split` — creates a child record linked to the parent with pro-rated values; optionally updates parent's `workedDays`
+- **UI**: GitFork icon button in each editable card opens `SplitVagaModal`; child items show a "Divisão" badge in purple
+- **Modal** (`client/src/components/split-vaga-modal.tsx`): Collaborator search dropdown (portal-based), day picker (one button per day in the team inclusion range), mobility input, coverage warning
+
 ## Authentication & Authorization
 - **User Roles**: Administrator, Production Area, Function Area, Purchasing, Financial
 - **Session Management**: Server-side session handling with secure authentication

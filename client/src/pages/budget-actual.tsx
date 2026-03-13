@@ -10,8 +10,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork } from "lucide-react";
 import { EventSearchSelect } from "@/components/event-select";
+import { SplitVagaModal } from "@/components/split-vaga-modal";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useSearch } from "wouter";
@@ -104,6 +105,7 @@ export default function BudgetActualPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [splittingItem, setSplittingItem] = useState<BudgetActual | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
@@ -286,6 +288,21 @@ export default function BudgetActualPage() {
     },
     onError: () => {
       toast({ title: "Erro", description: "Erro ao duplicar prestação", variant: "destructive" });
+    },
+  });
+
+  const splitMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
+      const res = await apiRequest("POST", `/api/budget-actual/${id}/split`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Vaga dividida", description: "O novo colaborador foi atribuído com sucesso." });
+      setSplittingItem(null);
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Erro ao dividir a vaga", variant: "destructive" });
     },
   });
 
@@ -863,6 +880,12 @@ export default function BudgetActualPage() {
                               Divergência
                             </Badge>
                           )}
+                          {item.splitParentId && (
+                            <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50 flex items-center gap-0.5">
+                              <GitFork className="w-2.5 h-2.5" />
+                              Divisão
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -877,6 +900,11 @@ export default function BudgetActualPage() {
                             onClick={() => duplicateMutation.mutate(item.id)} title="Duplicar"
                             disabled={duplicateMutation.isPending}>
                             <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
+                            onClick={() => setSplittingItem(item)} title="Dividir vaga (atribuir dias a outro colaborador)"
+                            disabled={splitMutation.isPending}>
+                            <GitFork className="w-3.5 h-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
                             onClick={() => setConfirmDeleteId(item.id)} title="Remover">
@@ -1618,6 +1646,20 @@ export default function BudgetActualPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Split Vaga Modal ── */}
+      {splittingItem && (
+        <SplitVagaModal
+          item={splittingItem}
+          collaborators={collaborators || []}
+          teamInclusion={getItemInclusion(splittingItem)}
+          onClose={() => setSplittingItem(null)}
+          isPending={splitMutation.isPending}
+          onConfirm={(payload) => {
+            splitMutation.mutate({ id: splittingItem.id, payload });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -306,6 +306,8 @@ export const budgetActual = pgTable("budget_actual", {
   rhActionBy: varchar("rh_action_by").references(() => users.id),
   rhActionAt: timestamp("rh_action_at"),
   resubmitted: boolean("resubmitted").notNull().default(false), // true quando reenviado após devolução/recusa
+  splitParentId: varchar("split_parent_id"), // se preenchido, este é um registro de divisão de vaga
+  workedDays: text("worked_days").array(), // dias específicos trabalhados [YYYY-MM-DD]
 });
 
 // Comparativo e aprovação do RH

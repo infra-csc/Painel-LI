@@ -2174,6 +2174,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Split vacancy endpoint ────────────────────────────────────────────────
+  app.post("/api/budget-actual/:id/split", async (req, res) => {
+    try {
+      const parent = await storage.getBudgetActualById(req.params.id);
+      if (!parent) return res.status(404).json({ message: "Item não encontrado" });
+
+      const { collaboratorId, workedDays, collaboratorType, mobility } = req.body;
+      if (!collaboratorId || !Array.isArray(workedDays) || workedDays.length === 0) {
+        return res.status(400).json({ message: "collaboratorId e workedDays são obrigatórios" });
+      }
+
+      // Count weekdays and weekends in the selected days
+      let weekdayCount = 0;
+      let weekendCount = 0;
+      for (const d of workedDays) {
+        const day = new Date(d + "T12:00:00");
+        const dow = day.getDay();
+        if (dow === 0 || dow === 6) weekendCount++;
+        else weekdayCount++;
+      }
+
+      // Determine per-day rates from parent
+      const parentTotalDays = parent.dailyQuantity || 1;
+      const dailyValue = parent.dailyValue;
+      const perDayWeekdayLunch = parentTotalDays > 0 ? Math.round((parent.weekdayLunch || 0) / Math.max(1, parentTotalDays)) : 0;
+      const perDayWeekdayDinner = parentTotalDays > 0 ? Math.round((parent.weekdayDinner || 0) / Math.max(1, parentTotalDays)) : 0;
+      const perDayWeekendLunch = parentTotalDays > 0 ? Math.round((parent.weekendLunch || 0) / Math.max(1, parentTotalDays)) : 0;
+      const perDayWeekendDinner = parentTotalDays > 0 ? Math.round((parent.weekendDinner || 0) / Math.max(1, parentTotalDays)) : 0;
+
+      const childWeekdayLunch = weekdayCount * perDayWeekdayLunch;
+      const childWeekdayDinner = weekdayCount * perDayWeekdayDinner;
+      const childWeekendLunch = weekendCount * perDayWeekendLunch;
+      const childWeekendDinner = weekendCount * perDayWeekendDinner;
+      const childMobility = typeof mobility === 'number' ? mobility : (parent.mobility || 0);
+      const childDailyQty = workedDays.length;
+      const childDailyTotal = childDailyQty * dailyValue;
+      const childTotal = childDailyTotal + childWeekdayLunch + childWeekdayDinner + childWeekendLunch + childWeekendDinner + childMobility;
+
+      const splitData = {
+        splitParentId: parent.id,
+        plannedId: parent.plannedId,
+        eventId: parent.eventId,
+        collaboratorId,
+        functionId: parent.functionId,
+        collaboratorType: collaboratorType || parent.collaboratorType,
+        dailyQuantity: childDailyQty,
+        dailyValue,
+        costAssistance: 0,
+        weekdayLunch: childWeekdayLunch,
+        weekdayDinner: childWeekdayDinner,
+        weekendLunch: childWeekendLunch,
+        weekendDinner: childWeekendDinner,
+        mobility: childMobility,
+        transport: 0,
+        totalValue: childTotal,
+        workedDays,
+        observations: `Divisão de vaga — colaborador adicional`,
+        createdBy: req.session?.userId || null,
+      };
+
+      const created = await storage.createBudgetActual(splitData as any);
+
+      // Update the parent's workedDays to store its own tracked days (if not already set)
+      if (req.body.parentWorkedDays) {
+        await storage.updateBudgetActual(parent.id, {
+          workedDays: req.body.parentWorkedDays,
+        } as any);
+      }
+
+      const actorId = req.session?.userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      await createAuditLog('create', 'budget_actual', created.id, created, actorId, actor?.name || 'Sistema', undefined, req);
+
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Error splitting budget actual:", error);
+      res.status(400).json({ message: "Erro ao dividir vaga" });
+    }
+  });
+
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
