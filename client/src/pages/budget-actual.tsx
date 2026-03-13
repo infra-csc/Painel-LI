@@ -10,9 +10,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, UserX, Undo2 } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { isAdmin, isRhOrAdmin } from "@/lib/permissions";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
@@ -110,32 +109,9 @@ export default function BudgetActualPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [splittingItem, setSplittingItem] = useState<BudgetActual | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
-  const [notAttendedModal, setNotAttendedModal] = useState<BudgetActual | null>(null);
-  const [notAttendedReason, setNotAttendedReason] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
-
-  const canMarkNotAttended = isRhOrAdmin(user);
-
-  const toggleNotAttendedMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const res = await apiRequest("POST", `/api/budget-actual/${id}/toggle-not-attended`, { reason });
-      return res.json();
-    },
-    onSuccess: (data: BudgetActual) => {
-      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
-      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
-      setNotAttendedModal(null);
-      setNotAttendedReason("");
-      if (data.didNotAttend) {
-        toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
-      } else {
-        toast({ title: "Participação restaurada", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
-      }
-    },
-    onError: () => toast({ title: "Erro ao atualizar participação", variant: "destructive" }),
-  });
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
@@ -548,20 +524,17 @@ export default function BudgetActualPage() {
     return result;
   }, [filteredItems, splitGroupsMap]);
 
-  const notAttendedItems = filteredItems.filter(i => i.didNotAttend);
-  const activeItems = filteredItems.filter(i => !i.didNotAttend);
-  const totalRealizado = activeItems.reduce((sum, item) => sum + item.totalValue, 0);
-  const totalCasa = activeItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
-  const totalFreela = activeItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
+  const totalRealizado = filteredItems.reduce((sum, item) => sum + item.totalValue, 0);
+  const totalCasa = filteredItems.filter(i => i.collaboratorType === 'casa').reduce((s, i) => s + i.totalValue, 0);
+  const totalFreela = filteredItems.filter(i => i.collaboratorType === 'freela').reduce((s, i) => s + i.totalValue, 0);
   const totalPlanejado = useMemo(() => {
-    // Only count non-split-child, non-absent items: a split group is ONE prestação with ONE planned budget
-    return activeItems
+    return filteredItems
       .filter(item => !item.splitParentId)
       .reduce((sum, item) => {
         const planned = getPlannedRef(item);
         return sum + (planned ? planned.totalValue : item.totalValue);
       }, 0);
-  }, [activeItems, budgetPlanned]);
+  }, [filteredItems, budgetPlanned]);
   const prestacaoCount = filteredItems.filter(item => !item.splitParentId).length;
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
@@ -695,17 +668,13 @@ export default function BudgetActualPage() {
       } as BudgetPlanned;
     })();
 
-    const isNotAttended = !!cardItem.didNotAttend;
-
     return (
       <div
         data-card-id={cardItem.id}
         className={[
-          'rounded-2xl border overflow-hidden transition-all duration-300',
-          isNotAttended ? 'bg-gray-50 dark:bg-gray-800/50 opacity-70' : 'bg-white dark:bg-gray-800',
-          isInGroup && !isNotAttended ? 'border-l-4 border-l-purple-400' : '',
-          isNotAttended ? 'border-gray-300 dark:border-gray-600 border-dashed' :
-            highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30'
+          'rounded-2xl border overflow-hidden transition-all duration-300 bg-white dark:bg-gray-800',
+          isInGroup ? 'border-l-4 border-l-purple-400' : '',
+          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30'
             : isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50'
             : diverges ? 'border-amber-200 dark:border-amber-800/50'
             : isInGroup ? 'border-purple-200 dark:border-purple-800/50'
@@ -738,11 +707,7 @@ export default function BudgetActualPage() {
                 {diverges && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Divergência</Badge>}
                 {isGParent && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-100 text-purple-700 border border-purple-300 hover:bg-purple-100">Titular</Badge>}
                 {isGChild && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50 flex items-center gap-0.5"><GitFork className="w-2.5 h-2.5" />Divisão</Badge>}
-                {isNotAttended && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-100 flex items-center gap-0.5 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600"><UserX className="w-2.5 h-2.5" />Não participou</Badge>}
               </div>
-              {isNotAttended && cardItem.didNotAttendReason && (
-                <p className="text-[10px] text-gray-400 italic mt-0.5">{cardItem.didNotAttendReason}</p>
-              )}
               {workedDaysStr && isInGroup && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <Calendar className="w-3 h-3 text-purple-400 flex-shrink-0" />
@@ -752,72 +717,14 @@ export default function BudgetActualPage() {
             </div>
           </div>
           <div className="flex items-center gap-0.5">
-            {isNotAttended ? (
-              <>
-                {canMarkNotAttended && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
-                          onClick={() => toggleNotAttendedMutation.mutate({ id: cardItem.id, reason: "" })}
-                          disabled={toggleNotAttendedMutation.isPending}
-                          title="Desfazer — restaurar participação"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Desfazer — restaurar participação</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
-              </>
-            ) : isItemEditable ? (
+            {isItemEditable ? (
               <>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditModal(cardItem)} title="Editar prestação"><Edit className="w-3.5 h-3.5" /></Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50" onClick={() => setSplittingItem(cardItem)} title="Dividir escalação" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
-                {canMarkNotAttended && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                          onClick={() => setNotAttendedModal(cardItem)}
-                          title="Marcar como não participou"
-                        >
-                          <UserX className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
               </>
             ) : (
-              <>
-                {canMarkNotAttended && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                          onClick={() => setNotAttendedModal(cardItem)}
-                          title="Marcar como não participou"
-                        >
-                          <UserX className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
-              </>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
             )}
             <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toggleCollapse(cardItem.id)}>
               {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
@@ -1047,14 +954,6 @@ export default function BudgetActualPage() {
                 <div className="text-violet-200 text-xs">{prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}</div>
               </div>
             </div>
-            {notAttendedItems.length > 0 && (
-              <div className="mt-3 flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
-                <UserX className="w-3.5 h-3.5 text-white/60 flex-shrink-0" />
-                <span className="text-white/70 text-[11px]">
-                  {notAttendedItems.length} colaborador{notAttendedItems.length !== 1 ? 'es' : ''} não {notAttendedItems.length !== 1 ? 'contabilizados' : 'contabilizado'} por não participação
-                </span>
-              </div>
-            )}
           </div>
 
           {/* ── Filtros ── */}
@@ -1850,64 +1749,6 @@ export default function BudgetActualPage() {
               </>
             );
           })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Marcar como não participou modal ── */}
-      <Dialog open={!!notAttendedModal} onOpenChange={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-                <UserX className="w-4 h-4 text-gray-500" />
-              </div>
-              <span>Marcar como não participou</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {notAttendedModal && (
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-700">
-                <div className={`w-8 h-8 rounded-xl ${avatarColorAct(getCollaboratorName(notAttendedModal.collaboratorId))} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                  <span className="text-white text-[10px] font-bold">
-                    {getCollaboratorName(notAttendedModal.collaboratorId).split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{getCollaboratorName(notAttendedModal.collaboratorId)}</p>
-                  <p className="text-[10px] text-gray-400">{getFunctionName(notAttendedModal.functionId)}</p>
-                </div>
-              </div>
-            )}
-            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-              Este colaborador será removido do cálculo financeiro do evento. Os valores dele não serão contabilizados nos totais do Realizado.
-            </p>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Motivo <span className="text-gray-400 font-normal">(opcional)</span>
-              </label>
-              <Textarea
-                className="mt-1.5 rounded-xl text-sm resize-none"
-                value={notAttendedReason}
-                onChange={e => setNotAttendedReason(e.target.value)}
-                placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
-                rows={2}
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-1">
-            <Button variant="ghost" className="rounded-xl" onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
-              Cancelar
-            </Button>
-            <Button
-              className="rounded-xl bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-sm"
-              onClick={() => notAttendedModal && toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason })}
-              disabled={toggleNotAttendedMutation.isPending}
-            >
-              <UserX className="w-3.5 h-3.5 mr-1.5" />
-              {toggleNotAttendedMutation.isPending ? 'Confirmando...' : 'Confirmar'}
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 

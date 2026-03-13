@@ -274,6 +274,8 @@ export const budgetPlanned = pgTable("budget_planned", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
+  didNotAttend: boolean("did_not_attend").notNull().default(false),
+  didNotAttendReason: text("did_not_attend_reason"),
 });
 
 // Realizado - o que realmente aconteceu

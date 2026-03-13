@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2 } from "lucide-react";
+import { isRhOrAdmin } from "@/lib/permissions";
+import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -97,11 +99,14 @@ export default function BudgetPlannedPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name_asc");
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
+  const [notAttendedModal, setNotAttendedModal] = useState<{ id: string; name: string; functionName: string } | null>(null);
+  const [notAttendedReason, setNotAttendedReason] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
 
   const canEdit = user?.role === "admin" || user?.role === "production";
+  const canMarkNotAttended = isRhOrAdmin(user);
 
   const toggleCardSelection = (id: string) => {
     setSelectedCards(prev => {
@@ -153,6 +158,35 @@ export default function BudgetPlannedPage() {
       return res.json();
     },
     enabled: !!selectedEventId,
+  });
+
+  const { data: allBudgetPlanned } = useQuery<any[]>({
+    queryKey: ["/api/budget-planned", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch budget planned");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const toggleNotAttendedMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const res = await apiRequest("POST", `/api/budget-planned/${id}/toggle-not-attended`, { reason });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-planned", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      setNotAttendedModal(null);
+      setNotAttendedReason("");
+      if (data.didNotAttend) {
+        toast({ title: "Colaborador marcado como não participou", className: "bg-gray-50 border-gray-200 text-gray-800" });
+      } else {
+        toast({ title: "Participação restaurada", className: "bg-emerald-50 border-emerald-200 text-emerald-800" });
+      }
+    },
+    onError: () => toast({ title: "Erro ao atualizar participação", variant: "destructive" }),
   });
 
   const { data: allTeamInclusions } = useQuery<TeamInclusion[]>({
@@ -947,16 +981,21 @@ export default function BudgetPlannedPage() {
                   const isCasa = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                   const name = getCollaboratorName(budget.inclusion.collaboratorId);
                   const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+                  const planRecord = allBudgetPlanned?.find(
+                    p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
+                  );
+                  const isNotAttended = !!planRecord?.didNotAttend;
                   
                   return (
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`bg-white dark:bg-gray-800 rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group ${
-                        highlightCardId === budget.inclusion.id ? 'ring-2 ring-indigo-400 shadow-indigo-100 dark:shadow-indigo-900/30' :
-                        isSelected ? 'ring-2 ring-emerald-500 border-emerald-300 dark:border-emerald-700' : 
-                        isSent ? 'border-indigo-200 dark:border-indigo-800 opacity-80' :
-                        budget.hasOverride ? 'border-amber-200 dark:border-amber-800' : 'border-gray-200 dark:border-gray-700'
+                      className={`rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group ${
+                        isNotAttended ? 'bg-gray-50 dark:bg-gray-800/50 opacity-75 border-dashed border-gray-300 dark:border-gray-600' :
+                        highlightCardId === budget.inclusion.id ? 'bg-white dark:bg-gray-800 ring-2 ring-indigo-400 shadow-indigo-100 dark:shadow-indigo-900/30' :
+                        isSelected ? 'bg-white dark:bg-gray-800 ring-2 ring-emerald-500 border-emerald-300 dark:border-emerald-700' : 
+                        isSent ? 'bg-white dark:bg-gray-800 border-indigo-200 dark:border-indigo-800 opacity-80' :
+                        budget.hasOverride ? 'bg-white dark:bg-gray-800 border-amber-200 dark:border-amber-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       {/* ── Header do card ── */}
@@ -1013,7 +1052,15 @@ export default function BudgetPlannedPage() {
                                   No Realizado
                                 </Badge>
                               )}
+                              {isNotAttended && (
+                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-gray-200 text-gray-500 border border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600 flex items-center gap-0.5">
+                                  <UserX className="w-2.5 h-2.5" />Não participou
+                                </Badge>
+                              )}
                             </div>
+                            {isNotAttended && planRecord?.didNotAttendReason && (
+                              <p className="text-[10px] text-gray-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
+                            )}
                           </div>
                         </div>
 
@@ -1023,6 +1070,34 @@ export default function BudgetPlannedPage() {
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
+                          )}
+                          {canMarkNotAttended && isSent && planRecord && (
+                            isNotAttended ? (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                      onClick={() => toggleNotAttendedMutation.mutate({ id: planRecord.id, reason: "" })}
+                                      disabled={toggleNotAttendedMutation.isPending}>
+                                      <Undo2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="text-xs">Restaurar participação</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                                      onClick={() => setNotAttendedModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}>
+                                      <UserX className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )
                           )}
                           {!isSent && (
                             <Button 
@@ -1541,6 +1616,59 @@ export default function BudgetPlannedPage() {
               Confirmar Envio
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Marcar como não participou ── */}
+      <Dialog open={!!notAttendedModal} onOpenChange={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                <UserX className="w-4 h-4 text-gray-500" />
+              </div>
+              <span>Marcar como não participou</span>
+            </DialogTitle>
+          </DialogHeader>
+          {notAttendedModal && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-700">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{notAttendedModal.name}</p>
+                  <p className="text-[10px] text-gray-400">{notAttendedModal.functionName}</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                Este colaborador será excluído do cálculo financeiro do planejado. Os valores não serão contabilizados nos totais.
+              </p>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Motivo <span className="text-gray-400 font-normal">(opcional)</span>
+                </label>
+                <Textarea
+                  className="mt-1.5 rounded-xl text-sm resize-none"
+                  value={notAttendedReason}
+                  onChange={e => setNotAttendedReason(e.target.value)}
+                  placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
+                  rows={2}
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" className="rounded-xl" onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="rounded-xl bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-sm"
+                  onClick={() => toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason })}
+                  disabled={toggleNotAttendedMutation.isPending}
+                >
+                  <UserX className="w-3.5 h-3.5 mr-1.5" />
+                  {toggleNotAttendedMutation.isPending ? 'Confirmando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

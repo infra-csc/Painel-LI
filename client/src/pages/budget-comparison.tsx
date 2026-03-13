@@ -268,8 +268,9 @@ export default function BudgetComparisonPage() {
 
       const children = splitChildrenMap.get(a.id) || [];
       const isSplit = children.length > 0;
-      // If marked as not attended, their values are excluded from totals
-      const groupActualTotal = a.didNotAttend ? 0 : (a.totalValue + children.reduce((s, c) => s + c.totalValue, 0));
+      // If the planned record is marked as not attended, their values are excluded from totals
+      const isNotAttendedPlanned = !!(matchingPlanned as any)?.didNotAttend;
+      const groupActualTotal = isNotAttendedPlanned ? 0 : (a.totalValue + children.reduce((s, c) => s + c.totalValue, 0));
 
       data.push({
         collaboratorId: a.collaboratorId,
@@ -278,7 +279,7 @@ export default function BudgetComparisonPage() {
         planned: matchingPlanned || null,
         actual: a,
         // For split groups: variance is based on the group total vs original full planned; 0 if not attended
-        variance: a.didNotAttend ? 0 : (matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal),
+        variance: isNotAttendedPlanned ? 0 : (matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal),
         isSplit,
         splitChildren: children,
         groupActualTotal,
@@ -745,7 +746,7 @@ export default function BudgetComparisonPage() {
                   const colName = getCollaboratorName(row.collaboratorId);
                   const cardKey = `${row.collaboratorId}-${row.functionId}`;
 
-                  const isNotAttended = !!a.didNotAttend;
+                  const isNotAttended = !!(row.planned as any)?.didNotAttend;
 
                   return (
                     <div
@@ -808,9 +809,9 @@ export default function BudgetComparisonPage() {
                               )}
                             </div>
                             {/* Not-attended reason snippet */}
-                            {isNotAttended && a.didNotAttendReason && (
+                            {isNotAttended && (row.planned as any)?.didNotAttendReason && (
                               <p className="text-[10px] italic mt-0.5 text-gray-400 leading-snug max-w-xs truncate">
-                                {a.didNotAttendReason}
+                                {(row.planned as any).didNotAttendReason}
                               </p>
                             )}
                             {/* RH comment snippet — visible in collapsed view */}
@@ -884,7 +885,7 @@ export default function BudgetComparisonPage() {
                                 <div>
                                   <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Colaborador não participou do evento</p>
                                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
-                                  {a.didNotAttendReason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">Motivo: {a.didNotAttendReason}</p>}
+                                  {(row.planned as any)?.didNotAttendReason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">Motivo: {(row.planned as any).didNotAttendReason}</p>}
                                 </div>
                               </div>
                             )}
