@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
-  Lock, ChevronDown, ChevronUp, Clock, Info
+  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { isAdmin } from "@/lib/permissions";
+import type { Function as FunctionType, FunctionValue } from "@shared/schema";
 
 const formSchema = z.object({
   default_daily_value_weekday: z.string().min(1, "Obrigatório"),
@@ -91,6 +93,7 @@ export default function SystemSettingsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [lastSaved, setLastSaved] = useState<{ timestamp: string; user: string } | null>(null);
+  const [functionDailyValues, setFunctionDailyValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
@@ -106,6 +109,65 @@ export default function SystemSettingsPage() {
     queryFn: async () => {
       const res = await fetch("/api/system-settings", { credentials: "include" });
       return res.json();
+    },
+  });
+
+  const { data: allFunctions = [] } = useQuery<FunctionType[]>({
+    queryKey: ["/api/functions"],
+    queryFn: async () => {
+      const res = await fetch("/api/functions", { credentials: "include" });
+      return res.json();
+    },
+  });
+
+  const { data: allFunctionValues = [] } = useQuery<FunctionValue[]>({
+    queryKey: ["/api/function-values"],
+    queryFn: async () => {
+      const res = await fetch("/api/function-values", { credentials: "include" });
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (allFunctions.length > 0) {
+      const map: Record<string, string> = {};
+      for (const fn of allFunctions) {
+        const fv = allFunctionValues.find(v => v.functionId === fn.id);
+        map[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
+      }
+      setFunctionDailyValues(map);
+    }
+  }, [allFunctions, allFunctionValues]);
+
+  const saveFunctionValuesMutation = useMutation({
+    mutationFn: async () => {
+      const promises = allFunctions.map(async fn => {
+        const fv = allFunctionValues.find(v => v.functionId === fn.id);
+        const newVal = Math.round(parseFloat(functionDailyValues[fn.id] || "0") * 100);
+        if (fv) {
+          return apiRequest("PATCH", `/api/function-values/${fv.id}`, { dailyValue: newVal });
+        } else {
+          return apiRequest("POST", "/api/function-values", {
+            functionId: fn.id,
+            dailyValue: newVal,
+            costAssistance: 0,
+            mobility: 0,
+            transport: 0,
+            weekdayLunch: 0,
+            weekdayDinner: 0,
+            weekendLunch: 0,
+            weekendDinner: 0,
+          });
+        }
+      });
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/function-values"] });
+      toast({ title: "Valores por função salvos", description: "Os valores de diária por função foram atualizados." });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar valores por função", variant: "destructive" });
     },
   });
 
@@ -244,7 +306,7 @@ export default function SystemSettingsPage() {
                 </div>
                 <div>
                   <p style={{ fontWeight: 700, fontSize: 14, color: '#1E40AF', margin: 0 }}>Diárias</p>
-                  <p style={{ fontSize: 11, color: '#3B82F6', margin: 0 }}>Valor por dia de trabalho</p>
+                  <p style={{ fontSize: 11, color: '#3B82F6', margin: 0 }}>Valor pago por dia trabalhado</p>
                 </div>
               </div>
               <div className="px-5 py-5 flex flex-col gap-4 flex-1">
@@ -255,6 +317,7 @@ export default function SystemSettingsPage() {
                     <FormItem>
                       <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Dia Útil</FormLabel>
                       <FormControl><CurrencyInput field={field} /></FormControl>
+                      <p className="text-[10px] text-gray-400 mt-0.5">valor por dia útil trabalhado</p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -266,6 +329,7 @@ export default function SystemSettingsPage() {
                     <FormItem>
                       <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Fim de Semana</FormLabel>
                       <FormControl><CurrencyInput field={field} /></FormControl>
+                      <p className="text-[10px] text-gray-400 mt-0.5">valor por dia de fim de semana trabalhado</p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -386,6 +450,84 @@ export default function SystemSettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ── Card: Função ── */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+            <div style={{ background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', borderBottom: '1px solid #C7D2FE', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(79,70,229,0.3)' }}>
+                  <BadgeCheck style={{ width: 20, height: 20, color: '#fff' }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14, color: '#312E81', margin: 0 }}>Função</p>
+                  <p style={{ fontSize: 11, color: '#6366F1', margin: 0 }}>Valor padrão de diária por função escalada</p>
+                </div>
+              </div>
+              {allFunctions.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveFunctionValuesMutation.isPending}
+                  onClick={() => saveFunctionValuesMutation.mutate()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                >
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                  {saveFunctionValuesMutation.isPending ? "Salvando..." : "Salvar Funções"}
+                </Button>
+              )}
+            </div>
+
+            {allFunctions.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center mx-auto mb-3">
+                  <BadgeCheck className="w-6 h-6 text-indigo-300" />
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Nenhuma função cadastrada.</p>
+                <Link href="/functions" className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline">
+                  Acesse Funções para adicionar
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            ) : (
+              <div className="px-5 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {allFunctions.map(fn => {
+                    const fv = allFunctionValues.find(v => v.functionId === fn.id);
+                    const currentVal = functionDailyValues[fn.id] ?? "0.00";
+                    const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
+                    const isDirty = parseFloat(currentVal) !== parseFloat(savedVal);
+                    return (
+                      <div
+                        key={fn.id}
+                        className={`rounded-lg border p-3 transition-colors ${isDirty ? 'border-indigo-200 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'}`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+                            <BadgeCheck className="w-3 h-3 text-indigo-500" />
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={fn.name}>{fn.name}</span>
+                          {isDirty && <span className="ml-auto shrink-0 text-[9px] font-bold text-indigo-500 bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded-full">Alterado</span>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] text-gray-400 font-medium">R$</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={currentVal}
+                            onChange={e => setFunctionDailyValues(prev => ({ ...prev, [fn.id]: e.target.value }))}
+                            className="h-8 text-sm font-semibold pl-1 pr-2 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-600 rounded-md"
+                          />
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1">R$ por dia trabalhado</p>
+                        {fv && <p className="text-[9px] text-gray-300 dark:text-gray-600 tabular-nums">atual: {formatCurrency(centavosToReais(fv.dailyValue))}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Rodapé ── */}
