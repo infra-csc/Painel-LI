@@ -462,27 +462,42 @@ export default function BudgetPlannedPage() {
     });
   }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings]);
 
+  // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
+  const notAttendedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    (allBudgetPlanned || []).forEach((p: any) => {
+      if (p.didNotAttend) keys.add(`${p.collaboratorId}|${p.functionId}`);
+    });
+    return keys;
+  }, [allBudgetPlanned]);
+
+  const isCardNotAttended = (b: typeof calculatedBudgets[0]) =>
+    notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`);
+
   const totalGeral = useMemo(() => {
-    return calculatedBudgets.reduce((sum, b) => sum + b.totalFinal, 0);
-  }, [calculatedBudgets]);
+    return calculatedBudgets
+      .filter(b => !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`))
+      .reduce((sum, b) => sum + b.totalFinal, 0);
+  }, [calculatedBudgets, notAttendedKeys]);
 
   // Estatísticas de resumo
   const stats = useMemo(() => {
-    const total = calculatedBudgets.length;
+    const activeBudgets = calculatedBudgets.filter(b => !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`));
+    const total = activeBudgets.length;
     const isCasa = (type?: string) => type === 'casa' || type === 'local';
     const isFreela = (type?: string) => type === 'freela' || !type;
-    const totalCasa = calculatedBudgets.filter(b => isCasa(b.collaborator?.type)).length;
-    const totalFreela = calculatedBudgets.filter(b => isFreela(b.collaborator?.type)).length;
-    const valorCasa = calculatedBudgets.filter(b => isCasa(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
-    const valorFreela = calculatedBudgets.filter(b => isFreela(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
+    const totalCasa = activeBudgets.filter(b => isCasa(b.collaborator?.type)).length;
+    const totalFreela = activeBudgets.filter(b => isFreela(b.collaborator?.type)).length;
+    const valorCasa = activeBudgets.filter(b => isCasa(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
+    const valorFreela = activeBudgets.filter(b => isFreela(b.collaborator?.type)).reduce((sum, b) => sum + b.totalFinal, 0);
     const media = total > 0 ? totalGeral / total : 0;
-    const totalDias = calculatedBudgets.reduce((sum, b) => sum + b.qtdDiarias, 0);
+    const totalDias = activeBudgets.reduce((sum, b) => sum + b.qtdDiarias, 0);
     const mediaPorDia = totalDias > 0 ? totalGeral / totalDias : 0;
     const enviados = calculatedBudgets.filter(b => sentToActual.has(b.inclusion.id)).length;
-    const progressoEnvio = total > 0 ? (enviados / total) * 100 : 0;
+    const progressoEnvio = calculatedBudgets.length > 0 ? (enviados / calculatedBudgets.length) * 100 : 0;
     
     return { total, totalCasa, totalFreela, valorCasa, valorFreela, media, mediaPorDia, enviados, progressoEnvio };
-  }, [calculatedBudgets, totalGeral, sentToActual]);
+  }, [calculatedBudgets, totalGeral, sentToActual, notAttendedKeys]);
 
   // Funções únicas para filtro
   const uniqueFunctions = useMemo(() => {
@@ -707,7 +722,7 @@ export default function BudgetPlannedPage() {
     },
   });
 
-  const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id)).length;
+  const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)).length;
 
   // Avatar color based on first letter
   const avatarColor = (name: string) => {
