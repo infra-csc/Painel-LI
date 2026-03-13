@@ -27,6 +27,8 @@ interface BudgetEdit {
   valorDiariaUtil: number;
   valorDiariaFds: number;
   mobilidade: number;
+  mobilidadeIda: number;
+  mobilidadeVolta: number;
   almocoSemana: number;
   jantarSemana: number;
   almocoFds: number;
@@ -45,6 +47,8 @@ interface CalculatedBudget {
   subtotalDiariasUtil: number;
   subtotalDiariasFds: number;
   mobilidade: number;
+  mobilidadeIda: number;
+  mobilidadeVolta: number;
   almocoSemana: number;
   jantarSemana: number;
   almocoFds: number;
@@ -331,6 +335,8 @@ export default function BudgetPlannedPage() {
       const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
       
       const mobilidade = override?.mobilidade ?? fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+      const mobilidadeIda = override?.mobilidadeIda ?? (fv as any)?.mobilityIda ?? Math.ceil(mobilidade / 2);
+      const mobilidadeVolta = override?.mobilidadeVolta ?? (fv as any)?.mobilityVolta ?? Math.floor(mobilidade / 2);
       const unitAlmocoSemana = fv?.weekdayLunch || (systemSettings?.default_weekday_lunch ?? 3500);
       const unitJantarSemana = fv?.weekdayDinner || (systemSettings?.default_weekday_dinner ?? 4000);
       const unitAlmocoFds = fv?.weekendLunch || (systemSettings?.default_weekend_lunch ?? 4000);
@@ -355,6 +361,8 @@ export default function BudgetPlannedPage() {
         subtotalDiariasUtil,
         subtotalDiariasFds,
         mobilidade,
+        mobilidadeIda,
+        mobilidadeVolta,
         almocoSemana,
         jantarSemana,
         almocoFds,
@@ -482,13 +490,16 @@ export default function BudgetPlannedPage() {
 
     const fv = getFunctionValue(budget.inclusion.functionId);
     const inclusionDailyValue = budget.inclusion.dailyValue ?? 5000;
+    const defMob = (fv?.mobility ?? 2500) * budget.qtdDiarias;
     const defaultVals: BudgetEdit = {
       inclusionId: budget.inclusion.id,
       qtdDiarias: budget.qtdDiarias,
       valorDiaria: fv?.dailyValue ?? inclusionDailyValue,
       valorDiariaUtil: inclusionDailyValue,
       valorDiariaFds: inclusionDailyValue,
-      mobilidade: (fv?.mobility ?? 2500) * budget.qtdDiarias,
+      mobilidade: defMob,
+      mobilidadeIda: (fv as any)?.mobilityIda ?? Math.ceil(defMob / 2),
+      mobilidadeVolta: (fv as any)?.mobilityVolta ?? Math.floor(defMob / 2),
       almocoSemana: (fv?.weekdayLunch || 3500) * budget.weekdays,
       jantarSemana: (fv?.weekdayDinner || 4000) * budget.weekdays,
       almocoFds: (fv?.weekendLunch || 4000) * budget.weekends,
@@ -503,6 +514,8 @@ export default function BudgetPlannedPage() {
       valorDiariaUtil: budget.valorDiariaUtil,
       valorDiariaFds: budget.valorDiariaFds,
       mobilidade: budget.mobilidade,
+      mobilidadeIda: budget.mobilidadeIda,
+      mobilidadeVolta: budget.mobilidadeVolta,
       almocoSemana: budget.almocoSemana,
       jantarSemana: budget.jantarSemana,
       almocoFds: budget.almocoFds,
@@ -539,6 +552,8 @@ export default function BudgetPlannedPage() {
       weekendLunch: budget.almocoFds,
       weekendDinner: budget.jantarFds,
       mobility: budget.mobilidade,
+      mobilityIda: budget.mobilidadeIda,
+      mobilityVolta: budget.mobilidadeVolta,
       transport: 0,
       totalValue: budget.totalFinal,
       createdBy: user?.id,
@@ -1055,7 +1070,14 @@ export default function BudgetPlannedPage() {
                                 <Car className="w-3.5 h-3.5 text-violet-400" />
                                 <span className="text-xs">Mobilidade</span>
                               </div>
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.mobilidade)}</span>
+                              <div className="text-right">
+                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.mobilidade)}</span>
+                                {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
+                                  <div className="text-[9px] text-violet-400 tabular-nums">
+                                    {formatCurrency(budget.mobilidadeIda)} · {formatCurrency(budget.mobilidadeVolta)}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
@@ -1258,34 +1280,47 @@ export default function BudgetPlannedPage() {
                         <Car className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
                       </div>
                       <span className="text-xs font-bold text-violet-800 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
+                      <span className="text-[10px] text-violet-400">ida e volta</span>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] text-violet-400 tracking-wider">Total</div>
-                      <div className="text-sm font-bold text-violet-600 dark:text-violet-400">{formatCurrency(editingBudget.mobilidade)}</div>
+                      <div className="text-sm font-bold text-violet-600 dark:text-violet-400">{formatCurrency(editingBudget.mobilidadeIda + editingBudget.mobilidadeVolta)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center px-4 py-3 gap-3">
-                    <div className="flex items-center gap-2 flex-1">
-                      <Car className="w-3.5 h-3.5 text-violet-400 shrink-0" />
-                      <div>
-                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">Valor por dia</div>
-                        <div className="text-[10px] text-gray-400">{formatDias(editingBudget.qtdDiarias)}</div>
+                  <div className="grid grid-cols-2 gap-3 px-4 py-3">
+                    {/* Ida */}
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex-1">
+                        <div className="text-[10px] text-gray-400 mb-1">Ida (R$)</div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] text-gray-400 font-medium">R$</span>
+                          <Input
+                            type="number" step="0.01" className={inputCls}
+                            value={editingBudget.mobilidadeIda / 100}
+                            onChange={e => {
+                              const ida = Math.round(parseFloat(e.target.value) * 100) || 0;
+                              setEditingBudget({...editingBudget, mobilidadeIda: ida, mobilidade: ida + editingBudget.mobilidadeVolta});
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
+                    {/* Volta */}
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-gray-400 font-medium">R$</span>
-                      <Input 
-                        type="number" step="1" className={inputCls}
-                        value={editingBudget.qtdDiarias > 0 ? Math.round(editingBudget.mobilidade / editingBudget.qtdDiarias) / 100 : 0} 
-                        onChange={e => {
-                          const perDay = Math.round(parseFloat(e.target.value) * 100) || 0;
-                          setEditingBudget({...editingBudget, mobilidade: perDay * editingBudget.qtdDiarias});
-                        }}
-                      />
-                      <span className="text-[10px] text-gray-400">/dia</span>
-                    </div>
-                    <div className="text-right w-24 shrink-0">
-                      <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{formatCurrency(editingBudget.mobilidade)}</span>
+                      <div className="flex-1">
+                        <div className="text-[10px] text-gray-400 mb-1">Volta (R$)</div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] text-gray-400 font-medium">R$</span>
+                          <Input
+                            type="number" step="0.01" className={inputCls}
+                            value={editingBudget.mobilidadeVolta / 100}
+                            onChange={e => {
+                              const volta = Math.round(parseFloat(e.target.value) * 100) || 0;
+                              setEditingBudget({...editingBudget, mobilidadeVolta: volta, mobilidade: editingBudget.mobilidadeIda + volta});
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

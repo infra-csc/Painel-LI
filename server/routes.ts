@@ -2535,7 +2535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Apenas administradores podem alterar configurações" });
 
     try {
-      const allowed = ["default_mobility", "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner", "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend"];
+      const allowed = ["default_mobility", "default_mobility_ida", "default_mobility_volta", "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner", "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend"];
       for (const key of allowed) {
         if (req.body[key] !== undefined) {
           const val = Math.round(parseFloat(req.body[key]) * 100);

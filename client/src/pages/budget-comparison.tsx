@@ -1350,7 +1350,18 @@ export default function BudgetComparisonPage() {
                     subtotalPlan={mobPlan}
                     subtotalAct={mobAct}
                   >
-                    {(pp?.mobility || fa.mobility) ? <SubRow rowIndex={subRowIdx++} label="Mobilidade" planned={pp?.mobility || 0} actual={fa.mobility} /> : null}
+                    {(pp?.mobility || fa.mobility) ? (() => {
+                      const pIda   = (pp as any)?.mobilityIda   ?? Math.ceil((pp?.mobility  || 0) / 2);
+                      const pVolta = (pp as any)?.mobilityVolta  ?? Math.floor((pp?.mobility || 0) / 2);
+                      const aIda   = (fa as any).mobilityIda     ?? Math.ceil(fa.mobility  / 2);
+                      const aVolta = (fa as any).mobilityVolta   ?? Math.floor(fa.mobility / 2);
+                      return (
+                        <>
+                          <SubRow rowIndex={subRowIdx++} label="Ida" planned={pIda} actual={aIda} />
+                          <SubRow rowIndex={subRowIdx++} label="Volta" planned={pVolta} actual={aVolta} />
+                        </>
+                      );
+                    })() : null}
                     {(pp?.transport || fa.transport) ? <SubRow rowIndex={subRowIdx++} label="Translado" planned={pp?.transport || 0} actual={fa.transport} /> : null}
                   </SectionBlock>
 

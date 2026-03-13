@@ -18,7 +18,8 @@ import { isAdmin } from "@/lib/permissions";
 const formSchema = z.object({
   default_daily_value_weekday: z.string().min(1, "Obrigatório"),
   default_daily_value_weekend: z.string().min(1, "Obrigatório"),
-  default_mobility: z.string().min(1, "Obrigatório"),
+  default_mobility_ida: z.string().min(1, "Obrigatório"),
+  default_mobility_volta: z.string().min(1, "Obrigatório"),
   default_weekday_lunch: z.string().min(1, "Obrigatório"),
   default_weekday_dinner: z.string().min(1, "Obrigatório"),
   default_weekend_lunch: z.string().min(1, "Obrigatório"),
@@ -30,7 +31,8 @@ type FormValues = z.infer<typeof formSchema>;
 const FIELD_LABELS: Record<string, string> = {
   default_daily_value_weekday: "Diária — Dia Útil",
   default_daily_value_weekend: "Diária — Fim de Semana",
-  default_mobility: "Mobilidade",
+  default_mobility_ida: "Mobilidade — Ida",
+  default_mobility_volta: "Mobilidade — Volta",
   default_weekday_lunch: "Almoço — Dia Útil",
   default_weekday_dinner: "Jantar — Dia Útil",
   default_weekend_lunch: "Almoço — Fim de Semana",
@@ -112,7 +114,8 @@ export default function SystemSettingsPage() {
     defaultValues: {
       default_daily_value_weekday: "50.00",
       default_daily_value_weekend: "50.00",
-      default_mobility: "25.00",
+      default_mobility_ida: "12.50",
+      default_mobility_volta: "12.50",
       default_weekday_lunch: "35.00",
       default_weekday_dinner: "40.00",
       default_weekend_lunch: "40.00",
@@ -122,10 +125,13 @@ export default function SystemSettingsPage() {
 
   useEffect(() => {
     if (settings) {
+      const legacyTotal = settings.default_mobility ?? 2500;
+      const half = Math.round(legacyTotal / 2);
       form.reset({
         default_daily_value_weekday: centavosToReais(settings.default_daily_value_weekday ?? settings.default_daily_value ?? 5000),
         default_daily_value_weekend: centavosToReais(settings.default_daily_value_weekend ?? settings.default_daily_value ?? 5000),
-        default_mobility: centavosToReais(settings.default_mobility ?? 2500),
+        default_mobility_ida: centavosToReais(settings.default_mobility_ida ?? Math.ceil(half)),
+        default_mobility_volta: centavosToReais(settings.default_mobility_volta ?? Math.floor(half)),
         default_weekday_lunch: centavosToReais(settings.default_weekday_lunch ?? 3500),
         default_weekday_dinner: centavosToReais(settings.default_weekday_dinner ?? 4000),
         default_weekend_lunch: centavosToReais(settings.default_weekend_lunch ?? 4000),
@@ -134,12 +140,17 @@ export default function SystemSettingsPage() {
     }
   }, [settings]);
 
+  const mobilityIda = parseFloat(form.watch("default_mobility_ida") || "0");
+  const mobilityVolta = parseFloat(form.watch("default_mobility_volta") || "0");
+  const mobilityTotal = isNaN(mobilityIda + mobilityVolta) ? 0 : mobilityIda + mobilityVolta;
+
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const body: Record<string, number> = {};
       for (const [key, val] of Object.entries(values)) {
         body[key] = parseFloat(val);
       }
+      body["default_mobility"] = (parseFloat(values.default_mobility_ida) || 0) + (parseFloat(values.default_mobility_volta) || 0);
       return apiRequest("PUT", "/api/system-settings", body);
     },
     onSuccess: (_, values) => {
@@ -270,21 +281,40 @@ export default function SystemSettingsPage() {
                 </div>
                 <div>
                   <p style={{ fontWeight: 700, fontSize: 14, color: '#9A3412', margin: 0 }}>Mobilidade</p>
-                  <p style={{ fontSize: 11, color: '#F97316', margin: 0 }}>Ajuda de custo de deslocamento</p>
+                  <p style={{ fontSize: 11, color: '#F97316', margin: 0 }}>Ajuda de custo de deslocamento (ida e volta)</p>
                 </div>
               </div>
               <div className="px-5 py-5 flex flex-col gap-4 flex-1">
-                <FormField
-                  control={form.control}
-                  name="default_mobility"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Valor por Evento</FormLabel>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="default_mobility_ida"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Ida</FormLabel>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="default_mobility_volta"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Volta</FormLabel>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-800/40 text-[12px]">
+                  <span className="text-orange-700 dark:text-orange-400 font-medium">Total mobilidade</span>
+                  <span className="font-bold text-orange-800 dark:text-orange-300 tabular-nums">
+                    {isNaN(mobilityTotal) ? '—' : `R$ ${mobilityTotal.toFixed(2).replace('.', ',')}`}
+                  </span>
+                </div>
               </div>
             </div>
 

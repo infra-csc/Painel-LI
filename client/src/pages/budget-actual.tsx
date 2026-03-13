@@ -97,7 +97,8 @@ export default function BudgetActualPage() {
     weekdayDinner: number;
     weekendLunch: number;
     weekendDinner: number;
-    mobility: number;
+    mobilityIda: number;
+    mobilityVolta: number;
   } | null>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
@@ -405,6 +406,12 @@ export default function BudgetActualPage() {
       valorFds = Math.round((storedSubtotalDiarias - days.weekdays * valorUtil) / days.weekends);
     }
 
+    // mobilityIda/mobilityVolta: use stored values if available; otherwise split 50/50 from mobility
+    const storedIda = (item as any).mobilityIda;
+    const storedVolta = (item as any).mobilityVolta;
+    const hasBreakdown = typeof storedIda === 'number' && (storedIda > 0 || storedVolta > 0);
+    const initIda = hasBreakdown ? storedIda : Math.ceil(item.mobility / 2);
+    const initVolta = hasBreakdown ? (typeof storedVolta === 'number' ? storedVolta : 0) : Math.floor(item.mobility / 2);
     setEditFormData({
       valorDiariaUtil: valorUtil,
       valorDiariaFds: valorFds,
@@ -412,7 +419,8 @@ export default function BudgetActualPage() {
       weekdayDinner: item.weekdayDinner,
       weekendLunch: item.weekendLunch,
       weekendDinner: item.weekendDinner,
-      mobility: item.mobility,
+      mobilityIda: initIda,
+      mobilityVolta: initVolta,
     });
   };
 
@@ -424,8 +432,9 @@ export default function BudgetActualPage() {
     const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
     const qtdDiarias = days.weekdays + days.weekends;
     const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
+    const totalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
     const totalValue = subtotalDiarias + editFormData.weekdayLunch + editFormData.weekdayDinner +
-      editFormData.weekendLunch + editFormData.weekendDinner + editFormData.mobility;
+      editFormData.weekendLunch + editFormData.weekendDinner + totalMobility;
     updateMutation.mutate({
       id: editingItem.id,
       data: {
@@ -435,7 +444,9 @@ export default function BudgetActualPage() {
         weekdayDinner: editFormData.weekdayDinner,
         weekendLunch: editFormData.weekendLunch,
         weekendDinner: editFormData.weekendDinner,
-        mobility: editFormData.mobility,
+        mobility: totalMobility,
+        mobilityIda: editFormData.mobilityIda,
+        mobilityVolta: editFormData.mobilityVolta,
         totalValue,
       },
     });
@@ -770,7 +781,16 @@ export default function BudgetActualPage() {
                       <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
-                    {planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>}
+                    {(() => {
+                      const ida = (cardItem as any).mobilityIda;
+                      const volta = (cardItem as any).mobilityVolta;
+                      if (typeof ida === 'number' && (ida > 0 || volta > 0)) {
+                        return <div className="text-[9px] text-violet-400 dark:text-violet-500 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
+                      }
+                      return planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1
+                        ? <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
+                        : null;
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1160,10 +1180,11 @@ export default function BudgetActualPage() {
             const subtotalDiariasUtil = itemDays.weekdays * editFormData.valorDiariaUtil;
             const subtotalDiariasFds = itemDays.weekends * editFormData.valorDiariaFds;
             const subtotalDiariasRaw = subtotalDiariasUtil + subtotalDiariasFds;
-            const modalTotalRaw = subtotalDiariasRaw + editFormData.mobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
+            const modalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
+            const modalTotalRaw = subtotalDiariasRaw + modalMobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
               editFormData.weekendLunch + editFormData.weekendDinner;
             const modalTotal = Math.abs(modalTotalRaw - editingItem.totalValue) <= 1 ? editingItem.totalValue : modalTotalRaw;
-            const subtotalDiarias = modalTotal - editFormData.mobility - editFormData.weekdayLunch - editFormData.weekdayDinner -
+            const subtotalDiarias = modalTotal - modalMobility - editFormData.weekdayLunch - editFormData.weekdayDinner -
               editFormData.weekendLunch - editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
@@ -1467,68 +1488,80 @@ export default function BudgetActualPage() {
                       <div className="flex items-center gap-2">
                         <Car className="w-3.5 h-3.5 text-purple-500" />
                         <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-[10px] text-purple-400 dark:text-purple-500">ida e volta</span>
                       </div>
-                      <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</span>
+                      <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalMobility)}</span>
                     </div>
                     <div className="p-4 space-y-3">
+                      {/* Planned vs Actual comparison bar */}
                       {planned && (() => {
-                        const diffMob = editFormData.mobility - planned.mobility;
+                        const diffMob = modalMobility - planned.mobility;
                         const pctMob = planned.mobility > 0 ? (diffMob / planned.mobility * 100) : 0;
-                        const totalDays = itemDays.weekdays + itemDays.weekends;
-                        const plannedDays = planned.dailyQuantity || totalDays;
+                        const plannedIda = (planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2);
+                        const plannedVolta = (planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2);
                         return (
-                          <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
-                            <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700">
-                              <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800">
-                                <div className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider mb-1">Planejado</div>
-                                <div className="text-xs font-bold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(planned.mobility)}</div>
-                                {plannedDays > 0 && (
-                                  <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">{formatCurrency(Math.round(planned.mobility / plannedDays))}/dia</div>
-                                )}
-                              </div>
-                              <div className="px-3 py-2 bg-purple-50/30 dark:bg-purple-950/10">
-                                <div className="text-[9px] uppercase text-purple-500 font-semibold tracking-wider mb-1">Realizado</div>
-                                <div className="text-xs font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(editFormData.mobility)}</div>
-                                {totalDays > 0 && (
-                                  <div className="text-[10px] text-purple-400 mt-0.5 tabular-nums">{formatCurrency(Math.round(editFormData.mobility / totalDays))}/dia</div>
-                                )}
-                              </div>
+                          <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden text-[11px]">
+                            <div className="grid grid-cols-3 bg-gray-50/60 dark:bg-gray-800 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                              <span></span><span className="text-center">Planejado</span><span className="text-right">Realizado</span>
+                            </div>
+                            <div className="px-3 py-1.5 grid grid-cols-3 items-center border-b border-gray-50 dark:border-gray-700/50">
+                              <span className="text-gray-500">└ Ida</span>
+                              <span className="text-center tabular-nums text-blue-500">{formatCurrency(plannedIda)}</span>
+                              <span className="text-right tabular-nums text-purple-600 dark:text-purple-300">{formatCurrency(editFormData.mobilityIda)}</span>
+                            </div>
+                            <div className="px-3 py-1.5 grid grid-cols-3 items-center bg-gray-50/40 dark:bg-gray-800/40">
+                              <span className="text-gray-500">└ Volta</span>
+                              <span className="text-center tabular-nums text-blue-500">{formatCurrency(plannedVolta)}</span>
+                              <span className="text-right tabular-nums text-purple-600 dark:text-purple-300">{formatCurrency(editFormData.mobilityVolta)}</span>
                             </div>
                             {Math.abs(diffMob) > 1 && (
                               <div className={`px-3 py-1.5 text-center border-t border-gray-100 dark:border-gray-700 ${diffMob < 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'bg-red-50/50 dark:bg-red-950/20'}`}>
-                                <span className={`text-[11px] font-medium tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {diffMob > 0 ? '+' : '-'}{formatCurrency(Math.abs(diffMob))}
-                                  {planned.mobility > 0 && <span className="ml-1 text-[10px]">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>}
+                                <span className={`font-medium tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  Total: {formatCurrency(planned.mobility)} → {formatCurrency(modalMobility)}
+                                  {' '}<span className={`font-bold ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>
                                 </span>
                               </div>
                             )}
                           </div>
                         );
                       })()}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className={`${isFieldChanged(editFormData.mobility, planned?.mobility ?? 0) ? 'bg-amber-50/40 dark:bg-amber-950/20 rounded-lg p-2 -m-2 border border-amber-200/60 dark:border-amber-800/40' : ''}`}>
+                      {/* Two input fields: Ida + Volta */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
                           <div className="flex items-center gap-1.5 mb-1">
-                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Total do período (R$)</label>
-                            {isFieldChanged(editFormData.mobility, planned?.mobility ?? 0) && (
-                              <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alterado</Badge>
+                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Ida (R$)</label>
+                            {planned && isFieldChanged(editFormData.mobilityIda, ((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2))) && (
+                              <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alt.</Badge>
                             )}
                           </div>
                           <CurrencyInput
                             className={`h-9 text-sm ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            value={editFormData.mobility}
-                            onChange={v => setEditFormData({...editFormData, mobility: v})}
+                            value={editFormData.mobilityIda}
+                            onChange={v => setEditFormData({...editFormData, mobilityIda: v})}
                             disabled={isReadOnly}
                           />
-                          {planned && (
-                            <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency(planned.mobility)}</span>
-                          )}
+                          {planned && <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2))}</span>}
                         </div>
                         <div>
-                          <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">Por dia</label>
-                          <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 text-xs text-gray-400 tabular-nums">
-                            {(itemDays.weekdays + itemDays.weekends) > 0 ? formatCurrency(Math.round(editFormData.mobility / (itemDays.weekdays + itemDays.weekends))) : 'R$ 0,00'}
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Volta (R$)</label>
+                            {planned && isFieldChanged(editFormData.mobilityVolta, ((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2))) && (
+                              <Badge className="text-[8px] h-[13px] px-1 bg-amber-100 text-amber-600 border-amber-200 hover:bg-amber-100">Alt.</Badge>
+                            )}
                           </div>
+                          <CurrencyInput
+                            className={`h-9 text-sm ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            value={editFormData.mobilityVolta}
+                            onChange={v => setEditFormData({...editFormData, mobilityVolta: v})}
+                            disabled={isReadOnly}
+                          />
+                          {planned && <span className="text-[9px] text-gray-400 tabular-nums block mt-1">plan: {formatCurrency((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2))}</span>}
                         </div>
+                      </div>
+                      {/* Auto-computed total */}
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 px-1">
+                        <span>Total mobilidade</span>
+                        <span className="font-semibold text-purple-600 tabular-nums">{formatCurrency(modalMobility)}</span>
                       </div>
                     </div>
                   </div>

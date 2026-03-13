@@ -261,7 +261,9 @@ export const budgetPlanned = pgTable("budget_planned", {
   weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
   weekendLunch: integer("weekend_lunch").notNull().default(0), // almoço fds em centavos
   weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
-  mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
+  mobility: integer("mobility").notNull().default(0), // mobilidade total em centavos (ida + volta)
+  mobilityIda: integer("mobility_ida").default(0), // mobilidade ida em centavos
+  mobilityVolta: integer("mobility_volta").default(0), // mobilidade volta em centavos
   transport: integer("transport").notNull().default(0), // translado em centavos
   totalValue: integer("total_value").notNull().default(0), // total em centavos (calculado)
   observations: text("observations"), // observações
@@ -289,7 +291,9 @@ export const budgetActual = pgTable("budget_actual", {
   weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
   weekendLunch: integer("weekend_lunch").notNull().default(0), // almoço fds em centavos
   weekendDinner: integer("weekend_dinner").notNull().default(0), // jantar fds em centavos
-  mobility: integer("mobility").notNull().default(0), // mobilidade em centavos
+  mobility: integer("mobility").notNull().default(0), // mobilidade total em centavos (ida + volta)
+  mobilityIda: integer("mobility_ida").default(0), // mobilidade ida em centavos
+  mobilityVolta: integer("mobility_volta").default(0), // mobilidade volta em centavos
   transport: integer("transport").notNull().default(0), // translado em centavos
   totalValue: integer("total_value").notNull().default(0), // total em centavos (calculado)
   changeReason: text("change_reason"), // motivo da alteração (obrigatório se diferente do planejado)

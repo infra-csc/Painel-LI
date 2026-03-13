@@ -1,0 +1,68 @@
+Prompt para o Replit:
+
+Atualizar o card de Valores Padrão e o conceito de Mobilidade em todo o fluxo financeiro do sistema:
+1. VALORES PADRÃO — melhorias gerais
+Card Diárias:
+
+Alterar subtítulo para "Valor pago por dia trabalhado"
+Abaixo de cada input adicionar label em cinza pequeno: "R$ por dia"
+
+Card Mobilidade — separar ida e volta:
+
+Substituir campo único "VALOR POR EVENTO" por dois campos: IDA e VOLTA
+Abaixo mostrar automaticamente: "Total por evento: R$ X,XX (ida + volta)"
+Alterar subtítulo para: "Ajuda de custo de deslocamento — ida e volta"
+
+Novo card Função:
+
+Ícone de pessoa/crachá, cor índigo
+Subtítulo: "Valor padrão por função escalada"
+Lista todas as funções cadastradas no sistema, cada uma com input de valor R$ ao lado
+Se vazio: "Nenhuma função cadastrada. Acesse Funções para adicionar." com link
+
+2. ORÇAMENTO PLANEJADO
+
+No card de Mobilidade de cada colaborador exibir:
+
+Ida: R$ X,XX
+Volta: R$ X,XX
+Total: R$ X,XX
+
+
+Cálculo automático do planejado soma ida + volta
+
+3. ORÇAMENTO REALIZADO — modal de prestação
+
+Na seção Mobilidade separar em dois campos editáveis:
+
+Ida — com valor planejado ao lado para referência
+Volta — com valor planejado ao lado para referência
+
+
+Total = soma dos dois
+Cada campo editável independentemente (ex: colaborador foi mas não voltou)
+
+4. COMPARATIVO PLANEJADO x REALIZADO
+
+No modal de detalhes, seção Mobilidade com breakdown:
+Mobilidade        PLANEJADO    REALIZADO    DIFERENÇA
+└ Ida             R$ X,XX      R$ X,XX      ±R$ X,XX
+└ Volta           R$ X,XX      R$ X,XX      ±R$ X,XX
+Total             R$ X,XX      R$ X,XX      ±R$ X,XX
+
+
+5. CARDS DO REALIZADO — tela principal
+
+No sub-card roxo de Mobilidade mostrar:
+
+"Ida: R$ X,XX · Volta: R$ X,XX" em texto menor
+Total em destaque
+
+
+
+6. MIGRAÇÃO DOS DADOS EXISTENTES
+
+Registros já salvos com mobilidade em campo único: assumir que o valor é o total (ida + volta)
+Dividir como valor inicial: ida = 50% e volta = 50%
+
+Aplicar em todas as telas do fluxo financeiro mantendo o estilo visual do app.
