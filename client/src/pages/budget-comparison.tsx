@@ -16,7 +16,7 @@ import {
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus
+  AlertCircle, Check, Minus, GitFork
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSelect, EventSelectCTA } from "@/components/event-select";
@@ -145,7 +145,13 @@ export default function BudgetComparisonPage() {
     if (!actionModal) return;
     const actionMap: Record<string, string> = { approve: 'aprovado', reject: 'rejeitado', return: 'devolvido' };
     const rhAction = actionMap[actionModal.type];
-    const selectedActualIds = Array.from(selectedItems).map(idx => sortedData[idx]?.actual?.id).filter(Boolean) as string[];
+    const selectedActualIds = Array.from(selectedItems).flatMap(idx => {
+      const row = sortedData[idx];
+      if (!row) return [];
+      const ids: string[] = [row.actual.id];
+      if (row.isSplit) ids.push(...row.splitChildren.map(c => c.id));
+      return ids;
+    }).filter(Boolean) as string[];
     if (selectedActualIds.length === 0) return;
     rhActionMutation.mutate({ itemIds: selectedActualIds, action: rhAction, comment: actionNote });
   };
@@ -161,9 +167,43 @@ export default function BudgetComparisonPage() {
 
   const selectedEvent = events?.find(e => e.id === selectedEventId);
 
+  // Helper: count days from workedDays array or return 0
+  const getWorkedDayCount = (item: BudgetActual): number => {
+    const wd = (item.workedDays as string[] | null) || [];
+    return wd.length;
+  };
+
+  // Helper: scale a planned record proportionally to a collaborator's worked days
+  const proportionalPlanned = (planned: BudgetPlanned, item: BudgetActual): BudgetPlanned => {
+    const totalDays = planned.dailyQuantity ?? 0;
+    const childDays = getWorkedDayCount(item);
+    if (totalDays <= 0 || childDays <= 0 || childDays >= totalDays) return planned;
+    const r = childDays / totalDays;
+    return {
+      ...planned,
+      totalValue: Math.round(planned.totalValue * r),
+      weekdayLunch: Math.round(planned.weekdayLunch * r),
+      weekdayDinner: Math.round(planned.weekdayDinner * r),
+      weekendLunch: Math.round(planned.weekendLunch * r),
+      weekendDinner: Math.round(planned.weekendDinner * r),
+      mobility: Math.round(planned.mobility * r),
+    };
+  };
+
   const comparisonData = useMemo(() => {
     if (!budgetPlanned || !budgetActual) return [];
     const sentActual = budgetActual.filter(a => a.sentForReview);
+
+    // Build map: parentId → split children (regardless of sentForReview on children)
+    const splitChildrenMap = new Map<string, BudgetActual[]>();
+    budgetActual.forEach(a => {
+      if (a.splitParentId) {
+        const arr = splitChildrenMap.get(a.splitParentId) || [];
+        arr.push(a);
+        splitChildrenMap.set(a.splitParentId, arr);
+      }
+    });
+
     const data: Array<{
       collaboratorId: string | null;
       collaboratorType: string | null;
@@ -171,18 +211,32 @@ export default function BudgetComparisonPage() {
       planned: BudgetPlanned | null;
       actual: BudgetActual;
       variance: number;
+      isSplit: boolean;
+      splitChildren: BudgetActual[];
+      groupActualTotal: number;
     }> = [];
-    sentActual.forEach(a => {
+
+    // Only process non-child items (parents and standalone items)
+    sentActual.filter(a => !a.splitParentId).forEach(a => {
       const matchingPlanned = a.plannedId
         ? budgetPlanned.find(p => p.id === a.plannedId)
         : budgetPlanned.find(p => p.collaboratorId === a.collaboratorId && p.functionId === a.functionId && p.eventId === a.eventId);
+
+      const children = splitChildrenMap.get(a.id) || [];
+      const isSplit = children.length > 0;
+      const groupActualTotal = a.totalValue + children.reduce((s, c) => s + c.totalValue, 0);
+
       data.push({
         collaboratorId: a.collaboratorId,
         collaboratorType: a.collaboratorType,
         functionId: a.functionId,
         planned: matchingPlanned || null,
         actual: a,
-        variance: matchingPlanned ? (a.totalValue - matchingPlanned.totalValue) : a.totalValue,
+        // For split groups: variance is based on the group total vs original full planned
+        variance: matchingPlanned ? (groupActualTotal - matchingPlanned.totalValue) : groupActualTotal,
+        isSplit,
+        splitChildren: children,
+        groupActualTotal,
       });
     });
     return data;
@@ -208,7 +262,7 @@ export default function BudgetComparisonPage() {
   const sortedData = useMemo(() => {
     const sorted = [...filteredData];
     if (sortBy === 'difference') sorted.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
-    else sorted.sort((a, b) => b.actual.totalValue - a.actual.totalValue);
+    else sorted.sort((a, b) => b.groupActualTotal - a.groupActualTotal);
     return sorted;
   }, [filteredData, sortBy]);
 
@@ -235,17 +289,11 @@ export default function BudgetComparisonPage() {
   }, [comparisonData]);
 
   const totals = useMemo(() => {
-    if (comparison && comparison.totalPlanned > 0) {
-      return {
-        totalPlanned: comparison.totalPlanned,
-        totalActual: comparison.totalActual,
-        difference: comparison.totalActual - comparison.totalPlanned,
-      };
-    }
+    // Always recompute from grouped data to avoid double-counting split children
     const totalPlanned = comparisonData.reduce((s, r) => s + (r.planned?.totalValue || 0), 0);
-    const totalActual = comparisonData.reduce((s, r) => s + r.actual.totalValue, 0);
+    const totalActual = comparisonData.reduce((s, r) => s + r.groupActualTotal, 0);
     return { totalPlanned, totalActual, difference: totalActual - totalPlanned };
-  }, [comparisonData, comparison]);
+  }, [comparisonData]);
 
   const toggleExpand = (idx: number) => {
     setExpandedCards(prev => { const s = new Set(prev); if (s.has(idx)) s.delete(idx); else s.add(idx); return s; });
@@ -626,7 +674,7 @@ export default function BudgetComparisonPage() {
                   const p = row.planned;
                   const a = row.actual;
                   const plannedTotal = p?.totalValue || 0;
-                  const actualTotal = a.totalValue;
+                  const actualTotal = row.groupActualTotal;
                   const diff = actualTotal - plannedTotal;
                   const hasJustification = !!a.changeReason;
                   const hasDiff = diff !== 0;
@@ -690,6 +738,11 @@ export default function BudgetComparisonPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{colName}</span>
+                              {row.isSplit && (
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-700 text-[9px] font-semibold text-purple-700 dark:text-purple-300">
+                                  <GitFork className="w-2.5 h-2.5" /> Escalação dividida
+                                </span>
+                              )}
                               {isDecided && decidedStyle && (
                                 <span className={`flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${decidedStyle.bg} ${decidedStyle.border} border ${decidedStyle.text}`}>
                                   <decidedStyle.icon className="w-2.5 h-2.5" /> {decidedStyle.label}
@@ -707,7 +760,15 @@ export default function BudgetComparisonPage() {
                               <span className={`text-[10px] font-semibold ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
                                 {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                               </span>
-                              {hasDiff && !hasJustification && (
+                              {row.isSplit && (
+                                <>
+                                  <span className="text-gray-300 dark:text-gray-600">·</span>
+                                  <span className="text-[10px] text-purple-500 font-medium">
+                                    {[a, ...row.splitChildren].map(c => getCollaboratorName(c.collaboratorId)).join(' + ')}
+                                  </span>
+                                </>
+                              )}
+                              {hasDiff && !hasJustification && !row.isSplit && (
                                 <>
                                   <span className="text-gray-300 dark:text-gray-600">·</span>
                                   <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-medium">
@@ -750,6 +811,85 @@ export default function BudgetComparisonPage() {
                       {isExpanded && (
                         <div className="border-t-2 border-emerald-100 dark:border-emerald-900/60 bg-gray-50/60 dark:bg-gray-900/40">
                           <div className="p-4 space-y-3">
+
+                            {/* ── Split group sub-rows ── */}
+                            {row.isSplit && (
+                              <div className="rounded-xl border border-purple-200 dark:border-purple-700 overflow-hidden">
+                                {/* Header */}
+                                <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-50/80 dark:bg-purple-950/30">
+                                  <GitFork className="w-3.5 h-3.5 text-purple-500" />
+                                  <span className="text-[10px] font-bold tracking-wide text-purple-600 dark:text-purple-300">
+                                    Detalhamento por Colaborador
+                                  </span>
+                                </div>
+                                {/* Column headers */}
+                                <div className="grid grid-cols-5 gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-100 dark:border-gray-700">
+                                  <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider col-span-2">Colaborador</span>
+                                  <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. (prop.)</span>
+                                  <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
+                                  <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider text-right">Diferença</span>
+                                </div>
+                                {/* One row per collaborator */}
+                                {[a, ...row.splitChildren].map((colItem, ci) => {
+                                  const isParent = ci === 0;
+                                  const colItemName = getCollaboratorName(colItem.collaboratorId);
+                                  const colProp = p ? proportionalPlanned(p, colItem) : null;
+                                  const colPlanned = colProp?.totalValue || 0;
+                                  const colActual = colItem.totalValue;
+                                  const colDiff = colActual - colPlanned;
+                                  const colDays = getWorkedDayCount(colItem);
+                                  return (
+                                    <div key={ci} className={`grid grid-cols-5 gap-2 px-3 py-2.5 items-center text-[11px] ${ci % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
+                                      <div className="col-span-2 flex items-center gap-2 min-w-0">
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 shadow-sm ${avatarColor(colItemName)}`}>
+                                          {initials(colItemName)}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="font-semibold text-gray-700 dark:text-gray-200 truncate text-[11px]">{colItemName}</p>
+                                          <div className="flex items-center gap-1">
+                                            <span className={`text-[9px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                                              {isParent ? 'Titular' : 'Divisão'}
+                                            </span>
+                                            {colDays > 0 && (
+                                              <span className="text-[9px] text-gray-400">{colDays}d</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span className="text-right tabular-nums text-blue-600 dark:text-blue-400 font-medium">{fmt(colPlanned)}</span>
+                                      <span className="text-right tabular-nums text-violet-600 dark:text-violet-400 font-semibold">{fmt(colActual)}</span>
+                                      <div className="text-right">
+                                        {colDiff === 0 ? (
+                                          <span className="text-gray-300 dark:text-gray-600 tabular-nums">—</span>
+                                        ) : (
+                                          <span className={`tabular-nums font-bold text-[10px] ${colDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            {colDiff > 0 ? '+' : '−'}{fmt(Math.abs(colDiff))}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {/* Group totals row */}
+                                <div className={`grid grid-cols-5 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-gray-100 dark:border-gray-700 font-bold ${diff > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : diff < 0 ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}>
+                                  <span className="text-gray-500 dark:text-gray-400 uppercase text-[9px] tracking-wider col-span-2">Total do Grupo</span>
+                                  <span className="text-right tabular-nums text-blue-700 dark:text-blue-300">{fmt(plannedTotal)}</span>
+                                  <span className="text-right tabular-nums text-violet-700 dark:text-violet-300">{fmt(actualTotal)}</span>
+                                  <div className="text-right">
+                                    {diff === 0 ? (
+                                      <span className="text-gray-300 tabular-nums">—</span>
+                                    ) : (
+                                      <span className={`tabular-nums text-[10px] ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ── Detail blocks (only for non-split, or parent portion of split) ── */}
+                            {!row.isSplit && <>
                             <CategoryBlock
                               title="Diárias"
                               icon={Calendar}
@@ -785,6 +925,7 @@ export default function BudgetComparisonPage() {
                                 { label: "Translado", planned: p?.transport || 0, actual: a.transport },
                               ]}
                             />
+                            </>}
 
                             {/* Expanded card footer — 3 columns with emerald border */}
                             <div className={`rounded-xl border-2 p-4 ${
