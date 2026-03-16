@@ -974,7 +974,7 @@ export default function BudgetActualPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
                   <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todas funções</SelectItem>
-                  {functions?.map(f => (
+                  {[...(functions ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(f => (
                     <SelectItem key={f.id} value={f.id} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{f.name}</SelectItem>
                   ))}
                 </SelectContent>

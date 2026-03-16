@@ -80,13 +80,10 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
 }
 
 function fmtEventDate(start?: string, end?: string) {
-  if (!start) return "";
-  const fmt = (d: string) => {
-    const [y, m, day] = d.split("-");
-    return `${day}/${m}/${y}`;
-  };
-  if (!end || end === start) return fmt(start);
-  return `${fmt(start)} – ${fmt(end)}`;
+  const target = end && end !== start ? end : start;
+  if (!target) return "";
+  const [y, m, day] = target.split("-");
+  return `${day}/${m}/${y}`;
 }
 
 export function EventSearchSelect({ value, onValueChange, events, className }: EventSelectProps) {

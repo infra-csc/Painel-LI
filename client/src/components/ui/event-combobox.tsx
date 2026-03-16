@@ -14,9 +14,8 @@ function fmtDate(d?: string | null) {
 }
 
 function fmtEventDate(start?: string, end?: string) {
-  if (!start) return "";
-  if (!end || end === start) return fmtDate(start);
-  return `${fmtDate(start)} – ${fmtDate(end)}`;
+  const target = end && end !== start ? end : start;
+  return fmtDate(target);
 }
 
 interface EventComboboxProps {
