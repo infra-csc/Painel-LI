@@ -17,7 +17,8 @@ import {
   insertFunctionValuesSchema,
   insertBudgetPlannedSchema,
   insertBudgetActualSchema,
-  insertBudgetComparisonSchema
+  insertBudgetComparisonSchema,
+  insertInvoiceSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -2587,6 +2588,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating system settings:", error);
       res.status(500).json({ message: "Erro ao salvar configurações" });
+    }
+  });
+
+  // ── Invoices (Notas Fiscais) ──────────────────────────────────────────────
+
+  app.get("/api/invoices", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const eventId = req.query.eventId as string | undefined;
+      const result = await storage.getInvoices(eventId);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Erro ao buscar notas fiscais" });
+    }
+  });
+
+  app.post("/api/invoices", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const data = insertInvoiceSchema.parse(req.body);
+      const invoice = await storage.createInvoice(data);
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(500).json({ message: "Erro ao criar nota fiscal" });
+    }
+  });
+
+  app.patch("/api/invoices/:id", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const invoice = await storage.updateInvoice(req.params.id, req.body);
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      res.status(500).json({ message: "Erro ao atualizar nota fiscal" });
+    }
+  });
+
+  app.post("/api/invoices/:id/approve", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "financial")) {
+      return res.status(403).json({ message: "Sem permissão" });
+    }
+    try {
+      const { paymentDate } = req.body;
+      if (!paymentDate) return res.status(400).json({ message: "Data de pagamento obrigatória" });
+      const invoice = await storage.updateInvoice(req.params.id, {
+        status: "aprovada",
+        paymentDate,
+        approvedAt: new Date(),
+        returnComment: null,
+      });
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error approving invoice:", error);
+      res.status(500).json({ message: "Erro ao aprovar nota fiscal" });
+    }
+  });
+
+  app.post("/api/invoices/:id/return", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "financial")) {
+      return res.status(403).json({ message: "Sem permissão" });
+    }
+    try {
+      const { comment } = req.body;
+      const invoice = await storage.updateInvoice(req.params.id, {
+        status: "devolvida",
+        returnComment: comment ?? null,
+      });
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error returning invoice:", error);
+      res.status(500).json({ message: "Erro ao devolver nota fiscal" });
+    }
+  });
+
+  app.post("/api/invoices/:id/reject", async (req, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "financial")) {
+      return res.status(403).json({ message: "Sem permissão" });
+    }
+    try {
+      const { comment } = req.body;
+      const invoice = await storage.updateInvoice(req.params.id, {
+        status: "recusada",
+        returnComment: comment ?? null,
+      });
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error rejecting invoice:", error);
+      res.status(500).json({ message: "Erro ao recusar nota fiscal" });
     }
   });
 

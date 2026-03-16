@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings,
+  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -20,7 +20,8 @@ import {
   type BudgetPlanned, type InsertBudgetPlanned,
   type BudgetActual, type InsertBudgetActual,
   type BudgetComparison, type InsertBudgetComparison,
-  type SystemSetting
+  type SystemSetting,
+  type Invoice, type InsertInvoice
 } from "@shared/schema";
 import { eq, and, sql, isNull } from "drizzle-orm";
 
@@ -140,6 +141,12 @@ export interface IStorage {
   // System Settings
   getSystemSettings(): Promise<SystemSetting[]>;
   upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting>;
+
+  // Invoices (Notas Fiscais)
+  getInvoices(eventId?: string): Promise<Invoice[]>;
+  getInvoice(id: string): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice>;
 }
 
 export class MemStorage implements IStorage {
@@ -770,6 +777,11 @@ export class MemStorage implements IStorage {
 
   async getSystemSettings(): Promise<SystemSetting[]> { return []; }
   async upsertSystemSetting(key: string, value: string, updatedBy?: string): Promise<SystemSetting> { throw new Error("Not implemented"); }
+
+  async getInvoices(eventId?: string): Promise<Invoice[]> { return []; }
+  async getInvoice(id: string): Promise<Invoice | undefined> { return undefined; }
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> { throw new Error("Not implemented"); }
+  async updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice> { throw new Error("Not implemented"); }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1484,6 +1496,31 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  async getInvoices(eventId?: string): Promise<Invoice[]> {
+    if (eventId) {
+      return await db.select().from(invoices).where(eq(invoices.eventId, eventId));
+    }
+    return await db.select().from(invoices);
+  }
+
+  async getInvoice(id: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice;
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [created] = await db.insert(invoices).values(invoice).returning();
+    return created;
+  }
+
+  async updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice> {
+    const [updated] = await db.update(invoices)
+      .set({ ...invoice, updatedAt: new Date() })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updated;
   }
 }
 

@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event } from "@shared/schema";
 import { useEffect, useState } from "react";
-import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, CalendarX } from "lucide-react";
+import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2 } from "lucide-react";
 
 const eventSchema = z.object({
   name: z.string().min(1, "Nome do evento é obrigatório"),
@@ -20,6 +20,8 @@ const eventSchema = z.object({
   endDate: z.string().min(1, "Data de fim é obrigatória"),
   status: z.enum(["planejado", "concluído", "excluído"]).optional(),
   observations: z.string().optional(),
+  paymentCompanyName: z.string().optional(),
+  paymentCompanyCnpj: z.string().optional(),
 }).refine((data) => {
   return new Date(data.endDate) >= new Date(data.startDate);
 }, {
@@ -51,7 +53,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
-    defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "" },
+    defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "", paymentCompanyCnpj: "" },
   });
 
   useEffect(() => {
@@ -64,10 +66,12 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
         endDate: event.endDate,
         status: event.status as "planejado" | "concluído" | "excluído",
         observations: obs,
+        paymentCompanyName: (event as any).paymentCompanyName || "",
+        paymentCompanyCnpj: (event as any).paymentCompanyCnpj || "",
       });
       setObsLength(obs.length);
     } else {
-      form.reset({ name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "" });
+      form.reset({ name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "", paymentCompanyCnpj: "" });
       setObsLength(0);
     }
   }, [event, form]);
@@ -300,6 +304,49 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   </FormItem>
                 )}
               />
+
+              {/* Empresa responsável pelo pagamento */}
+              <div className="border border-dashed border-emerald-200 rounded-xl p-4 bg-emerald-50/40 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-xs font-semibold text-emerald-700">Empresa responsável pelo pagamento</span>
+                  <span className="text-[10px] text-slate-400 font-normal">(opcional — usado nas Notas Fiscais)</span>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="paymentCompanyName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-medium text-slate-600">Nome da empresa</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ex.: Produtora Norte Ltda"
+                          className={INPUT_CLS}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="paymentCompanyCnpj"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-medium text-slate-600">CNPJ</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="00.000.000/0001-00"
+                          className={INPUT_CLS}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Footer */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 mt-2">

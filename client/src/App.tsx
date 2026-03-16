@@ -25,6 +25,7 @@ import BudgetPlanned from "@/pages/budget-planned";
 import BudgetActual from "@/pages/budget-actual";
 import BudgetComparison from "@/pages/budget-comparison";
 import RhControl from "@/pages/rh-control";
+import InvoicesPage from "@/pages/invoices";
 import SystemSettings from "@/pages/system-settings";
 import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
@@ -131,6 +132,11 @@ function Router() {
             <Route path="/system-settings">
               <ProtectedRoute permission="canAccessAdminUsers">
                 <SystemSettings />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/invoices">
+              <ProtectedRoute permission="canAccessScreen0">
+                <InvoicesPage />
               </ProtectedRoute>
             </Route>
             <Route path="/calendar" component={CalendarPage} />

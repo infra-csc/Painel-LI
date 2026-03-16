@@ -29,6 +29,8 @@ export const events = pgTable("events", {
   endDate: date("end_date").notNull(),
   observations: text("observations"),
   status: text("status").notNull().default("planejado"), // planejado, em_andamento, concluido
+  paymentCompanyName: text("payment_company_name"),
+  paymentCompanyCnpj: text("payment_company_cnpj"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -477,6 +479,34 @@ export const insertBudgetComparisonSchema = createInsertSchema(budgetComparison)
   createdAt: true,
   updatedAt: true,
 });
+
+// Invoices table (Notas Fiscais)
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  collaboratorId: varchar("collaborator_id").notNull().references(() => collaborators.id),
+  functionId: varchar("function_id").notNull().references(() => functions.id),
+  budgetActualId: varchar("budget_actual_id"),
+  oc: text("oc"),
+  attachmentUrl: text("attachment_url"),
+  attachmentName: text("attachment_name"),
+  paymentText: text("payment_text"),
+  status: text("status").notNull().default("pendente"), // pendente, enviada, aprovada, devolvida, recusada
+  returnComment: text("return_comment"),
+  paymentDate: date("payment_date"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
 // Types
 export type User = typeof users.$inferSelect;

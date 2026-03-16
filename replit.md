@@ -49,6 +49,16 @@ Preferred communication style: Simple, everyday language.
 - **Default view**: Hides concluded items (aprovada/recusada); "Concluídos" filter shows them
 - **Business rules**: Events without escalações don't appear in Planejado or RH Control
 
+## Nota Fiscal Flow
+- **5th step** in the comparativo stepper: Escalação → Planejamento RH → Prestação → Aprovação RH → Nota Fiscal
+- **Table**: `invoices` — stores invoice submissions per collaborator per event
+- **Fields**: `eventId`, `collaboratorId`, `functionId`, `budgetActualId`, `oc`, `attachmentUrl`, `attachmentName`, `paymentText`, `status`, `returnComment`, `paymentDate`, `approvedAt`
+- **Status flow**: `pendente` → `enviada` → `aprovada` | `devolvida` | `recusada`; devolvida allows resubmission
+- **Empresa pagadora**: `events.paymentCompanyName` + `events.paymentCompanyCnpj` — optional fields; when filled, auto-generates payment text in each invoice
+- **Page**: `/invoices` — two tabs: "Lançamento" (collaborators submit OC + file) and "Aprovação RH" (RH approves with payment date, returns with comment, or rejects)
+- **Access**: Lançamento visible to all; Aprovação RH tab only for admin/financial roles
+- **API**: `GET/POST /api/invoices`, `PATCH /api/invoices/:id`, `POST /api/invoices/:id/approve|return|reject`
+
 ## System Settings (Configurações)
 - **Table**: `system_settings` — key-value store for global default values
 - **Keys**: `default_daily_value`, `default_mobility`, `default_weekday_lunch`, `default_weekday_dinner`, `default_weekend_lunch`, `default_weekend_dinner`

@@ -3,7 +3,7 @@ import {
   Users, UserCheck, Plane, Hotel, CheckCircle, Search,
   UserPlus, Settings, Wrench, UserCog, Calendar, CalendarDays, LogOut,
   Menu, X, ChevronLeft, ChevronRight, Minimize2, Maximize2,
-  Sun, Moon, Focus, Calculator, ClipboardCheck, BarChart3, Shield
+  Sun, Moon, Focus, Calculator, ClipboardCheck, BarChart3, Shield, FileText
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -42,7 +42,7 @@ const groupThemes: Record<string, GroupTheme> = {
 const menuGroups = [
   { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
-  { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "system-settings"] },
+  { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "system-settings"] },
   { title: "Gestão",      items: ["approval", "consultation", "admin-users"] },
 ];
 
@@ -68,6 +68,7 @@ export default function Sidebar() {
     { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck, permission: "canAccessScreen0" as const },
     { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: BarChart3,      permission: "canAccessScreen5" as const },
     { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: Shield,         permission: "canAccessScreen5" as const },
+    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,       permission: "canAccessScreen0" as const },
     { id: "approval",          path: "/approval",          label: "Aprovação",             icon: CheckCircle,    permission: "canAccessScreen5" as const },
     { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         permission: "canAccessScreen6" as const },
     { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Settings,       permission: "canAccessAdminUsers" as const },

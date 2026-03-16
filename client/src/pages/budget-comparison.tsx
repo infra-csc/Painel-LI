@@ -476,6 +476,7 @@ export default function BudgetComparisonPage() {
               { label: "Planejamento (RH)", desc: "Valores previstos definidos" },
               { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
               { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
+              { label: "Nota Fiscal", desc: "Envio e aprovação da nota" },
             ];
             return (
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-4">
