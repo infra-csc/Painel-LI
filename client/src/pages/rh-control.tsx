@@ -316,7 +316,7 @@ export default function RhControlPage() {
   }, [prestacaoItems]);
 
   const invoiceCounts = useMemo(() => {
-    const approvedActuals = (allActual || []).filter(a => a.rhStatus === "aprovado");
+    const approvedActuals = (allActual || []).filter(a => a.rhStatus === "aprovado" && !a.splitParentId);
     const approvedIds = new Set(approvedActuals.map(a => a.id));
     const relevant = (allInvoices as any[]).filter(inv => approvedIds.has(inv.budgetActualId));
     const enviada  = relevant.filter(inv => inv.status === "enviada").length;
@@ -745,6 +745,9 @@ export default function RhControlPage() {
     const days = getDiffDays(item.lastActivityDate);
     const borderStyle = getLeftBorderStyle(item);
     const colName = item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'A Definir';
+    const nfEligible = item.status === "aprovada_faturamento";
+    const nfInvCard = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
+    const nfStatus = nfInvCard?.status || "pendente";
 
     return (
       <div
