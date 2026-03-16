@@ -68,7 +68,7 @@ export default function InvoicesPage() {
   const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
   const { data: functions = [] } = useQuery<any[]>({ queryKey: ["/api/functions"] });
 
-  const getName = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.name || "—";
+  const getName = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
   const getFuncName = (id?: string | null) => (functions as any[]).find(f => f.id === id)?.name || "—";
 
   const approvedActuals = (budgetActuals as any[]).filter(
