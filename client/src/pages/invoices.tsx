@@ -10,15 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
   FileText, Upload, CheckCircle2, RotateCcw, XCircle, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info
+  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X
 } from "lucide-react";
 import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
+
+function toTitleCase(str: string) {
+  return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function formatCurrency(v: number) {
@@ -541,19 +542,39 @@ function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, select
 }
 
 // ── Aprovação Tab ──────────────────────────────────────────────────────────
+type ActionType = "approve" | "return" | "reject";
+type ActiveAction = { invId: string; type: ActionType } | null;
+
+const ROW_LEFT_BORDER: Record<string, string> = {
+  pendente:  "border-l-2 border-l-gray-200",
+  enviada:   "border-l-2 border-l-amber-400",
+  aprovada:  "border-l-2 border-l-emerald-400",
+  devolvida: "border-l-2 border-l-orange-300",
+  recusada:  "border-l-2 border-l-red-400",
+};
+
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
-  const [approveModal, setApproveModal] = useState<any | null>(null);
-  const [returnModal, setReturnModal] = useState<any | null>(null);
-  const [rejectModal, setRejectModal] = useState<any | null>(null);
+  const [active, setActive] = useState<ActiveAction>(null);
   const [paymentDate, setPaymentDate] = useState("");
   const [comment, setComment] = useState("");
+
+  function openAction(inv: any, type: ActionType) {
+    if (active?.invId === inv.id && active.type === type) {
+      setActive(null);
+    } else {
+      setActive({ invId: inv.id, type });
+      setPaymentDate("");
+      setComment("");
+    }
+  }
+  function closeAction() { setActive(null); }
 
   const approveMutation = useMutation({
     mutationFn: (id: string) =>
       apiRequest("POST", `/api/invoices/${id}/approve`, { paymentDate }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      setApproveModal(null); setPaymentDate("");
+      closeAction();
       toast({ title: "Nota aprovada!", description: "Colaborador notificado." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao aprovar nota", variant: "destructive" }),
@@ -564,7 +585,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       apiRequest("POST", `/api/invoices/${id}/return`, { comment }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      setReturnModal(null); setComment("");
+      closeAction();
       toast({ title: "Nota devolvida", description: "Colaborador pode reenviar a nota corrigida." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao devolver nota", variant: "destructive" }),
@@ -575,7 +596,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       apiRequest("POST", `/api/invoices/${id}/reject`, { comment }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      setRejectModal(null); setComment("");
+      closeAction();
       toast({ title: "Nota recusada" });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao recusar nota", variant: "destructive" }),
@@ -593,42 +614,87 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
 
   return (
-    <>
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Colaborador</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Função</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Valor</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">OC</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Nota</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.map((inv: any) => {
-              const actual = getActual(inv.budgetActualId);
-              const StatusIcon = STATUS_CONFIG[inv.status]?.icon || Clock;
-              return (
-                <tr key={inv.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{getName(inv.collaboratorId)}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{getFuncName(inv.functionId)}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 dark:text-gray-200 tabular-nums">
-                    {actual ? formatCurrency(actual.totalValue) : "—"}
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Colaborador</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Função</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Valor</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">OC</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Nota</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.map((inv: any) => {
+            const actual = getActual(inv.budgetActualId);
+            const StatusIcon = STATUS_CONFIG[inv.status]?.icon || Clock;
+            const name = getName(inv.collaboratorId);
+            const isActiveRow = active?.invId === inv.id;
+            const initial = name !== "—" ? name.charAt(0).toUpperCase() : "?";
+
+            const avatarCls =
+              inv.status === "aprovada" ? "bg-emerald-100 text-emerald-700" :
+              inv.status === "enviada"  ? "bg-amber-100 text-amber-700" :
+              inv.status === "devolvida"? "bg-orange-100 text-orange-600" :
+              inv.status === "recusada" ? "bg-red-100 text-red-600" :
+              "bg-gray-100 dark:bg-gray-700 text-gray-500";
+
+            return (
+              <>
+                <tr
+                  key={inv.id}
+                  className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-900/30 transition-colors ${ROW_LEFT_BORDER[inv.status] || ""} ${isActiveRow ? "bg-gray-50 dark:bg-gray-900/20" : ""}`}
+                >
+                  {/* Collaborator */}
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
+                        {initial}
+                      </div>
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        {toTitleCase(name)}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs font-mono">{inv.oc || "—"}</td>
-                  <td className="px-4 py-3">
+
+                  {/* Function */}
+                  <td className="px-4 py-2.5 text-xs text-gray-500">{getFuncName(inv.functionId)}</td>
+
+                  {/* Value — purple */}
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <span className="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                      {actual ? formatCurrency(actual.totalValue) : "—"}
+                    </span>
+                  </td>
+
+                  {/* OC */}
+                  <td className="px-4 py-2.5 text-xs font-mono text-gray-600 dark:text-gray-400">
+                    {inv.oc || <span className="text-gray-300">—</span>}
+                  </td>
+
+                  {/* Nota — clean "Ver nota" button */}
+                  <td className="px-4 py-2.5">
                     {inv.attachmentUrl ? (
-                      <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                        <Paperclip className="w-3 h-3" />
-                        {inv.attachmentName || "Abrir"}
+                      <a
+                        href={inv.attachmentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 px-2 py-1 rounded-lg transition-colors"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Ver nota
+                        <Eye className="w-3 h-3" />
                       </a>
-                    ) : <span className="text-gray-300 text-xs">—</span>}
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3">
+
+                  {/* Status */}
+                  <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_CONFIG[inv.status]?.cls}`}>
                       <StatusIcon className="w-3 h-3" />
                       {STATUS_CONFIG[inv.status]?.label}
@@ -640,152 +706,171 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       </p>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+
+                  {/* Actions */}
+                  <td className="px-4 py-2.5">
                     {inv.status === "enviada" && (
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost"
-                          className="h-7 px-2.5 text-[11px] text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                          onClick={() => { setApproveModal(inv); setPaymentDate(""); }}>
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Aprovar
-                        </Button>
-                        <Button size="sm" variant="ghost"
-                          className="h-7 px-2.5 text-[11px] text-orange-500 hover:bg-orange-50 rounded-lg"
-                          onClick={() => { setReturnModal(inv); setComment(""); }}>
-                          <RotateCcw className="w-3.5 h-3.5 mr-1" /> Devolver
-                        </Button>
-                        <Button size="sm" variant="ghost"
-                          className="h-7 px-2.5 text-[11px] text-red-500 hover:bg-red-50 rounded-lg"
-                          onClick={() => { setRejectModal(inv); setComment(""); }}>
-                          <XCircle className="w-3.5 h-3.5 mr-1" /> Recusar
-                        </Button>
+                        <button
+                          onClick={() => openAction(inv, "approve")}
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                            isActiveRow && active?.type === "approve"
+                              ? "bg-emerald-600 text-white"
+                              : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Aprovar
+                        </button>
+                        <button
+                          onClick={() => openAction(inv, "return")}
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                            isActiveRow && active?.type === "return"
+                              ? "bg-orange-500 text-white"
+                              : "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                          }`}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Devolver
+                        </button>
+                        <button
+                          onClick={() => openAction(inv, "reject")}
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                            isActiveRow && active?.type === "reject"
+                              ? "bg-red-500 text-white"
+                              : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          }`}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Recusar
+                        </button>
                       </div>
                     )}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
 
-      {/* Approve Modal */}
-      <Dialog open={!!approveModal} onOpenChange={() => setApproveModal(null)}>
-        <DialogContent className="max-w-sm rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Aprovar nota fiscal
-            </DialogTitle>
-          </DialogHeader>
-          {approveModal && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Aprovando nota de <strong>{getName(approveModal.collaboratorId)}</strong>.
-              </p>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">
-                  Data prevista de pagamento <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                  <Input
-                    type="date"
-                    value={paymentDate}
-                    onChange={e => setPaymentDate(e.target.value)}
-                    className="pl-9 h-9 text-sm rounded-xl border-gray-200"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" className="rounded-xl" onClick={() => setApproveModal(null)}>Cancelar</Button>
-                <Button
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => approveMutation.mutate(approveModal.id)}
-                  disabled={!paymentDate || approveMutation.isPending}
-                >
-                  {approveMutation.isPending ? "Aprovando..." : "Confirmar aprovação"}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                {/* ── Inline action panel ── */}
+                {isActiveRow && active && (
+                  <tr key={`${inv.id}-action`} className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
+                    <td colSpan={7} className="px-4 pb-3 pt-0">
+                      {active.type === "approve" && (
+                        <div className="flex items-end gap-3 flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-lg">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Confirmar aprovação
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                              Data de pagamento <span className="text-red-400">*</span>
+                            </label>
+                            <div className="relative">
+                              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                              <Input
+                                type="date"
+                                value={paymentDate}
+                                onChange={e => setPaymentDate(e.target.value)}
+                                className="pl-7 h-8 text-xs rounded-lg border-gray-200 w-40"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <button
+                              onClick={closeAction}
+                              className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1"
+                            >
+                              <X className="w-3 h-3" /> Cancelar
+                            </button>
+                            <button
+                              onClick={() => approveMutation.mutate(inv.id)}
+                              disabled={!paymentDate || approveMutation.isPending}
+                              className="h-8 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                            >
+                              {approveMutation.isPending ? "Aprovando..." : "Confirmar"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
-      {/* Return Modal */}
-      <Dialog open={!!returnModal} onOpenChange={() => setReturnModal(null)}>
-        <DialogContent className="max-w-sm rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <RotateCcw className="w-4 h-4 text-orange-500" /> Devolver nota
-            </DialogTitle>
-          </DialogHeader>
-          {returnModal && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Devolvendo nota de <strong>{getName(returnModal.collaboratorId)}</strong>. O colaborador poderá reenviar a nota corrigida.
-              </p>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Comentário <span className="text-gray-400 font-normal">(opcional)</span></label>
-                <Textarea
-                  rows={3}
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  placeholder="Explique o que precisa ser corrigido..."
-                  className="text-sm rounded-xl border-gray-200 resize-none"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" className="rounded-xl" onClick={() => setReturnModal(null)}>Cancelar</Button>
-                <Button
-                  className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={() => returnMutation.mutate(returnModal.id)}
-                  disabled={returnMutation.isPending}
-                >
-                  {returnMutation.isPending ? "Devolvendo..." : "Devolver"}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                      {active.type === "return" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-2.5 py-1.5 rounded-lg w-fit">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Devolver para ajuste
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Textarea
+                                rows={2}
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                placeholder="Explique o que precisa ser corrigido (opcional)..."
+                                className="text-xs rounded-lg border-gray-200 resize-none"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={closeAction}
+                                className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1"
+                              >
+                                <X className="w-3 h-3" /> Cancelar
+                              </button>
+                              <button
+                                onClick={() => returnMutation.mutate(inv.id)}
+                                disabled={returnMutation.isPending}
+                                className="h-8 px-4 text-xs font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                              >
+                                {returnMutation.isPending ? "Devolvendo..." : "Devolver"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-      {/* Reject Modal */}
-      <Dialog open={!!rejectModal} onOpenChange={() => setRejectModal(null)}>
-        <DialogContent className="max-w-sm rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <XCircle className="w-4 h-4 text-red-500" /> Recusar nota
-            </DialogTitle>
-          </DialogHeader>
-          {rejectModal && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Tem certeza que deseja recusar a nota de <strong>{getName(rejectModal.collaboratorId)}</strong>?
-              </p>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Motivo <span className="text-gray-400 font-normal">(opcional)</span></label>
-                <Textarea
-                  rows={3}
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  placeholder="Explique o motivo da recusa..."
-                  className="text-sm rounded-xl border-gray-200 resize-none"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" className="rounded-xl" onClick={() => setRejectModal(null)}>Cancelar</Button>
-                <Button
-                  variant="destructive"
-                  className="rounded-xl"
-                  onClick={() => rejectMutation.mutate(rejectModal.id)}
-                  disabled={rejectMutation.isPending}
-                >
-                  {rejectMutation.isPending ? "Recusando..." : "Confirmar recusa"}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+                      {active.type === "reject" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-2.5 py-1.5 rounded-lg w-fit">
+                            <XCircle className="w-3.5 h-3.5" />
+                            Recusar nota
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Textarea
+                                rows={2}
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                placeholder="Motivo da recusa (opcional)..."
+                                className="text-xs rounded-lg border-gray-200 resize-none"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={closeAction}
+                                className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1"
+                              >
+                                <X className="w-3 h-3" /> Cancelar
+                              </button>
+                              <button
+                                onClick={() => rejectMutation.mutate(inv.id)}
+                                disabled={rejectMutation.isPending}
+                                className="h-8 px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                              >
+                                {rejectMutation.isPending ? "Recusando..." : "Confirmar recusa"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
