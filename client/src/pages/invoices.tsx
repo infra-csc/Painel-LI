@@ -273,41 +273,25 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Filter pills + Legend */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
-        {/* Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {LANC_FILTERS.map(({ id, label, activeBg }) => {
-            const cnt = countFor(id);
-            const active = filterStatus === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setFilterStatus(id)}
-                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors whitespace-nowrap ${
-                  active ? activeBg : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                {label} <span className={active ? "opacity-80" : "opacity-60"}>({cnt})</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* Legend */}
-        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5 shrink-0">
-          {[
-            { color: "bg-gray-400",    label: "Pendente" },
-            { color: "bg-amber-400",   label: "Aguardando RH" },
-            { color: "bg-orange-400",  label: "Devolvida" },
-            { color: "bg-red-500",     label: "Recusada" },
-            { color: "bg-emerald-500", label: "Aprovada" },
-          ].map(({ color, label }) => (
-            <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color}`} />
-              {label}
-            </span>
-          ))}
-        </div>
+      {/* Filter pills */}
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
+        {LANC_FILTERS.map(({ id, label, activeBg }) => {
+          const cnt = countFor(id);
+          const active = filterStatus === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setFilterStatus(id)}
+              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full border transition-colors whitespace-nowrap ${
+                active
+                  ? `${activeBg} border-transparent`
+                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              {label}{cnt > 0 ? <span className="opacity-75 ml-0.5">({cnt})</span> : null}
+            </button>
+          );
+        })}
       </div>
 
       <table className="w-full" style={{ tableLayout: "fixed" }}>
@@ -465,21 +449,6 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
             <div className="min-w-0">
               <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">{displayName}</span>
               <span className="text-[10px] text-gray-400 truncate block">{funcName}</span>
-              {status === "aprovada" && invoice?.paymentDate && (() => {
-                const today = new Date().toISOString().split("T")[0];
-                const past = invoice.paymentDate < today;
-                return past ? (
-                  <span className="text-[10px] text-orange-500 flex items-center gap-0.5 mt-0.5 font-medium">
-                    <AlertCircle className="w-2.5 h-2.5 shrink-0" />
-                    ⚠️ Pgto previsto {fmtDate(invoice.paymentDate)}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 mt-0.5 font-medium">
-                    <Calendar className="w-2.5 h-2.5 shrink-0" />
-                    Pagamento previsto: {fmtDate(invoice.paymentDate)}
-                  </span>
-                );
-              })()}
             </div>
             {showExpandToggle && (
               <button
@@ -596,14 +565,31 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
               </Button>
             </div>
           )}
-          {status === "aprovada" && (
-            <div className="flex items-center justify-end">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {invoice?.paymentDate ? fmtDate(invoice.paymentDate) : "Aprovada"}
-              </span>
-            </div>
-          )}
+          {status === "aprovada" && (() => {
+            const pd = invoice?.paymentDate;
+            if (!pd) return (
+              <div className="flex items-center justify-end">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Aprovada
+                </span>
+              </div>
+            );
+            const today = new Date().toISOString().split("T")[0];
+            const past = pd < today;
+            return (
+              <div className="flex items-center justify-end">
+                {past ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                    <AlertCircle className="w-3.5 h-3.5" /> Prev. {fmtDate(pd)}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                    <Calendar className="w-3.5 h-3.5" /> Prev. {fmtDate(pd)}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </td>
       </tr>
 
@@ -813,40 +799,25 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Filter pills + Legend */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
-        {/* Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {APROV_FILTERS.map(({ id, label, activeBg }) => {
-            const cnt = aprovCountFor(id);
-            const active = filterStatus === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setFilterStatus(id)}
-                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors whitespace-nowrap ${
-                  active ? activeBg : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                {label} <span className={active ? "opacity-80" : "opacity-60"}>({cnt})</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* Legend */}
-        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5 shrink-0">
-          {[
-            { color: "bg-amber-400",   label: "Aguardando" },
-            { color: "bg-emerald-500", label: "Aprovada" },
-            { color: "bg-orange-400",  label: "Devolvida" },
-            { color: "bg-red-500",     label: "Recusada" },
-          ].map(({ color, label }) => (
-            <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color}`} />
-              {label}
-            </span>
-          ))}
-        </div>
+      {/* Filter pills */}
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
+        {APROV_FILTERS.map(({ id, label, activeBg }) => {
+          const cnt = aprovCountFor(id);
+          const active = filterStatus === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setFilterStatus(id)}
+              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full border transition-colors whitespace-nowrap ${
+                active
+                  ? `${activeBg} border-transparent`
+                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              {label}{cnt > 0 ? <span className="opacity-75 ml-0.5">({cnt})</span> : null}
+            </button>
+          );
+        })}
       </div>
 
       <table className="w-full" style={{ tableLayout: "fixed" }}>
