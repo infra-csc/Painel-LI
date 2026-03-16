@@ -96,8 +96,7 @@ export default function Events() {
   const queryClient = useQueryClient();
 
   const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events/all"],
-    queryFn: () => apiRequest("GET", "/api/events?includeDeleted=true").then(r => r.json()),
+    queryKey: ["/api/events?includeDeleted=true"],
   });
   const { data: inclusions } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
@@ -152,8 +151,8 @@ export default function Events() {
       const t = searchTerm.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    if (statusFilter === "default") list = list.filter(e => getEventStatus(e) === "planejado" || getEventStatus(e) === "em andamento");
-    else if (statusFilter === "active") list = list.filter(e => getEventStatus(e) !== "excluído");
+    if (statusFilter === "default") list = list.filter(e => e.status !== "excluído" && e.status !== "concluído");
+    else if (statusFilter === "active") list = list.filter(e => e.status !== "excluído");
     else if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
     if (dateFilter) {
       const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
@@ -179,7 +178,7 @@ export default function Events() {
       });
     }
     if (defaultSortActive && statusFilter === "default") {
-      const statusPriority = (e: Event) => getEventStatus(e) === "em andamento" ? 0 : 1;
+      const statusPriority = (e: Event) => getEventStatus(e) === "em andamento" || e.status === "em andamento" ? 0 : 1;
       list.sort((a, b) => {
         const p = statusPriority(a) - statusPriority(b);
         if (p !== 0) return p;
@@ -200,8 +199,7 @@ export default function Events() {
 
   const invalidateEvents = async () => {
     await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-    await queryClient.invalidateQueries({ queryKey: ["/api/events/all"] });
-    await queryClient.refetchQueries({ queryKey: ["/api/events/all"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
   const deleteEventMutation = useMutation({
@@ -559,9 +557,11 @@ export default function Events() {
                   {filteredAndSortedEvents.length === 0 && (
                     <tr>
                       <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
-                        {hasActiveFilters
-                          ? "Nenhum evento encontrado com os filtros aplicados."
-                          : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."}
+                        {statusFilter === "default" && !searchTerm && monthFilter === "all" && yearFilter === "all" && !dateFilter
+                          ? "Nenhum evento planejado ou em andamento. Selecione \"Todos os status\" para ver eventos concluídos."
+                          : hasActiveFilters
+                            ? "Nenhum evento encontrado com os filtros aplicados."
+                            : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."}
                       </td>
                     </tr>
                   )}
