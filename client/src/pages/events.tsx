@@ -336,7 +336,7 @@ export default function Events() {
               </div>
 
               {/* Status */}
-              <div className="flex-1 min-w-[180px]">
+              <div className="flex-1 min-w-[230px]">
                 <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                   <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200" data-testid="select-status-filter">
                     <SelectValue placeholder="Status" />
