@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDias } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,9 @@ function avatarColorRh(name: string) {
 }
 function initialsRh(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+function toTitleCase(str: string): string {
+  return str.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
 }
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, User, TeamInclusion } from "@shared/schema";
 
@@ -119,6 +123,9 @@ export default function RhControlPage() {
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
+  const [nfApprovalDate, setNfApprovalDate] = useState("");
+  const [nfApproving, setNfApproving] = useState(false);
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
@@ -744,7 +751,7 @@ export default function RhControlPage() {
     const needsRhAction = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
     const days = getDiffDays(item.lastActivityDate);
     const borderStyle = getLeftBorderStyle(item);
-    const colName = item.collaboratorId ? getCollaboratorName(item.collaboratorId) : 'A Definir';
+    const colName = item.collaboratorId ? toTitleCase(getCollaboratorName(item.collaboratorId)) : 'A Definir';
     const nfEligible = item.status === "aprovada_faturamento";
     const nfInvCard = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
     const nfStatus = nfInvCard?.status || "pendente";
@@ -802,20 +809,71 @@ export default function RhControlPage() {
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
               </button>
             )}
-            {nfEligible && (
-              nfStatus === "enviada" ? (
-                <button
-                  className="text-[11px] font-semibold h-7 px-3 rounded-md bg-violet-600 hover:bg-violet-700 text-white transition-colors"
-                  onClick={(e) => { e.stopPropagation(); navigate(`/invoices?event=${item.event.id}`); }}
-                >
-                  Aprovar NF
-                </button>
-              ) : nfStatus === "devolvida" ? (
-                <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>
-              ) : nfStatus === "aprovada" ? null : (
-                <span className="text-[10px] text-slate-400 border border-dashed border-gray-200 rounded-md px-2 py-1">Aguardando NF</span>
-              )
-            )}
+            {nfEligible && (() => {
+              if (nfStatus === "aprovada") {
+                const approvedDateStr = nfInvCard?.paymentDate
+                  ? new Date(nfInvCard.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                  : nfInvCard?.approvedAt
+                  ? new Date(nfInvCard.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                  : "";
+                return (
+                  <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
+                    NF Aprovada{approvedDateStr ? ` · ${approvedDateStr}` : ""}
+                  </span>
+                );
+              }
+              if (nfStatus === "enviada") {
+                const isApprovingThis = approvingInvoiceId === nfInvCard?.id;
+                if (isApprovingThis) {
+                  return (
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="date"
+                        value={nfApprovalDate}
+                        onChange={e => setNfApprovalDate(e.target.value)}
+                        className="h-7 text-[11px] px-2 rounded-md border border-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-400 bg-white"
+                        placeholder="Data pagamento"
+                      />
+                      <button
+                        disabled={!nfApprovalDate || nfApproving}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!nfApprovalDate || !nfInvCard?.id) return;
+                          setNfApproving(true);
+                          try {
+                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/approve`, { paymentDate: nfApprovalDate });
+                            await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+                            setApprovingInvoiceId(null);
+                            setNfApprovalDate("");
+                          } finally {
+                            setNfApproving(false);
+                          }
+                        }}
+                        className="text-[11px] font-semibold h-7 px-2.5 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition-colors"
+                      >
+                        {nfApproving ? "..." : "Confirmar"}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(null); setNfApprovalDate(""); }}
+                        className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50 transition-colors"
+                      >✕</button>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    className="text-[11px] font-semibold h-7 px-3 rounded-md bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); setNfApprovalDate(""); }}
+                  >
+                    Aprovar NF
+                  </button>
+                );
+              }
+              if (nfStatus === "devolvida") {
+                return <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>;
+              }
+              return <span className="text-[10px] text-slate-400 border border-dashed border-gray-200 rounded-md px-2 py-1">Aguardando NF</span>;
+            })()}
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
         </div>
@@ -999,7 +1057,7 @@ export default function RhControlPage() {
         <Shield className="w-5 h-5 text-slate-400" />
         <div>
           <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Controle de Prestações de Contas</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação</p>
+          <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação → Nota Fiscal</p>
         </div>
       </div>
 
@@ -1062,7 +1120,7 @@ export default function RhControlPage() {
               <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
             {[
               { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
               { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
@@ -1073,12 +1131,12 @@ export default function RhControlPage() {
               return (
                 <button key={label}
                   onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                  className={`rounded-lg border p-2 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
                 >
-                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
+                  <span className={`text-lg font-bold tabular-nums block mb-0.5 ${numCls}`}>
+                    {isLoading ? <span className="inline-block w-4 h-4 bg-gray-200 rounded animate-pulse" /> : value}
                   </span>
-                  <span className="text-[10px] text-slate-400">{label}</span>
+                  <span className="text-[9px] leading-tight text-slate-400 block">{label}</span>
                 </button>
               );
             })}
