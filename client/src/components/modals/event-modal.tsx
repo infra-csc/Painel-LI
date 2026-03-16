@@ -26,11 +26,6 @@ const eventSchema = z.object({
     if (!v || v.replace(/\D/g, "").length === 0) return true; // vazio = ok
     return validateCnpj(v);
   }, { message: "CNPJ inválido. Verifique os números digitados." }),
-}).refine((data) => {
-  return new Date(data.endDate) >= new Date(data.startDate);
-}, {
-  message: "Data de fim deve ser maior ou igual à data de início",
-  path: ["endDate"],
 });
 
 type EventFormData = z.infer<typeof eventSchema>;
@@ -229,6 +224,14 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                         </div>
                       </FormControl>
                       <FormMessage className="text-[11px]" />
+                      {(() => {
+                        const start = form.watch("startDate");
+                        const end = field.value;
+                        if (start && end && new Date(end) < new Date(start)) {
+                          return <p className="text-[11px] text-amber-500">Atenção: data de fim anterior à data de início.</p>;
+                        }
+                        return null;
+                      })()}
                     </FormItem>
                   )}
                 />
