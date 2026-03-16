@@ -1,7 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "./db";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+
+const PgSession = connectPgSimple(session);
 
 // Session interface extension
 declare module 'express-session' {
@@ -16,8 +20,13 @@ const app = express();
 // Trust proxy - required for Replit
 app.set('trust proxy', 1);
 
-// Configure session middleware
+// Configure session middleware with PostgreSQL store
 app.use(session({
+  store: new PgSession({
+    pool: pool as any,
+    tableName: 'session',
+    createTableIfMissing: true,
+  }),
   secret: process.env.SESSION_SECRET || 'dev-session-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
@@ -25,7 +34,7 @@ app.use(session({
     secure: false,
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   },
   name: 'sessionId'
 }));
