@@ -969,7 +969,7 @@ export default function BudgetActualPage() {
                 />
               </div>
               <Select value={filterFunction} onValueChange={setFilterFunction}>
-                <SelectTrigger className="w-40 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
+                <SelectTrigger className="w-auto min-w-[160px] h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                   <SelectValue placeholder="Função" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
@@ -990,7 +990,7 @@ export default function BudgetActualPage() {
                 </SelectContent>
               </Select>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-44 h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
+                <SelectTrigger className="w-auto min-w-[176px] h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
                   <ArrowUpDown className="w-3 h-3 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
