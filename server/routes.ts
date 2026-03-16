@@ -657,7 +657,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Events routes
   app.get("/api/events", async (req, res) => {
     try {
-      const events = await storage.getEvents();
+      const includeDeleted = req.query.includeDeleted === "true";
+      const events = await storage.getEvents(includeDeleted);
       res.json(events);
     } catch (error) {
       res.status(500).json({ message: "Erro ao buscar eventos" });

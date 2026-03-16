@@ -8,7 +8,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Calendar, Plus, Edit, Trash2, Search, X,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  CalendarCheck, CalendarClock, CalendarX, LayoutList, Users
+  CalendarCheck, CalendarClock, CalendarX, LayoutList, Users, RotateCcw
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import ConfirmModal from "@/components/common/confirm-modal";
@@ -82,19 +82,22 @@ export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [monthFilter, setMonthFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmState, setConfirmState] = useState<{
-    open: boolean; title: string; message: string; confirmLabel: string; onConfirm: () => void;
-  }>({ open: false, title: '', message: '', confirmLabel: '', onConfirm: () => {} });
+    open: boolean; title: string; message: string; confirmLabel: string; variant?: "delete" | "cancel" | "confirm"; onConfirm: () => void;
+  }>({ open: false, title: '', message: '', confirmLabel: '', variant: 'delete', onConfirm: () => {} });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: events, isLoading } = useQuery<Event[]>({
+    queryKey: ["/api/events/all"],
+    queryFn: () => apiRequest("GET", "/api/events?includeDeleted=true").then(r => r.json()),
+  });
   const { data: inclusions } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
   const escalacoesByEvent = useMemo(() => {
@@ -138,7 +141,8 @@ export default function Events() {
       const t = searchTerm.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
+    if (statusFilter === "active") list = list.filter(e => getEventStatus(e) !== "excluído");
+    else if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
     if (dateFilter) {
       const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
       list = list.filter(e => {
@@ -173,14 +177,28 @@ export default function Events() {
     return list;
   }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir]);
 
+  const invalidateEvents = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/events/all"] });
+    await queryClient.refetchQueries({ queryKey: ["/api/events/all"] });
+  };
+
   const deleteEventMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
+      await invalidateEvents();
       toast({ title: "Sucesso", description: "Evento marcado como excluído com sucesso!" });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao marcar evento como excluído.", variant: "destructive" }),
+  });
+
+  const restoreEventMutation = useMutation({
+    mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
+    onSuccess: async () => {
+      await invalidateEvents();
+      toast({ title: "Sucesso", description: "Evento restaurado com sucesso!" });
+    },
+    onError: () => toast({ title: "Erro", description: "Erro ao restaurar evento.", variant: "destructive" }),
   });
 
   const handleOpenModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
@@ -194,8 +212,19 @@ export default function Events() {
       onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); deleteEventMutation.mutate(event); },
     });
   };
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("all"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all"); };
-  const hasActiveFilters = searchTerm || statusFilter !== "all" || dateFilter || monthFilter !== "all" || yearFilter !== "all";
+  const handleRestore = (event: Event) => {
+    setConfirmState({
+      open: true,
+      title: 'Restaurar evento?',
+      message: `O evento "${event.name}" será restaurado e voltará ao status "Planejado".`,
+      confirmLabel: 'Restaurar',
+      variant: 'confirm',
+      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); restoreEventMutation.mutate(event); },
+    });
+  };
+
+  const clearFilters = () => { setSearchTerm(""); setStatusFilter("active"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all"); };
+  const hasActiveFilters = searchTerm || statusFilter !== "active" || dateFilter || monthFilter !== "all" || yearFilter !== "all";
 
   return (
     <TooltipProvider>
@@ -248,7 +277,7 @@ export default function Events() {
                   <span className="text-sm font-normal text-slate-400">
                     ({hasActiveFilters
                       ? `${filteredAndSortedEvents.length} de ${events?.filter(e => e.status !== "excluído").length ?? 0}`
-                      : stats.total})
+                      : stats.total} ativos)
                   </span>
                 )}
               </h2>
@@ -291,11 +320,12 @@ export default function Events() {
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os status</SelectItem>
-                    <SelectItem value="planejado" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado</SelectItem>
+                    <SelectItem value="active"     className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Ativos</SelectItem>
+                    <SelectItem value="all"        className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                    <SelectItem value="planejado"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado</SelectItem>
                     <SelectItem value="em andamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Em andamento</SelectItem>
-                    <SelectItem value="concluído" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Concluído</SelectItem>
-                    <SelectItem value="excluído" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Excluído</SelectItem>
+                    <SelectItem value="concluído"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Concluído</SelectItem>
+                    <SelectItem value="excluído"   className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Excluído</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -455,33 +485,48 @@ export default function Events() {
                         </td>
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-1 justify-end">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleOpenModal(event)}
-                                  disabled={isDeleted}
-                                  data-testid={`button-edit-event-${event.id}`}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar evento</TooltipContent>
-                            </Tooltip>
+                            {isDeleted ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleRestore(event)}
+                                    data-testid={`button-restore-event-${event.id}`}
+                                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Restaurar evento</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleOpenModal(event)}
+                                      data-testid={`button-edit-event-${event.id}`}
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Editar evento</TooltipContent>
+                                </Tooltip>
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleDelete(event)}
-                                  disabled={isDeleted}
-                                  data-testid={`button-delete-event-${event.id}`}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Excluir evento</TooltipContent>
-                            </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleDelete(event)}
+                                      data-testid={`button-delete-event-${event.id}`}
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Excluir evento</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -507,7 +552,7 @@ export default function Events() {
 
       <ConfirmModal
         open={confirmState.open}
-        variant="delete"
+        variant={confirmState.variant ?? "delete"}
         title={confirmState.title}
         message={confirmState.message}
         confirmLabel={confirmState.confirmLabel}

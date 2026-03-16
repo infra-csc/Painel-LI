@@ -92,6 +92,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       toast({ title: "Sucesso", description: isEditing ? "Evento atualizado com sucesso" : "Evento criado com sucesso" });
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events/all"] });
       onClose();
     },
     onError: (error: any) => {

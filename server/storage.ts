@@ -37,7 +37,7 @@ export interface IStorage {
   getUsersByStatus(status: 'pending' | 'approved' | 'rejected'): Promise<User[]>;
   
   // Events
-  getEvents(): Promise<Event[]>;
+  getEvents(includeDeleted?: boolean): Promise<Event[]>;
   getEvent(id: string): Promise<Event | undefined>;
   getEventsWithInclusions(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
@@ -265,8 +265,9 @@ export class MemStorage implements IStorage {
   }
 
   // Events
-  async getEvents(): Promise<Event[]> {
-    return Array.from(this.events.values()).filter(e => e.status !== "excluído");
+  async getEvents(includeDeleted = false): Promise<Event[]> {
+    const all = Array.from(this.events.values());
+    return includeDeleted ? all : all.filter(e => e.status !== "excluído");
   }
 
   async getEvent(id: string): Promise<Event | undefined> {
@@ -836,7 +837,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Events
-  async getEvents(): Promise<Event[]> {
+  async getEvents(includeDeleted = false): Promise<Event[]> {
+    if (includeDeleted) return await db.select().from(events);
     return await db.select().from(events).where(ne(events.status, "excluído"));
   }
 
