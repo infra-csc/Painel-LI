@@ -336,7 +336,13 @@ export default function RhControlPage() {
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        if (!showConcluded && filterInvoiceStatus === "all" && CONCLUDED_STATUSES.includes(item.status)) return false;
+        if (!showConcluded && filterInvoiceStatus === "all" && CONCLUDED_STATUSES.includes(item.status)) {
+          // Still show aprovada_faturamento items that have pending NF action
+          const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+          const invStatus = inv?.status ?? "pendente";
+          const hasNfPending = item.status === "aprovada_faturamento" && (invStatus === "pendente" || invStatus === "devolvida");
+          if (!hasNfPending) return false;
+        }
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
       if (filterFunction !== "all" && item.functionId !== filterFunction) return false;
@@ -792,6 +798,20 @@ export default function RhControlPage() {
               >
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
               </button>
+            )}
+            {nfEligible && (
+              nfStatus === "enviada" ? (
+                <button
+                  className="text-[11px] font-semibold h-7 px-3 rounded-md bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/invoices?event=${item.event.id}`); }}
+                >
+                  Aprovar NF
+                </button>
+              ) : nfStatus === "devolvida" ? (
+                <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>
+              ) : nfStatus === "aprovada" ? null : (
+                <span className="text-[10px] text-slate-400 border border-dashed border-gray-200 rounded-md px-2 py-1">Aguardando NF</span>
+              )
             )}
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
