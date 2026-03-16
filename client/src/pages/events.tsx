@@ -151,7 +151,7 @@ export default function Events() {
       const t = searchTerm.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    if (statusFilter === "default") list = list.filter(e => e.status !== "excluído" && e.status !== "concluído");
+    if (statusFilter === "default") list = list.filter(e => getEventStatus(e) === "planejado" || getEventStatus(e) === "em andamento");
     else if (statusFilter === "active") list = list.filter(e => e.status !== "excluído");
     else if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
     if (dateFilter) {
