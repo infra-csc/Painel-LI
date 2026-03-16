@@ -1170,20 +1170,29 @@ export default function RhControlPage() {
 
       {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg border-l-2 border-l-amber-400 border border-amber-100 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
+        <div className="flex items-center justify-between gap-4 px-4 py-3.5 rounded-lg border-l-4 border-l-orange-400 border border-amber-100 dark:border-amber-900 bg-amber-50/70 dark:bg-amber-950/20">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              <span className="font-bold text-orange-500">{rhActionCount}</span>
+              {" "}pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
             </p>
-            <div className="flex items-center gap-2 mt-1.5">
-              <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden max-w-[160px]">
-                <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden max-w-[200px]">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${progressPct}%`,
+                    background: "linear-gradient(to right, #ef4444, #f97316, #10b981)",
+                  }}
+                />
               </div>
-              <span className="text-[10px] text-slate-400">{progressPct}% concluído</span>
+              <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                {concludedCount} de {totalForProgress} concluído{concludedCount !== 1 ? 's' : ''}
+              </span>
             </div>
           </div>
           <button
-            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors shrink-0"
+            className="text-xs font-semibold px-3 py-1.5 rounded-md border border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30 transition-colors shrink-0"
             onClick={() => {
               setFilterStatus("rh_action");
               setShowConcluded(false);
