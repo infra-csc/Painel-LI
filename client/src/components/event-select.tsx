@@ -79,6 +79,16 @@ export function EventSelect({ value, onValueChange, events, className }: EventSe
   );
 }
 
+function fmtEventDate(start?: string, end?: string) {
+  if (!start) return "";
+  const fmt = (d: string) => {
+    const [y, m, day] = d.split("-");
+    return `${day}/${m}/${y}`;
+  };
+  if (!end || end === start) return fmt(start);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 export function EventSearchSelect({ value, onValueChange, events, className }: EventSelectProps) {
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
@@ -91,7 +101,8 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sorted;
-    return sorted.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+    const q = search.toLowerCase();
+    return sorted.filter(e => e.name.toLowerCase().includes(q));
   }, [sorted, search]);
 
   function updateRect() {
@@ -113,10 +124,15 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     setSearch("");
   }
 
+  function handleClear(e: React.MouseEvent) {
+    e.stopPropagation();
+    onValueChange("");
+  }
+
   useEffect(() => {
     if (!isOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
+    function handleClickOutside(ev: MouseEvent) {
+      const target = ev.target as Node;
       const portal = document.getElementById("event-search-portal");
       if (
         containerRef.current && !containerRef.current.contains(target) &&
@@ -144,91 +160,117 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
         position: 'absolute',
         top: dropdownRect.top,
         left: dropdownRect.left,
-        width: dropdownRect.width,
+        width: Math.max(dropdownRect.width, 300),
         zIndex: 9999,
         background: '#fff',
         border: '1px solid #E2E8F0',
-        borderRadius: 10,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
-        maxHeight: 220,
-        overflowY: 'auto',
+        borderRadius: 12,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.13)',
+        overflow: 'hidden',
       }}
     >
-      {filtered.length === 0 ? (
-        <div style={{ padding: '14px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
-          Nenhum evento encontrado
-        </div>
-      ) : (
-        filtered.map((event, i) => (
+      {/* Search bar inside dropdown */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid #F1F5F9' }}>
+        <Search style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
+        <input
+          ref={inputRef}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar evento..."
+          style={{
+            flex: 1, fontSize: 13, outline: 'none', border: 'none',
+            background: 'transparent', color: '#1E293B',
+          }}
+        />
+        {search && (
           <button
-            key={event.id}
-            onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-              padding: '10px 14px', border: 'none',
-              background: event.id === value ? '#EEF2FF' : 'transparent',
-              cursor: 'pointer', fontSize: 14,
-              color: event.id === value ? '#3B5BDB' : '#1E293B',
-              textAlign: 'left', fontWeight: event.id === value ? 600 : 400,
-              borderBottom: i < filtered.length - 1 ? '1px solid #F1F5F9' : 'none',
-            }}
-            onMouseEnter={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
-            onMouseLeave={e => { if (event.id !== value) (e.currentTarget as HTMLElement).style.background = event.id === value ? '#EEF2FF' : 'transparent'; }}
+            onMouseDown={e => { e.preventDefault(); setSearch(""); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center' }}
           >
-            <Calendar style={{ width: 15, height: 15, color: event.id === value ? '#3B5BDB' : '#94A3B8', flexShrink: 0 }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.name}</span>
+            <X style={{ width: 13, height: 13 }} />
           </button>
-        ))
-      )}
+        )}
+      </div>
+      {/* List */}
+      <div style={{ maxHeight: 252, overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+            Nenhum evento encontrado
+          </div>
+        ) : (
+          filtered.map((event, i) => {
+            const isSelected = event.id === value;
+            return (
+              <button
+                key={event.id}
+                onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '9px 14px', border: 'none',
+                  background: isSelected ? '#F5F3FF' : 'transparent',
+                  cursor: 'pointer', textAlign: 'left',
+                  borderBottom: i < filtered.length - 1 ? '1px solid #F8FAFC' : 'none',
+                }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <Calendar style={{ width: 14, height: 14, color: isSelected ? '#7C3AED' : '#94A3B8', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: isSelected ? 600 : 400,
+                    color: isSelected ? '#7C3AED' : '#1E293B',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {event.name}
+                  </div>
+                  {(event.startDate || event.endDate) && (
+                    <div style={{ fontSize: 11, color: isSelected ? '#A78BFA' : '#94A3B8', marginTop: 1 }}>
+                      {fmtEventDate(event.startDate, event.endDate)}
+                    </div>
+                  )}
+                </div>
+                {isSelected && (
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', flexShrink: 0 }} />
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>,
     document.body
   );
 
   return (
     <div ref={containerRef} style={{ position: 'relative', minWidth: 280 }} className={className}>
-      {/* Trigger button */}
-      {!isOpen ? (
-        <button
-          onClick={handleOpen}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 14px',
-            width: '100%', border: '1px solid #CBD5E1', borderRadius: 8,
-            background: '#fff', cursor: 'pointer', fontSize: 14,
-            color: value && selectedEvent ? '#1E293B' : '#94A3B8',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-          }}
-        >
-          <Calendar style={{ width: 16, height: 16, color: '#3B5BDB', flexShrink: 0 }} />
-          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: value ? 500 : 400 }}>
-            {selectedEvent ? selectedEvent.name : 'Selecionar evento'}
-          </span>
+      {/* Trigger */}
+      <button
+        onClick={handleOpen}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 12px',
+          width: '100%', border: isOpen ? '1px solid #7C3AED' : '1px solid #CBD5E1',
+          borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14,
+          color: selectedEvent ? '#1E293B' : '#94A3B8',
+          boxShadow: isOpen ? '0 0 0 3px rgba(124,58,237,0.1)' : '0 1px 3px rgba(0,0,0,0.06)',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      >
+        <Search style={{ width: 14, height: 14, color: isOpen ? '#7C3AED' : '#94A3B8', flexShrink: 0 }} />
+        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: selectedEvent ? 500 : 400 }}>
+          {selectedEvent ? selectedEvent.name : 'Selecionar evento'}
+        </span>
+        {selectedEvent ? (
+          <button
+            onMouseDown={e => { e.preventDefault(); }}
+            onClick={handleClear}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+          >
+            <X style={{ width: 14, height: 14 }} />
+          </button>
+        ) : (
           <ChevronDown style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
-        </button>
-      ) : (
-        /* Search input */
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search style={{ position: 'absolute', left: 12, width: 15, height: 15, color: '#94A3B8', pointerEvents: 'none' }} />
-          <input
-            ref={inputRef}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar evento..."
-            style={{
-              width: '100%', height: 44, paddingLeft: 36, paddingRight: search ? 36 : 14,
-              border: '1px solid #3B5BDB', borderRadius: 8, fontSize: 14, outline: 'none',
-              boxShadow: '0 0 0 3px rgba(59,91,219,0.1)', color: '#1E293B', background: '#fff',
-            }}
-          />
-          {search && (
-            <button
-              onMouseDown={e => { e.preventDefault(); setSearch(""); }}
-              style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center' }}
-            >
-              <X style={{ width: 15, height: 15 }} />
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </button>
 
       {dropdown}
     </div>

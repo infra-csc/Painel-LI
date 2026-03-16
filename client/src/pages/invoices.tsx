@@ -4,9 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { isRhOrAdmin } from "@/lib/permissions";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { EventSearchSelect } from "@/components/event-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,16 +101,12 @@ export default function InvoicesPage() {
             <p className="text-xs text-gray-400 mt-0.5 ml-10">Envio e aprovação de notas por colaborador</p>
           </div>
           {eventsWithCnpj.length > 0 && (
-            <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-              <SelectTrigger className="w-72 rounded-xl border-gray-200 text-sm">
-                <SelectValue placeholder="Selecionar evento..." />
-              </SelectTrigger>
-              <SelectContent>
-                {eventsWithCnpj.map((ev: any) => (
-                  <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EventSearchSelect
+              value={selectedEventId}
+              onValueChange={setSelectedEventId}
+              events={eventsWithCnpj}
+              className="w-72"
+            />
           )}
         </div>
 

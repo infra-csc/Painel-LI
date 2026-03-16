@@ -19,7 +19,7 @@ import {
   AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { EventSelect, EventSelectCTA } from "@/components/event-select";
+import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -447,9 +447,7 @@ export default function BudgetComparisonPage() {
             <p className="text-xs text-gray-400 mt-0.5">Análise e aprovação do RH para faturamento</p>
           </div>
         </div>
-        {selectedEventId && (
-          <EventSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
-        )}
+        <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
       </div>
 
       {/* ── No event selected ── */}
@@ -462,7 +460,9 @@ export default function BudgetComparisonPage() {
           <p className="text-emerald-600/70 dark:text-emerald-400/70 text-sm max-w-md mx-auto mb-6">
             Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
           </p>
-          <EventSelectCTA value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} accentColor="emerald" />
+          <div className="flex justify-center">
+            <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} className="w-80" />
+          </div>
         </div>
       )}
 
