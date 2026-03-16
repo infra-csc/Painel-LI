@@ -318,6 +318,14 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
   const [newSendMode, setNewSendMode] = useState(false);
   const newFileRef = useRef<HTMLInputElement>(null);
 
+  // clearedAttachment: user explicitly removed the existing attached URL (canEdit rows)
+  const [clearedAttachment, setClearedAttachment] = useState(false);
+  function removeAttachment() {
+    setFile(null);
+    setClearedAttachment(true);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
   const name = getName(actual.collaboratorId);
   const funcName = getFuncName(actual.functionId);
@@ -329,9 +337,10 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      // For newSendMode (recusada → fresh submit), always start with empty URL
-      let attachmentUrl = (status === "recusada" && newSendMode) ? "" : (invoice?.attachmentUrl || "");
-      let attachmentName = (status === "recusada" && newSendMode) ? "" : (invoice?.attachmentName || "");
+      // For newSendMode or clearedAttachment, start with empty URL to force new upload
+      const forceClear = (status === "recusada" && newSendMode) || clearedAttachment;
+      let attachmentUrl = forceClear ? "" : (invoice?.attachmentUrl || "");
+      let attachmentName = forceClear ? "" : (invoice?.attachmentName || "");
 
       if (file) {
         setUploading(true);
@@ -446,21 +455,34 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
         <td className="px-4 py-4">
           {canEdit ? (
             <div>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all"
-              >
-                {file ? (
-                  <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
-                ) : invoice?.attachmentUrl ? (
-                  <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
-                ) : (
-                  <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
+                >
+                  {file ? (
+                    <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
+                  ) : invoice?.attachmentUrl && !clearedAttachment ? (
+                    <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
+                  ) : (
+                    <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
+                  )}
+                </button>
+                {/* ✕ remove — only when there's something to remove */}
+                {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
+                  <button
+                    type="button"
+                    onClick={removeAttachment}
+                    title="Remover arquivo"
+                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
-              </button>
+              </div>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-              {invoice?.attachmentUrl && !file && (
+              {invoice?.attachmentUrl && !file && !clearedAttachment && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
                   className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-blue-500 hover:underline">
                   <Eye className="w-2.5 h-2.5" /> Ver atual
@@ -583,17 +605,29 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
                       Nova nota em anexo <span className="text-red-400">*</span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => newFileRef.current?.click()}
-                      className="w-full h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all"
-                    >
-                      {file ? (
-                        <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
-                      ) : (
-                        <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => newFileRef.current?.click()}
+                        className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
+                      >
+                        {file ? (
+                          <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
+                        ) : (
+                          <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
+                        )}
+                      </button>
+                      {file && (
+                        <button
+                          type="button"
+                          onClick={() => { setFile(null); if (newFileRef.current) newFileRef.current.value = ""; }}
+                          title="Remover arquivo"
+                          className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       )}
-                    </button>
+                    </div>
                     <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
                   </div>
                 </div>
