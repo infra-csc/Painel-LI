@@ -520,7 +520,7 @@ export default function RhControlPage() {
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
-  const rhActionCount = rhReceivedCount + rhPlanPendingCount + invoiceCounts.enviada;
+  const rhActionCount = rhReceivedCount + rhPlanPendingCount;
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     if (item.status === "planejamento_pendente") return 0;
