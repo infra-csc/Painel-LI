@@ -1086,7 +1086,14 @@ export default function RhControlPage() {
         const cardBase = "relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 overflow-hidden flex flex-col";
         const strip = "absolute top-0 left-0 right-0 h-1 rounded-t-xl";
         const bigNum = "text-4xl font-bold tabular-nums mt-1 mb-2";
-        const sub = "text-[11px] text-slate-400 leading-relaxed";
+        const sub = "flex flex-wrap gap-x-1 gap-y-0.5 text-[11px] text-slate-400 leading-relaxed";
+        const dot = <span className="text-slate-300 select-none"> ·</span>;
+        const metric = (label: string, val: number, accentCls: string, last = false) => (
+          <span key={label} className="whitespace-nowrap">
+            <span className={val > 0 ? accentCls : ""}>{val} {label}</span>
+            {!last && dot}
+          </span>
+        );
 
         return (
           <div className="grid grid-cols-4 gap-4">
@@ -1100,13 +1107,11 @@ export default function RhControlPage() {
               <div className={`${bigNum} text-red-600 dark:text-red-400`}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : rhTotal}
               </div>
-              <p className={sub}>
-                <span className={rhPlan > 0 ? "font-medium text-red-500" : ""}>{rhPlan} Planejamento</span>
-                {" · "}
-                <span className={rhComp > 0 ? "font-medium text-red-500" : ""}>{rhComp} Comparativo</span>
-                {" · "}
-                <span className={rhNf > 0 ? "font-medium text-red-500" : ""}>{rhNf} Nota Fiscal</span>
-              </p>
+              <div className={sub}>
+                {metric("Planejamento", rhPlan, "font-medium text-red-500")}
+                {metric("Comparativo", rhComp, "font-medium text-red-500")}
+                {metric("Nota Fiscal", rhNf, "font-medium text-red-500", true)}
+              </div>
             </div>
 
             {/* Card 2 — Aguardando Colaborador */}
@@ -1119,13 +1124,11 @@ export default function RhControlPage() {
               <div className={`${bigNum} text-blue-600 dark:text-blue-400`}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : colTotal}
               </div>
-              <p className={sub}>
-                <span className={colReal > 0 ? "font-medium text-blue-500" : ""}>{colReal} Realizado</span>
-                {" · "}
-                <span className={colNfDev > 0 ? "font-medium text-blue-500" : ""}>{colNfDev} NF devolvida</span>
-                {" · "}
-                <span className={colNfPend > 0 ? "font-medium text-blue-500" : ""}>{colNfPend} Ag. NF</span>
-              </p>
+              <div className={sub}>
+                {metric("Realizado", colReal, "font-medium text-blue-500")}
+                {metric("NF devolvida", colNfDev, "font-medium text-blue-500")}
+                {metric("Ag. NF", colNfPend, "font-medium text-blue-500", true)}
+              </div>
             </div>
 
             {/* Card 3 — Em andamento */}
@@ -1138,11 +1141,10 @@ export default function RhControlPage() {
               <div className={`${bigNum} text-amber-600 dark:text-amber-400`}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : emAndamento}
               </div>
-              <p className={sub}>
-                <span>{statusCounts.aguardando_prestacao || 0} Ag. realização</span>
-                {" · "}
-                <span>{invoiceCounts.enviada} NF em análise</span>
-              </p>
+              <div className={sub}>
+                {metric("Ag. realização", statusCounts.aguardando_prestacao || 0, "font-medium text-amber-600")}
+                {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600", true)}
+              </div>
             </div>
 
             {/* Card 4 — Concluídos */}
@@ -1155,10 +1157,12 @@ export default function RhControlPage() {
               <div className={`${bigNum} text-emerald-600 dark:text-emerald-400`}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : concludedCount}
               </div>
-              <p className={sub}>
-                <span>de {totalForProgress} total</span>
-                {recusada > 0 && <span className="text-red-400 ml-1">· {recusada} recusado{recusada !== 1 ? "s" : ""}</span>}
-              </p>
+              <div className={sub}>
+                <span className="whitespace-nowrap">de {totalForProgress} total</span>
+                {recusada > 0 && (
+                  <span className="whitespace-nowrap text-red-400">{dot}{recusada} recusado{recusada !== 1 ? "s" : ""}</span>
+                )}
+              </div>
             </div>
           </div>
         );
