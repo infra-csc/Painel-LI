@@ -347,7 +347,7 @@ export default function RhControlPage() {
           // Still show aprovada_faturamento items that have pending NF action
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
-          const hasNfPending = item.status === "aprovada_faturamento" && (invStatus === "pendente" || invStatus === "devolvida");
+          const hasNfPending = item.status === "aprovada_faturamento" && (invStatus === "pendente" || invStatus === "enviada" || invStatus === "devolvida");
           if (!hasNfPending) return false;
         }
       }
@@ -1120,7 +1120,7 @@ export default function RhControlPage() {
               <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
               { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
@@ -1131,12 +1131,12 @@ export default function RhControlPage() {
               return (
                 <button key={label}
                   onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
-                  className={`rounded-lg border p-2 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
                 >
-                  <span className={`text-lg font-bold tabular-nums block mb-0.5 ${numCls}`}>
-                    {isLoading ? <span className="inline-block w-4 h-4 bg-gray-200 rounded animate-pulse" /> : value}
+                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
+                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
                   </span>
-                  <span className="text-[9px] leading-tight text-slate-400 block">{label}</span>
+                  <span className="text-[10px] text-slate-400">{label}</span>
                 </button>
               );
             })}
