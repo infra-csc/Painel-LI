@@ -29,12 +29,12 @@ function fmtDate(d?: string | null) {
   const [y, m, day] = d.split("-");
   return `${day}/${m}/${y}`;
 }
-const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: any }> = {
-  pendente:  { label: "Pendente",          cls: "bg-gray-100 text-gray-500",   icon: Clock },
-  enviada:   { label: "Aguardando RH",     cls: "bg-amber-50 text-amber-600 ring-1 ring-amber-200",  icon: Send },
-  aprovada:  { label: "Aprovada",          cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", icon: CheckCircle2 },
-  devolvida: { label: "Devolvida",         cls: "bg-orange-50 text-orange-600 ring-1 ring-orange-200", icon: RotateCcw },
-  recusada:  { label: "Recusada",          cls: "bg-red-50 text-red-600 ring-1 ring-red-200", icon: XCircle },
+const STATUS_CONFIG: Record<string, { label: string; cls: string; border: string; icon: any }> = {
+  pendente:  { label: "Pendente",      cls: "bg-gray-100 text-gray-500",                                border: "border-gray-100 dark:border-gray-700",   icon: Clock },
+  enviada:   { label: "Aguardando RH", cls: "bg-amber-50 text-amber-600 ring-1 ring-amber-200",         border: "border-amber-200 dark:border-amber-700", icon: Send },
+  aprovada:  { label: "Aprovada",      cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",   border: "border-emerald-200 dark:border-emerald-700", icon: CheckCircle2 },
+  devolvida: { label: "Devolvida",     cls: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",      border: "border-orange-300 dark:border-orange-700", icon: RotateCcw },
+  recusada:  { label: "Recusada",      cls: "bg-red-50 text-red-600 ring-1 ring-red-200",               border: "border-red-200 dark:border-red-700",     icon: XCircle },
 };
 
 // ── main page ────────────────────────────────────────────────────────────────
@@ -50,9 +50,7 @@ export default function InvoicesPage() {
 
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
-  // Apenas eventos com CNPJ cadastrado aparecem no seletor
   const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
-  const eventsWithoutCnpj = activeEvents.filter((e: any) => !e.paymentCompanyCnpj?.trim());
   const selectedEvent = eventsWithCnpj.find((e: any) => e.id === selectedEventId);
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
@@ -73,7 +71,6 @@ export default function InvoicesPage() {
   const getName = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.name || "—";
   const getFuncName = (id?: string | null) => (functions as any[]).find(f => f.id === id)?.name || "—";
 
-  // Budget actuals approved by RH → eligible for invoice
   const approvedActuals = (budgetActuals as any[]).filter(
     a => a.rhStatus === "aprovado" && !a.splitParentId
   );
@@ -81,14 +78,21 @@ export default function InvoicesPage() {
   const getInvoice = (actualId: string) =>
     (invoices as any[]).find(inv => inv.budgetActualId === actualId);
 
+  const pendingCount = approvedActuals.filter(a => {
+    const inv = getInvoice(a.id);
+    return !inv || inv.status === "pendente" || inv.status === "devolvida";
+  }).length;
+
+  const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada").length;
+
   const tabs = [
-    { id: "lancamento" as const, label: "Lançamento" },
-    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH" }] : []),
+    { id: "lancamento" as const, label: "Lançamento", count: pendingCount, countCls: "bg-amber-100 text-amber-700" },
+    ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-orange-100 text-orange-700" }] : []),
   ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="max-w-5xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -110,21 +114,20 @@ export default function InvoicesPage() {
           )}
         </div>
 
-        {/* Banner informativo — sempre visível */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 flex items-start gap-3">
-          <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-            Apenas eventos com empresa pagadora cadastrada aparecem aqui. Para adicionar um evento, acesse o{" "}
+        {/* Banner informativo */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2 flex items-center gap-2">
+          <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Apenas eventos com empresa pagadora aparecem aqui.{" "}
             <Link href="/events">
               <a className="font-semibold underline underline-offset-2 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">
-                cadastro do evento
+                Cadastre no evento
               </a>
             </Link>
-            {" "}e preencha os campos de <strong>Empresa</strong> e <strong>CNPJ</strong> responsável pelo pagamento.
+            {" "}os campos de Empresa e CNPJ responsável pelo pagamento.
           </p>
         </div>
 
-        {/* Estado vazio: nenhum evento com CNPJ */}
         {eventsWithCnpj.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
@@ -150,17 +153,17 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <>
-            {/* Empresa pagadora info */}
+            {/* Empresa pagadora — compact one-liner */}
             {selectedEvent?.paymentCompanyName && (
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl px-4 py-3 flex items-center gap-3">
-                <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                  <span className="font-semibold">Empresa responsável pelo pagamento:</span>{" "}
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl px-3 py-2 flex items-center gap-2">
+                <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  <span className="font-semibold">Empresa pagadora:</span>{" "}
                   {selectedEvent.paymentCompanyName}
                   {selectedEvent.paymentCompanyCnpj && (
-                    <span className="text-emerald-500 ml-1">(CNPJ: {selectedEvent.paymentCompanyCnpj})</span>
+                    <span className="text-emerald-500 ml-1">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
                   )}
-                </div>
+                </p>
               </div>
             )}
 
@@ -170,21 +173,16 @@ export default function InvoicesPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     activeTab === tab.id
                       ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
                       : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                   }`}
                 >
                   {tab.label}
-                  {tab.id === "lancamento" && approvedActuals.length > 0 && (
-                    <span className="ml-2 bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full text-[10px]">
-                      {approvedActuals.length}
-                    </span>
-                  )}
-                  {tab.id === "aprovacao" && (
-                    <span className="ml-2 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px]">
-                      {(invoices as any[]).filter(i => i.status === "enviada").length}
+                  {tab.count > 0 && (
+                    <span className={`${tab.countCls} px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none`}>
+                      {tab.count}
                     </span>
                   )}
                 </button>
@@ -237,7 +235,7 @@ function LancamentoTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {approvedActuals.map((actual: any) => {
         const invoice = getInvoice(actual.id);
         return (
@@ -260,13 +258,14 @@ function LancamentoTab({
 
 // ── Collaborator Invoice Card ──────────────────────────────────────────────
 function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
-  const [expanded, setExpanded] = useState(!invoice || invoice.status === "devolvida");
+  const status = invoice?.status || "pendente";
+  // Only auto-expand when devolvida (needs attention); everything else starts collapsed
+  const [expanded, setExpanded] = useState(status === "devolvida");
   const [oc, setOc] = useState(invoice?.oc || "");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const status = invoice?.status || "pendente";
   const StatusIcon = STATUS_CONFIG[status]?.icon || Clock;
   const name = getName(actual.collaboratorId);
   const funcName = getFuncName(actual.functionId);
@@ -324,162 +323,215 @@ function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, select
   });
 
   const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
+  const borderCls = STATUS_CONFIG[status]?.border || "border-gray-100 dark:border-gray-700";
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all ${
-      status === "aprovada" ? "border-emerald-200" :
-      status === "devolvida" ? "border-orange-200" :
-      status === "recusada" ? "border-red-200" :
-      status === "enviada" ? "border-amber-200" :
-      "border-gray-100 dark:border-gray-700"
-    }`}>
-      {/* Card Header */}
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border transition-all ${borderCls}`}>
+      {/* ── Compact Header ── */}
       <div
-        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
         onClick={() => setExpanded(e => !e)}
       >
-        <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-          <span className="text-sm font-bold text-gray-500">{name.charAt(0)}</span>
+        {/* Avatar */}
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
+          status === "aprovada" ? "bg-emerald-100 text-emerald-700" :
+          status === "devolvida" ? "bg-orange-100 text-orange-600" :
+          status === "enviada" ? "bg-amber-100 text-amber-700" :
+          "bg-gray-100 dark:bg-gray-700 text-gray-500"
+        }`}>
+          {name.charAt(0)}
         </div>
+
+        {/* Name · func · value */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{name}</p>
-          <p className="text-[10px] text-gray-400">{funcName} · {formatCurrency(actual.totalValue)}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{name}</span>
+            <span className="text-gray-300 dark:text-gray-600 text-xs">·</span>
+            <span className="text-xs text-gray-400 truncate">{funcName}</span>
+            <span className="text-gray-300 dark:text-gray-600 text-xs">·</span>
+            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(actual.totalValue)}</span>
+          </div>
+          {/* Sub-info when collapsed: OC + file */}
+          {!expanded && invoice?.oc && (
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[10px] text-gray-400 font-mono">OC: {invoice.oc}</span>
+              {invoice?.attachmentUrl && (
+                <span className="text-[10px] text-blue-500 flex items-center gap-0.5">
+                  <Paperclip className="w-2.5 h-2.5" />
+                  {invoice.attachmentName || "Nota em anexo"}
+                </span>
+              )}
+              {status === "aprovada" && invoice?.paymentDate && (
+                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                  <Calendar className="w-2.5 h-2.5" />
+                  {fmtDate(invoice.paymentDate)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        <Badge className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_CONFIG[status]?.cls}`}>
-          <StatusIcon className="w-3 h-3 mr-1 inline" />
+
+        {/* Status badge */}
+        <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_CONFIG[status]?.cls}`}>
+          <StatusIcon className="w-3 h-3" />
           {STATUS_CONFIG[status]?.label}
-        </Badge>
-        {status === "aprovada" && invoice?.paymentDate && (
-          <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 shrink-0">
-            <Calendar className="w-3 h-3" />
-            Pagamento: {fmtDate(invoice.paymentDate)}
-          </span>
-        )}
-        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+        </span>
+
+        {/* Expand arrow */}
+        {expanded
+          ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          : <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        }
       </div>
 
-      {/* Expanded */}
+      {/* ── Expanded Content ── */}
       {expanded && (
-        <div className="px-4 pb-4 pt-0 space-y-3 border-t border-gray-50 dark:border-gray-700">
-          {/* Return comment */}
+        <div className="px-4 pb-4 pt-0 space-y-3 border-t border-gray-50 dark:border-gray-700/60">
+
+          {/* Return comment (devolvida) */}
           {status === "devolvida" && invoice?.returnComment && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl px-3 py-2.5 flex items-start gap-2">
+            <div className="mt-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
               <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] font-semibold text-orange-600 mb-0.5">Devolvida para ajuste</p>
-                <p className="text-xs text-orange-700">{invoice.returnComment}</p>
+                <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
+                <p className="text-xs text-orange-700 dark:text-orange-300">{invoice.returnComment}</p>
               </div>
             </div>
           )}
+
+          {/* Recusada comment */}
           {status === "recusada" && invoice?.returnComment && (
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl px-3 py-2.5 flex items-start gap-2">
+            <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
               <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] font-semibold text-red-600 mb-0.5">Nota recusada</p>
-                <p className="text-xs text-red-700">{invoice.returnComment}</p>
+                <p className="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Nota recusada</p>
+                <p className="text-xs text-red-700 dark:text-red-300">{invoice.returnComment}</p>
               </div>
             </div>
           )}
 
-          {/* Existing attachment preview */}
-          {invoice?.attachmentUrl && !canEdit && (
-            <a
-              href={invoice.attachmentUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-xs text-blue-600 hover:underline"
-            >
-              <Paperclip className="w-3.5 h-3.5" />
-              {invoice.attachmentName || "Ver nota em anexo"}
-              <Eye className="w-3.5 h-3.5" />
-            </a>
-          )}
-
-          {canEdit && (
-            <div className="space-y-3 pt-1">
-              {/* OC */}
+          {/* Read-only view (enviada / aprovada / recusada) */}
+          {!canEdit && invoice?.attachmentUrl && (
+            <div className="mt-3 flex items-center gap-4 flex-wrap">
+              {invoice?.oc && (
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">OC</p>
+                  <p className="text-xs font-mono text-gray-700 dark:text-gray-200">{invoice.oc}</p>
+                </div>
+              )}
               <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">
-                  OC (Ordem de Compra) <span className="text-red-400">*</span>
-                </label>
-                <Input
-                  value={oc}
-                  onChange={e => setOc(e.target.value)}
-                  placeholder="Ex.: OC-2024-0123"
-                  className="h-9 text-sm rounded-xl border-gray-200"
-                />
-              </div>
-
-              {/* File upload */}
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">
-                  Nota em anexo <span className="text-red-400">*</span>
-                  <span className="text-gray-400 font-normal ml-1">(PDF ou imagem)</span>
-                </label>
-                <div
-                  className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/40 transition-all"
-                  onClick={() => fileRef.current?.click()}
+                <p className="text-[10px] text-gray-400 font-medium mb-0.5">Nota em anexo</p>
+                <a
+                  href={invoice.attachmentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
                 >
-                  {file ? (
-                    <div className="flex items-center justify-center gap-2 text-xs text-emerald-600">
-                      <FileCheck className="w-4 h-4" />
-                      <span className="font-medium">{file.name}</span>
-                    </div>
-                  ) : invoice?.attachmentUrl ? (
-                    <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
-                      <Paperclip className="w-4 h-4" />
-                      <span>{invoice.attachmentName || "Arquivo anexado"} — clique para substituir</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1.5">
-                      <Upload className="w-5 h-5 text-gray-300" />
-                      <p className="text-xs text-gray-400">Clique para selecionar arquivo</p>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="hidden"
-                  onChange={e => setFile(e.target.files?.[0] || null)}
-                />
+                  <Paperclip className="w-3 h-3" />
+                  {invoice.attachmentName || "Ver nota"}
+                  <Eye className="w-3 h-3" />
+                </a>
               </div>
-
-              {/* Payment text preview */}
-              {paymentText && (
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] text-gray-400 mb-1 font-medium">Texto gerado automaticamente na nota:</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 italic">{paymentText}</p>
+              {status === "aprovada" && invoice?.paymentDate && (
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Pagamento previsto</p>
+                  <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {fmtDate(invoice.paymentDate)}
+                  </p>
                 </div>
               )}
-
-              <Button
-                size="sm"
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white w-full shadow-sm"
-                onClick={() => submitMutation.mutate()}
-                disabled={submitMutation.isPending || uploading}
-              >
-                <Send className="w-3.5 h-3.5 mr-1.5" />
-                {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar nota" : "Enviar nota"}
-              </Button>
             </div>
           )}
 
-          {/* Approved info */}
+          {/* Edit form */}
+          {canEdit && (
+            <div className="mt-3 space-y-3">
+              {/* OC + Upload side by side */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* OC */}
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
+                    OC <span className="text-red-400">*</span>
+                  </label>
+                  <Input
+                    value={oc}
+                    onChange={e => setOc(e.target.value)}
+                    placeholder="Ex.: OC-2024-0123"
+                    className="h-8 text-xs rounded-lg border-gray-200"
+                  />
+                </div>
+
+                {/* File upload — compact */}
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
+                    Nota em anexo <span className="text-red-400">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full h-8 flex items-center gap-2 px-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10 transition-all"
+                  >
+                    {file ? (
+                      <>
+                        <FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate text-emerald-600 font-medium">{file.name}</span>
+                      </>
+                    ) : invoice?.attachmentUrl ? (
+                      <>
+                        <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{invoice.attachmentName || "Substituir arquivo"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 shrink-0" />
+                        <span>Selecionar arquivo</span>
+                      </>
+                    )}
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="hidden"
+                    onChange={e => setFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+              </div>
+
+              {/* Payment text — compact box */}
+              {paymentText && (
+                <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 flex items-start gap-2">
+                  <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 italic leading-relaxed">{paymentText}</p>
+                </div>
+              )}
+
+              {/* Submit button — right-aligned, not full width */}
+              <div className="flex justify-end pt-0.5">
+                <Button
+                  size="sm"
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-8 text-xs shadow-sm"
+                  onClick={() => submitMutation.mutate()}
+                  disabled={submitMutation.isPending || uploading}
+                >
+                  <Send className="w-3 h-3 mr-1.5" />
+                  {submitMutation.isPending || uploading
+                    ? "Enviando..."
+                    : status === "devolvida" ? "Reenviar nota" : "Enviar nota"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Approved info banner */}
           {status === "aprovada" && (
-            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2.5 space-y-1">
-              <p className="text-xs font-semibold text-emerald-700">Nota aprovada</p>
-              {invoice?.paymentDate && (
-                <p className="text-xs text-emerald-600">Data prevista de pagamento: <strong>{fmtDate(invoice.paymentDate)}</strong></p>
-              )}
-              {invoice?.oc && <p className="text-xs text-emerald-600">OC: <strong>{invoice.oc}</strong></p>}
-              {invoice?.attachmentUrl && (
-                <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs text-emerald-600 hover:underline mt-1">
-                  <Paperclip className="w-3 h-3" /> Ver nota anexada
-                </a>
-              )}
+            <div className="mt-1 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-lg px-3 py-2 flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                Nota aprovada
+                {invoice?.paymentDate && ` · Pagamento previsto em ${fmtDate(invoice.paymentDate)}`}
+              </p>
             </div>
           )}
         </div>
