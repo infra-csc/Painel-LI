@@ -17,8 +17,9 @@ import {
 import {
   FileText, Upload, CheckCircle2, RotateCcw, XCircle, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, Send, Eye
+  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info
 } from "lucide-react";
+import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -51,7 +52,10 @@ export default function InvoicesPage() {
 
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
-  const selectedEvent = (activeEvents as any[]).find(e => e.id === selectedEventId);
+  // Apenas eventos com CNPJ cadastrado aparecem no seletor
+  const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
+  const eventsWithoutCnpj = activeEvents.filter((e: any) => !e.paymentCompanyCnpj?.trim());
+  const selectedEvent = eventsWithCnpj.find((e: any) => e.id === selectedEventId);
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", selectedEventId],
@@ -100,20 +104,73 @@ export default function InvoicesPage() {
           </div>
           <Select value={selectedEventId} onValueChange={setSelectedEventId}>
             <SelectTrigger className="w-72 rounded-xl border-gray-200 text-sm">
-              <SelectValue placeholder="Selecionar evento..." />
+              <SelectValue placeholder={eventsWithCnpj.length === 0 ? "Nenhum evento com CNPJ" : "Selecionar evento..."} />
             </SelectTrigger>
             <SelectContent>
-              {(activeEvents as any[]).map((ev: any) => (
-                <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
-              ))}
+              {eventsWithCnpj.length === 0 ? (
+                <div className="px-3 py-4 text-center">
+                  <p className="text-xs text-gray-400">Nenhum evento com empresa pagadora cadastrada.</p>
+                </div>
+              ) : (
+                eventsWithCnpj.map((ev: any) => (
+                  <SelectItem key={ev.id} value={ev.id}>
+                    <span className="flex items-center gap-2">
+                      <Building2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                      {ev.name}
+                    </span>
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
 
+        {/* Aviso de eventos sem CNPJ */}
+        {eventsWithoutCnpj.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 flex items-start gap-3">
+            <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                {eventsWithoutCnpj.length} evento{eventsWithoutCnpj.length > 1 ? "s" : ""} sem empresa pagadora cadastrada
+              </p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                Para emitir notas fiscais, o evento precisa ter <strong>Nome da empresa</strong> e <strong>CNPJ</strong> preenchidos no cadastro.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {eventsWithoutCnpj.slice(0, 5).map((ev: any) => (
+                  <span key={ev.id} className="text-[10px] bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                    {ev.name}
+                  </span>
+                ))}
+                {eventsWithoutCnpj.length > 5 && (
+                  <span className="text-[10px] text-amber-500">+{eventsWithoutCnpj.length - 5} outros</span>
+                )}
+              </div>
+            </div>
+            <Link href="/events">
+              <a className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 hover:text-amber-700 whitespace-nowrap mt-0.5 shrink-0 hover:underline">
+                <ExternalLink className="w-3.5 h-3.5" />
+                Cadastrar CNPJ
+              </a>
+            </Link>
+          </div>
+        )}
+
         {!selectedEventId ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
-            <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
+            <Building2 className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 font-medium">Selecione um evento para gerenciar as notas fiscais</p>
+            <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+              Apenas eventos com <strong>empresa pagadora</strong> (CNPJ) cadastrada aparecem no seletor acima.
+            </p>
+            {eventsWithCnpj.length === 0 && (
+              <Link href="/events">
+                <a className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Ir para cadastro de eventos
+                </a>
+              </Link>
+            )}
           </div>
         ) : (
           <>
