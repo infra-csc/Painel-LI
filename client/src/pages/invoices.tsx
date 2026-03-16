@@ -588,28 +588,30 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
       {/* Legend */}
-      <div className="flex items-center justify-end gap-4 px-4 py-2.5 border-b border-gray-50 dark:border-gray-700/60">
-        {[
-          { color: "bg-amber-400",   label: "Aguardando" },
-          { color: "bg-emerald-500", label: "Aprovada" },
-          { color: "bg-orange-400",  label: "Devolvida" },
-          { color: "bg-red-500",     label: "Recusada" },
-        ].map(({ color, label }) => (
-          <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
-            {label}
-          </span>
-        ))}
+      <div className="flex items-center justify-end gap-1 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5">
+          {[
+            { color: "bg-amber-400",   label: "Aguardando" },
+            { color: "bg-emerald-500", label: "Aprovada" },
+            { color: "bg-orange-400",  label: "Devolvida" },
+            { color: "bg-red-500",     label: "Recusada" },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color}`} />
+              {label}
+            </span>
+          ))}
+        </div>
       </div>
 
       <table className="w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col />                              {/* Colaborador — flexível */}
-            <col style={{ width: "120px" }} />   {/* Função */}
-            <col style={{ width: "90px" }} />    {/* Valor */}
-            <col style={{ width: "105px" }} />   {/* OC */}
-            <col style={{ width: "95px" }} />    {/* Nota */}
-            <col style={{ width: "120px" }} />   {/* Ações */}
+            <col style={{ width: "250px" }} />   {/* Colaborador */}
+            <col style={{ width: "150px" }} />   {/* Função */}
+            <col style={{ width: "120px" }} />   {/* Valor */}
+            <col style={{ width: "130px" }} />   {/* OC */}
+            <col style={{ width: "130px" }} />   {/* Nota */}
+            <col />                              {/* Ações — toma o restante */}
           </colgroup>
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
@@ -647,10 +649,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-900/30 transition-colors ${isActiveRow ? "bg-gray-50 dark:bg-gray-900/20" : ""}`}
                   >
                     {/* Colaborador — bolinha de status + avatar + nome */}
-                    <td className="px-4 py-3.5 overflow-hidden">
+                    <td className="px-4 py-4 overflow-hidden">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${dotCls}`}
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotCls}`}
                           title={approvedDate}
                         />
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
@@ -670,33 +672,32 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     </td>
 
                     {/* Função */}
-                    <td className="px-4 py-3.5 overflow-hidden">
+                    <td className="px-4 py-4 overflow-hidden">
                       <span className="text-xs text-gray-500 truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
 
                     {/* Valor */}
-                    <td className="px-4 py-3.5 text-right">
+                    <td className="px-4 py-4 text-right">
                       <span className="text-sm font-semibold text-violet-600 dark:text-violet-400 tabular-nums whitespace-nowrap">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
 
                     {/* OC */}
-                    <td className="px-4 py-3.5 overflow-hidden">
+                    <td className="px-4 py-4 overflow-hidden">
                       <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate block">
                         {inv.oc || "—"}
                       </span>
                     </td>
 
                     {/* Nota */}
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       {inv.attachmentUrl ? (
                         <a
                           href={inv.attachmentUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Ver nota fiscal"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                           <FileText className="w-3.5 h-3.5" /> Ver nota
                         </a>
@@ -705,42 +706,42 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       )}
                     </td>
 
-                    {/* Ações — ícones com tooltip */}
-                    <td className="px-4 py-3.5">
+                    {/* Ações — ícone + texto curto */}
+                    <td className="px-4 py-4">
                       {inv.status === "enviada" && (
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openAction(inv, "approve")}
                             title="Aprovar nota"
-                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "approve"
                                 ? "bg-emerald-600 text-white"
                                 : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                             }`}
                           >
-                            <CheckCircle2 className="w-4 h-4" />
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
                           </button>
                           <button
                             onClick={() => openAction(inv, "return")}
                             title="Devolver para ajuste"
-                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "return"
                                 ? "bg-orange-500 text-white"
                                 : "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20"
                             }`}
                           >
-                            <RotateCcw className="w-4 h-4" />
+                            <RotateCcw className="w-3.5 h-3.5" /> Devolver
                           </button>
                           <button
                             onClick={() => openAction(inv, "reject")}
                             title="Recusar nota"
-                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "reject"
                                 ? "bg-red-500 text-white"
                                 : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                             }`}
                           >
-                            <XCircle className="w-4 h-4" />
+                            <XCircle className="w-3.5 h-3.5" /> Recusar
                           </button>
                         </div>
                       )}
