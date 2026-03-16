@@ -1174,9 +1174,6 @@ export default function RhControlPage() {
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
-              {invoiceCounts.enviada > 0 && (
-                <span className="ml-2 text-xs font-normal text-violet-600">· {invoiceCounts.enviada} NF{invoiceCounts.enviada !== 1 ? 's' : ''} para aprovar</span>
-              )}
             </p>
             <div className="flex items-center gap-2 mt-1.5">
               <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden max-w-[160px]">
