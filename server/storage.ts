@@ -23,7 +23,7 @@ import {
   type SystemSetting,
   type Invoice, type InsertInvoice
 } from "@shared/schema";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -266,7 +266,7 @@ export class MemStorage implements IStorage {
 
   // Events
   async getEvents(): Promise<Event[]> {
-    return Array.from(this.events.values());
+    return Array.from(this.events.values()).filter(e => e.status !== "excluído");
   }
 
   async getEvent(id: string): Promise<Event | undefined> {
@@ -274,8 +274,8 @@ export class MemStorage implements IStorage {
   }
 
   async getEventsWithInclusions(): Promise<Event[]> {
-    // Filtrar eventos que têm inclusões de equipe
-    const allEvents = Array.from(this.events.values());
+    // Filtrar eventos que têm inclusões de equipe (excluídos nunca aparecem)
+    const allEvents = Array.from(this.events.values()).filter(e => e.status !== "excluído");
     const eventsWithInclusions = [];
     
     for (const event of allEvents) {
@@ -837,7 +837,7 @@ export class DatabaseStorage implements IStorage {
 
   // Events
   async getEvents(): Promise<Event[]> {
-    return await db.select().from(events);
+    return await db.select().from(events).where(ne(events.status, "excluído"));
   }
 
   async getEvent(id: string): Promise<Event | undefined> {
@@ -846,23 +846,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEventsWithInclusions(): Promise<Event[]> {
-    // Buscar eventos que têm inclusões de equipe usando JOIN
+    // Buscar eventos que têm inclusões de equipe usando JOIN (excluídos nunca aparecem)
     const eventsWithTeamInclusions = await db
-      .selectDistinct({ 
-        id: events.id,
-        name: events.name,
-        location: events.location,
-        startDate: events.startDate,
-        endDate: events.endDate,
-        observations: events.observations,
-        eventNumber: events.eventNumber,
-        status: events.status,
-        createdAt: events.createdAt
-      })
+      .selectDistinct()
       .from(events)
-      .innerJoin(teamInclusions, eq(events.id, teamInclusions.eventId));
+      .innerJoin(teamInclusions, eq(events.id, teamInclusions.eventId))
+      .where(ne(events.status, "excluído"));
     
-    return eventsWithTeamInclusions;
+    return eventsWithTeamInclusions.map(row => (row as any).events ?? row) as Event[];
   }
 
   async createEvent(eventData: InsertEvent): Promise<Event> {
