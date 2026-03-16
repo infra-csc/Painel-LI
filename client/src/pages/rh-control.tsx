@@ -1052,7 +1052,8 @@ export default function RhControlPage() {
     const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
     return inv?.status === "aprovada";
   }).length;
-  const progressPct = totalItems > 0 ? Math.round(concludedCount / totalItems * 100) : 0;
+  const totalForProgress = prestacaoItems.filter(item => !item.planned?.didNotAttend).length;
+  const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
@@ -1067,142 +1068,101 @@ export default function RhControlPage() {
       </div>
 
       {/* ── Metric cards ── */}
-      <div className="grid grid-cols-4 gap-4">
-        {/* Card 1 — Pendências do RH */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Pendências do RH</span>
-            {rhActionCount > 0 && (
-              <span className="ml-auto text-[9px] font-bold text-red-600 bg-red-50 px-1 py-px rounded-full border border-red-100">{rhActionCount}</span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["planejamento_pendente", "prestacao_recebida"] as PrestacaoStatus[]).map(status => {
-              const cfg = statusConfig[status];
-              const count = statusCounts[status] || 0;
-              const isActive = filterStatus === status;
-              return (
-                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1` : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${count > 0 ? 'text-red-600' : 'text-slate-800 dark:text-slate-200'}`}>
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {(() => {
+        const rhPlan = statusCounts.planejamento_pendente || 0;
+        const rhComp = statusCounts.prestacao_recebida || 0;
+        const rhNf   = invoiceCounts.enviada;
+        const rhTotal = rhPlan + rhComp + rhNf;
 
-        {/* Card 2 — Em andamento (inclui sub-métrica Ag. Nota Fiscal) */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Em andamento</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["aguardando_prestacao", "devolvida_para_ajuste"] as PrestacaoStatus[]).map(status => {
-              const cfg = statusConfig[status];
-              const count = statusCounts[status] || 0;
-              const isActive = filterStatus === status;
-              return (
-                <button key={status} onClick={() => setFilterStatus(isActive ? "all" : status)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1` : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className="text-xl font-bold tabular-nums block mb-0.5 text-slate-800 dark:text-slate-200">
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{cfg.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        const colReal = (statusCounts.aguardando_prestacao || 0) + (statusCounts.devolvida_para_ajuste || 0);
+        const colNfDev = invoiceCounts.devolvida;
+        const colNfPend = invoiceCounts.pending;
+        const colTotal = colReal + colNfDev + colNfPend;
 
-        {/* Card 3 — Notas Fiscais */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Notas Fiscais</span>
-            {invoiceCounts.enviada > 0 && (
-              <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
-              { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
-              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: invoiceCounts.devolvida > 0 ? "text-orange-600" : "text-slate-800 dark:text-slate-200", filterVal: "devolvida" },
-              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: invoiceCounts.aprovada > 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200", filterVal: "aprovada" },
-            ].map(({ label, value, numCls, filterVal }) => {
-              const isActive = filterInvoiceStatus === filterVal;
-              return (
-                <button key={label}
-                  onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        const emAndamento = (statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada;
 
-        {/* Card 4 — Finalizadas (apenas NF aprovada conta como concluído) */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Finalizadas</span>
+        const recusada = statusCounts.recusada || 0;
+
+        const cardBase = "relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 overflow-hidden flex flex-col";
+        const strip = "absolute top-0 left-0 right-0 h-1 rounded-t-xl";
+        const bigNum = "text-4xl font-bold tabular-nums mt-1 mb-2";
+        const sub = "text-[11px] text-slate-400 leading-relaxed";
+
+        return (
+          <div className="grid grid-cols-4 gap-4">
+            {/* Card 1 — Aguardando RH */}
+            <div className={cardBase}>
+              <div className={`${strip} bg-red-500`} />
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400" />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Aguardando RH</span>
+              </div>
+              <div className={`${bigNum} text-red-600 dark:text-red-400`}>
+                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : rhTotal}
+              </div>
+              <p className={sub}>
+                <span className={rhPlan > 0 ? "font-medium text-red-500" : ""}>{rhPlan} Planejamento</span>
+                {" · "}
+                <span className={rhComp > 0 ? "font-medium text-red-500" : ""}>{rhComp} Comparativo</span>
+                {" · "}
+                <span className={rhNf > 0 ? "font-medium text-red-500" : ""}>{rhNf} Nota Fiscal</span>
+              </p>
+            </div>
+
+            {/* Card 2 — Aguardando Colaborador */}
+            <div className={cardBase}>
+              <div className={`${strip} bg-blue-500`} />
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Aguardando Colaborador</span>
+              </div>
+              <div className={`${bigNum} text-blue-600 dark:text-blue-400`}>
+                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : colTotal}
+              </div>
+              <p className={sub}>
+                <span className={colReal > 0 ? "font-medium text-blue-500" : ""}>{colReal} Realizado</span>
+                {" · "}
+                <span className={colNfDev > 0 ? "font-medium text-blue-500" : ""}>{colNfDev} NF devolvida</span>
+                {" · "}
+                <span className={colNfPend > 0 ? "font-medium text-blue-500" : ""}>{colNfPend} Ag. NF</span>
+              </p>
+            </div>
+
+            {/* Card 3 — Em andamento */}
+            <div className={cardBase}>
+              <div className={`${strip} bg-amber-400`} />
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Em andamento</span>
+              </div>
+              <div className={`${bigNum} text-amber-600 dark:text-amber-400`}>
+                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : emAndamento}
+              </div>
+              <p className={sub}>
+                <span>{statusCounts.aguardando_prestacao || 0} Ag. realização</span>
+                {" · "}
+                <span>{invoiceCounts.enviada} NF em análise</span>
+              </p>
+            </div>
+
+            {/* Card 4 — Concluídos */}
+            <div className={cardBase}>
+              <div className={`${strip} bg-emerald-500`} />
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Concluídos</span>
+              </div>
+              <div className={`${bigNum} text-emerald-600 dark:text-emerald-400`}>
+                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : concludedCount}
+              </div>
+              <p className={sub}>
+                <span>de {totalForProgress} total</span>
+                {recusada > 0 && <span className="text-red-400 ml-1">· {recusada} recusado{recusada !== 1 ? "s" : ""}</span>}
+              </p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {/* NF Aprovada — filtra aprovada_faturamento + NF aprovada */}
-            {(() => {
-              const isActive = filterStatus === "aprovada_faturamento" && filterInvoiceStatus === "aprovada";
-              return (
-                <button
-                  onClick={() => {
-                    if (isActive) {
-                      setFilterStatus("all");
-                      setFilterInvoiceStatus("all");
-                    } else {
-                      setFilterStatus("aprovada_faturamento");
-                      setFilterInvoiceStatus("aprovada");
-                      setShowConcluded(true);
-                    }
-                  }}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 ring-1 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className="text-xl font-bold tabular-nums block mb-0.5 text-slate-800 dark:text-slate-200">
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : concludedCount}
-                  </span>
-                  <span className="text-[10px] text-slate-400">NF Aprovada</span>
-                </button>
-              );
-            })()}
-            {/* Recusada */}
-            {(() => {
-              const cfg = statusConfig["recusada"];
-              const count = statusCounts["recusada"] || 0;
-              const isActive = filterStatus === "recusada";
-              return (
-                <button onClick={() => setFilterStatus(isActive ? "all" : "recusada")}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1` : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className="text-xl font-bold tabular-nums block mb-0.5 text-slate-800 dark:text-slate-200">
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : count}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{cfg.shortLabel}</span>
-                </button>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
