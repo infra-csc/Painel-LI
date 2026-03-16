@@ -113,6 +113,7 @@ export default function RhControlPage() {
   const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterCollaborator, setFilterCollaborator] = useState<string>("all");
+  const [filterInvoiceStatus, setFilterInvoiceStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showConcluded, setShowConcluded] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
@@ -139,8 +140,12 @@ export default function RhControlPage() {
   const { data: allActual, isLoading: loadingActual } = useQuery<BudgetActual[]>({
     queryKey: ["/api/budget-actual"],
   });
+  const { data: allInvoices = [] } = useQuery<any[]>({ queryKey: ["/api/invoices"] });
 
   const isLoading = loadingPlanned || loadingActual || loadingInclusions;
+
+  const getInvoiceForActual = (actualId: string | undefined): any | undefined =>
+    actualId ? (allInvoices as any[]).find((inv: any) => inv.budgetActualId === actualId) : undefined;
 
   const getCollaboratorName = (id?: string | null) =>
     id ? collaborators?.find(c => c.id === id)?.fullName || "-" : "-";
@@ -310,6 +315,18 @@ export default function RhControlPage() {
     return counts;
   }, [prestacaoItems]);
 
+  const invoiceCounts = useMemo(() => {
+    const approvedActuals = (allActual || []).filter(a => a.rhStatus === "aprovado");
+    const approvedIds = new Set(approvedActuals.map(a => a.id));
+    const relevant = (allInvoices as any[]).filter(inv => approvedIds.has(inv.budgetActualId));
+    const enviada  = relevant.filter(inv => inv.status === "enviada").length;
+    const devolvida = relevant.filter(inv => inv.status === "devolvida").length;
+    const aprovada  = relevant.filter(inv => inv.status === "aprovada").length;
+    const sentIds   = new Set(relevant.filter(inv => inv.status !== "pendente").map(inv => inv.budgetActualId));
+    const pending   = approvedActuals.filter(a => !sentIds.has(a.id)).length;
+    return { pending, enviada, devolvida, aprovada };
+  }, [allActual, allInvoices]);
+
   const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
   const filteredItems = useMemo(() => {
@@ -325,13 +342,19 @@ export default function RhControlPage() {
       if (filterFunction !== "all" && item.functionId !== filterFunction) return false;
       if (filterCollaborator === "a_definir" && item.collaboratorId) return false;
       if (filterCollaborator === "definido" && !item.collaboratorId) return false;
+      if (filterInvoiceStatus !== "all") {
+        if (!item.actual || item.actual.rhStatus !== "aprovado") return false;
+        const inv = getInvoiceForActual(item.actual.id);
+        const invStatus = inv?.status || "pendente";
+        if (invStatus !== filterInvoiceStatus) return false;
+      }
       if (searchTerm) {
         const name = getCollaboratorName(item.collaboratorId).toLowerCase();
         if (!name.includes(searchTerm.toLowerCase())) return false;
       }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, searchTerm, showConcluded, collaborators]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, collaborators, allInvoices]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -493,11 +516,11 @@ export default function RhControlPage() {
     },
   };
 
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || searchTerm !== "";
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || filterInvoiceStatus !== "all" || searchTerm !== "";
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
-  const rhActionCount = rhReceivedCount + rhPlanPendingCount;
+  const rhActionCount = rhReceivedCount + rhPlanPendingCount + invoiceCounts.enviada;
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     if (item.status === "planejamento_pendente") return 0;
@@ -547,6 +570,7 @@ export default function RhControlPage() {
     "Valores planejados pelo RH",
     "Valores realizados preenchidos pelo responsável da função",
     "Análise final do RH para liberação de pagamento",
+    "Nota fiscal enviada pelo colaborador e aprovada pelo RH",
   ];
 
   const renderTimeline = (item: PrestacaoItem) => {
@@ -557,11 +581,79 @@ export default function RhControlPage() {
       { label: "Planejado" },
       { label: "Realizado" },
       { label: "Aprovação" },
+      { label: "Nota Fiscal" },
     ];
+
+    const nfEligible = item.status === "aprovada_faturamento";
+    const nfInv = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
+    const nfStatus = nfInv?.status || "pendente";
+    const nfCompleted = nfStatus === "aprovada";
+    const nfRecusada = nfStatus === "recusada";
+    const nfEnviada = nfStatus === "enviada";
+    const nfDevolvida = nfStatus === "devolvida";
+    const nfFuture = !nfEligible || nfStatus === "pendente";
+    const nfDateStr = nfCompleted && nfInv?.approvedAt
+      ? new Date(nfInv.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : nfEnviada && nfInv?.createdAt
+      ? new Date(nfInv.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : null;
+    const nfTooltip = nfCompleted ? "Nota fiscal aprovada"
+      : nfRecusada ? "Nota fiscal recusada"
+      : nfEnviada ? "Nota fiscal enviada — aguardando aprovação do RH"
+      : nfDevolvida ? "Nota fiscal devolvida para correção"
+      : nfEligible ? "Aguardando envio da nota fiscal"
+      : "Nota fiscal disponível após aprovação do comparativo";
+
     return (
       <TooltipProvider delayDuration={200}>
         <div className="flex items-start w-full px-1 py-1">
           {steps.map((s, i) => {
+            if (i === 4) {
+              return (
+                <div key="Nota Fiscal" className="flex items-start flex-1 min-w-0">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
+                        <div className="relative flex items-center justify-center">
+                          {nfEnviada && (
+                            <span className="absolute w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 animate-ping opacity-60" />
+                          )}
+                          <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                            nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
+                            : nfRecusada ? 'bg-red-500'
+                            : nfEnviada ? 'bg-white dark:bg-gray-800 border-2 border-amber-400'
+                            : nfDevolvida ? 'bg-white dark:bg-gray-800 border-2 border-orange-400'
+                            : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                          }`}>
+                            {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                            {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
+                            {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                            {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                          </div>
+                        </div>
+                        <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
+                          nfCompleted ? 'text-emerald-600 dark:text-emerald-400'
+                          : nfEnviada ? 'text-amber-600 dark:text-amber-400'
+                          : nfDevolvida ? 'text-orange-600 dark:text-orange-400'
+                          : nfRecusada ? 'text-red-600 dark:text-red-400'
+                          : 'text-slate-300 dark:text-slate-600'
+                        }`}>Nota Fiscal</span>
+                        {nfDateStr ? (
+                          <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                        ) : nfFuture ? (
+                          <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">{nfEligible ? "Pendente" : "-"}</span>
+                        ) : null}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                      <p className="font-semibold">Nota Fiscal</p>
+                      <p className="text-gray-400">{nfTooltip}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              );
+            }
+
             const isCompleted = isConcluded ? true : i < step;
             const isCurrent = !isConcluded && i === step;
             const isFuture = !isCompleted && !isCurrent;
@@ -614,7 +706,9 @@ export default function RhControlPage() {
                 {/* Connector */}
                 {i < steps.length - 1 && (
                   <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${
-                    isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'
+                    i === 3
+                      ? nfEligible ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'
+                      : isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'
                   }`} />
                 )}
               </div>
@@ -853,6 +947,45 @@ export default function RhControlPage() {
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
+
+            {/* NF action button — only when approved for billing */}
+            {item.status === "aprovada_faturamento" && item.actual && (() => {
+              const nfInv = getInvoiceForActual(item.actual!.id);
+              const nfStatus = nfInv?.status || "pendente";
+              if (nfStatus === "enviada") {
+                return (
+                  <button
+                    onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Aprovar nota fiscal
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                );
+              }
+              if (nfStatus === "devolvida") {
+                return (
+                  <button
+                    onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Nota devolvida — ver notas fiscais
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                );
+              }
+              if (nfStatus === "pendente") {
+                return (
+                  <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-slate-400 border border-dashed border-gray-200 dark:border-gray-700">
+                    <FileText className="w-3.5 h-3.5" />
+                    Aguardando envio da nota fiscal
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
       </div>
@@ -924,6 +1057,38 @@ export default function RhControlPage() {
             </div>
           </div>
         ))}
+
+        {/* NF summary — spans all 3 cols */}
+        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Notas Fiscais</span>
+            {invoiceCounts.enviada > 0 && (
+              <span className="ml-auto text-[9px] font-bold text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-200">{invoiceCounts.enviada} aguardando</span>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "Aguardando nota", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
+              { label: "Aguardando aprovação", value: invoiceCounts.enviada, numCls: "text-violet-600", filterVal: "enviada" },
+              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: "text-orange-600", filterVal: "devolvida" },
+              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: "text-emerald-600", filterVal: "aprovada" },
+            ].map(({ label, value, numCls, filterVal }) => {
+              const isActive = filterInvoiceStatus === filterVal;
+              return (
+                <button key={label}
+                  onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
+                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                >
+                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
+                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* ── Pending action banner ── */}
@@ -932,6 +1097,9 @@ export default function RhControlPage() {
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
+              {invoiceCounts.enviada > 0 && (
+                <span className="ml-2 text-xs font-normal text-violet-600">· {invoiceCounts.enviada} NF{invoiceCounts.enviada !== 1 ? 's' : ''} para aprovar</span>
+              )}
             </p>
             <div className="flex items-center gap-2 mt-1.5">
               <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden max-w-[160px]">
@@ -993,7 +1161,7 @@ export default function RhControlPage() {
           </Button>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-400 hover:text-slate-600"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setFilterInvoiceStatus("all"); setSearchTerm(""); }}>
               Limpar
             </Button>
           )}
@@ -1033,6 +1201,16 @@ export default function RhControlPage() {
                 <SelectItem value="devolvida_para_ajuste" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Devolvida para ajuste</SelectItem>
                 <SelectItem value="aprovada_faturamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Aprovada para faturamento</SelectItem>
                 <SelectItem value="recusada" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Recusada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterInvoiceStatus} onValueChange={setFilterInvoiceStatus}>
+              <SelectTrigger className={`h-9 text-sm w-48 border rounded-lg bg-white transition-colors focus:ring-2 focus:ring-violet-200 ${filterInvoiceStatus !== "all" ? 'border-violet-300 text-violet-700' : 'border-slate-200 text-slate-700 hover:border-violet-300'}`}><SelectValue placeholder="Nota Fiscal" /></SelectTrigger>
+              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                <SelectItem value="all" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Todas as notas</SelectItem>
+                <SelectItem value="pendente" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aguardando nota</SelectItem>
+                <SelectItem value="enviada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aguardando aprovação RH</SelectItem>
+                <SelectItem value="devolvida" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Devolvida</SelectItem>
+                <SelectItem value="aprovada" className="hover:bg-violet-50 hover:text-violet-700 cursor-pointer focus:bg-violet-50 focus:text-violet-700 data-[state=checked]:bg-violet-50 data-[state=checked]:text-violet-700 data-[state=checked]:font-medium">Aprovada</SelectItem>
               </SelectContent>
             </Select>
           </div>
