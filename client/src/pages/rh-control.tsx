@@ -1052,7 +1052,6 @@ export default function RhControlPage() {
     const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
     return inv?.status === "aprovada";
   }).length;
-  const nfInProgressCount = (statusCounts.aprovada_faturamento || 0) - concludedCount;
   const progressPct = totalItems > 0 ? Math.round(concludedCount / totalItems * 100) : 0;
 
   return (
@@ -1119,22 +1118,42 @@ export default function RhControlPage() {
                 </button>
               );
             })}
-            {/* Sub-métrica: aguardando nota fiscal */}
-            <div className="col-span-2 rounded-lg border border-dashed border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xl font-bold tabular-nums block mb-0.5 text-amber-700 dark:text-amber-400">
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : nfInProgressCount}
-                  </span>
-                  <span className="text-[10px] text-slate-400">Ag. Nota Fiscal</span>
-                </div>
-                <FileText className="w-4 h-4 text-amber-400 opacity-60" />
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Card 3 — Finalizadas (apenas NF aprovada conta como concluído) */}
+        {/* Card 3 — Notas Fiscais */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">Notas Fiscais</span>
+            {invoiceCounts.enviada > 0 && (
+              <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
+              { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
+              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: invoiceCounts.devolvida > 0 ? "text-orange-600" : "text-slate-800 dark:text-slate-200", filterVal: "devolvida" },
+              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: invoiceCounts.aprovada > 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200", filterVal: "aprovada" },
+            ].map(({ label, value, numCls, filterVal }) => {
+              const isActive = filterInvoiceStatus === filterVal;
+              return (
+                <button key={label}
+                  onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
+                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                >
+                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
+                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card 4 — Finalizadas (apenas NF aprovada conta como concluído) */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
           <div className="flex items-center gap-2 mb-3">
             <CheckCircle className="w-4 h-4 text-slate-400" />
@@ -1181,38 +1200,6 @@ export default function RhControlPage() {
                 </button>
               );
             })()}
-          </div>
-        </div>
-
-        {/* NF card — 4th column, same visual weight */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Notas Fiscais</span>
-            {invoiceCounts.enviada > 0 && (
-              <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
-              { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
-              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: invoiceCounts.devolvida > 0 ? "text-orange-600" : "text-slate-800 dark:text-slate-200", filterVal: "devolvida" },
-              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: invoiceCounts.aprovada > 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200", filterVal: "aprovada" },
-            ].map(({ label, value, numCls, filterVal }) => {
-              const isActive = filterInvoiceStatus === filterVal;
-              return (
-                <button key={label}
-                  onClick={() => setFilterInvoiceStatus(isActive ? "all" : filterVal)}
-                  className={`rounded-lg border p-2.5 text-left transition-all ${isActive ? 'bg-violet-50 border-violet-200 ring-1 ring-violet-300 ring-offset-1' : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}`}
-                >
-                  <span className={`text-xl font-bold tabular-nums block mb-0.5 ${numCls}`}>
-                    {isLoading ? <span className="inline-block w-5 h-5 bg-gray-200 rounded animate-pulse" /> : value}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{label}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
