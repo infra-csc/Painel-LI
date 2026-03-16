@@ -237,7 +237,30 @@ const LANC_LEFT_BORDER: Record<string, string> = {
   recusada:  "border-l-4 border-l-red-400",
 };
 
+const LANC_FILTERS = [
+  { id: "all",      label: "Todos",        activeBg: "bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900" },
+  { id: "pendente", label: "Pendente",     activeBg: "bg-gray-500 text-white" },
+  { id: "enviada",  label: "Aguardando RH",activeBg: "bg-amber-400 text-white" },
+  { id: "devolvida",label: "Devolvida",    activeBg: "bg-orange-400 text-white" },
+  { id: "recusada", label: "Recusada",     activeBg: "bg-red-500 text-white" },
+  { id: "aprovada", label: "Aprovada",     activeBg: "bg-emerald-500 text-white" },
+];
+
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  function getInvStatus(actual: any) {
+    const inv = getInvoice(actual.id);
+    return inv?.status || "pendente";
+  }
+
+  const countFor = (id: string) =>
+    id === "all" ? approvedActuals.length : approvedActuals.filter((a: any) => getInvStatus(a) === id).length;
+
+  const filtered = filterStatus === "all"
+    ? approvedActuals
+    : approvedActuals.filter((a: any) => getInvStatus(a) === filterStatus);
+
   if (approvedActuals.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
@@ -250,9 +273,28 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Legend */}
-      <div className="flex items-center justify-end gap-1 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5">
+      {/* Filter pills + Legend */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
+        {/* Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {LANC_FILTERS.map(({ id, label, activeBg }) => {
+            const cnt = countFor(id);
+            const active = filterStatus === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setFilterStatus(id)}
+                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors whitespace-nowrap ${
+                  active ? activeBg : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                {label} <span className={active ? "opacity-80" : "opacity-60"}>({cnt})</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5 shrink-0">
           {[
             { color: "bg-gray-400",    label: "Pendente" },
             { color: "bg-amber-400",   label: "Aguardando RH" },
@@ -286,19 +328,27 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
           </tr>
         </thead>
         <tbody>
-          {approvedActuals.map((actual: any) => (
-            <LancamentoRow
-              key={actual.id}
-              actual={actual}
-              invoice={getInvoice(actual.id)}
-              getName={getName}
-              getFuncName={getFuncName}
-              selectedEvent={selectedEvent}
-              selectedEventId={selectedEventId}
-              qc={qc}
-              toast={toast}
-            />
-          ))}
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
+                Nenhum item com status "{LANC_FILTERS.find(f => f.id === filterStatus)?.label}".
+              </td>
+            </tr>
+          ) : (
+            filtered.map((actual: any) => (
+              <LancamentoRow
+                key={actual.id}
+                actual={actual}
+                invoice={getInvoice(actual.id)}
+                getName={getName}
+                getFuncName={getFuncName}
+                selectedEvent={selectedEvent}
+                selectedEventId={selectedEventId}
+                qc={qc}
+                toast={toast}
+              />
+            ))
+          )}
         </tbody>
       </table>
     </div>
@@ -415,6 +465,21 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
             <div className="min-w-0">
               <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">{displayName}</span>
               <span className="text-[10px] text-gray-400 truncate block">{funcName}</span>
+              {status === "aprovada" && invoice?.paymentDate && (() => {
+                const today = new Date().toISOString().split("T")[0];
+                const past = invoice.paymentDate < today;
+                return past ? (
+                  <span className="text-[10px] text-orange-500 flex items-center gap-0.5 mt-0.5 font-medium">
+                    <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                    ⚠️ Pgto previsto {fmtDate(invoice.paymentDate)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 mt-0.5 font-medium">
+                    <Calendar className="w-2.5 h-2.5 shrink-0" />
+                    Pagamento previsto: {fmtDate(invoice.paymentDate)}
+                  </span>
+                );
+              })()}
             </div>
             {showExpandToggle && (
               <button
@@ -661,11 +726,20 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
   );
 }
 
+const APROV_FILTERS = [
+  { id: "all",      label: "Todos",     activeBg: "bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900" },
+  { id: "enviada",  label: "Aguardando",activeBg: "bg-amber-400 text-white" },
+  { id: "aprovada", label: "Aprovada",  activeBg: "bg-emerald-500 text-white" },
+  { id: "devolvida",label: "Devolvida", activeBg: "bg-orange-400 text-white" },
+  { id: "recusada", label: "Recusada",  activeBg: "bg-red-500 text-white" },
+];
+
 // ── Aprovação Tab ─────────────────────────────────────────────────────────────
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
   const [active, setActive] = useState<ActiveAction>(null);
   const [paymentDate, setPaymentDate] = useState("");
   const [comment, setComment] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   function openAction(inv: any, type: ActionType) {
     if (active?.invId === inv.id && active.type === type) {
@@ -730,11 +804,37 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     pendente:  "bg-gray-300",
   };
 
+  const aprovCountFor = (id: string) =>
+    id === "all" ? invoices.length : invoices.filter((i: any) => i.status === id).length;
+
+  const filteredInvoices = filterStatus === "all"
+    ? invoices
+    : invoices.filter((i: any) => i.status === filterStatus);
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Legend */}
-      <div className="flex items-center justify-end gap-1 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5">
+      {/* Filter pills + Legend */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
+        {/* Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {APROV_FILTERS.map(({ id, label, activeBg }) => {
+            const cnt = aprovCountFor(id);
+            const active = filterStatus === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setFilterStatus(id)}
+                className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors whitespace-nowrap ${
+                  active ? activeBg : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                {label} <span className={active ? "opacity-80" : "opacity-60"}>({cnt})</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5 shrink-0">
           {[
             { color: "bg-amber-400",   label: "Aguardando" },
             { color: "bg-emerald-500", label: "Aprovada" },
@@ -769,7 +869,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv: any) => {
+            {filteredInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                  Nenhum item com status "{APROV_FILTERS.find(f => f.id === filterStatus)?.label}".
+                </td>
+              </tr>
+            ) : null}
+            {filteredInvoices.map((inv: any) => {
               const actual = getActual(inv.budgetActualId);
               const name = getName(inv.collaboratorId);
               const isActiveRow = active?.invId === inv.id;
