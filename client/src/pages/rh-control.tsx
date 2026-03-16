@@ -576,13 +576,6 @@ export default function RhControlPage() {
   const renderTimeline = (item: PrestacaoItem) => {
     const step = getTimelineStep(item);
     const isConcluded = item.status === "aprovada_faturamento" || item.status === "recusada";
-    const steps = [
-      { label: "Escalação" },
-      { label: "Planejado" },
-      { label: "Realizado" },
-      { label: "Aprovação" },
-      { label: "Nota Fiscal" },
-    ];
 
     const nfEligible = item.status === "aprovada_faturamento";
     const nfInv = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
@@ -591,10 +584,9 @@ export default function RhControlPage() {
     const nfRecusada = nfStatus === "recusada";
     const nfEnviada = nfStatus === "enviada";
     const nfDevolvida = nfStatus === "devolvida";
-    const nfFuture = !nfEligible || nfStatus === "pendente";
     const nfDateStr = nfCompleted && nfInv?.approvedAt
       ? new Date(nfInv.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
-      : nfEnviada && nfInv?.createdAt
+      : (nfEnviada || nfDevolvida) && nfInv?.createdAt
       ? new Date(nfInv.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : null;
     const nfTooltip = nfCompleted ? "Nota fiscal aprovada"
@@ -602,118 +594,98 @@ export default function RhControlPage() {
       : nfEnviada ? "Nota fiscal enviada — aguardando aprovação do RH"
       : nfDevolvida ? "Nota fiscal devolvida para correção"
       : nfEligible ? "Aguardando envio da nota fiscal"
-      : "Nota fiscal disponível após aprovação do comparativo";
+      : "Disponível após aprovação do comparativo";
+
+    const mainSteps = ["Escalação", "Planejado", "Realizado", "Aprovação"];
 
     return (
       <TooltipProvider delayDuration={200}>
         <div className="flex items-start w-full px-1 py-1">
-          {steps.map((s, i) => {
-            if (i === 4) {
-              return (
-                <div key="Nota Fiscal" className="flex items-start flex-1 min-w-0">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
-                        <div className="relative flex items-center justify-center">
-                          {nfEnviada && (
-                            <span className="absolute w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 animate-ping opacity-60" />
-                          )}
-                          <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                            nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
-                            : nfRecusada ? 'bg-red-500'
-                            : nfEnviada ? 'bg-white dark:bg-gray-800 border-2 border-amber-400'
-                            : nfDevolvida ? 'bg-white dark:bg-gray-800 border-2 border-orange-400'
-                            : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
-                          }`}>
-                            {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                            {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
-                            {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
-                            {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
-                          </div>
-                        </div>
-                        <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                          nfCompleted ? 'text-emerald-600 dark:text-emerald-400'
-                          : nfEnviada ? 'text-amber-600 dark:text-amber-400'
-                          : nfDevolvida ? 'text-orange-600 dark:text-orange-400'
-                          : nfRecusada ? 'text-red-600 dark:text-red-400'
-                          : 'text-slate-300 dark:text-slate-600'
-                        }`}>Nota Fiscal</span>
-                        {nfDateStr ? (
-                          <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
-                        ) : nfFuture ? (
-                          <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">{nfEligible ? "Pendente" : "-"}</span>
-                        ) : null}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-                      <p className="font-semibold">Nota Fiscal</p>
-                      <p className="text-gray-400">{nfTooltip}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              );
-            }
-
+          {/* Steps 0–3 with connectors (connector always follows each step) */}
+          {mainSteps.map((label, i) => {
             const isCompleted = isConcluded ? true : i < step;
             const isCurrent = !isConcluded && i === step;
             const isFuture = !isCompleted && !isCurrent;
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
+            const connectorColor = i === 3
+              ? nfEligible ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'
+              : isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700';
             return (
-              <div key={s.label} className="flex items-start flex-1 min-w-0">
+              <div key={label} className="flex items-start flex-1 min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
-                      {/* Circle */}
+                    <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                       <div className="relative flex items-center justify-center">
-                        {isCurrent && (
-                          <span className="absolute w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 animate-ping opacity-60" />
-                        )}
+                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 animate-ping opacity-60" />}
                         <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                          isCompleted
-                            ? 'bg-blue-600 shadow-sm shadow-blue-200 dark:shadow-blue-900'
-                            : isCurrent
-                            ? 'bg-white dark:bg-gray-800 border-2 border-blue-500'
-                            : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                          isCompleted ? 'bg-blue-600 shadow-sm shadow-blue-200 dark:shadow-blue-900'
+                          : isCurrent ? 'bg-white dark:bg-gray-800 border-2 border-blue-500'
+                          : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
                         }`}>
                           {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                           {isCurrent && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                         </div>
                       </div>
-                      {/* Label */}
                       <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                        isCompleted ? 'text-blue-600 dark:text-blue-400' :
-                        isCurrent ? 'text-blue-600 dark:text-blue-400' :
-                        'text-slate-300 dark:text-slate-600'
-                      }`}>{s.label}</span>
-                      {/* Date */}
-                      {(isCompleted || isCurrent) && dateStr ? (
-                        <span className="text-[9px] text-slate-400 whitespace-nowrap">{dateStr}</span>
-                      ) : isFuture ? (
-                        <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Pendente</span>
-                      ) : null}
-                      {/* Responsible */}
-                      {(isCompleted || isCurrent) && responsibleName ? (
-                        <span className="text-[9px] text-slate-400 whitespace-nowrap mt-0.5 max-w-[72px] truncate">{responsibleName}</span>
-                      ) : null}
+                        isCompleted || isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-300 dark:text-slate-600'
+                      }`}>{label}</span>
+                      {(isCompleted || isCurrent) && dateStr
+                        ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{dateStr}</span>
+                        : isFuture ? <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Pendente</span>
+                        : null}
+                      {(isCompleted || isCurrent) && responsibleName
+                        ? <span className="text-[9px] text-slate-400 whitespace-nowrap mt-0.5 max-w-[56px] truncate">{responsibleName}</span>
+                        : null}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-                    <p className="font-semibold">{s.label}</p>
+                    <p className="font-semibold">{label}</p>
                     <p className="text-gray-400">{STEP_TOOLTIPS[i]}</p>
                   </TooltipContent>
                 </Tooltip>
-                {/* Connector */}
-                {i < steps.length - 1 && (
-                  <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${
-                    i === 3
-                      ? nfEligible ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'
-                      : isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'
-                  }`} />
-                )}
+                {/* Connector — always shown from each main step to the next */}
+                <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${connectorColor}`} />
               </div>
             );
           })}
+
+          {/* NF step — rendered outside the map so it always appears */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
+                <div className="relative flex items-center justify-center">
+                  {nfEnviada && <span className="absolute w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 animate-ping opacity-60" />}
+                  <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                    nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
+                    : nfRecusada ? 'bg-red-500'
+                    : nfEnviada ? 'bg-white dark:bg-gray-800 border-2 border-amber-400'
+                    : nfDevolvida ? 'bg-white dark:bg-gray-800 border-2 border-orange-400'
+                    : 'bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
+                    {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                    {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                  </div>
+                </div>
+                <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
+                  nfCompleted ? 'text-emerald-600 dark:text-emerald-400'
+                  : nfEnviada ? 'text-amber-600 dark:text-amber-400'
+                  : nfDevolvida ? 'text-orange-600 dark:text-orange-400'
+                  : nfRecusada ? 'text-red-600 dark:text-red-400'
+                  : 'text-slate-400 dark:text-slate-500'
+                }`}>Nota Fiscal</span>
+                {nfDateStr
+                  ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                  : <span className="text-[9px] text-slate-400 dark:text-slate-500 italic">{nfEligible ? "Pendente" : "—"}</span>}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+              <p className="font-semibold">Nota Fiscal</p>
+              <p className="text-gray-400">{nfTooltip}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </TooltipProvider>
     );
@@ -1009,7 +981,7 @@ export default function RhControlPage() {
       </div>
 
       {/* ── Metric cards ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
           {
             label: "Pendências do RH",
@@ -1058,21 +1030,21 @@ export default function RhControlPage() {
           </div>
         ))}
 
-        {/* NF summary — spans all 3 cols */}
-        <div className="col-span-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+        {/* NF card — 4th column, same visual weight */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
           <div className="flex items-center gap-2 mb-3">
             <FileText className="w-4 h-4 text-slate-400" />
             <span className="text-xs font-medium text-slate-500">Notas Fiscais</span>
             {invoiceCounts.enviada > 0 && (
-              <span className="ml-auto text-[9px] font-bold text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-200">{invoiceCounts.enviada} aguardando</span>
+              <span className="ml-auto text-[9px] font-medium text-violet-600 bg-violet-50 px-1.5 py-px rounded-full border border-violet-100">{invoiceCounts.enviada}</span>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
-              { label: "Aguardando nota", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
-              { label: "Aguardando aprovação", value: invoiceCounts.enviada, numCls: "text-violet-600", filterVal: "enviada" },
-              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: "text-orange-600", filterVal: "devolvida" },
-              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: "text-emerald-600", filterVal: "aprovada" },
+              { label: "Aguardando NF", value: invoiceCounts.pending, numCls: "text-slate-800 dark:text-slate-200", filterVal: "pendente" },
+              { label: "Ag. aprovação", value: invoiceCounts.enviada, numCls: invoiceCounts.enviada > 0 ? "text-violet-600" : "text-slate-800 dark:text-slate-200", filterVal: "enviada" },
+              { label: "Devolvidas", value: invoiceCounts.devolvida, numCls: invoiceCounts.devolvida > 0 ? "text-orange-600" : "text-slate-800 dark:text-slate-200", filterVal: "devolvida" },
+              { label: "Aprovadas", value: invoiceCounts.aprovada, numCls: invoiceCounts.aprovada > 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-200", filterVal: "aprovada" },
             ].map(({ label, value, numCls, filterVal }) => {
               const isActive = filterInvoiceStatus === filterVal;
               return (
