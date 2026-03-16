@@ -82,12 +82,13 @@ export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = useState("default");
   const [monthFilter, setMonthFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [defaultSortActive, setDefaultSortActive] = useState(true);
   const [confirmState, setConfirmState] = useState<{
     open: boolean; title: string; message: string; confirmLabel: string; variant?: "delete" | "cancel" | "confirm"; onConfirm: () => void;
   }>({ open: false, title: '', message: '', confirmLabel: '', variant: 'delete', onConfirm: () => {} });
@@ -130,8 +131,18 @@ export default function Events() {
   }, [events]);
 
   const handleSort = (key: SortKey) => {
+    setDefaultSortActive(false);
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const handleStatusFilterChange = (val: string) => {
+    setStatusFilter(val);
+    if (val === "default") {
+      setSortKey("eventNumber");
+      setSortDir("desc");
+      setDefaultSortActive(true);
+    }
   };
 
   const filteredAndSortedEvents = useMemo(() => {
@@ -141,7 +152,8 @@ export default function Events() {
       const t = searchTerm.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    if (statusFilter === "active") list = list.filter(e => getEventStatus(e) !== "excluído");
+    if (statusFilter === "default") list = list.filter(e => getEventStatus(e) === "planejado" || getEventStatus(e) === "em andamento");
+    else if (statusFilter === "active") list = list.filter(e => getEventStatus(e) !== "excluído");
     else if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
     if (dateFilter) {
       const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
@@ -166,16 +178,25 @@ export default function Events() {
         return false;
       });
     }
-    list.sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "eventNumber") cmp = a.eventNumber - b.eventNumber;
-      else if (sortKey === "name")   cmp = a.name.localeCompare(b.name, "pt-BR");
-      else if (sortKey === "period") cmp = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-      else if (sortKey === "status") cmp = getEventStatus(a).localeCompare(getEventStatus(b), "pt-BR");
-      return sortDir === "asc" ? cmp : -cmp;
-    });
+    if (defaultSortActive && statusFilter === "default") {
+      const statusPriority = (e: Event) => getEventStatus(e) === "em andamento" ? 0 : 1;
+      list.sort((a, b) => {
+        const p = statusPriority(a) - statusPriority(b);
+        if (p !== 0) return p;
+        return b.eventNumber - a.eventNumber;
+      });
+    } else {
+      list.sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === "eventNumber") cmp = a.eventNumber - b.eventNumber;
+        else if (sortKey === "name")   cmp = a.name.localeCompare(b.name, "pt-BR");
+        else if (sortKey === "period") cmp = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+        else if (sortKey === "status") cmp = getEventStatus(a).localeCompare(getEventStatus(b), "pt-BR");
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
     return list;
-  }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir]);
+  }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir, defaultSortActive]);
 
   const invalidateEvents = async () => {
     await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
@@ -223,8 +244,11 @@ export default function Events() {
     });
   };
 
-  const clearFilters = () => { setSearchTerm(""); setStatusFilter("active"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all"); };
-  const hasActiveFilters = searchTerm || statusFilter !== "active" || dateFilter || monthFilter !== "all" || yearFilter !== "all";
+  const clearFilters = () => {
+    setSearchTerm(""); setStatusFilter("default"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all");
+    setSortKey("eventNumber"); setSortDir("desc"); setDefaultSortActive(true);
+  };
+  const hasActiveFilters = !!(searchTerm || statusFilter !== "default" || dateFilter || monthFilter !== "all" || yearFilter !== "all");
 
   return (
     <TooltipProvider>
@@ -314,14 +338,14 @@ export default function Events() {
               </div>
 
               {/* Status */}
-              <div className="flex-1 min-w-[130px]">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <div className="flex-1 min-w-[180px]">
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                   <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200" data-testid="select-status-filter">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                    <SelectItem value="active"     className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Ativos</SelectItem>
-                    <SelectItem value="all"        className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+                    <SelectItem value="default"    className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado + Em andamento</SelectItem>
+                    <SelectItem value="all"        className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os status</SelectItem>
                     <SelectItem value="planejado"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado</SelectItem>
                     <SelectItem value="em andamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Em andamento</SelectItem>
                     <SelectItem value="concluído"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Concluído</SelectItem>
