@@ -223,6 +223,20 @@ export default function InvoicesPage() {
 }
 
 // ── Lançamento Tab ────────────────────────────────────────────────────────────
+const LANC_DOT: Record<string, string> = {
+  pendente:  "bg-gray-400",
+  enviada:   "bg-amber-400",
+  aprovada:  "bg-emerald-500",
+  devolvida: "bg-orange-400",
+  recusada:  "bg-red-500",
+};
+const LANC_LEFT_BORDER: Record<string, string> = {
+  enviada:   "border-l-4 border-l-amber-400",
+  aprovada:  "border-l-4 border-l-emerald-400",
+  devolvida: "border-l-4 border-l-orange-400",
+  recusada:  "border-l-4 border-l-red-400",
+};
+
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   if (approvedActuals.length === 0) {
     return (
@@ -233,27 +247,65 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
       </div>
     );
   }
+
   return (
-    <div className="space-y-2">
-      {approvedActuals.map((actual: any) => (
-        <CollaboratorInvoiceCard
-          key={actual.id}
-          actual={actual}
-          invoice={getInvoice(actual.id)}
-          getName={getName}
-          getFuncName={getFuncName}
-          selectedEvent={selectedEvent}
-          selectedEventId={selectedEventId}
-          qc={qc}
-          toast={toast}
-        />
-      ))}
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+      {/* Legend */}
+      <div className="flex items-center justify-end gap-1 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-1.5">
+          {[
+            { color: "bg-gray-400",    label: "Pendente" },
+            { color: "bg-amber-400",   label: "Aguardando RH" },
+            { color: "bg-orange-400",  label: "Devolvida" },
+            { color: "bg-emerald-500", label: "Aprovada" },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${color}`} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <table className="w-full" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "240px" }} />
+          <col style={{ width: "110px" }} />
+          <col style={{ width: "150px" }} />
+          <col style={{ width: "130px" }} />
+          <col />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colaborador</th>
+            <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
+            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">OC <span className="text-red-400 normal-case font-normal">*</span></th>
+            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Nota <span className="text-red-400 normal-case font-normal">*</span></th>
+            <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {approvedActuals.map((actual: any) => (
+            <LancamentoRow
+              key={actual.id}
+              actual={actual}
+              invoice={getInvoice(actual.id)}
+              getName={getName}
+              getFuncName={getFuncName}
+              selectedEvent={selectedEvent}
+              selectedEventId={selectedEventId}
+              qc={qc}
+              toast={toast}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-// ── Collaborator Invoice Card (Lançamento) ────────────────────────────────────
-function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
+// ── Lançamento Row (one per collaborator) ─────────────────────────────────────
+function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const status = invoice?.status || "pendente";
   const [expanded, setExpanded] = useState(status === "devolvida");
   const [oc, setOc] = useState(invoice?.oc || "");
@@ -261,7 +313,7 @@ function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, select
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const StatusIcon = STATUS_CONFIG[status]?.icon || Clock;
+  const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
   const name = getName(actual.collaboratorId);
   const funcName = getFuncName(actual.functionId);
   const displayName = toTitleCase(name);
@@ -313,206 +365,160 @@ function CollaboratorInvoiceCard({ actual, invoice, getName, getFuncName, select
     },
   });
 
-  const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
-  const borderCls = STATUS_CONFIG[status]?.border || "border-gray-100 dark:border-gray-700";
+  const dotCls = LANC_DOT[status] || "bg-gray-300";
+  const rowBorderCls = LANC_LEFT_BORDER[status] || "";
 
   const avatarCls =
-    status === "aprovada" ? "bg-emerald-100 text-emerald-700" :
+    status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
     status === "devolvida" ? "bg-orange-100 text-orange-600" :
     status === "enviada"   ? "bg-amber-100 text-amber-700" :
     "bg-gray-100 dark:bg-gray-700 text-gray-500";
 
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl border transition-all ${borderCls}`}>
-      {/* ── Collapsed header ── */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
-        onClick={() => setExpanded(e => !e)}
-      >
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${avatarCls}`}>
-          {displayName.charAt(0)}
-        </div>
+  const initial = displayName && displayName !== "—" ? displayName.charAt(0) : "?";
 
-        <div className="flex-1 min-w-0">
-          {/* Row 1: name · func · value */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{displayName}</span>
-            <span className="text-gray-300 dark:text-gray-600 text-xs">·</span>
-            <span className="text-xs text-gray-400">{funcName}</span>
-            <span className="text-gray-300 dark:text-gray-600 text-xs">·</span>
-            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{formatCurrency(actual.totalValue)}</span>
+  // remove leftover declarations from old card body
+  return (
+    <>
+      {/* ── Main row ── */}
+      <tr className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/40 dark:hover:bg-gray-900/20 transition-colors ${rowBorderCls}`}>
+
+        {/* Colaborador */}
+        <td className="px-4 py-4 overflow-hidden">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotCls}`} title={STATUS_CONFIG[status]?.label} />
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
+              {initial}
+            </div>
+            <div className="min-w-0">
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">{displayName}</span>
+              <span className="text-[10px] text-gray-400 truncate block">{funcName}</span>
+            </div>
+            {(status === "devolvida" || status === "recusada") && invoice?.returnComment && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="ml-auto shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                title={expanded ? "Recolher" : "Ver comentário"}
+              >
+                {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            )}
           </div>
-          {/* Row 2 (collapsed only): OC · Ver anexo · data pagamento */}
-          {!expanded && invoice?.oc && (
-            <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
-              <span className="text-[10px] text-gray-400 font-mono">OC: {invoice.oc}</span>
-              {invoice?.attachmentUrl && (
-                <a
-                  href={invoice.attachmentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="text-[10px] text-blue-500 flex items-center gap-0.5 hover:underline"
-                >
-                  <Paperclip className="w-2.5 h-2.5" /> Ver anexo
+        </td>
+
+        {/* Valor */}
+        <td className="px-4 py-4 text-right">
+          <span className="text-sm font-semibold text-violet-600 dark:text-violet-400 tabular-nums whitespace-nowrap">
+            {formatCurrency(actual.totalValue)}
+          </span>
+        </td>
+
+        {/* OC */}
+        <td className="px-4 py-4">
+          {canEdit ? (
+            <Input
+              value={oc}
+              onChange={e => setOc(e.target.value)}
+              placeholder="OC-0000"
+              className="h-8 text-xs rounded-lg border-gray-200 w-full"
+            />
+          ) : (
+            <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate block">
+              {invoice?.oc || "—"}
+            </span>
+          )}
+        </td>
+
+        {/* Nota */}
+        <td className="px-4 py-4">
+          {canEdit ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="w-full h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all"
+              >
+                {file ? (
+                  <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
+                ) : invoice?.attachmentUrl ? (
+                  <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
+                ) : (
+                  <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
+                )}
+              </button>
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              {invoice?.attachmentUrl && !file && (
+                <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-blue-500 hover:underline">
+                  <Eye className="w-2.5 h-2.5" /> Ver atual
                 </a>
               )}
-              {status === "aprovada" && invoice?.paymentDate && (
-                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
-                  <Calendar className="w-2.5 h-2.5" /> {fmtDate(invoice.paymentDate)}
+            </div>
+          ) : (
+            invoice?.attachmentUrl ? (
+              <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                <FileText className="w-3.5 h-3.5" /> Ver anexo
+              </a>
+            ) : <span className="text-gray-300 text-xs">—</span>
+          )}
+        </td>
+
+        {/* Ações */}
+        <td className="px-4 py-4">
+          {canEdit ? (
+            <div className="flex items-center justify-end gap-2">
+              {paymentText && (
+                <span title={paymentText} className="text-gray-300 hover:text-gray-400 cursor-help shrink-0">
+                  <Info className="w-3.5 h-3.5" />
                 </span>
               )}
+              <Button
+                size="sm"
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 h-8 text-xs shadow-sm whitespace-nowrap"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || uploading}
+              >
+                <Send className="w-3 h-3 mr-1.5" />
+                {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar" : "Enviar nota"}
+              </Button>
             </div>
-          )}
-        </div>
-
-        {/* Status badge — fixed min width to avoid layout shift */}
-        <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 whitespace-nowrap ${STATUS_CONFIG[status]?.cls}`}>
-          <StatusIcon className="w-3 h-3" />
-          {STATUS_CONFIG[status]?.label}
-        </span>
-
-        {expanded
-          ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-        }
-      </div>
-
-      {/* ── Expanded content ── */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 space-y-3 border-t border-gray-50 dark:border-gray-700/60">
-
-          {status === "devolvida" && invoice?.returnComment && (
-            <div className="mt-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
-              <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
-                <p className="text-xs text-orange-700 dark:text-orange-300">{invoice.returnComment}</p>
-              </div>
+          ) : status === "aprovada" ? (
+            <div className="flex items-center justify-end">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {invoice?.paymentDate ? fmtDate(invoice.paymentDate) : "Aprovada"}
+              </span>
             </div>
-          )}
+          ) : null}
+        </td>
+      </tr>
 
-          {status === "recusada" && invoice?.returnComment && (
-            <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
-              <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Nota recusada</p>
-                <p className="text-xs text-red-700 dark:text-red-300">{invoice.returnComment}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Read-only info (enviada / aprovada / recusada) */}
-          {!canEdit && (
-            <div className="mt-3 flex items-center gap-5 flex-wrap">
-              {invoice?.oc && (
+      {/* ── Expansion row: devolvida/recusada comment ── */}
+      {expanded && invoice?.returnComment && (
+        <tr className={`border-b border-gray-50 dark:border-gray-800 ${rowBorderCls}`}>
+          <td colSpan={5} className="px-5 pt-0 pb-3">
+            {status === "devolvida" && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
+                <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">OC</p>
-                  <p className="text-xs font-mono text-gray-700 dark:text-gray-200">{invoice.oc}</p>
-                </div>
-              )}
-              {invoice?.attachmentUrl && (
-                <div>
-                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Nota em anexo</p>
-                  <a
-                    href={invoice.attachmentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> Ver anexo <Eye className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-              {status === "aprovada" && invoice?.paymentDate && (
-                <div>
-                  <p className="text-[10px] text-gray-400 font-medium mb-0.5">Pagamento previsto</p>
-                  <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> {fmtDate(invoice.paymentDate)}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Edit form */}
-          {canEdit && (
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
-                    OC <span className="text-red-400">*</span>
-                  </label>
-                  <Input
-                    value={oc}
-                    onChange={e => setOc(e.target.value)}
-                    placeholder="Ex.: OC-2024-0123"
-                    className="h-8 text-xs rounded-lg border-gray-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
-                    Nota em anexo <span className="text-red-400">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="w-full h-8 flex items-center gap-2 px-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10 transition-all"
-                  >
-                    {file ? (
-                      <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
-                    ) : invoice?.attachmentUrl ? (
-                      <><Paperclip className="w-3.5 h-3.5 shrink-0" /><span className="truncate">Substituir nota</span></>
-                    ) : (
-                      <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
-                    )}
-                  </button>
-                  <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-                  {invoice?.attachmentUrl && !file && (
-                    <a
-                      href={invoice.attachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-[10px] text-blue-500 hover:underline"
-                    >
-                      <Eye className="w-2.5 h-2.5" /> Ver nota atual
-                    </a>
-                  )}
+                  <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
+                  <p className="text-xs text-orange-700 dark:text-orange-300">{invoice.returnComment}</p>
                 </div>
               </div>
-
-              {paymentText && (
-                <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 flex items-start gap-2">
-                  <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 italic leading-relaxed">{paymentText}</p>
+            )}
+            {status === "recusada" && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
+                <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Nota recusada</p>
+                  <p className="text-xs text-red-700 dark:text-red-300">{invoice.returnComment}</p>
                 </div>
-              )}
-
-              <div className="flex justify-end pt-0.5">
-                <Button
-                  size="sm"
-                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-8 text-xs shadow-sm"
-                  onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending || uploading}
-                >
-                  <Send className="w-3 h-3 mr-1.5" />
-                  {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar nota" : "Enviar nota"}
-                </Button>
               </div>
-            </div>
-          )}
-
-          {status === "aprovada" && (
-            <div className="mt-1 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-lg px-3 py-2 flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-                Nota aprovada{invoice?.paymentDate && ` · Pagamento previsto em ${fmtDate(invoice.paymentDate)}`}
-              </p>
-            </div>
-          )}
-        </div>
+            )}
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
