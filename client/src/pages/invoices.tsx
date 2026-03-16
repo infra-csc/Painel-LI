@@ -577,36 +577,57 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
 
+  const STATUS_DOT: Record<string, string> = {
+    enviada:   "bg-amber-400",
+    aprovada:  "bg-emerald-500",
+    devolvida: "bg-orange-400",
+    recusada:  "bg-red-500",
+    pendente:  "bg-gray-300",
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+      {/* Legend */}
+      <div className="flex items-center justify-end gap-4 px-4 py-2.5 border-b border-gray-50 dark:border-gray-700/60">
+        {[
+          { color: "bg-amber-400",   label: "Aguardando" },
+          { color: "bg-emerald-500", label: "Aprovada" },
+          { color: "bg-orange-400",  label: "Devolvida" },
+          { color: "bg-red-500",     label: "Recusada" },
+        ].map(({ color, label }) => (
+          <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
+            {label}
+          </span>
+        ))}
+      </div>
+
       <table className="w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "160px" }} />   {/* Colaborador — fixo, trunca se necessário */}
-            <col style={{ width: "110px" }} />   {/* Função */}
+            <col />                              {/* Colaborador — flexível */}
+            <col style={{ width: "120px" }} />   {/* Função */}
             <col style={{ width: "90px" }} />    {/* Valor */}
-            <col style={{ width: "100px" }} />   {/* OC */}
+            <col style={{ width: "105px" }} />   {/* OC */}
             <col style={{ width: "95px" }} />    {/* Nota */}
-            <col style={{ width: "135px" }} />   {/* Status */}
-            <col />                              {/* Ações — toma o restante */}
+            <col style={{ width: "120px" }} />   {/* Ações */}
           </colgroup>
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-              <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colaborador</th>
-              <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Função</th>
-              <th className="text-right px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
-              <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">OC</th>
-              <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Nota</th>
-              <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="text-right px-4 py-3.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colaborador</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Função</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">OC</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Nota</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
           <tbody>
             {invoices.map((inv: any) => {
               const actual = getActual(inv.budgetActualId);
-              const StatusIcon = STATUS_CONFIG[inv.status]?.icon || Clock;
               const name = getName(inv.collaboratorId);
               const isActiveRow = active?.invId === inv.id;
               const initial = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
+              const dotCls = STATUS_DOT[inv.status] || "bg-gray-300";
 
               const avatarCls =
                 inv.status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
@@ -615,50 +636,66 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                 inv.status === "recusada"  ? "bg-red-100 text-red-600" :
                 "bg-gray-100 dark:bg-gray-700 text-gray-500";
 
+              const approvedDate = inv.status === "aprovada" && inv.paymentDate
+                ? `Aprovada · Pgto ${fmtDate(inv.paymentDate)}`
+                : STATUS_CONFIG[inv.status]?.label;
+
               return (
                 <>
                   <tr
                     key={inv.id}
-                    className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-900/30 transition-colors ${ROW_LEFT_BORDER[inv.status] || ""} ${isActiveRow ? "bg-gray-50 dark:bg-gray-900/20" : ""}`}
+                    className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-900/30 transition-colors ${isActiveRow ? "bg-gray-50 dark:bg-gray-900/20" : ""}`}
                   >
-                    {/* Colaborador */}
-                    <td className="px-4 py-4 overflow-hidden">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${avatarCls}`}>
+                    {/* Colaborador — bolinha de status + avatar + nome */}
+                    <td className="px-4 py-3.5 overflow-hidden">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${dotCls}`}
+                          title={approvedDate}
+                        />
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
                           {initial}
                         </div>
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                          {toTitleCase(name)}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">
+                            {toTitleCase(name)}
+                          </span>
+                          {inv.status === "aprovada" && inv.paymentDate && (
+                            <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                              <Calendar className="w-2.5 h-2.5 shrink-0" /> {fmtDate(inv.paymentDate)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 
                     {/* Função */}
-                    <td className="px-4 py-4 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs text-gray-500 truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
 
                     {/* Valor */}
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-3.5 text-right">
                       <span className="text-sm font-semibold text-violet-600 dark:text-violet-400 tabular-nums whitespace-nowrap">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
 
                     {/* OC */}
-                    <td className="px-4 py-4 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate block">
                         {inv.oc || "—"}
                       </span>
                     </td>
 
                     {/* Nota */}
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3.5">
                       {inv.attachmentUrl ? (
                         <a
                           href={inv.attachmentUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          title="Ver nota fiscal"
                           className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                           <FileText className="w-3.5 h-3.5" /> Ver nota
@@ -668,52 +705,42 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       )}
                     </td>
 
-                    {/* Status */}
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${STATUS_CONFIG[inv.status]?.cls}`}>
-                        <StatusIcon className="w-3 h-3 shrink-0" />
-                        {STATUS_CONFIG[inv.status]?.label}
-                      </span>
-                      {inv.status === "aprovada" && inv.paymentDate && (
-                        <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-0.5 whitespace-nowrap">
-                          <Calendar className="w-2.5 h-2.5" /> {fmtDate(inv.paymentDate)}
-                        </p>
-                      )}
-                    </td>
-
-                    {/* Ações */}
-                    <td className="px-4 py-4">
+                    {/* Ações — ícones com tooltip */}
+                    <td className="px-4 py-3.5">
                       {inv.status === "enviada" && (
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openAction(inv, "approve")}
-                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                            title="Aprovar nota"
+                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
                               isActiveRow && active?.type === "approve"
                                 ? "bg-emerald-600 text-white"
                                 : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                             }`}
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
+                            <CheckCircle2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openAction(inv, "return")}
-                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                            title="Devolver para ajuste"
+                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
                               isActiveRow && active?.type === "return"
                                 ? "bg-orange-500 text-white"
                                 : "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20"
                             }`}
                           >
-                            <RotateCcw className="w-3.5 h-3.5" /> Devolver
+                            <RotateCcw className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openAction(inv, "reject")}
-                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                            title="Recusar nota"
+                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors ${
                               isActiveRow && active?.type === "reject"
                                 ? "bg-red-500 text-white"
                                 : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                             }`}
                           >
-                            <XCircle className="w-3.5 h-3.5" /> Recusar
+                            <XCircle className="w-4 h-4" />
                           </button>
                         </div>
                       )}
@@ -723,7 +750,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                   {/* Inline action panel */}
                   {isActiveRow && active && (
                     <tr key={`${inv.id}-action`} className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
-                      <td colSpan={7} className="px-5 py-3">
+                      <td colSpan={6} className="px-5 py-3">
                         {active.type === "approve" && (
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
