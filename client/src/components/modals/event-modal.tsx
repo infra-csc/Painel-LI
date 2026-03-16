@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event, PaymentCompany } from "@shared/schema";
 import { useEffect, useRef, useState } from "react";
-import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2, Pencil, Sparkles, BookMarked } from "lucide-react";
+import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2, Pencil, Sparkles, BookMarked, Plus } from "lucide-react";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
 const eventSchema = z.object({
@@ -51,6 +51,8 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const [obsLength, setObsLength] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showManage, setShowManage] = useState(false);
+  const [manageNewName, setManageNewName] = useState("");
+  const [manageNewCnpj, setManageNewCnpj] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +64,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
     mutationFn: (data: { name: string; cnpj: string }) =>
       apiRequest("POST", "/api/payment-companies", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] }),
+    onError: () => toast({ title: "Erro ao salvar empresa.", variant: "destructive" }),
   });
 
   const deleteCompanyMutation = useMutation({
@@ -70,7 +73,23 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] });
       toast({ title: "Empresa removida." });
     },
+    onError: () => toast({ title: "Erro ao remover empresa.", variant: "destructive" }),
   });
+
+  const handleManageAddCompany = async () => {
+    if (!manageNewName.trim() || !validateCnpj(manageNewCnpj)) return;
+    const alreadyExists = paymentCompanies.some(
+      c => c.cnpj.replace(/\D/g, "") === manageNewCnpj.replace(/\D/g, "")
+    );
+    if (alreadyExists) {
+      toast({ title: "CNPJ já cadastrado.", variant: "destructive" });
+      return;
+    }
+    await createCompanyMutation.mutateAsync({ name: manageNewName.trim(), cnpj: manageNewCnpj });
+    setManageNewName("");
+    setManageNewCnpj("");
+    toast({ title: "Empresa cadastrada com sucesso." });
+  };
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -146,6 +165,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
         if (!alreadyExists) {
           try {
             await createCompanyMutation.mutateAsync({ name: companyName, cnpj: companyCnpj });
+            toast({ title: `Empresa "${companyName}" salva na lista.` });
           } catch {}
         }
       }
@@ -387,17 +407,15 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                       <span className="text-xs font-semibold text-emerald-700">Empresa responsável pelo pagamento</span>
                       <span className="text-[10px] text-slate-400 font-normal">(opcional — Notas Fiscais)</span>
                     </div>
-                    {paymentCompanies.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowManage(true)}
-                        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded hover:bg-emerald-50"
-                        title="Gerenciar empresas salvas"
-                      >
-                        <Pencil className="w-3 h-3" />
-                        Gerenciar
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowManage(true)}
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded hover:bg-emerald-50"
+                      title="Gerenciar empresas salvas"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Gerenciar{paymentCompanies.length > 0 ? ` (${paymentCompanies.length})` : ""}
+                    </button>
                   </div>
 
                   {/* Nome da empresa com autocomplete */}
@@ -517,21 +535,25 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       </Dialog>
 
       {/* ── Mini modal: Gerenciar empresas ── */}
-      <Dialog open={showManage} onOpenChange={setShowManage}>
-        <DialogContent className="p-0 gap-0 sm:max-w-[420px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <Dialog open={showManage} onOpenChange={(v) => { setShowManage(v); if (!v) { setManageNewName(""); setManageNewCnpj(""); } }}>
+        <DialogContent className="p-0 gap-0 sm:max-w-[440px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-emerald-600" />
               <h3 className="text-sm font-bold text-slate-800">Empresas salvas</h3>
-              <span className="text-xs text-slate-400">({paymentCompanies.length})</span>
+              {paymentCompanies.length > 0 && (
+                <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full">{paymentCompanies.length}</span>
+              )}
             </div>
             <button onClick={() => setShowManage(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="max-h-80 overflow-y-auto">
+
+          {/* Lista */}
+          <div className="overflow-y-auto flex-1">
             {paymentCompanies.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-10">Nenhuma empresa salva ainda.</p>
+              <p className="text-sm text-slate-400 text-center py-8">Nenhuma empresa cadastrada ainda.</p>
             ) : (
               <div className="divide-y divide-gray-100">
                 {paymentCompanies.map(c => (
@@ -554,10 +576,39 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
               </div>
             )}
           </div>
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-[11px] text-slate-400">
-              Remover uma empresa não afeta os eventos já vinculados a ela.
-            </p>
+
+          {/* Formulário de adicionar empresa */}
+          <div className="border-t border-gray-100 bg-emerald-50/60 px-5 py-4 shrink-0 space-y-3">
+            <p className="text-xs font-semibold text-emerald-700">Adicionar empresa</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 mb-1 block">Nome</label>
+                <Input
+                  value={manageNewName}
+                  onChange={e => setManageNewName(e.target.value)}
+                  placeholder="Produtora Norte Ltda"
+                  className="h-8 text-xs border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 mb-1 block">CNPJ</label>
+                <CnpjInput
+                  value={manageNewCnpj}
+                  onChange={setManageNewCnpj}
+                  name="manageNewCnpj"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!manageNewName.trim() || !validateCnpj(manageNewCnpj) || createCompanyMutation.isPending}
+              onClick={handleManageAddCompany}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              Cadastrar
+            </button>
           </div>
         </DialogContent>
       </Dialog>
