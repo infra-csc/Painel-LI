@@ -11,11 +11,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
-  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink, Search
+  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink, Search, Building2, Plus, Trash2
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { isAdmin } from "@/lib/permissions";
-import type { Function as FunctionType, FunctionValue } from "@shared/schema";
+import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@shared/schema";
+import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
 const formSchema = z.object({
   default_daily_value_weekday: z.string().min(1, "Obrigatório"),
@@ -99,6 +100,8 @@ export default function SystemSettingsPage() {
   const [lastSaved, setLastSaved] = useState<{ timestamp: string; user: string } | null>(null);
   const [functionDailyValues, setFunctionDailyValues] = useState<Record<string, string>>({});
   const [functionSearch, setFunctionSearch] = useState("");
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [newCompanyCnpj, setNewCompanyCnpj] = useState("");
 
   useEffect(() => {
     try {
@@ -131,6 +134,31 @@ export default function SystemSettingsPage() {
       const res = await fetch("/api/function-values", { credentials: "include" });
       return res.json();
     },
+  });
+
+  const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({
+    queryKey: ["/api/payment-companies"],
+  });
+
+  const createCompanyMutation = useMutation({
+    mutationFn: (data: { name: string; cnpj: string }) =>
+      apiRequest("POST", "/api/payment-companies", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] });
+      setNewCompanyName("");
+      setNewCompanyCnpj("");
+      toast({ title: "Empresa cadastrada com sucesso." });
+    },
+    onError: () => toast({ title: "Erro ao cadastrar empresa.", variant: "destructive" }),
+  });
+
+  const deleteCompanyMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/payment-companies/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payment-companies"] });
+      toast({ title: "Empresa removida." });
+    },
+    onError: () => toast({ title: "Erro ao remover empresa.", variant: "destructive" }),
   });
 
   useEffect(() => {
@@ -621,6 +649,74 @@ export default function SystemSettingsPage() {
           </div>
         </form>
       </Form>
+
+      {/* ── Empresas Pagadoras ── */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-4 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+          <Building2 className="w-4 h-4 text-emerald-600" />
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Empresas Pagadoras</span>
+          <span className="text-xs text-gray-400 font-normal">(usadas nas Notas Fiscais)</span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-5 space-y-4">
+          {/* Lista existente */}
+          {paymentCompanies.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-3">Nenhuma empresa cadastrada.</p>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {paymentCompanies.map(c => (
+                <div key={c.id} className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{c.name}</p>
+                    <p className="text-xs text-gray-400 font-mono">{c.cnpj}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCompanyMutation.mutate(c.id)}
+                    disabled={deleteCompanyMutation.isPending}
+                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                    title="Remover empresa"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Adicionar nova empresa */}
+          <div className="border border-dashed border-emerald-200 rounded-xl p-4 bg-emerald-50/40 space-y-3">
+            <p className="text-xs font-semibold text-emerald-700">Adicionar nova empresa</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1 block">Nome da empresa</label>
+                <Input
+                  value={newCompanyName}
+                  onChange={e => setNewCompanyName(e.target.value)}
+                  placeholder="Ex.: Produtora Norte Ltda"
+                  className="h-9 text-sm border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1 block">CNPJ</label>
+                <CnpjInput
+                  value={newCompanyCnpj}
+                  onChange={setNewCompanyCnpj}
+                  name="newCompanyCnpj"
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!newCompanyName.trim() || !validateCnpj(newCompanyCnpj) || createCompanyMutation.isPending}
+              onClick={() => createCompanyMutation.mutate({ name: newCompanyName.trim(), cnpj: newCompanyCnpj })}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-4"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Cadastrar empresa
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* ── Histórico de Alterações ── */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">

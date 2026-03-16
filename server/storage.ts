@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices,
+  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices, paymentCompanies,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -21,7 +21,8 @@ import {
   type BudgetActual, type InsertBudgetActual,
   type BudgetComparison, type InsertBudgetComparison,
   type SystemSetting,
-  type Invoice, type InsertInvoice
+  type Invoice, type InsertInvoice,
+  type PaymentCompany, type InsertPaymentCompany
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne } from "drizzle-orm";
 
@@ -147,6 +148,11 @@ export interface IStorage {
   getInvoice(id: string): Promise<Invoice | undefined>;
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
   updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice>;
+
+  // Payment Companies
+  getPaymentCompanies(): Promise<PaymentCompany[]>;
+  createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany>;
+  deletePaymentCompany(id: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -783,6 +789,10 @@ export class MemStorage implements IStorage {
   async getInvoice(id: string): Promise<Invoice | undefined> { return undefined; }
   async createInvoice(invoice: InsertInvoice): Promise<Invoice> { throw new Error("Not implemented"); }
   async updateInvoice(id: string, invoice: Partial<Invoice>): Promise<Invoice> { throw new Error("Not implemented"); }
+
+  async getPaymentCompanies(): Promise<PaymentCompany[]> { return []; }
+  async createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany> { throw new Error("Not implemented"); }
+  async deletePaymentCompany(id: number): Promise<void> { throw new Error("Not implemented"); }
 }
 
 // Database storage implementation using PostgreSQL + Drizzle
@@ -1514,6 +1524,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(invoices.id, id))
       .returning();
     return updated;
+  }
+
+  async getPaymentCompanies(): Promise<PaymentCompany[]> {
+    return db.select().from(paymentCompanies).orderBy(paymentCompanies.name);
+  }
+
+  async createPaymentCompany(company: InsertPaymentCompany): Promise<PaymentCompany> {
+    const [created] = await db.insert(paymentCompanies).values(company).returning();
+    return created;
+  }
+
+  async deletePaymentCompany(id: number): Promise<void> {
+    await db.delete(paymentCompanies).where(eq(paymentCompanies.id, id));
   }
 }
 

@@ -59,6 +59,13 @@ Preferred communication style: Simple, everyday language.
 - **Access**: Lançamento visible to all; Aprovação RH tab only for admin/financial roles
 - **API**: `GET/POST /api/invoices`, `PATCH /api/invoices/:id`, `POST /api/invoices/:id/approve|return|reject`
 
+## Empresas Pagadoras
+- **Table**: `payment_companies` — stores reusable companies (name + CNPJ) for payment purposes
+- **Fields**: `id` (serial), `name`, `cnpj`, `createdAt`
+- **API**: `GET /api/payment-companies` (all users), `POST /api/payment-companies` (admin only), `DELETE /api/payment-companies/:id` (admin only)
+- **Event Modal**: When companies are registered, a "Selecionar empresa cadastrada" dropdown appears in the payment section — selecting one auto-fills name + CNPJ fields
+- **Management**: Admin can add/delete companies in the Configurações page under "Empresas Pagadoras" section
+
 ## System Settings (Configurações)
 - **Table**: `system_settings` — key-value store for global default values
 - **Keys**: `default_daily_value`, `default_mobility`, `default_weekday_lunch`, `default_weekday_dinner`, `default_weekend_lunch`, `default_weekend_dinner`

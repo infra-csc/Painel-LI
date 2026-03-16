@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Event } from "@shared/schema";
+import type { Event, PaymentCompany } from "@shared/schema";
 import { useEffect, useState } from "react";
 import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2 } from "lucide-react";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
@@ -49,6 +49,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const queryClient = useQueryClient();
   const isEditing = !!event;
   const [obsLength, setObsLength] = useState(0);
+
+  const { data: paymentCompanies = [] } = useQuery<PaymentCompany[]>({
+    queryKey: ["/api/payment-companies"],
+  });
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -313,6 +317,36 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   <span className="text-xs font-semibold text-emerald-700">Empresa responsável pelo pagamento</span>
                   <span className="text-[10px] text-slate-400 font-normal">(opcional — usado nas Notas Fiscais)</span>
                 </div>
+
+                {/* Seletor rápido de empresa cadastrada */}
+                {paymentCompanies.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-600 mb-1.5">Selecionar empresa cadastrada</p>
+                    <Select
+                      value=""
+                      onValueChange={(val) => {
+                        const company = paymentCompanies.find(c => String(c.id) === val);
+                        if (company) {
+                          form.setValue("paymentCompanyName", company.name, { shouldDirty: true });
+                          form.setValue("paymentCompanyCnpj", company.cnpj, { shouldDirty: true });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-sm border-gray-200 rounded-lg bg-white">
+                        <SelectValue placeholder="Escolher empresa..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
+                        {paymentCompanies.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            <span className="font-medium">{c.name}</span>
+                            <span className="text-slate-400 text-xs ml-2">{c.cnpj}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="paymentCompanyName"

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, date, unique, decimal, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -559,3 +559,15 @@ export type InsertBudgetActual = z.infer<typeof insertBudgetActualSchema>;
 
 export type BudgetComparison = typeof budgetComparison.$inferSelect;
 export type InsertBudgetComparison = z.infer<typeof insertBudgetComparisonSchema>;
+
+export const paymentCompanies = pgTable("payment_companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  cnpj: text("cnpj").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPaymentCompanySchema = createInsertSchema(paymentCompanies).omit({ id: true, createdAt: true });
+
+export type PaymentCompany = typeof paymentCompanies.$inferSelect;
+export type InsertPaymentCompany = z.infer<typeof insertPaymentCompanySchema>;

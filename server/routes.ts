@@ -2689,6 +2689,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment Companies
+  app.get("/api/payment-companies", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
+    try {
+      const companies = await storage.getPaymentCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching payment companies:", error);
+      res.status(500).json({ message: "Erro ao buscar empresas" });
+    }
+  });
+
+  app.post("/api/payment-companies", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !["admin"].includes(user.role)) return res.status(403).json({ message: "Sem permissão" });
+    try {
+      const { name, cnpj } = req.body;
+      if (!name || !cnpj) return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
+      const company = await storage.createPaymentCompany({ name, cnpj });
+      res.status(201).json(company);
+    } catch (error) {
+      console.error("Error creating payment company:", error);
+      res.status(500).json({ message: "Erro ao criar empresa" });
+    }
+  });
+
+  app.delete("/api/payment-companies/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !["admin"].includes(user.role)) return res.status(403).json({ message: "Sem permissão" });
+    try {
+      await storage.deletePaymentCompany(Number(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting payment company:", error);
+      res.status(500).json({ message: "Erro ao excluir empresa" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
