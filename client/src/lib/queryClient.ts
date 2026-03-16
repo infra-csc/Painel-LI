@@ -45,10 +45,11 @@ export async function apiRequest(
     }
   }
   
+  const isBodyless = method === "GET" || method === "HEAD";
   const res = await fetch(url, {
     method,
     headers,
-    body: requestBody ? JSON.stringify(requestBody) : undefined,
+    body: isBodyless ? undefined : (requestBody ? JSON.stringify(requestBody) : undefined),
     credentials: "include",
   });
 
