@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Event } from "@shared/schema";
 import { useEffect, useState } from "react";
 import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2 } from "lucide-react";
+import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
 const eventSchema = z.object({
   name: z.string().min(1, "Nome do evento é obrigatório"),
@@ -21,7 +22,10 @@ const eventSchema = z.object({
   status: z.enum(["planejado", "concluído", "excluído"]).optional(),
   observations: z.string().optional(),
   paymentCompanyName: z.string().optional(),
-  paymentCompanyCnpj: z.string().optional(),
+  paymentCompanyCnpj: z.string().optional().refine((v) => {
+    if (!v || v.replace(/\D/g, "").length === 0) return true; // vazio = ok
+    return validateCnpj(v);
+  }, { message: "CNPJ inválido. Verifique os números digitados." }),
 }).refine((data) => {
   return new Date(data.endDate) >= new Date(data.startDate);
 }, {
@@ -53,6 +57,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
+    mode: "onBlur",
     defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "", paymentCompanyCnpj: "" },
   });
 
@@ -336,10 +341,11 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     <FormItem>
                       <FormLabel className="text-xs font-medium text-slate-600">CNPJ</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="00.000.000/0001-00"
-                          className={INPUT_CLS}
-                          {...field}
+                        <CnpjInput
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage className="text-[11px]" />
