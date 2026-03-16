@@ -336,7 +336,7 @@ export default function RhControlPage() {
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        if (!showConcluded && CONCLUDED_STATUSES.includes(item.status)) return false;
+        if (!showConcluded && filterInvoiceStatus === "all" && CONCLUDED_STATUSES.includes(item.status)) return false;
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
       if (filterFunction !== "all" && item.functionId !== filterFunction) return false;
