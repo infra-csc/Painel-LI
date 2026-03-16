@@ -343,11 +343,13 @@ export default function RhControlPage() {
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        // "Concluído" = apenas aprovada_faturamento + NF aprovada. Recusada e demais sempre visíveis.
-        if (!showConcluded && filterInvoiceStatus === "all" && item.status === "aprovada_faturamento") {
+        // "Concluído" = aprovada_faturamento + NF aprovada
+        if (filterInvoiceStatus === "all") {
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
-          if (invStatus === "aprovada") return false;
+          const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada";
+          if (showConcluded && !isConcluded) return false;
+          if (!showConcluded && isConcluded) return false;
         }
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
