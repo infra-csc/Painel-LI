@@ -343,12 +343,11 @@ export default function RhControlPage() {
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        if (!showConcluded && filterInvoiceStatus === "all" && CONCLUDED_STATUSES.includes(item.status)) {
-          // Still show aprovada_faturamento items that have pending NF action
+        // "Concluído" = apenas aprovada_faturamento + NF aprovada. Recusada e demais sempre visíveis.
+        if (!showConcluded && filterInvoiceStatus === "all" && item.status === "aprovada_faturamento") {
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
-          const hasNfPending = item.status === "aprovada_faturamento" && (invStatus === "pendente" || invStatus === "enviada" || invStatus === "devolvida");
-          if (!hasNfPending) return false;
+          if (invStatus === "aprovada") return false;
         }
       }
       if (filterEvent !== "all" && item.event.id !== filterEvent) return false;
@@ -1046,7 +1045,11 @@ export default function RhControlPage() {
   };
 
   const totalItems = prestacaoItems.length;
-  const concludedCount = (statusCounts.aprovada_faturamento || 0) + (statusCounts.recusada || 0);
+  const concludedCount = prestacaoItems.filter(item => {
+    if (item.status !== "aprovada_faturamento") return false;
+    const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+    return inv?.status === "aprovada";
+  }).length;
   const progressPct = totalItems > 0 ? Math.round(concludedCount / totalItems * 100) : 0;
 
   return (
@@ -1297,8 +1300,8 @@ export default function RhControlPage() {
           <p className="text-sm font-medium text-slate-500">Nenhum item encontrado</p>
           <p className="text-xs text-slate-400 mt-1">
             {hasActiveFilters ? "Ajuste os filtros para ver mais resultados." :
-             showConcluded ? "Nenhum item concluído ainda." :
-             "Todos os itens estão em dia. Ative 'Concluídos' para ver os finalizados."}
+             showConcluded ? "Nenhum item com nota fiscal aprovada ainda." :
+             "Todos os itens estão em dia. Ative 'Concluídos' para ver os itens com NF aprovada."}
           </p>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" className="mt-3 text-xs"
