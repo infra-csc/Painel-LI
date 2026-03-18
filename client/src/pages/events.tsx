@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  Calendar, Plus, Edit, Trash2, Search, X,
+  Plus, Edit, Trash2, Search, X,
   ChevronUp, ChevronDown, ChevronsUpDown,
   CalendarCheck, CalendarClock, CalendarX, LayoutList, Users, RotateCcw
 } from "lucide-react";
@@ -60,18 +60,18 @@ interface StatCardProps {
   label: string;
   value: number;
   icon: React.ElementType;
-  numCls: string;
-  iconCls: string;
+  iconBg: string;
+  iconColor: string;
 }
-function StatCard({ label, value, icon: Icon, numCls, iconCls }: StatCardProps) {
+function StatCard({ label, value, icon: Icon, iconBg, iconColor }: StatCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex items-center gap-4">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconCls}`}>
-        <Icon className="w-4.5 h-4.5" style={{width:'18px',height:'18px'}} />
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5">
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <Icon style={{ width: 28, height: 28, color: iconColor }} />
       </div>
       <div>
-        <p className={`text-2xl font-bold leading-none tabular-nums ${numCls}`}>{value}</p>
-        <p className="text-xs text-slate-400 mt-1">{label}</p>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+        <h3 className="text-2xl font-black text-slate-900 tabular-nums">{value}</h3>
       </div>
     </div>
   );
@@ -250,204 +250,159 @@ export default function Events() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-5">
+      <div className="space-y-8">
 
-        {/* ── Metric cards ── */}
+        {/* ── Page header ── */}
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Gerenciamento de Eventos</h2>
+            <p className="text-slate-500 mt-1 font-medium">Controle e acompanhamento de cronogramas logísticos.</p>
+          </div>
+          <button
+            onClick={() => handleOpenModal()}
+            data-testid="button-add-event"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white text-sm transition-all hover:shadow-xl active:scale-95"
+            style={{ background: "#0033CC" }}
+          >
+            <Plus className="w-4 h-4" />
+            Novo Evento
+          </button>
+        </div>
+
+        {/* ── Stat cards ── */}
         {!isLoading && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard
-              label="Total de eventos"
-              value={stats.total}
-              icon={LayoutList}
-              numCls="text-slate-800"
-              iconCls="bg-slate-100 text-slate-500"
-            />
-            <StatCard
-              label="Planejados"
-              value={stats.planejado}
-              icon={CalendarClock}
-              numCls="text-blue-600"
-              iconCls="bg-blue-50 text-blue-500"
-            />
-            <StatCard
-              label="Em andamento"
-              value={stats.emAndamento}
-              icon={CalendarCheck}
-              numCls="text-amber-600"
-              iconCls="bg-amber-50 text-amber-500"
-            />
-            <StatCard
-              label="Concluídos"
-              value={stats.concluido}
-              icon={CalendarX}
-              numCls="text-emerald-600"
-              iconCls="bg-emerald-50 text-emerald-500"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard label="Total de eventos" value={stats.total}       icon={LayoutList}   iconBg="bg-slate-50"   iconColor="#64748b" />
+            <StatCard label="Planejados"        value={stats.planejado}   icon={CalendarClock} iconBg="bg-blue-50"   iconColor="#0033CC" />
+            <StatCard label="Em andamento"      value={stats.emAndamento} icon={CalendarCheck} iconBg="bg-orange-50" iconColor="#ff4d00" />
+            <StatCard label="Concluídos"        value={stats.concluido}   icon={CalendarX}     iconBg="bg-green-50"  iconColor="#22c55e" />
           </div>
         )}
 
-        {/* ── Main panel ── */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* ── Filters card ── */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
 
-          {/* Section header */}
-          <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                Gerenciamento de Eventos
-                {!isLoading && (
-                  <span className="text-sm font-normal text-slate-400">
-                    ({hasActiveFilters
-                      ? `${filteredAndSortedEvents.length} de ${events?.filter(e => e.status !== "excluído").length ?? 0}`
-                      : stats.total} ativos)
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Gerencie os eventos do sistema</p>
-            </div>
-            <button
-              onClick={() => handleOpenModal()}
-              data-testid="button-add-event"
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Evento
-            </button>
-          </div>
-
-          {/* Filters — single row */}
-          <div className="px-6 py-4 border-b border-gray-100">
-            <div className="flex flex-wrap gap-2 items-center">
-              {/* Search */}
-              <div className="relative flex-[2] min-w-[180px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            {/* Search */}
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Busca</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
-                  placeholder="Buscar por nome ou cidade..."
+                  placeholder="Nome do evento ou cidade..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
                   data-testid="input-search-event"
+                  className="pl-10 h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10"
                 />
                 {searchTerm && (
                   <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
+            </div>
 
-              {/* Status */}
-              <div className="flex-1 min-w-[230px]">
-                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200" data-testid="select-status-filter">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-                    <SelectItem value="default"    className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado + Em andamento</SelectItem>
-                    <SelectItem value="all"        className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os status</SelectItem>
-                    <SelectItem value="planejado"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Planejado</SelectItem>
-                    <SelectItem value="em andamento" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Em andamento</SelectItem>
-                    <SelectItem value="concluído"  className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Concluído</SelectItem>
-                    <SelectItem value="excluído"   className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Excluído</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Status */}
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Status</label>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10" data-testid="select-status-filter">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
+                  <SelectItem value="default">Planejado + Em andamento</SelectItem>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="planejado">Planejado</SelectItem>
+                  <SelectItem value="em andamento">Em andamento</SelectItem>
+                  <SelectItem value="concluído">Concluído</SelectItem>
+                  <SelectItem value="excluído">Excluído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              {/* Month */}
-              <div className="flex-1 min-w-[120px]">
-                <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
-                    <SelectValue placeholder="Mês" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px]">
-                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos os meses</SelectItem>
-                    {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
-                      <SelectItem key={i+1} value={String(i+1)} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Month */}
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mês</label>
+              <Select value={monthFilter} onValueChange={setMonthFilter}>
+                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10">
+                  <SelectValue placeholder="Mês" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
+                  <SelectItem value="all">Todos os meses</SelectItem>
+                  {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
+                    <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              {/* Year */}
-              <div className="w-[96px]">
-                <Select value={yearFilter} onValueChange={setYearFilter}>
-                  <SelectTrigger className="h-9 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200">
-                    <SelectValue placeholder="Ano" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[120px]">
-                    <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-                    {availableYears.map(y => (
-                      <SelectItem key={y} value={String(y)} className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Year */}
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Ano</label>
+              <Select value={yearFilter} onValueChange={setYearFilter}>
+                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
+                  <SelectItem value="all">Todos</SelectItem>
+                  {availableYears.map(y => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              {/* Date */}
-              <div className="relative w-[140px]">
-                <Input
-                  type="date"
-                  value={dateFilter}
-                  onChange={e => setDateFilter(e.target.value)}
-                  className="h-9 text-sm border-gray-200 rounded-lg"
-                  title="Data específica — mostra eventos que ocorrem neste dia"
-                  data-testid="input-date-filter"
-                />
-                {dateFilter && (
-                  <button onClick={() => setDateFilter("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Clear */}
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  data-testid="button-clear-filters"
-                  className="flex items-center gap-1 h-9 px-3 text-xs text-slate-500 hover:text-slate-700 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                >
-                  <X className="w-3 h-3" /> Limpar
-                </button>
-              )}
+            {/* Clear */}
+            <div className="flex gap-2">
+              <button
+                onClick={clearFilters}
+                data-testid="button-clear-filters"
+                className="flex-1 h-11 bg-slate-100 text-slate-600 px-4 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+              >
+                Limpar
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Table */}
+        {/* ── Table card ── */}
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
           {isLoading ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Carregando eventos...</div>
+            <div className="text-center py-16 text-slate-400 text-sm">Carregando eventos...</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-gray-100">
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
                     <th
                       onClick={() => handleSort("eventNumber")}
-                      className="text-left px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none whitespace-nowrap w-16 hover:text-slate-600"
+                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600 w-16"
                     >
-                      Nº <SortIcon col="eventNumber" sortKey={sortKey} sortDir={sortDir} />
+                      ID <SortIcon col="eventNumber" sortKey={sortKey} sortDir={sortDir} />
                     </th>
                     <th
                       onClick={() => handleSort("name")}
-                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600"
+                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600"
                     >
-                      Nome <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                      Nome do Evento <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
                     </th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                      Cidade
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                      Localização
                     </th>
                     <th
                       onClick={() => handleSort("period")}
-                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600 whitespace-nowrap"
+                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600 whitespace-nowrap"
                     >
                       Período <SortIcon col="period" sortKey={sortKey} sortDir={sortDir} />
                     </th>
                     <th
                       onClick={() => handleSort("status")}
-                      className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-600"
+                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600"
                     >
                       Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
                     </th>
-                    <th className="px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="flex items-center justify-center gap-1 cursor-default">
@@ -457,106 +412,98 @@ export default function Events() {
                         <TooltipContent>Escalações ativas no evento</TooltipContent>
                       </Tooltip>
                     </th>
-                    <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">
                       Ações
                     </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredAndSortedEvents.map((event, idx) => {
+                <tbody className="divide-y divide-slate-100">
+                  {filteredAndSortedEvents.map(event => {
                     const displayStatus = getEventStatus(event);
                     const statusCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["planejado"];
                     const isDeleted = displayStatus === "excluído";
                     const isOngoing = displayStatus === "em andamento";
                     const escalacoes = escalacoesByEvent[event.id] ?? 0;
-                    const isEven = idx % 2 === 1;
 
                     return (
                       <tr
                         key={event.id}
-                        className={`border-b border-gray-50 transition-colors group ${
-                          isDeleted ? "opacity-60" : ""
-                        } ${isEven ? "bg-slate-50/60" : "bg-white"} hover:bg-blue-50/60`}
+                        className={`hover:bg-slate-50/30 transition-colors group ${isDeleted ? "opacity-60" : ""}`}
                       >
-                        <td className="px-6 py-3.5 text-xs text-slate-400 font-medium tabular-nums">
+                        <td className="px-6 py-5 text-sm font-bold text-slate-400 tabular-nums">
                           {event.eventNumber}
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-6 py-5 text-sm font-bold text-slate-900">
                           <span className="flex items-center gap-2">
                             {isOngoing && (
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
                             )}
-                            <span className="font-semibold text-slate-800">{event.name}</span>
+                            {event.name}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-slate-500">{event.location}</td>
-                        <td className="px-4 py-3.5 text-slate-500 tabular-nums whitespace-nowrap">
+                        <td className="px-6 py-5 text-sm font-medium text-slate-500">{event.location}</td>
+                        <td className="px-6 py-5 text-sm font-medium text-slate-500 whitespace-nowrap tabular-nums">
                           {formatPeriod(event.startDate, event.endDate)}
                         </td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium ${statusCfg.badgeCls}`}>
+                        <td className="px-6 py-5">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusCfg.badgeCls}`}>
                             {statusCfg.label}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-center">
-                          {escalacoes > 0 ? (
-                            <span className="text-sm font-semibold text-slate-700">{escalacoes}</span>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
+                        <td className="px-6 py-5 text-sm font-bold text-center">
+                          {escalacoes > 0
+                            ? <span className="text-slate-900">{escalacoes}</span>
+                            : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-1 justify-end">
-                            {isDeleted ? (
+                        <td className="px-6 py-5 text-right space-x-1">
+                          {isDeleted ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => handleRestore(event)}
+                                  data-testid={`button-restore-event-${event.id}`}
+                                  className="p-2 text-slate-400 hover:text-green-600 transition-colors"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Restaurar evento</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <button
-                                    onClick={() => handleRestore(event)}
-                                    data-testid={`button-restore-event-${event.id}`}
-                                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                                    onClick={() => handleOpenModal(event)}
+                                    data-testid={`button-edit-event-${event.id}`}
+                                    className="p-2 text-slate-400 hover:text-[#0033CC] transition-colors"
                                   >
-                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <Edit className="w-4 h-4" />
                                   </button>
                                 </TooltipTrigger>
-                                <TooltipContent>Restaurar evento</TooltipContent>
+                                <TooltipContent>Editar evento</TooltipContent>
                               </Tooltip>
-                            ) : (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => handleOpenModal(event)}
-                                      data-testid={`button-edit-event-${event.id}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Editar evento</TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => handleDelete(event)}
-                                      data-testid={`button-delete-event-${event.id}`}
-                                      className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Excluir evento</TooltipContent>
-                                </Tooltip>
-                              </>
-                            )}
-                          </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleDelete(event)}
+                                    data-testid={`button-delete-event-${event.id}`}
+                                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Excluir evento</TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
                   {filteredAndSortedEvents.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
+                      <td colSpan={7} className="text-center py-16 text-slate-400 text-sm">
                         {statusFilter === "default" && !searchTerm && monthFilter === "all" && yearFilter === "all" && !dateFilter
                           ? "Nenhum evento planejado ou em andamento. Selecione \"Todos os status\" para ver eventos concluídos."
                           : hasActiveFilters
@@ -567,6 +514,14 @@ export default function Events() {
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+          {/* Footer count */}
+          {!isLoading && filteredAndSortedEvents.length > 0 && (
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Mostrando {filteredAndSortedEvents.length} {filteredAndSortedEvents.length === 1 ? "evento" : "eventos"}
+              </p>
             </div>
           )}
         </div>
