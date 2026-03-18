@@ -901,81 +901,86 @@ function WeekView({ weekStart, events, onSelectEvent }: {
 
   const isWeekend = (i: number) => i === 0 || i === 6;
 
+  const GRID_7 = { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" } as const;
+
   return (
-    <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "100%" }}>
+
       {/* Day header row */}
-      <div className="grid grid-cols-7 border-b border-slate-200">
+      <div style={GRID_7} className="border-b border-slate-200 shrink-0">
         {days.map((day, i) => {
           const isToday = day.getTime() === today.getTime();
           return (
             <div
               key={i}
-              className={`p-4 text-center border-r border-slate-100 last:border-r-0 ${isWeekend(i) ? "bg-slate-50/50" : ""} ${isToday ? "bg-blue-50/60" : ""}`}
+              className={`py-4 px-2 text-center border-r border-slate-100 last:border-r-0
+                ${isWeekend(i) ? "bg-slate-50/60" : ""}
+                ${isToday ? "bg-blue-50/70" : ""}
+              `}
             >
-              <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
                 {WEEK_DAY_SHORT[i]}
               </p>
-              <p className={`text-2xl font-black ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>
+              <p className={`text-2xl font-black leading-none ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>
                 {day.getDate()}
               </p>
-              {isToday && (
-                <div className="w-1.5 h-1.5 bg-[#0033CC] rounded-full mx-auto mt-1" />
-              )}
+              {isToday && <div className="w-1.5 h-1.5 bg-[#0033CC] rounded-full mx-auto mt-2" />}
             </div>
           );
         })}
       </div>
 
-      {/* Day columns body */}
-      <div className="grid grid-cols-7 flex-1 min-h-0 overflow-y-auto">
-        {days.map((day, i) => {
-          const isToday = day.getTime() === today.getTime();
-          const dayEvents = eventsPerDay[i];
-          return (
-            <div
-              key={i}
-              className={`border-r border-slate-100 last:border-r-0 p-3 space-y-2 min-h-[200px]
-                ${isWeekend(i) ? "bg-slate-50/30" : ""}
-                ${isToday ? "bg-blue-50/20" : ""}
-              `}
-            >
-              {dayEvents.length === 0 && (
-                <div className="h-full flex items-start justify-center pt-6">
-                  <span className="text-[10px] text-slate-300 select-none">–</span>
-                </div>
-              )}
-              {dayEvents.map(ev => {
-                const status = getEffectiveStatus(ev);
-                const wcfg = WEEK_STATUS_CFG[status] || WEEK_STATUS_CFG["planejado"];
-                const cfg = getCfg(status);
-                return (
-                  <button
-                    key={ev.id}
-                    onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                    className={`w-full text-left rounded-xl p-3 border-l-4 shadow-sm hover:shadow-md transition-shadow ${wcfg.bg} ${wcfg.border}`}
-                  >
-                    {wcfg.pulse ? (
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className={`w-2 h-2 rounded-full ${wcfg.dotBg} animate-pulse`} />
-                        <p className={`text-[10px] font-bold uppercase tracking-tight ${wcfg.labelText}`}>
-                          {cfg.label}
-                        </p>
-                      </div>
-                    ) : null}
-                    <p className={`text-xs font-black leading-tight ${cfg.strikethrough ? "line-through text-slate-400" : "text-slate-900"}`}>
-                      {ev.name}
-                    </p>
-                    {ev.location && (
-                      <p className={`text-[10px] mt-1.5 font-medium truncate ${wcfg.labelText} opacity-80`}>
-                        {ev.location}
+      {/* Day columns body — each column scrolls independently via outer scroll */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div style={{ ...GRID_7, minHeight: "100%" }} className="h-full">
+          {days.map((day, i) => {
+            const isToday = day.getTime() === today.getTime();
+            const dayEvents = eventsPerDay[i];
+            return (
+              <div
+                key={i}
+                className={`border-r border-slate-100 last:border-r-0 p-2 flex flex-col gap-2
+                  ${isWeekend(i) ? "bg-slate-50/30" : ""}
+                  ${isToday ? "bg-blue-50/20" : ""}
+                `}
+                style={{ minHeight: 260 }}
+              >
+                {dayEvents.length === 0 && (
+                  <span className="text-[10px] text-slate-200 select-none mx-auto mt-6">–</span>
+                )}
+                {dayEvents.map(ev => {
+                  const status = getEffectiveStatus(ev);
+                  const wcfg = WEEK_STATUS_CFG[status] || WEEK_STATUS_CFG["planejado"];
+                  const cfg = getCfg(status);
+                  return (
+                    <button
+                      key={ev.id}
+                      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+                      className={`w-full text-left rounded-xl p-2.5 border-l-4 shadow-sm hover:shadow-md transition-shadow ${wcfg.bg} ${wcfg.border}`}
+                    >
+                      {wcfg.pulse && (
+                        <div className="flex items-center gap-1 mb-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${wcfg.dotBg} animate-pulse shrink-0`} />
+                          <p className={`text-[9px] font-bold uppercase tracking-tight ${wcfg.labelText}`}>
+                            {cfg.label}
+                          </p>
+                        </div>
+                      )}
+                      <p className={`text-[11px] font-black leading-snug ${cfg.strikethrough ? "line-through text-slate-400" : "text-slate-900"}`}>
+                        {ev.name}
                       </p>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+                      {ev.location && (
+                        <p className={`text-[9px] mt-1 font-medium truncate ${wcfg.labelText} opacity-80`}>
+                          {ev.location}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
