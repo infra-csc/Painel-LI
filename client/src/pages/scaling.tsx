@@ -362,9 +362,15 @@ export default function Scaling() {
   const scalingInclusions = useMemo(() => {
     const filtered = filteredTeamInclusions?.filter(
       inclusion => {
-        // Busca exata por ID (número de inclusão)
+        // Busca por ID, nome de colaborador ou função
         const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-        const idMatch = !filters.searchId || String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q);
+        const collaboratorName = inclusion.collaboratorId ? getCollaboratorName(inclusion.collaboratorId).toLowerCase() : '';
+        const functionName = getFunctionName(inclusion.functionId).toLowerCase();
+        const idMatch = !filters.searchId || (
+          String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
+          collaboratorName.includes(q) ||
+          functionName.includes(q)
+        );
         
         // Apply universal filters
         if (filters.eventId !== "all" && inclusion.eventId !== filters.eventId) return false;
@@ -1018,26 +1024,11 @@ export default function Scaling() {
         </div>
       </div>
 
-      <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true}>
-        <div className="flex items-end justify-between gap-4">
-          <div className="w-64">
-            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-              Status da Passagem
-            </label>
-            <Select
-              value={filters.ticketStatus}
-              onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
-            >
-              <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
-                <SelectValue placeholder="Selecionar status da passagem" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
-                <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
-                <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">✈️ Passagens Compradas</SelectItem>
-                <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">❌ Passagens Não Compradas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <UniversalFilters
+        filters={filters}
+        onFiltersChange={setFilters}
+        hideStatusFilter={true}
+        rightActions={
           <Button
             onClick={handleExportToExcel}
             variant="outline"
@@ -1047,6 +1038,25 @@ export default function Scaling() {
             <FileSpreadsheet className="w-4 h-4" />
             Exportar para Excel
           </Button>
+        }
+      >
+        <div className="w-56">
+          <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+            Status da Passagem
+          </label>
+          <Select
+            value={filters.ticketStatus}
+            onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
+          >
+            <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
+              <SelectValue placeholder="Status da passagem" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+              <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
+              <SelectItem value="purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">✈️ Passagens Compradas</SelectItem>
+              <SelectItem value="not-purchased" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">❌ Passagens Não Compradas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </UniversalFilters>
 
