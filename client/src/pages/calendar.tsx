@@ -679,13 +679,44 @@ function formatListDate(startStr: string, endStr: string): string {
   return `${fmt(start, { day: "numeric", month: "short" })} a ${fmt(end, { day: "numeric", month: "short" })}`;
 }
 
+// ─── List status icon config ──────────────────────────────────────────────────
+
+const LIST_STATUS: Record<string, {
+  iconName: string; iconFill: boolean;
+  iconBg: string; iconText: string;
+  badgeBg: string; badgeText: string;
+  ping: boolean;
+}> = {
+  concluido: {
+    iconName: "check_circle", iconFill: true,
+    iconBg: "bg-emerald-100", iconText: "text-emerald-600",
+    badgeBg: "bg-emerald-100", badgeText: "text-emerald-800",
+    ping: false,
+  },
+  em_andamento: {
+    iconName: "play_circle", iconFill: true,
+    iconBg: "bg-amber-100", iconText: "text-amber-500",
+    badgeBg: "bg-amber-100", badgeText: "text-amber-800",
+    ping: true,
+  },
+  planejado: {
+    iconName: "schedule", iconFill: false,
+    iconBg: "bg-blue-100", iconText: "text-blue-600",
+    badgeBg: "bg-blue-100", badgeText: "text-blue-800",
+    ping: false,
+  },
+};
+
+function getListCfg(status: string) {
+  return LIST_STATUS[status] || LIST_STATUS["planejado"];
+}
+
 // ─── List view ────────────────────────────────────────────────────────────────
 
 function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: SelectEventFn }) {
   const today = new Date();
   const currentMonthNum = today.getFullYear() * 12 + today.getMonth();
   const currentMonthKey = `${today.getFullYear()}-${today.getMonth()}`;
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const grouped = useMemo(() => {
     const map = new Map<string, { label: string; key: string; events: Event[] }>();
@@ -707,93 +738,100 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
       }));
   }, [events]);
 
-  const toggleGroup = (key: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
-
   if (grouped.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-          <CalendarDays className="w-6 h-6 text-gray-400" />
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <CalendarDays className="w-7 h-7 text-slate-400" />
         </div>
-        <p className="text-sm font-semibold text-gray-500">Nenhum evento encontrado</p>
-        <p className="text-xs text-gray-400">Tente remover ou alterar os filtros aplicados</p>
+        <p className="text-sm font-semibold text-slate-600">Nenhum evento encontrado</p>
+        <p className="text-xs text-slate-400">Tente remover ou alterar os filtros aplicados</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="space-y-10 pb-6">
       {grouped.map((group) => {
-        const isOpen = !collapsed.has(group.key);
         const isCurrent = group.key === currentMonthKey;
         const [gy, gm] = group.key.split("-").map(Number);
         const isPast = gy * 12 + gm < currentMonthNum;
 
         return (
-          <div key={group.key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-            <button
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors border-b border-gray-100 dark:border-gray-700"
-              onClick={() => toggleGroup(group.key)}
-              style={isPast ? { opacity: 0.65 } : undefined}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${isCurrent ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
+          <section key={group.key} style={isPast ? { opacity: 0.7 } : undefined}>
+            {/* Month section header */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-2 shrink-0">
+                <h3 className={`text-[11px] font-black tracking-[0.2em] uppercase ${isCurrent ? "text-[#0033CC]" : "text-slate-400"}`}>
                   {group.label}
-                </span>
+                </h3>
                 {isCurrent && (
                   <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
                     Este mês
                   </span>
                 )}
-                <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full font-medium">
+                <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full font-semibold tabular-nums">
                   {group.events.length}
                 </span>
               </div>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
-            </button>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
 
-            {isOpen && (
-              <div className="divide-y divide-gray-50 dark:divide-gray-700">
-                {group.events.map(ev => {
-                  const cfg = getCfg(getEffectiveStatus(ev));
-                  const StatusIcon = cfg.icon;
-                  return (
-                    <button
-                      key={ev.id}
-                      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#f8fafc] dark:hover:bg-gray-750"
-                    >
-                      <div className={`w-8 h-8 rounded-xl ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
-                        <StatusIcon className={`w-3.5 h-3.5 ${cfg.text}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold text-gray-900 dark:text-gray-100 truncate ${cfg.strikethrough ? "line-through text-gray-400" : ""}`}>
-                          {ev.name}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <MapPin className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-                          <span className="text-[11px] text-gray-400 truncate">{ev.location}</span>
-                          <span className="text-[11px] text-gray-300 shrink-0">·</span>
-                          <span className="text-[11px] text-gray-400 shrink-0">
-                            {formatListDate(ev.startDate, ev.endDate)}
-                          </span>
+            {/* Event cards */}
+            <div className="grid gap-3">
+              {group.events.map(ev => {
+                const status = getEffectiveStatus(ev);
+                const lcfg = getListCfg(status);
+                const cfg = getCfg(status);
+
+                return (
+                  <button
+                    key={ev.id}
+                    onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+                    className="w-full bg-white p-4 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 group text-left"
+                  >
+                    {/* Status icon */}
+                    <div className={`w-12 h-12 ${lcfg.iconBg} ${lcfg.iconText} rounded-2xl flex items-center justify-center shrink-0 relative`}>
+                      <span
+                        className="material-symbols-outlined text-2xl"
+                        style={{ fontVariationSettings: lcfg.iconFill ? "'FILL' 1" : "'FILL' 0" }}
+                      >
+                        {lcfg.iconName}
+                      </span>
+                      {lcfg.ping && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`font-bold text-sm group-hover:underline underline-offset-2 truncate ${cfg.strikethrough ? "line-through text-slate-400" : "text-[#0033CC]"}`}>
+                        {ev.name}
+                      </h4>
+                      <div className="flex items-center gap-4 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1 text-slate-500 text-xs">
+                          <span className="material-symbols-outlined text-[15px]">location_on</span>
+                          <span className="truncate max-w-[200px]">{ev.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-500 text-xs">
+                          <span className="material-symbols-outlined text-[15px]">calendar_today</span>
+                          {formatListDate(ev.startDate, ev.endDate)}
                         </div>
                       </div>
-                      <Badge className={`text-[9px] h-[18px] px-1.5 shrink-0 ${cfg.bg} ${cfg.text} border ${cfg.border} hover:${cfg.bg}`}>
-                        {cfg.label}
-                      </Badge>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    </div>
+
+                    {/* Status badge */}
+                    <span className={`px-4 py-1.5 rounded-xl ${lcfg.badgeBg} ${lcfg.badgeText} text-[11px] font-bold uppercase tracking-wide shrink-0 hidden sm:block`}>
+                      {cfg.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         );
       })}
     </div>
