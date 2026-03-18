@@ -60,18 +60,27 @@ interface StatCardProps {
   label: string;
   value: number;
   icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
+  color: string;
 }
-function StatCard({ label, value, icon: Icon, iconBg, iconColor }: StatCardProps) {
+function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5">
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${iconBg}`}>
-        <Icon style={{ width: 28, height: 28, color: iconColor }} />
-      </div>
-      <div>
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-        <h3 className="text-2xl font-black text-slate-900 tabular-nums">{value}</h3>
+    <div
+      className="bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5"
+      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)" }}
+      onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.10), 0 8px 24px rgba(0,0,0,0.07)")}
+      onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)")}
+    >
+      {/* Faixa de cor no topo */}
+      <div className="h-1 w-full" style={{ background: color }} />
+      {/* Conteúdo */}
+      <div className="flex items-center gap-4 px-5 py-4">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}18` }}>
+          <Icon style={{ width: 22, height: 22, color }} />
+        </div>
+        <div>
+          <p className="uppercase text-[11px] font-semibold tracking-widest mb-1" style={{ color: "#6B7280" }}>{label}</p>
+          <p className="tabular-nums font-bold leading-none" style={{ fontSize: 28, color }}>{value}</p>
+        </div>
       </div>
     </div>
   );
@@ -271,11 +280,11 @@ export default function Events() {
 
         {/* ── Stat cards ── */}
         {!isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard label="Total de eventos" value={stats.total}       icon={LayoutList}   iconBg="bg-slate-50"   iconColor="#64748b" />
-            <StatCard label="Planejados"        value={stats.planejado}   icon={CalendarClock} iconBg="bg-blue-50"   iconColor="#0033CC" />
-            <StatCard label="Em andamento"      value={stats.emAndamento} icon={CalendarCheck} iconBg="bg-orange-50" iconColor="#ff4d00" />
-            <StatCard label="Concluídos"        value={stats.concluido}   icon={CalendarX}     iconBg="bg-green-50"  iconColor="#22c55e" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <StatCard label="Total de Eventos" value={stats.total}       icon={LayoutList}    color="#3B82F6" />
+            <StatCard label="Planejados"        value={stats.planejado}   icon={CalendarClock} color="#8B5CF6" />
+            <StatCard label="Em andamento"      value={stats.emAndamento} icon={CalendarCheck} color="#F97316" />
+            <StatCard label="Concluídos"        value={stats.concluido}   icon={CalendarX}     color="#22C55E" />
           </div>
         )}
 
