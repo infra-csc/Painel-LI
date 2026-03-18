@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Menu, X } from "lucide-react";
+import logoImg from "@assets/image_1773859034680.png";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { useState } from "react";
@@ -128,17 +129,8 @@ export default function Sidebar() {
 
         {/* Logo row */}
         <div className="p-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <span
-              className="font-bold leading-none select-none"
-              style={{ fontSize: 26, color: ACTIVE_BLUE, fontFamily: "Inter, sans-serif", letterSpacing: "-0.04em" }}
-            >
-              N
-            </span>
-            <div>
-              <p className="font-bold text-slate-900 dark:text-white text-sm leading-tight">NORTE</p>
-              <p className="text-[10px] text-slate-500 leading-tight">Marketing Digital</p>
-            </div>
+          <div className="flex items-center">
+            <img src={logoImg} alt="Norte" className="h-10 w-10 object-contain" />
           </div>
           <button
             className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors hidden lg:flex"
