@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-container": "#0033CC",
+                        "on-surface-variant": "#64748b",
+                        "on-primary-fixed": "#1e3a8a",
+                        "outline-variant": "#cbd5e1",
+                        "on-primary-container": "#ffffff",
+                        "tertiary": "#22c55e",
+                        "primary": "#0033CC",
+                        "error": "#ef4444",
+                        "secondary-container": "#ff4d00",
+                        "on-primary": "#ffffff",
+                        "inverse-surface": "#1e293b",
+                        "tertiary-container": "#dcfce7",
+                        "on-tertiary-fixed-variant": "#15803d",
+                        "primary-fixed": "#dbeafe",
+                        "tertiary-fixed-dim": "#bbf7d0",
+                        "secondary": "#ff4d00",
+                        "on-secondary-fixed-variant": "#ea580c",
+                        "outline": "#e2e8f0",
+                        "error-container": "#fee2e2",
+                        "surface-container-high": "#e2e8f0",
+                        "secondary-fixed-dim": "#fed7aa",
+                        "on-primary-fixed-variant": "#1d4ed8",
+                        "on-error-container": "#991b1b",
+                        "primary-fixed-dim": "#bfdbfe",
+                        "tertiary-fixed": "#dcfce7",
+                        "on-secondary-container": "#ffffff",
+                        "surface-tint": "#0033CC",
+                        "surface-container": "#f1f5f9",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed": "#064e3b",
+                        "on-error": "#ffffff",
+                        "surface-container-low": "#f8fafc",
+                        "inverse-primary": "#94a3b8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#0f172a",
+                        "background": "#f8fafc",
+                        "on-tertiary": "#ffffff",
+                        "on-surface": "#0f172a",
+                        "surface-dim": "#f1f5f9",
+                        "on-secondary-fixed": "#7c2d12",
+                        "surface": "#ffffff",
+                        "surface-variant": "#f1f5f9",
+                        "surface-bright": "#ffffff",
+                        "secondary-fixed": "#ffedd5",
+                        "inverse-on-surface": "#f8fafc",
+                        "on-tertiary-container": "#166534",
+                        "surface-container-highest": "#cbd5e1"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .scale-down-click:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="bg-surface-container-low font-body text-on-surface antialiased">
+<!-- TopAppBar Shell -->
+<header class="bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border-b border-slate-100 dark:border-slate-800 flex justify-between items-center h-16 px-8 w-full fixed top-0 z-40">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#0033CC] dark:text-blue-500">grid_view</span>
+<h1 class="font-['Inter'] antialiased text-[1.875rem] font-bold tracking-[-0.025em] text-[#0033CC] dark:text-blue-500">Norte Meridian</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-slate-500 hover:bg-blue-50/50 p-2 rounded-full cursor-pointer transition-all">notifications</span>
+<span class="material-symbols-outlined text-slate-500 hover:bg-blue-50/50 p-2 rounded-full cursor-pointer transition-all">settings</span>
+<span class="material-symbols-outlined text-slate-500 hover:bg-blue-50/50 p-2 rounded-full cursor-pointer transition-all">help</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Professional headshot of a male administrator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkujQU3OXqx6i0MMvvzA09YN1ge4lJgNGUSSjijveVrrCFs3OnLKKWl3WnXlqi6b4ScLHkNoFORqEm0o1Xmpi4u5c15rzB_lQHGrvjOiVv3aJrybLytXN9Fnj4WyL88OK-VUFZIDfJYoQCuc0L85GslFz4HZVZLqvPMC8Ao7kdtHQqsvCiqBr4owpR2MVYT3vuG_yrdI5IBDCGXzWNrM71sMgNfkI5pBDZAvzFP1sICfAiSZHvA5ueDtM6fc52bXcxk8eUz8uNBiY"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar Shell -->
+<aside class="h-screen w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 fixed left-0 top-0 flex flex-col h-full py-6 z-30 pt-20">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-1">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">hub</span>
+</div>
+<div>
+<p class="text-[0.875rem] font-semibold uppercase tracking-wider text-on-surface">Operations Hub</p>
+<p class="text-[11px] text-slate-500 uppercase tracking-widest">Rigidly Fluid</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="text-slate-500 hover:text-slate-900 hover:bg-slate-50 px-4 py-3 mx-2 flex items-center gap-3 transition-colors font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span>Logistics</span>
+</a>
+<a class="bg-[#0033CC]/10 text-[#0033CC] rounded-xl flex items-center px-4 py-3 mx-2 gap-3 font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span>Events</span>
+</a>
+<a class="text-slate-500 hover:text-slate-900 hover:bg-slate-50 px-4 py-3 mx-2 flex items-center gap-3 transition-colors font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span>Financial</span>
+</a>
+<a class="text-slate-500 hover:text-slate-900 hover:bg-slate-50 px-4 py-3 mx-2 flex items-center gap-3 transition-colors font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">corporate_fare</span>
+<span>Directory</span>
+</a>
+<a class="text-slate-500 hover:text-slate-900 hover:bg-slate-50 px-4 py-3 mx-2 flex items-center gap-3 transition-colors font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span>Analytics</span>
+</a>
+</nav>
+<div class="mt-auto px-4 space-y-1">
+<button class="w-full bg-primary-container text-white rounded-xl py-3 px-4 flex items-center justify-center gap-2 mb-6 font-semibold uppercase text-[0.875rem] tracking-wider scale-down-click shadow-brand-blue/20 shadow-xl transition-all">
+<span class="material-symbols-outlined">add</span>
+<span>New Operation</span>
+</button>
+<a class="text-slate-500 hover:text-slate-900 px-4 py-2 flex items-center gap-3 font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">support_agent</span>
+<span>Support</span>
+</a>
+<a class="text-slate-500 hover:text-slate-900 px-4 py-2 flex items-center gap-3 font-semibold uppercase text-[0.875rem] tracking-wider" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 pt-16 p-8 min-h-screen">
+<!-- Mock Background Content to simulate the modal overlay context -->
+<div class="max-w-6xl mx-auto opacity-20 pointer-events-none">
+<div class="flex justify-between items-end mb-12">
+<div>
+<p class="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-2">Internal Logistics</p>
+<h2 class="font-headline text-[1.875rem] font-bold tracking-[-0.025em] text-on-surface">Events Dashboard</h2>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-6">
+<div class="h-64 bg-white rounded-3xl shadow-sm border border-outline"></div>
+<div class="h-64 bg-white rounded-3xl shadow-sm border border-outline"></div>
+<div class="h-64 bg-white rounded-3xl shadow-sm border border-outline"></div>
+</div>
+</div>
+<!-- Modal Overlay -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+<!-- Modal Container -->
+<div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+<!-- Modal Header -->
+<div class="px-8 pt-8 pb-6 border-b border-slate-50">
+<div class="flex items-center gap-4 mb-1">
+<div class="w-14 h-14 rounded-xl bg-[#0033CC]/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#0033CC] text-3xl">event_available</span>
+</div>
+<div>
+<h3 class="text-xl font-bold text-slate-900 tracking-tight">Novo Evento</h3>
+<p class="text-sm text-slate-500">Preencha os dados do novo evento</p>
+</div>
+</div>
+</div>
+<!-- Modal Body / Form -->
+<div class="p-8 space-y-6 max-h-[716px] overflow-y-auto">
+<!-- Event Name -->
+<div class="space-y-2">
+<label class="block text-[0.875rem] font-semibold text-slate-700">Nome do Evento</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">label</span>
+<input class="w-full h-12 pl-12 pr-4 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400" placeholder="Ex: Conferência Logística 2024" type="text"/>
+</div>
+</div>
+<!-- Location -->
+<div class="space-y-2">
+<label class="block text-[0.875rem] font-semibold text-slate-700">Local</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">location_on</span>
+<input class="w-full h-12 pl-12 pr-4 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400" placeholder="Endereço ou Nome da Unidade" type="text"/>
+</div>
+</div>
+<!-- Dates Row -->
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="block text-[0.875rem] font-semibold text-slate-700">Data Início</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">calendar_today</span>
+<input class="w-full h-12 pl-12 pr-4 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" type="date"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="block text-[0.875rem] font-semibold text-slate-700">Data Fim</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">event_busy</span>
+<input class="w-full h-12 pl-12 pr-4 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" type="date"/>
+</div>
+</div>
+</div>
+<!-- Payment Entity (Highlighted Section) -->
+<div class="bg-tertiary-container/30 border-2 border-dashed border-tertiary/20 rounded-2xl p-6 space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant text-sm">account_balance</span>
+<h4 class="text-[11px] font-bold uppercase tracking-[0.1em] text-on-tertiary-fixed-variant">Empresa responsável pelo pagamento</h4>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Nome da Empresa</label>
+<input class="w-full h-10 px-4 bg-white border-outline rounded-lg focus:ring-2 focus:ring-tertiary/20 focus:border-tertiary outline-none transition-all text-sm" placeholder="Nome Fantasia" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">CNPJ</label>
+<input class="w-full h-10 px-4 bg-white border-outline rounded-lg focus:ring-2 focus:ring-tertiary/20 focus:border-tertiary outline-none transition-all text-sm" placeholder="00.000.000/0001-00" type="text"/>
+</div>
+</div>
+</div>
+<!-- Observations -->
+<div class="space-y-2">
+<label class="block text-[0.875rem] font-semibold text-slate-700">Observações</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-4 text-slate-400">notes</span>
+<textarea class="w-full pl-12 pr-4 py-3 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400" placeholder="Detalhes adicionais, requisitos especiais ou notas de logística..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-8 py-6 bg-slate-50 flex items-center justify-end gap-3">
+<button class="px-6 h-12 rounded-xl border border-outline text-slate-600 font-semibold hover:bg-white hover:text-slate-900 transition-all scale-down-click">
+                        Cancelar
+                    </button>
+<button class="px-8 h-12 bg-primary text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:brightness-110 transition-all scale-down-click">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                        Criar Evento
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

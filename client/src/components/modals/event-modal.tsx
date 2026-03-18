@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event, PaymentCompany } from "@shared/schema";
 import { useEffect, useRef, useState } from "react";
-import { X, MapPin, Calendar, Check, CalendarCheck, CalendarClock, Trash2, Building2, Pencil, Sparkles, BookMarked, Plus } from "lucide-react";
+import { X, Check, CalendarCheck, CalendarClock, Trash2, Building2, Pencil, Sparkles, BookMarked, Plus } from "lucide-react";
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
 const eventSchema = z.object({
@@ -42,7 +42,7 @@ const STATUS_OPTIONS = [
   { value: "excluído",   label: "Excluído",     icon: Trash2,        dot: "bg-gray-300" },
 ];
 
-const INPUT_CLS = "h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all";
+const INPUT_CLS = "h-12 text-sm bg-slate-50 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-400";
 
 export default function EventModal({ open, onClose, event }: EventModalProps) {
   const { toast } = useToast();
@@ -197,48 +197,54 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
     <>
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent
-          className="p-0 gap-0 sm:max-w-[520px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[90vh]"
+          className="p-0 gap-0 sm:max-w-2xl rounded-xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[90vh]"
           data-testid="modal-event"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">
-                {isEditing ? "Editar Evento" : "Novo Evento"}
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {isEditing ? "Atualize os dados do evento" : "Preencha os dados do novo evento"}
-              </p>
+          <div className="px-8 pt-8 pb-6 border-b border-slate-50 shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(0,51,204,0.05)" }}>
+                <CalendarCheck className="w-7 h-7" style={{ color: "#0033CC" }} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  {isEditing ? "Editar Evento" : "Novo Evento"}
+                </h2>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {isEditing ? "Atualize os dados do evento" : "Preencha os dados do novo evento"}
+                </p>
+              </div>
+              <button
+                onClick={handleClose}
+                className="ml-auto w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
 
           {/* Body */}
-          <div className="px-6 py-5 overflow-y-auto flex-1">
+          <div className="px-8 py-6 overflow-y-auto flex-1 space-y-6">
             <Form {...form}>
-              <form id="event-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form id="event-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
                 {/* Nome do Evento */}
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">
-                        Nome do Evento <span className="text-red-400">*</span>
-                      </FormLabel>
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-semibold text-slate-700">Nome do Evento</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="Ex: Rock in Rio 2025"
-                          className={INPUT_CLS}
-                          data-testid="input-event-name"
-                          {...field}
-                        />
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">label</span>
+                          <Input
+                            placeholder="Ex: Rock in Rio 2025"
+                            className={`${INPUT_CLS} pl-12`}
+                            data-testid="input-event-name"
+                            {...field}
+                          />
+                        </div>
                       </FormControl>
                       <FormMessage className="text-[11px]" />
                     </FormItem>
@@ -250,16 +256,14 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   control={form.control}
                   name="location"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">
-                        Local <span className="text-red-400">*</span>
-                      </FormLabel>
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-semibold text-slate-700">Local</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">location_on</span>
                           <Input
                             placeholder="Ex: Rio de Janeiro, RJ"
-                            className={`${INPUT_CLS} pl-9`}
+                            className={`${INPUT_CLS} pl-12`}
                             data-testid="input-event-location"
                             {...field}
                           />
@@ -271,21 +275,19 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                 />
 
                 {/* Datas lado a lado */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="startDate"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">
-                          Data Início <span className="text-red-400">*</span>
-                        </FormLabel>
+                      <FormItem className="space-y-2">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Data Início</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">calendar_today</span>
                             <Input
                               type="date"
-                              className={`${INPUT_CLS} pl-9`}
+                              className={`${INPUT_CLS} pl-12`}
                               data-testid="input-event-start-date"
                               {...field}
                             />
@@ -295,21 +297,18 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="endDate"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">
-                          Data Fim <span className="text-red-400">*</span>
-                        </FormLabel>
+                      <FormItem className="space-y-2">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Data Fim</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">event_busy</span>
                             <Input
                               type="date"
-                              className={`${INPUT_CLS} pl-9`}
+                              className={`${INPUT_CLS} pl-12`}
                               data-testid="input-event-end-date"
                               {...field}
                             />
@@ -327,13 +326,11 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     control={form.control}
                     name="status"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">
-                          Status <span className="text-red-400">*</span>
-                        </FormLabel>
+                      <FormItem className="space-y-2">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Status</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className={`${INPUT_CLS}`} data-testid="select-event-status">
+                            <SelectTrigger className={INPUT_CLS} data-testid="select-event-status">
                               <SelectValue placeholder="Selecione o status">
                                 {field.value && (() => {
                                   const opt = STATUS_OPTIONS.find(o => o.value === field.value);
@@ -368,29 +365,125 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   />
                 )}
 
+                {/* ── Empresa responsável pelo pagamento ── */}
+                <div className="bg-green-50/40 border-2 border-dashed border-green-200 rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-green-700" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-green-800">Empresa responsável pelo pagamento</span>
+                      <span className="text-[10px] text-slate-400 font-normal normal-case">(opcional)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowManage(true)}
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-green-700 transition-colors px-2 py-1 rounded hover:bg-green-100"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Gerenciar{paymentCompanies.length > 0 ? ` (${paymentCompanies.length})` : ""}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Nome da empresa com autocomplete */}
+                    <FormField
+                      control={form.control}
+                      name="paymentCompanyName"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0">Nome da Empresa</FormLabel>
+                            {isSaved && (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                                <BookMarked className="w-2.5 h-2.5" /> Salva
+                              </span>
+                            )}
+                            {isNew && (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                                <Sparkles className="w-2.5 h-2.5" /> Nova
+                              </span>
+                            )}
+                          </div>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                ref={nameInputRef}
+                                placeholder="Nome Fantasia"
+                                className="h-10 text-sm bg-white border-slate-200 rounded-lg focus:ring-2 focus:ring-green-200 transition-all placeholder:text-slate-400"
+                                autoComplete="off"
+                                {...field}
+                                onFocus={() => setShowSuggestions(true)}
+                                onChange={e => { field.onChange(e); setShowSuggestions(true); }}
+                              />
+                              {showSuggestions && filteredSuggestions.length > 0 && (
+                                <div
+                                  ref={suggestionsRef}
+                                  className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden"
+                                >
+                                  {filteredSuggestions.map(c => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onMouseDown={e => { e.preventDefault(); selectCompany(c); }}
+                                      className="w-full text-left px-3 py-2.5 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-0"
+                                    >
+                                      <p className="text-sm font-medium text-slate-800">{c.name}</p>
+                                      <p className="text-xs text-slate-400 font-mono">{c.cnpj}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </FormControl>
+                          <FormMessage className="text-[11px]" />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* CNPJ */}
+                    <FormField
+                      control={form.control}
+                      name="paymentCompanyCnpj"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1">
+                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">CNPJ</FormLabel>
+                          <FormControl>
+                            <CnpjInput
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              className="h-10 bg-white border-slate-200 rounded-lg focus:ring-2 focus:ring-green-200"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[11px]" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
                 {/* Observações */}
                 <FormField
                   control={form.control}
                   name="observations"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">
-                        Observações <span className="text-slate-400 font-normal">(opcional)</span>
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-semibold text-slate-700">
+                        Observações <span className="text-slate-400 font-normal text-xs">(opcional)</span>
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
+                          <span className="material-symbols-outlined absolute left-4 top-4 text-slate-400 text-xl pointer-events-none">notes</span>
                           <Textarea
                             rows={3}
-                            placeholder="Informações adicionais, contexto ou instruções especiais sobre o evento..."
+                            placeholder="Detalhes adicionais, requisitos especiais ou notas de logística..."
                             maxLength={500}
-                            className="text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none pb-6"
+                            className="text-sm bg-slate-50 border-slate-200 rounded-xl pl-12 pr-4 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none pb-6 placeholder:text-slate-400"
                             data-testid="textarea-event-observations"
                             {...field}
                             onChange={e => { field.onChange(e); setObsLength(e.target.value.length); }}
                           />
-                          <span className="absolute right-3 bottom-2 text-[10px] text-slate-300 tabular-nums">
-                            {obsLength}/500
-                          </span>
+                          <span className="absolute right-3 bottom-2 text-[10px] text-slate-300 tabular-nums">{obsLength}/500</span>
                         </div>
                       </FormControl>
                       <FormMessage className="text-[11px]" />
@@ -398,116 +491,17 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   )}
                 />
 
-                {/* ── Empresa responsável pelo pagamento ── */}
-                <div className="border border-dashed border-emerald-200 rounded-xl p-4 bg-emerald-50/40 space-y-3">
-                  {/* Header da seção */}
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-xs font-semibold text-emerald-700">Empresa responsável pelo pagamento</span>
-                      <span className="text-[10px] text-slate-400 font-normal">(opcional — Notas Fiscais)</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowManage(true)}
-                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded hover:bg-emerald-50"
-                      title="Gerenciar empresas salvas"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      Gerenciar{paymentCompanies.length > 0 ? ` (${paymentCompanies.length})` : ""}
-                    </button>
-                  </div>
-
-                  {/* Nome da empresa com autocomplete */}
-                  <FormField
-                    control={form.control}
-                    name="paymentCompanyName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2 mb-1">
-                          <FormLabel className="text-xs font-medium text-slate-600 mb-0">Nome da empresa</FormLabel>
-                          {isSaved && (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                              <BookMarked className="w-2.5 h-2.5" />
-                              Empresa salva
-                            </span>
-                          )}
-                          {isNew && (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              Nova — será salva
-                            </span>
-                          )}
-                        </div>
-                        <FormControl>
-                          <div className="relative">
-                            <Input
-                              ref={nameInputRef}
-                              placeholder="Ex.: Produtora Norte Ltda"
-                              className={INPUT_CLS}
-                              autoComplete="off"
-                              {...field}
-                              onFocus={() => setShowSuggestions(true)}
-                              onChange={e => { field.onChange(e); setShowSuggestions(true); }}
-                            />
-                            {/* Dropdown de sugestões */}
-                            {showSuggestions && filteredSuggestions.length > 0 && (
-                              <div
-                                ref={suggestionsRef}
-                                className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden"
-                              >
-                                {filteredSuggestions.map(c => (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onMouseDown={e => { e.preventDefault(); selectCompany(c); }}
-                                    className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 transition-colors border-b border-slate-100 last:border-0"
-                                  >
-                                    <p className="text-sm font-medium text-slate-800">{c.name}</p>
-                                    <p className="text-xs text-slate-400 font-mono">{c.cnpj}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* CNPJ */}
-                  <FormField
-                    control={form.control}
-                    name="paymentCompanyCnpj"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">CNPJ</FormLabel>
-                        <FormControl>
-                          <CnpjInput
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            name={field.name}
-                          />
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
               </form>
             </Form>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 shrink-0">
+          <div className="px-8 py-6 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={handleClose}
               data-testid="button-cancel-event"
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 border border-gray-200 hover:border-gray-300 rounded-lg transition-colors"
+              className="px-6 h-12 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-white hover:text-slate-900 transition-all text-sm"
             >
               Cancelar
             </button>
@@ -516,16 +510,17 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
               form="event-form"
               disabled={saveEventMutation.isPending}
               data-testid="button-save-event"
-              className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+              className="flex items-center gap-2 px-8 h-12 text-white font-bold rounded-xl text-sm shadow-lg transition-all hover:brightness-110 active:scale-95 disabled:opacity-60"
+              style={{ background: "#0033CC", boxShadow: "0 10px 25px rgba(0,51,204,0.2)" }}
             >
               {saveEventMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Salvando...
-                </span>
+                </>
               ) : (
                 <>
-                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                  <Check className="w-4 h-4" strokeWidth={3} />
                   {isEditing ? "Atualizar Evento" : "Criar Evento"}
                 </>
               )}
