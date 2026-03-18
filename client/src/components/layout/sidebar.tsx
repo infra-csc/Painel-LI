@@ -177,7 +177,7 @@ export default function Sidebar() {
                             filled={isActive}
                             style={{ color: isActive ? ACTIVE_BLUE : tab.iconColor }}
                           />
-                          <span className="text-[14px]">{tab.label}</span>
+                          <span className={cn("text-[14px]", isActive ? "font-semibold" : "font-light")}>{tab.label}</span>
                         </div>
                       </Link>
                     );
