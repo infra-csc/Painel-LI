@@ -1080,19 +1080,19 @@ export default function Scaling() {
                     {/* Faixa superior laranja */}
                     <div className="absolute top-0 inset-x-0 h-1.5 bg-[#F97316] rounded-t-[22px]" />
                     {/* Checkmark no canto superior direito */}
-                    <span className="absolute top-3.5 right-4 w-6 h-6 rounded-full bg-[#F97316] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                    <span className="absolute top-2.5 right-3 w-5 h-5 rounded-full bg-[#F97316] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </span>
-                    <div className="flex items-center gap-5 px-6 pt-7 pb-5">
+                    <div className="flex items-center gap-3 px-4 pt-6 pb-4">
                       {/* Ícone em círculo */}
-                      <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-                        <Clock className="w-7 h-7 text-[#F97316]" />
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5 text-[#F97316]" />
                       </div>
                       {/* Textos */}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-bold text-slate-900 leading-tight">Sem Passagem</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-xs font-black leading-none">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-base font-bold text-slate-900 leading-tight">Sem Passagem</h3>
+                          <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-[11px] font-black leading-none">
                             {withoutTicket.length}
                           </span>
                         </div>
@@ -1114,19 +1114,19 @@ export default function Scaling() {
                     {/* Faixa superior verde */}
                     <div className="absolute top-0 inset-x-0 h-1.5 bg-[#22C55E] rounded-t-[22px]" />
                     {/* Checkmark no canto superior direito */}
-                    <span className="absolute top-3.5 right-4 w-6 h-6 rounded-full bg-[#22C55E] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                    <span className="absolute top-2.5 right-3 w-5 h-5 rounded-full bg-[#22C55E] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </span>
-                    <div className="flex items-center gap-5 px-6 pt-7 pb-5">
+                    <div className="flex items-center gap-3 px-4 pt-6 pb-4">
                       {/* Ícone em círculo */}
-                      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <Plane className="w-7 h-7 text-[#22C55E]" />
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Plane className="w-5 h-5 text-[#22C55E]" />
                       </div>
                       {/* Textos */}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-bold text-slate-900 leading-tight">Com Passagem</h3>
-                          <span className="px-2 py-0.5 rounded-full bg-green-100 text-[#22C55E] text-xs font-black leading-none">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-base font-bold text-slate-900 leading-tight">Com Passagem</h3>
+                          <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-[#22C55E] text-[11px] font-black leading-none">
                             {withTicket.length}
                           </span>
                         </div>
