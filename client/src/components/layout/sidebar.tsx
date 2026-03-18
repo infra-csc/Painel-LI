@@ -1,11 +1,11 @@
 import { Link, useLocation } from "wouter";
 import {
   UserPlus, Calendar, CalendarDays, Wrench, Users,
-  Plane, Hotel, LogOut,
+  Plane, BedDouble, LogOut,
   Menu, X, ChevronLeft, ChevronRight,
   Sun, Moon, LayoutGrid, Minimize2,
-  Calculator, BarChart3, TrendingUp, ShieldCheck, FileText, Settings,
-  Search, Wallet, BedDouble
+  ClipboardCheck, BarChart3, TrendingUp, ShieldCheck, FileText, Settings,
+  Search, Wallet, Clipboard, Maximize
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -17,13 +17,6 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
 } from "@/components/ui/tooltip";
 
-// ─── Brand tokens ─────────────────────────────────────────────────────────────
-const ACTIVE_BG    = "#EFF6FF";
-const ACTIVE_BLUE  = "#1D4ED8";
-const LABEL_CLR    = "#94A3B8";
-const TEXT_MAIN    = "#334155";
-const TEXT_LABEL   = "#64748B";
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -31,31 +24,7 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── Icon badge ───────────────────────────────────────────────────────────────
-// Small rounded-square behind the icon — active = solid blue, inactive = item color
-function IconBadge({
-  icon: Icon, badgeColor, active,
-}: {
-  icon: React.ElementType; badgeColor: string; active: boolean;
-}) {
-  return (
-    <span
-      className="flex-shrink-0 inline-flex items-center justify-center rounded-[6px]"
-      style={{
-        width: 26,
-        height: 26,
-        background: active ? ACTIVE_BLUE : badgeColor,
-        transition: "background 0.15s",
-      }}
-    >
-      <Icon
-        style={{ width: 14, height: 14, color: "#ffffff", strokeWidth: 1.5 }}
-      />
-    </span>
-  );
-}
-
-// ─── Nav groups ───────────────────────────────────────────────────────────────
+// ─── Menu groups ──────────────────────────────────────────────────────────────
 const menuGroups = [
   { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
@@ -70,29 +39,29 @@ export default function Sidebar() {
   const { isCollapsed, isCompact, isFocusMode, toggleCollapsed, toggleCompact, enterFocusMode } = useSidebar();
   const { theme, toggleTheme } = useTheme();
 
-  // badge colors follow the reference image palette
+  // icon color = color when inactive; when active all icons become #1E40AF
   const allTabs = [
     // Cadastros
-    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,    badgeColor: "#3b82f6", permission: "canAccessScreen0"      as const },
-    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,    badgeColor: "#f97316", permission: "canAccessAdminUsers"    as const },
-    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,badgeColor: "#0ea5e9", permission: "canAccessCalendar"       as const },
-    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,      badgeColor: "#fb923c", permission: "canAccessScreen0"        as const },
-    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: Users,       badgeColor: "#64748b", permission: "canAccessCollaborators"  as const },
+    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       color: "#3b82f6", permission: "canAccessScreen0"      as const },
+    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       color: "#F97316", permission: "canAccessAdminUsers"    as const },
+    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   color: "#60A5FA", permission: "canAccessCalendar"       as const },
+    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         color: "#FB923C", permission: "canAccessScreen0"        as const },
+    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: Users,          color: "#64748B", permission: "canAccessCollaborators"  as const },
     // Operacional
-    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,       badgeColor: "#f97316", permission: "canAccessScreen1"        as const },
-    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: BarChart3,   badgeColor: "#94a3b8", permission: "canAccessScreen2"        as const },
-    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,       badgeColor: "#ef4444", permission: "canAccessScreen3"        as const },
-    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: BedDouble,   badgeColor: "#0ea5e9", permission: "canAccessScreen3"        as const },
+    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: UserPlus,       color: "#F97316", permission: "canAccessScreen1"        as const },
+    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: Clipboard,      color: "#9CA3AF", permission: "canAccessScreen2"        as const },
+    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,          color: "#F97316", permission: "canAccessScreen3"        as const },
+    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: BedDouble,      color: "#94A3B8", permission: "canAccessScreen3"        as const },
     // Financeiro
-    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: Calculator,  badgeColor: "#f97316", permission: "canAccessScreen0"        as const },
-    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: Wallet,      badgeColor: "#6366f1", permission: "canAccessScreen0"        as const },
-    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: TrendingUp,  badgeColor: "#f43f5e", permission: "canAccessScreen5"        as const },
-    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: ShieldCheck, badgeColor: "#8b5cf6", permission: "canAccessScreen5"        as const },
-    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,    badgeColor: "#f97316", permission: "canAccessScreen0"        as const },
-    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Settings,    badgeColor: "#94a3b8", permission: "canAccessAdminUsers"     as const },
+    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: LayoutGrid,     color: "#F97316", permission: "canAccessScreen0"        as const },
+    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck, color: "#3b82f6", permission: "canAccessScreen0"        as const },
+    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: BarChart3,      color: "#F43F5E", permission: "canAccessScreen5"        as const },
+    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: ShieldCheck,    color: "#6366F1", permission: "canAccessScreen5"        as const },
+    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,       color: "#F97316", permission: "canAccessScreen0"        as const },
+    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Settings,       color: "#6B7280", permission: "canAccessAdminUsers"     as const },
     // Gestão
-    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,      badgeColor: "#64748b", permission: "canAccessScreen6"        as const },
-    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Users,       badgeColor: "#64748b", permission: "canAccessAdminUsers"     as const },
+    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         color: "#6B7280", permission: "canAccessScreen6"        as const },
+    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Users,          color: "#6B7280", permission: "canAccessAdminUsers"     as const },
   ];
 
   const tabs = allTabs.filter(tab => hasPermission(user, tab.permission));
@@ -102,37 +71,46 @@ export default function Sidebar() {
   // ── Nav Item ─────────────────────────────────────────────────────────────
   function NavItem({ tab }: { tab: typeof tabs[0] }) {
     const isActive = location === tab.path;
-    const [hovered, setHovered] = useState(false);
-
-    const rowBg    = isActive ? ACTIVE_BG : hovered ? "#f8fafc" : undefined;
-    const textClr  = isActive || hovered ? ACTIVE_BLUE : TEXT_MAIN;
-    const fontW    = isActive ? 600 : 400;
+    const Icon = tab.icon;
 
     const btn = (
       <Link href={tab.path}>
         <button
           onClick={() => setMobileOpen(false)}
           data-testid={`sidebar-${tab.id}`}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
           className={cn(
-            "relative w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] transition-colors duration-100 text-left",
-            isCompact && "justify-center px-0"
+            "group relative w-full flex items-center gap-2.5 px-3 py-[6px] rounded-[6px] text-[13px] transition-colors duration-100 text-left",
+            isCompact && "justify-center px-0 py-2",
+            isActive
+              ? "bg-[#EEF2FF]"
+              : "hover:bg-slate-50"
           )}
-          style={{ background: rowBg, color: textClr, fontWeight: fontW }}
         >
-          {/* Active left 3px bar */}
+          {/* Active 3px left bar */}
           {isActive && (
-            <span
-              className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
-              style={{ width: 3, height: 22, background: ACTIVE_BLUE }}
-            />
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#1E40AF]" />
           )}
 
-          <IconBadge icon={tab.icon} badgeColor={tab.badgeColor} active={isActive} />
+          <Icon
+            className="flex-shrink-0"
+            style={{
+              width: 16,
+              height: 16,
+              color: isActive ? "#1E40AF" : tab.color,
+              strokeWidth: 1.75,
+            }}
+          />
 
           {!isCompact && (
-            <span className="truncate leading-tight">{tab.label}</span>
+            <span
+              className="truncate leading-tight"
+              style={{
+                color: isActive ? "#1E40AF" : "#374151",
+                fontWeight: isActive ? 600 : 400,
+              }}
+            >
+              {tab.label}
+            </span>
           )}
         </button>
       </Link>
@@ -164,7 +142,7 @@ export default function Sidebar() {
           <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
         )}
 
-        {/* Re-expand strip */}
+        {/* Re-expand tab when collapsed */}
         {isCollapsed && !isFocusMode && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -172,9 +150,9 @@ export default function Sidebar() {
                 className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white"
                 style={{
                   width: 28, height: 48,
-                  background: ACTIVE_BLUE,
+                  background: "#1E40AF",
                   borderRadius: "0 8px 8px 0",
-                  boxShadow: "2px 0 10px rgba(29,78,216,0.25)",
+                  boxShadow: "2px 0 10px rgba(30,64,175,0.2)",
                 }}
                 onClick={toggleCollapsed}
               >
@@ -197,40 +175,35 @@ export default function Sidebar() {
 
           {/* ── Logo ── */}
           <div
-            className="shrink-0 flex items-center justify-between px-4"
-            style={{ height: 72, borderBottom: "1px solid #E2E8F0" }}
+            className="shrink-0 flex items-center justify-between px-5"
+            style={{ height: 64, borderBottom: "1px solid #E2E8F0" }}
           >
-            {isCompact ? (
-              <div className="mx-auto w-9 h-9 rounded-xl flex items-center justify-center select-none" style={{ background: ACTIVE_BLUE }}>
-                <span className="text-white font-bold text-base leading-none">N</span>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-2.5 select-none">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: ACTIVE_BLUE }}>
-                    <span className="text-white font-bold text-base leading-none">N</span>
-                  </div>
-                  <div className="leading-tight">
-                    <p className="font-bold text-[14px] text-slate-900 dark:text-white">Norte</p>
-                    <p className="text-[10px]" style={{ color: TEXT_LABEL }}>Marketing Digital</p>
-                  </div>
-                </div>
+            {/* Plain "N" letter — no background box */}
+            <span
+              className="select-none leading-none"
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: "#1E3A8A",
+                fontFamily: "Inter, system-ui, sans-serif",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              N
+            </span>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md transition-colors shrink-0"
-                      style={{ background: "#f1f5f9", color: "#94a3b8" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#e2e8f0")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "#f1f5f9")}
-                      onClick={toggleCollapsed}
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs">Recolher</TooltipContent>
-                </Tooltip>
-              </>
+            {!isCompact && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    onClick={toggleCollapsed}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">Recolher</TooltipContent>
+              </Tooltip>
             )}
           </div>
 
@@ -241,22 +214,22 @@ export default function Sidebar() {
               if (groupTabs.length === 0) return null;
 
               return (
-                <div key={group.title} style={{ marginTop: idx > 0 ? 24 : 0 }}>
-                  {!isCompact ? (
+                <div key={group.title} style={{ marginTop: idx > 0 ? 20 : 0 }}>
+                  {!isCompact && (
                     <p
-                      className="px-2.5 select-none"
+                      className="px-3 mb-1.5 select-none uppercase"
                       style={{
-                        fontSize: 11, fontWeight: 700,
-                        textTransform: "uppercase",
+                        fontSize: 10,
+                        fontWeight: 700,
                         letterSpacing: "0.1em",
-                        color: LABEL_CLR,
-                        marginBottom: 8,
+                        color: "#9CA3AF",
                       }}
                     >
                       {group.title}
                     </p>
-                  ) : (
-                    idx > 0 && <div className="border-t border-slate-100 dark:border-slate-800 mx-1 mb-3" />
+                  )}
+                  {isCompact && idx > 0 && (
+                    <div className="border-t border-slate-100 dark:border-slate-800 mx-2 mb-3" />
                   )}
                   <ul className="space-y-0.5">
                     {groupTabs.map(tab => (
@@ -271,47 +244,51 @@ export default function Sidebar() {
           </nav>
 
           {/* ── Footer ── */}
-          <div className="shrink-0 px-4 py-4" style={{ borderTop: "1px solid #E2E8F0" }}>
+          <div className="shrink-0">
+            {/* hr separator */}
+            <div style={{ borderTop: "1px solid #E5E7EB" }} />
 
-            {/* Profile block */}
-            <div className={cn("flex items-center gap-3 mb-3", isCompact && "justify-center")}>
-              <div
-                className="flex-shrink-0 inline-flex items-center justify-center rounded-full text-white font-bold select-none"
-                style={{
-                  width: 36, height: 36, fontSize: 12,
-                  background: "linear-gradient(135deg, #7c3aed, #4338ca)",
-                }}
-              >
-                {initials(userName)}
-              </div>
-              {!isCompact && (
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold truncate leading-tight" style={{ color: "#0f172a" }}>
-                    {user?.name}
-                  </p>
-                  <p className="text-[11px] truncate leading-tight" style={{ color: TEXT_LABEL }}>
-                    {user?.email}
-                  </p>
+            <div className="px-4 py-3">
+              {/* User row: avatar + name/email */}
+              <div className={cn("flex items-center gap-3 mb-3", isCompact && "justify-center")}>
+                <div
+                  className="flex-shrink-0 inline-flex items-center justify-center rounded-full text-white font-bold select-none"
+                  style={{
+                    width: 36, height: 36, fontSize: 12,
+                    background: "#7C3AED",
+                  }}
+                >
+                  {initials(userName)}
                 </div>
-              )}
-            </div>
+                {!isCompact && (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate leading-tight font-semibold" style={{ fontSize: 13, color: "#111827" }}>
+                      {user?.name}
+                    </p>
+                    <p className="truncate leading-tight" style={{ fontSize: 11, color: "#6B7280" }}>
+                      {user?.email}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-            {/* Action icons */}
-            <div className={cn("flex items-center", isCompact ? "justify-center gap-1 flex-col" : "justify-between")}>
-              <div className="flex items-center gap-0.5">
-                <FooterBtn icon={Minimize2}   label="Compactar"                      onClick={toggleCompact}  compact={isCompact} />
-                <FooterBtn icon={LayoutGrid}  label="Modo foco"                      onClick={enterFocusMode} compact={isCompact} />
-                <FooterBtn
+              {/* 4 icons row */}
+              <div className={cn(
+                "flex items-center",
+                isCompact ? "flex-col gap-1 items-center" : "justify-between px-0.5"
+              )}>
+                <FooterIcon icon={Maximize}  label="Tela cheia"   onClick={toggleCompact}  compact={isCompact} />
+                <FooterIcon icon={LayoutGrid} label="Modo foco"   onClick={enterFocusMode} compact={isCompact} />
+                <FooterIcon
                   icon={theme === "light" ? Moon : Sun}
-                  label={theme === "light" ? "Tema escuro" : "Tema claro"}
+                  label={theme === "light" ? "Modo escuro" : "Modo claro"}
                   onClick={toggleTheme}
                   compact={isCompact}
                 />
+                <FooterIcon icon={LogOut}    label="Sair"         onClick={logout}         compact={isCompact} danger />
               </div>
-              <FooterBtn icon={LogOut} label="Sair" onClick={logout} danger compact={isCompact} />
             </div>
           </div>
-
         </aside>
       </>
     </TooltipProvider>
@@ -319,26 +296,26 @@ export default function Sidebar() {
 }
 
 // ─── Footer icon button ───────────────────────────────────────────────────────
-function FooterBtn({
+function FooterIcon({
   icon: Icon, label, onClick, danger, compact,
 }: {
   icon: React.ElementType; label: string; onClick: () => void; danger?: boolean; compact?: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
+  const [hov, setHov] = useState(false);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          onMouseEnter={() => setHov(true)}
+          onMouseLeave={() => setHov(false)}
           className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
           style={{
-            color:      hovered ? (danger ? "#ef4444" : "#334155") : "#94a3b8",
-            background: hovered ? (danger ? "#fef2f2" : "#f1f5f9") : undefined,
+            color:      hov ? (danger ? "#EF4444" : "#374151") : "#9CA3AF",
+            background: hov ? (danger ? "#FEF2F2" : "#F3F4F6") : undefined,
           }}
         >
-          <Icon style={{ width: 15, height: 15, strokeWidth: 1.5 }} />
+          <Icon style={{ width: 16, height: 16, strokeWidth: 1.5 }} />
         </button>
       </TooltipTrigger>
       <TooltipContent side={compact ? "right" : "top"} className="text-xs">{label}</TooltipContent>
