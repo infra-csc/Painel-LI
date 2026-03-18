@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
 import {
-  Users, UserCheck, Plane, Hotel, CheckCircle, Search,
-  UserPlus, Settings, Wrench, UserCog, Calendar, CalendarDays, LogOut,
+  UserPlus, Calendar, CalendarDays, Wrench, Users,
+  Plane, Hotel, LogOut,
   Menu, X, ChevronLeft, ChevronRight,
-  Sun, Moon, LayoutGrid, Minimize2, Maximize2, Focus,
-  Calculator, ClipboardCheck, BarChart3, Shield, FileText, TrendingUp
+  Sun, Moon, LayoutGrid, Minimize2,
+  Calculator, BarChart3, TrendingUp, ShieldCheck, FileText, Settings2,
+  Search, Settings, Wallet
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
@@ -17,11 +18,14 @@ import {
 } from "@/components/ui/tooltip";
 
 // ─── Brand colors ─────────────────────────────────────────────────────────────
-const BRAND_BLUE   = "#0033CC";
-const ACTIVE_BG    = "#EFF6FF";
-const ACTIVE_TEXT  = "#0033CC";
-const INACTIVE_TXT = "#334155";
-const LABEL_TXT    = "#94a3b8";
+const ACTIVE_BG     = "#EFF6FF";
+const ACTIVE_COLOR  = "#1D4ED8";
+const ACTIVE_BAR    = "#1D4ED8";
+const INACTIVE_ICON = "#64748B";
+const INACTIVE_TEXT = "#334155";
+const LABEL_COLOR   = "#94a3b8";
+const HOVER_BG      = "#EFF6FF";
+const HOVER_TEXT    = "#1D4ED8";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function initials(name: string) {
@@ -30,27 +34,7 @@ function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── Icon badge ───────────────────────────────────────────────────────────────
-function IconBadge({
-  icon: Icon, color, active,
-}: {
-  icon: React.ElementType; color: string; active?: boolean;
-}) {
-  return (
-    <span
-      className="flex-shrink-0 flex items-center justify-center rounded-[6px]"
-      style={{
-        width: 24, height: 24,
-        background: active ? BRAND_BLUE : color,
-        transition: "background 0.15s",
-      }}
-    >
-      <Icon className="text-white" style={{ width: 13, height: 13 }} strokeWidth={2} />
-    </span>
-  );
-}
-
-// ─── Nav groups ───────────────────────────────────────────────────────────────
+// ─── Menu groups ──────────────────────────────────────────────────────────────
 const menuGroups = [
   { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
@@ -66,27 +50,28 @@ export default function Sidebar() {
   const { theme, toggleTheme } = useTheme();
 
   const allTabs = [
-    // Cadastros
-    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       color: "#3b82f6", permission: "canAccessScreen0"      as const },
-    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       color: "#f97316", permission: "canAccessAdminUsers"    as const },
-    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   color: "#0ea5e9", permission: "canAccessCalendar"       as const },
-    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         color: "#fb923c", permission: "canAccessScreen0"        as const },
-    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: UserCog,        color: "#64748b", permission: "canAccessCollaborators"  as const },
+    // Cadastros — icons from prompt
+    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,    permission: "canAccessScreen0"      as const },
+    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,    permission: "canAccessAdminUsers"    as const },
+    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,permission: "canAccessCalendar"       as const },
+    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,      permission: "canAccessScreen0"        as const },
+    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: Users,       permission: "canAccessCollaborators"  as const },
     // Operacional
-    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,          color: "#f97316", permission: "canAccessScreen1"        as const },
-    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: ClipboardCheck, color: "#94a3b8", permission: "canAccessScreen2"        as const },
-    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,          color: "#ef4444", permission: "canAccessScreen3"        as const },
-    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: Hotel,          color: "#0ea5e9", permission: "canAccessScreen3"        as const },
+    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: Users,       permission: "canAccessScreen1"        as const },
+    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: BarChart3,   permission: "canAccessScreen2"        as const },
+    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,       permission: "canAccessScreen3"        as const },
+    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: Hotel,       permission: "canAccessScreen3"        as const },
     // Financeiro
-    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: BarChart3,      color: "#f97316", permission: "canAccessScreen0"        as const },
-    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: Calculator,     color: "#6366f1", permission: "canAccessScreen0"        as const },
-    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: TrendingUp,     color: "#f43f5e", permission: "canAccessScreen5"        as const },
-    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: Shield,         color: "#8b5cf6", permission: "canAccessScreen5"        as const },
-    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,       color: "#f97316", permission: "canAccessScreen0"        as const },
-    { id: "approval",          path: "/approval",          label: "Aprovação",             icon: CheckCircle,    color: "#10b981", permission: "canAccessScreen5"        as const },
-    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         color: "#64748b", permission: "canAccessScreen6"        as const },
-    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Settings,       color: "#64748b", permission: "canAccessAdminUsers"     as const },
-    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Settings,       color: "#94a3b8", permission: "canAccessAdminUsers"     as const },
+    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: Calculator,  permission: "canAccessScreen0"        as const },
+    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: Wallet,      permission: "canAccessScreen0"        as const },
+    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: TrendingUp,  permission: "canAccessScreen5"        as const },
+    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: ShieldCheck, permission: "canAccessScreen5"        as const },
+    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,    permission: "canAccessScreen0"        as const },
+    { id: "approval",          path: "/approval",          label: "Aprovação",             icon: ShieldCheck, permission: "canAccessScreen5"        as const },
+    // Gestão
+    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,      permission: "canAccessScreen6"        as const },
+    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Users,       permission: "canAccessAdminUsers"     as const },
+    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Settings2,   permission: "canAccessAdminUsers"     as const },
   ];
 
   const tabs = allTabs.filter(tab =>
@@ -101,36 +86,48 @@ export default function Sidebar() {
   // ── Nav Item ─────────────────────────────────────────────────────────────
   function NavItem({ tab }: { tab: typeof tabs[0] }) {
     const isActive = location === tab.path;
+    const [hovered, setHovered] = useState(false);
+    const Icon = tab.icon;
+
+    const active = isActive || (!isActive && hovered);
+    const bg = isActive ? ACTIVE_BG : hovered ? HOVER_BG : undefined;
+    const textColor = isActive ? ACTIVE_COLOR : hovered ? HOVER_TEXT : INACTIVE_TEXT;
+    const iconColor = isActive ? ACTIVE_COLOR : hovered ? HOVER_TEXT : INACTIVE_ICON;
 
     const btn = (
       <Link href={tab.path}>
         <button
           onClick={() => setMobileOpen(false)}
           data-testid={`sidebar-${tab.id}`}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           className={cn(
-            "relative w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] transition-all duration-150 text-left",
-            isCompact && "justify-center px-0",
+            "relative w-full flex items-center gap-2.5 px-3 py-[8px] rounded-lg text-[13px] transition-colors duration-100 text-left",
+            isCompact && "justify-center px-0"
           )}
-          style={{
-            background: isActive ? ACTIVE_BG : undefined,
-            color: isActive ? ACTIVE_TEXT : INACTIVE_TXT,
-            fontWeight: isActive ? 600 : 400,
-          }}
-          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
-          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = ""; }}
+          style={{ background: bg, color: textColor }}
         >
           {/* Active 3px left bar */}
           {isActive && (
             <span
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[22px] rounded-r-full"
-              style={{ background: BRAND_BLUE }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+              style={{ width: 3, height: 22, background: ACTIVE_BAR }}
             />
           )}
 
-          <IconBadge icon={tab.icon} color={tab.color} active={isActive} />
+          <Icon
+            className="flex-shrink-0 transition-colors duration-100"
+            style={{
+              width: 16, height: 16,
+              color: iconColor,
+              strokeWidth: isActive ? 2 : 1.5,
+            }}
+          />
 
           {!isCompact && (
-            <span className="truncate leading-tight">{tab.label}</span>
+            <span className="truncate leading-tight" style={{ fontWeight: isActive ? 600 : 400 }}>
+              {tab.label}
+            </span>
           )}
         </button>
       </Link>
@@ -168,15 +165,13 @@ export default function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white transition-colors duration-150"
+                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white"
                 style={{
                   width: 28, height: 48,
-                  background: BRAND_BLUE,
+                  background: ACTIVE_COLOR,
                   borderRadius: "0 8px 8px 0",
-                  boxShadow: "2px 0 12px rgba(0,51,204,0.3)",
+                  boxShadow: "2px 0 12px rgba(29,78,216,0.25)",
                 }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
-                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                 onClick={toggleCollapsed}
               >
                 <ChevronRight className="w-4 h-4" />
@@ -189,8 +184,7 @@ export default function Sidebar() {
         {/* ── Sidebar ── */}
         <aside
           className={cn(
-            "fixed left-0 top-0 h-full z-40 flex flex-col transition-all duration-300 ease-in-out",
-            "bg-white dark:bg-slate-900",
+            "fixed left-0 top-0 h-full z-40 flex flex-col transition-all duration-300 ease-in-out bg-white dark:bg-slate-900",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
             (isCollapsed || isFocusMode) && "lg:-translate-x-full"
           )}
@@ -200,52 +194,44 @@ export default function Sidebar() {
           }}
         >
 
-          {/* ── Logo area ── */}
+          {/* ── Logo / header ── */}
           <div
             className="shrink-0 flex items-center justify-between px-5"
             style={{ height: 64, borderBottom: "1px solid #E2E8F0" }}
           >
-            {/* "N" branded mark */}
             {isCompact ? (
               <div
-                className="flex items-center justify-center w-8 h-8 rounded-lg select-none"
-                style={{ background: BRAND_BLUE }}
+                className="flex items-center justify-center w-8 h-8 rounded-lg select-none mx-auto"
+                style={{ background: ACTIVE_COLOR }}
               >
-                <span className="text-white font-bold text-base leading-none">N</span>
+                <span className="text-white font-bold text-sm leading-none">N</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 select-none">
-                <div
-                  className="flex items-center justify-center w-8 h-8 rounded-lg"
-                  style={{ background: BRAND_BLUE }}
-                >
-                  <span className="text-white font-bold text-base leading-none">N</span>
-                </div>
-                <span
-                  className="font-bold text-[15px] tracking-tight"
-                  style={{ color: "#0f172a" }}
-                >
-                  Norte
-                </span>
-              </div>
-            )}
-
-            {/* Collapse chevron */}
-            {!isCompact && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md transition-colors shrink-0"
-                    style={{ background: "#f1f5f9", color: "#64748b" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "#e2e8f0"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "#f1f5f9"; }}
-                    onClick={toggleCollapsed}
+              <>
+                <div className="flex items-center gap-2.5 select-none">
+                  <div
+                    className="flex items-center justify-center w-8 h-8 rounded-lg"
+                    style={{ background: ACTIVE_COLOR }}
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">Recolher</TooltipContent>
-              </Tooltip>
+                    <span className="text-white font-bold text-sm leading-none">N</span>
+                  </div>
+                  <span className="font-bold text-[15px] text-slate-900 dark:text-white tracking-tight">
+                    Norte
+                  </span>
+                </div>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md transition-colors shrink-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                      onClick={toggleCollapsed}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">Recolher</TooltipContent>
+                </Tooltip>
+              </>
             )}
           </div>
 
@@ -259,19 +245,13 @@ export default function Sidebar() {
                 <div key={group.title} className={cn(idx > 0 && "mt-6")}>
                   {!isCompact ? (
                     <p
-                      className="px-2.5 mb-2 select-none"
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        color: LABEL_TXT,
-                      }}
+                      className="px-3 mb-1.5 uppercase select-none"
+                      style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", color: LABEL_COLOR }}
                     >
                       {group.title}
                     </p>
                   ) : (
-                    idx > 0 && <div className="border-t border-slate-100 dark:border-slate-800 mx-1 mb-3" />
+                    idx > 0 && <div className="border-t border-slate-100 dark:border-slate-800 mx-2 mb-3" />
                   )}
                   <ul className="space-y-0.5">
                     {groupTabs.map(tab => (
@@ -285,104 +265,48 @@ export default function Sidebar() {
             })}
           </nav>
 
-          {/* ── Footer ── */}
-          <div
-            className="shrink-0 px-4 py-4"
-            style={{ borderTop: "1px solid #E2E8F0" }}
-          >
-            {/* User block */}
+          {/* ── Footer / profile block ── */}
+          <div style={{ borderTop: "1px solid #E2E8F0" }} className="shrink-0 px-4 py-4">
+            {/* User info */}
             <div className={cn("flex items-center gap-3 mb-3", isCompact && "justify-center")}>
               <div
-                className="flex-shrink-0 flex items-center justify-center rounded-full text-white text-[12px] font-bold select-none"
+                className="flex-shrink-0 flex items-center justify-center rounded-full text-white font-bold select-none"
                 style={{
-                  width: 36, height: 36,
-                  background: "linear-gradient(135deg, #6d28d9, #4f46e5)",
+                  width: 36, height: 36, fontSize: 12,
+                  background: "linear-gradient(135deg, #6d28d9, #4338ca)",
                 }}
               >
                 {initials(userName)}
               </div>
               {!isCompact && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold truncate" style={{ color: "#0f172a" }}>{user?.name}</p>
-                  <p className="text-[11px] truncate" style={{ color: "#64748b" }}>{user?.email}</p>
+                  <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate leading-tight">
+                    {user?.name}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate leading-tight">
+                    {user?.email}
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Action row */}
-            {isCompact ? (
-              <div className="flex flex-col items-center gap-1">
-                <ActionBtn icon={Minimize2} label="Compactar" onClick={toggleCompact} />
-                <ActionBtn icon={Moon} label="Tema" onClick={toggleTheme} />
-                <ActionBtn icon={LogOut} label="Sair" onClick={logout} danger />
+            {/* Bottom action row */}
+            <div className={cn("flex items-center", isCompact ? "justify-center gap-1" : "justify-between")}>
+              {/* Left: utility icons */}
+              <div className="flex items-center gap-0.5">
+                <SidebarIconBtn icon={Minimize2} label="Compactar" onClick={toggleCompact} compact={isCompact} />
+                <SidebarIconBtn icon={LayoutGrid} label="Modo foco" onClick={enterFocusMode} compact={isCompact} />
+                <SidebarIconBtn
+                  icon={theme === "light" ? Moon : Sun}
+                  label={theme === "light" ? "Tema escuro" : "Tema claro"}
+                  onClick={toggleTheme}
+                  compact={isCompact}
+                />
               </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-0.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={toggleCompact}
-                        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-                        style={{ color: "#94a3b8" }}
-                        onMouseEnter={e => { e.currentTarget.style.color = "#334155"; e.currentTarget.style.background = "#f1f5f9"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = ""; }}
-                      >
-                        <Minimize2 className="w-3.5 h-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">Compactar</TooltipContent>
-                  </Tooltip>
 
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={enterFocusMode}
-                        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-                        style={{ color: "#94a3b8" }}
-                        onMouseEnter={e => { e.currentTarget.style.color = "#334155"; e.currentTarget.style.background = "#f1f5f9"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = ""; }}
-                      >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">Modo foco</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={toggleTheme}
-                        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-                        style={{ color: "#94a3b8" }}
-                        onMouseEnter={e => { e.currentTarget.style.color = "#334155"; e.currentTarget.style.background = "#f1f5f9"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = ""; }}
-                      >
-                        {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      {theme === "light" ? "Tema escuro" : "Tema claro"}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={logout}
-                      className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-                      style={{ color: "#94a3b8" }}
-                      onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = ""; }}
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">Sair</TooltipContent>
-                </Tooltip>
-              </div>
-            )}
+              {/* Right: logout */}
+              <SidebarIconBtn icon={LogOut} label="Sair" onClick={logout} danger compact={isCompact} />
+            </div>
           </div>
         </aside>
       </>
@@ -390,32 +314,30 @@ export default function Sidebar() {
   );
 }
 
-// Small reusable icon button for compact footer
-function ActionBtn({
-  icon: Icon, label, onClick, danger,
+// ─── Utility icon button ──────────────────────────────────────────────────────
+function SidebarIconBtn({
+  icon: Icon, label, onClick, danger, compact,
 }: {
-  icon: React.ElementType; label: string; onClick: () => void; danger?: boolean;
+  icon: React.ElementType; label: string; onClick: () => void; danger?: boolean; compact?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          className="w-8 h-8 flex items-center justify-center rounded-md transition-colors"
-          style={{ color: "#94a3b8" }}
-          onMouseEnter={e => {
-            e.currentTarget.style.color = danger ? "#ef4444" : "#334155";
-            e.currentTarget.style.background = danger ? "#fef2f2" : "#f1f5f9";
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.color = "#94a3b8";
-            e.currentTarget.style.background = "";
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+          style={{
+            color: hovered ? (danger ? "#ef4444" : "#334155") : "#94a3b8",
+            background: hovered ? (danger ? "#fef2f2" : "#f1f5f9") : undefined,
           }}
         >
-          <Icon className="w-3.5 h-3.5" />
+          <Icon style={{ width: 15, height: 15, strokeWidth: 1.5 }} />
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right" className="text-xs">{label}</TooltipContent>
+      <TooltipContent side={compact ? "right" : "top"} className="text-xs">{label}</TooltipContent>
     </Tooltip>
   );
 }
