@@ -79,12 +79,13 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
     onFiltersChange(baseFilters);
   };
 
-  const totalCols = hideStatusFilter ? 5 : 6;
-
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-6">
       {/* Linha 1: Busca + Evento + Funções + Colaborador + [Status] + Escalação */}
-      <div className={`grid gap-3 ${totalCols === 5 ? 'grid-cols-[180px_1fr_1fr_1fr_1fr]' : 'grid-cols-[160px_1fr_1fr_1fr_1fr_1fr]'}`}>
+      <div
+        className="grid gap-3 items-end"
+        style={{ gridTemplateColumns: hideStatusFilter ? '170px 1fr 1fr 1fr 1fr' : '150px 1fr 1fr 1fr 1fr 1fr' }}
+      >
         {/* Busca */}
         <div>
           <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
@@ -97,7 +98,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               placeholder="ID, nome..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+              className="w-full h-10 pl-9 pr-3 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
               data-testid="input-search-id"
             />
           </div>
@@ -198,29 +199,29 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
       </div>
 
       {/* Linha 2: children (esquerda) + Toggle + Limpar (direita) */}
-      <div className="flex items-end justify-between mt-4 pt-3 border-t border-slate-100 gap-4">
+      <div className="flex items-end justify-between mt-4 pt-4 border-t border-slate-100 gap-4">
         {/* Slot de filtros extras (children) */}
         <div className="flex items-end gap-3 flex-1 flex-wrap">
           {children}
         </div>
 
-        {/* Ações direita: extras + Toggle + Limpar */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Ações direita: extras + Toggle + Limpar — alinhados pela base do input */}
+        <div className="flex items-end gap-3 shrink-0 pb-0.5">
           {rightActions}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          <label className="flex items-center gap-2 cursor-pointer select-none h-10">
             <Switch
               id="show-deleted"
               checked={filters.showDeleted || false}
               onCheckedChange={(checked) => onFiltersChange({ ...filters, showDeleted: checked })}
               data-testid="checkbox-show-deleted"
             />
-            <span className="text-sm text-slate-500">Mostrar Excluídos</span>
+            <span className="text-sm text-slate-500 whitespace-nowrap">Mostrar Excluídos</span>
           </label>
 
           <Button
             variant="outline"
             onClick={clearFilters}
-            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-xl px-3 h-10 text-sm font-medium transition-colors"
             data-testid="button-clear-filters"
           >
             <X className="w-4 h-4" />

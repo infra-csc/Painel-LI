@@ -1032,7 +1032,7 @@ export default function Scaling() {
           <Button
             onClick={handleExportToExcel}
             variant="outline"
-            className="flex items-center gap-2 border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 border border-green-200 text-green-600 bg-green-50 hover:bg-green-100 rounded-xl px-3 h-10 text-sm font-medium transition-colors whitespace-nowrap"
             data-testid="button-export-excel"
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -1048,7 +1048,7 @@ export default function Scaling() {
             value={filters.ticketStatus}
             onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
           >
-            <SelectTrigger className="border border-slate-200 rounded-lg bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
+            <SelectTrigger className="h-10 border border-slate-200 rounded-xl bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
               <SelectValue placeholder="Status da passagem" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
