@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import {
   UserPlus, Shield, User, Mail, Lock, Eye, EyeOff,
-  Check, ChevronDown, Briefcase, Settings, CreditCard,
+  Check, Briefcase, Settings, CreditCard,
   ShoppingCart, CheckCircle, AlertCircle,
 } from "lucide-react";
 
@@ -59,12 +59,12 @@ export default function UserRegistration() {
   if (!hasPermission(user, 'canAccessScreen0')) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center max-w-md">
-          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-800 p-10 text-center max-w-md">
+          <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-4">
             <Shield className="w-6 h-6 text-red-400" />
           </div>
-          <h3 className="text-base font-semibold text-slate-800 mb-2">Acesso Negado</h3>
-          <p className="text-sm text-slate-500">Apenas administradores podem acessar o cadastro de usuários.</p>
+          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-2">Acesso Negado</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Apenas administradores podem acessar o cadastro de usuários.</p>
         </div>
       </div>
     );
@@ -93,38 +93,37 @@ export default function UserRegistration() {
   const onSubmit = (data: UserRegistrationData) => createUserMutation.mutate(data);
 
   const emailValue = form.watch("email");
-  const nameValue = form.watch("name");
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
   const pwStrength = getPasswordStrength(passwordValue);
 
   return (
-    <div className="flex items-start justify-center py-6">
+    <div className="flex items-start justify-center py-8 px-4">
       <div className="w-full max-w-2xl">
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
 
-          {/* Header faixa */}
-          <div className="bg-blue-50 px-6 py-3 border-b border-blue-100 flex items-center gap-2">
-            <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="text-[11px] text-slate-500 font-medium">Acesso restrito — Administrador</span>
+          {/* Top accent bar */}
+          <div className="bg-indigo-50/60 dark:bg-indigo-950/20 px-8 py-3 border-b border-indigo-100 dark:border-indigo-900/30 flex items-center gap-2">
+            <Shield className="w-[15px] h-[15px] text-indigo-400 shrink-0" />
+            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Acesso restrito — Administrador</span>
           </div>
 
-          {/* Title area */}
-          <div className="px-8 pt-7 pb-2">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                <UserPlus className="w-4.5 h-4.5 text-blue-600" style={{width:'18px',height:'18px'}} />
+          {/* Header */}
+          <div className="px-8 lg:px-10 pt-8 pb-6">
+            <div className="flex items-start gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center shrink-0">
+                <UserPlus className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-800">Cadastro de Usuários</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Preencha os dados para criar uma nova conta no sistema</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">Cadastro de Usuários</h1>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Preencha os dados para criar uma nova conta no sistema</p>
               </div>
             </div>
           </div>
 
           {/* Form */}
-          <div className="px-8 pb-8 pt-5">
+          <div className="px-8 lg:px-10 pb-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
@@ -137,14 +136,16 @@ export default function UserRegistration() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Nome Completo <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Nome Completo <span className="text-orange-500">*</span>
+                        </FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <Input
                               placeholder="Ex: Ana Silva"
                               data-testid="input-name"
-                              className="pl-9 h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                              className="pl-10 h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
                               {...field}
                             />
                           </div>
@@ -160,26 +161,28 @@ export default function UserRegistration() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">E-mail <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          E-mail <span className="text-orange-500">*</span>
+                        </FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <Input
                               type="email"
                               placeholder="email@empresa.com"
                               data-testid="input-email"
-                              className={`pl-9 pr-9 h-10 text-sm rounded-lg transition-all ${
+                              className={`pl-10 pr-10 h-11 text-sm rounded-xl transition-all ${
                                 emailValue && isEmailValid
-                                  ? 'border-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20'
-                                  : 'border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                                  ? 'border-emerald-400 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10'
+                                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'
                               }`}
                               {...field}
                             />
                             {emailValue && isEmailValid && (
-                              <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-500" />
+                              <CheckCircle className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
                             )}
                             {emailValue && !isEmailValid && (
-                              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                              <AlertCircle className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                             )}
                           </div>
                         </FormControl>
@@ -198,16 +201,18 @@ export default function UserRegistration() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Senha <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Senha <span className="text-orange-500">*</span>
+                        </FormLabel>
                         <FormControl>
-                          <div className="space-y-1.5">
+                          <div className="space-y-2">
                             <div className="relative">
-                              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                               <Input
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Mínimo 6 caracteres"
                                 data-testid="input-password"
-                                className="pl-9 pr-9 h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                                className="pl-10 pr-10 h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
                                 {...field}
                                 onChange={(e) => {
                                   field.onChange(e);
@@ -216,22 +221,21 @@ export default function UserRegistration() {
                               />
                               <button
                                 type="button"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                                 onClick={() => setShowPassword(!showPassword)}
                                 tabIndex={-1}
                               >
-                                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                             </div>
-                            {/* Strength bar */}
                             {passwordValue && (
                               <div className="space-y-1">
                                 <div className="flex gap-1">
                                   {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= pwStrength.score ? pwStrength.color : 'bg-gray-100'}`} />
+                                    <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= pwStrength.score ? pwStrength.color : 'bg-gray-100 dark:bg-slate-700'}`} />
                                   ))}
                                 </div>
-                                <span className={`text-[10px] font-medium ${
+                                <span className={`text-[11px] font-semibold ${
                                   pwStrength.score <= 1 ? 'text-red-500' :
                                   pwStrength.score <= 3 ? 'text-amber-500' : 'text-emerald-600'
                                 }`}>{pwStrength.label}</span>
@@ -250,10 +254,12 @@ export default function UserRegistration() {
                     name="role"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Tipo de acesso <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Tipo de acesso <span className="text-orange-500">*</span>
+                        </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger data-testid="select-role" className="h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all">
+                            <SelectTrigger data-testid="select-role" className="h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all">
                               <SelectValue placeholder="Selecione o perfil" />
                             </SelectTrigger>
                           </FormControl>
@@ -274,7 +280,7 @@ export default function UserRegistration() {
                         {field.value && (() => {
                           const opt = ROLE_OPTIONS.find(o => o.value === field.value);
                           return opt ? (
-                            <p className="text-[10px] text-slate-400 mt-1">{opt.desc}</p>
+                            <p className="text-[11px] text-slate-400 mt-1">{opt.desc}</p>
                           ) : null;
                         })()}
                         <FormMessage className="text-[11px]" />
@@ -289,8 +295,8 @@ export default function UserRegistration() {
                   name="area"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">
-                        Área Específica <span className="text-slate-400 font-normal">(opcional)</span>
+                      <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        Área Específica <span className="text-slate-400 font-normal text-xs">(opcional)</span>
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
@@ -298,10 +304,10 @@ export default function UserRegistration() {
                             placeholder="Ex: Som, Iluminação, Cenografia, Palco..."
                             data-testid="input-area"
                             maxLength={80}
-                            className="h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all pr-14"
+                            className="h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all pr-14"
                             {...field}
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 tabular-nums">
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 tabular-nums">
                             {(field.value?.length || 0)}/80
                           </span>
                         </div>
@@ -311,15 +317,14 @@ export default function UserRegistration() {
                   )}
                 />
 
-                {/* Divider */}
-                <div className="border-t border-gray-100 pt-4">
-                  {/* Footer row */}
+                {/* Divider + Footer */}
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => { form.reset(); setPasswordValue(""); }}
                       data-testid="button-clear"
-                      className="text-xs font-medium text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                      className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-all"
                     >
                       Limpar
                     </button>
@@ -328,16 +333,16 @@ export default function UserRegistration() {
                       type="submit"
                       disabled={createUserMutation.isPending}
                       data-testid="button-submit"
-                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-200 transition-all"
+                      className="flex items-center gap-2 px-7 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm shadow-indigo-200 dark:shadow-none hover:shadow-md hover:shadow-indigo-200/50 transition-all"
                     >
                       {createUserMutation.isPending ? (
                         <span className="flex items-center gap-2">
-                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Criando...
                         </span>
                       ) : (
                         <>
-                          <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                          <Check className="w-4 h-4" strokeWidth={3} />
                           Criar Usuário
                         </>
                       )}
@@ -345,9 +350,9 @@ export default function UserRegistration() {
                   </div>
 
                   {/* Security note */}
-                  <div className="flex items-center justify-center gap-1.5 mt-4">
-                    <Lock className="w-3 h-3 text-slate-300" />
-                    <span className="text-[10px] text-slate-400">Os dados são criptografados e protegidos</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-5">
+                    <Lock className="w-3 h-3 text-slate-300 dark:text-slate-600" />
+                    <span className="text-[10px] text-slate-400 dark:text-slate-600">Os dados são criptografados e protegidos</span>
                   </div>
                 </div>
 

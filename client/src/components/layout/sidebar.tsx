@@ -96,17 +96,17 @@ export default function Sidebar() {
           data-testid={`sidebar-${tab.id}`}
           style={isActive ? { background: theme.activeBg } : undefined}
           className={cn(
-            "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+            "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
             isCompact && "justify-center px-0",
             isActive
               ? "text-[#1e293b]"
-              : "text-[#1e293b] hover:bg-[#f8fafc]"
+              : "text-[#1e293b] hover:bg-slate-50 dark:hover:bg-slate-800/60"
           )}
         >
           {/* Active left accent bar — module color */}
           {isActive && (
             <span
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
               style={{ background: theme.activeBorder }}
             />
           )}
@@ -118,7 +118,7 @@ export default function Sidebar() {
           {!isCompact && (
             <span
               className="truncate leading-tight font-medium"
-              style={isActive ? { color: theme.activeText } : undefined}
+              style={isActive ? { color: theme.activeText } : { color: "#475569" }}
             >
               {tab.label}
             </span>
@@ -239,13 +239,13 @@ export default function Sidebar() {
                 <div key={group.title} className={cn(idx > 0 && "mt-5")}>
                   {!isCompact ? (
                     <p
-                      className="text-[10px] font-bold uppercase tracking-widest px-3 mb-1.5 select-none"
+                      className="text-[11px] font-bold uppercase tracking-[0.1em] px-3 mb-2 select-none"
                       style={{ color: theme.label }}
                     >
                       {group.title}
                     </p>
                   ) : (
-                    idx > 0 && <div className="border-t border-slate-100 mx-2 mb-3" />
+                    idx > 0 && <div className="border-t border-slate-100 dark:border-slate-800 mx-2 mb-3" />
                   )}
                   <ul className="space-y-0.5">
                     {groupTabs.map(tab => (
@@ -260,16 +260,16 @@ export default function Sidebar() {
           </nav>
 
           {/* ── Footer ── */}
-          <div className="border-t border-[#e2e8f0] px-2 py-3 space-y-2 shrink-0 bg-[#f8fafc]">
+          <div className="border-t border-[#e2e8f0] dark:border-slate-800 px-2 py-3 space-y-2.5 shrink-0 bg-slate-50/80 dark:bg-slate-900/80">
             {/* User info */}
             <div className={cn("flex items-center gap-2.5 px-1 min-w-0", isCompact && "justify-center px-0")}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600 shadow-sm">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 bg-gradient-to-br from-indigo-500 to-blue-600 shadow-sm">
                 {initials(userName)}
               </div>
               {!isCompact && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-700 truncate leading-tight">{user?.name}</p>
-                  <p className="text-[10px] text-slate-400 truncate leading-tight">{user?.email}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{user?.name}</p>
+                  <p className="text-[11px] text-slate-400 truncate leading-tight">{user?.email}</p>
                 </div>
               )}
             </div>
@@ -323,7 +323,7 @@ export default function Sidebar() {
                 <button
                   onClick={logout}
                   className={cn(
-                    "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors duration-150",
+                    "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-150",
                     isCompact && "justify-center px-0"
                   )}
                 >
