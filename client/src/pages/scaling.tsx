@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, ChevronRight } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1008,9 +1008,14 @@ export default function Scaling() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-800">Escalação - Visualização</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Lista de escalações com informações detalhadas</p>
+      <div className="flex items-center gap-5">
+        <div className="w-14 h-14 bg-[#0033CC] rounded-3xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20 shrink-0">
+          <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>conveyor_belt</span>
+        </div>
+        <div>
+          <h2 className="text-[28px] font-bold tracking-tight text-slate-900 leading-tight">Escalação - Visualização</h2>
+          <p className="text-sm text-slate-500 font-medium mt-0.5">Lista de escalações com informações detalhadas</p>
+        </div>
       </div>
 
       <UniversalFilters filters={filters} onFiltersChange={setFilters} hideStatusFilter={true}>
@@ -1065,36 +1070,46 @@ export default function Scaling() {
             
             return (
               <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <TabsList className="grid w-full grid-cols-2 h-auto rounded-none bg-transparent p-0">
-                    <TabsTrigger
-                      value="without-ticket"
-                      className="flex items-center gap-2 rounded-none bg-[#fff7ed] hover:bg-orange-50 data-[state=active]:bg-[#fff7ed] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-orange-400 border-r border-slate-200 px-6 py-4"
-                      disabled={withoutTicket.length === 0}
-                    >
-                      <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                      <span className="text-orange-700 data-[state=active]:font-bold font-medium">Sem Passagem ({withoutTicket.length})</span>
-                      {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                        <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs rounded-full font-semibold">
-                          {withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="with-ticket"
-                      className="flex items-center gap-2 rounded-none bg-[#f0fdf4] hover:bg-green-50 data-[state=active]:bg-[#f0fdf4] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-green-500 data-[state=active]:font-bold px-6 py-4"
-                      disabled={withTicket.length === 0}
-                    >
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-700 font-medium">Com Passagem ({withTicket.length})</span>
-                      {withTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                        <span className="ml-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-semibold">
-                          {withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+                <TabsList className="flex gap-4 h-auto bg-transparent p-0 w-full mb-2">
+                  <TabsTrigger
+                    value="without-ticket"
+                    disabled={withoutTicket.length === 0}
+                    className="flex-1 flex items-center justify-between p-5 bg-white border-2 data-[state=active]:border-[#0033CC] border-slate-200 rounded-3xl shadow-sm data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/10 transition-all disabled:opacity-40 text-left"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <span className="w-3 h-3 bg-orange-400 rounded-full animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Logística Pendente</p>
+                        <h3 className="text-lg font-bold text-slate-900">Sem Passagem <span className="text-slate-400 font-normal">({withoutTicket.length})</span></h3>
+                        {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
+                          <p className="text-[11px] text-orange-500 font-semibold">{withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''} de escalação</p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="with-ticket"
+                    disabled={withTicket.length === 0}
+                    className="flex-1 flex items-center justify-between p-5 bg-white border-2 data-[state=active]:border-[#0033CC] border-slate-200 rounded-3xl shadow-sm data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/10 transition-all disabled:opacity-40 text-left"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
+                        <span className="w-3 h-3 bg-green-500 rounded-full" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Logística Concluída</p>
+                        <h3 className="text-lg font-bold text-slate-900">Com Passagem <span className="text-slate-400 font-normal">({withTicket.length})</span></h3>
+                        {withTicketPending > 0 && filters.escalationStatus !== "pending" && (
+                          <p className="text-[11px] text-amber-500 font-semibold">{withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''} de escalação</p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
+                  </TabsTrigger>
+                </TabsList>
 
                 {/* Aba: Escalações SEM passagem */}
                 <TabsContent value="without-ticket" className="mt-0">
@@ -1109,14 +1124,14 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
                       <div className="overflow-x-auto">
                         <table className="table-fixed w-full">
                           <colgroup>
-                            <col style={{width: "80px"}} />
+                            <col style={{width: "100px"}} />
                             <col style={{width: "28%"}} />
                             <col style={{width: "22%"}} />
-                            <col style={{width: "140px"}} />
+                            <col style={{width: "150px"}} />
                             <col style={{width: "220px"}} />
                           </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
@@ -1125,76 +1140,85 @@ export default function Scaling() {
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                              <th className="w-[220px] min-w-[220px] px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                                 Escalação
                               </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             <tr>
-                              <td colSpan={5} className="bg-orange-50 border-y border-orange-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-orange-500">
+                              <td colSpan={5} className="bg-orange-50 border-y border-orange-100 px-6 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-orange-400">
                                 ✈ Sem Passagem ({withoutTicket.length})
                               </td>
                             </tr>
                             {withoutTicket.map((inclusion) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-orange-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
-                                <td className="px-3 py-3 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
-                                    <div className="text-sm font-mono text-slate-500">
+                                    <span className="text-xs font-bold text-[#0033CC] bg-blue-50 px-2 py-1 rounded-lg">
                                       #{inclusion.inclusionNumber || 'N/A'}
-                                    </div>
+                                    </span>
                                     <Eye
-                                      className="ml-2 w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
+                                      className="w-4 h-4 text-slate-300 hover:text-blue-500 transition-colors cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
-                                  <div className="text-sm font-medium text-slate-800">
+                                <td className="px-6 py-4">
+                                  <div className="text-sm font-bold text-slate-900">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <div className="text-xs text-slate-400">
+                                  <div className="text-[11px] text-slate-400">
                                     {getEventName(inclusion.eventId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
-                                  {inclusion.collaboratorId ? (
-                                    <div className="text-sm text-slate-700">
-                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                <td className="px-6 py-4">
+                                  {inclusion.collaboratorId ? (() => {
+                                    const name = getCollaboratorName(inclusion.collaboratorId);
+                                    const parts = name.trim().split(/\s+/);
+                                    const ini = parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                                    return (
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-[#0033CC] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
+                                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                                      </div>
+                                    );
+                                  })() : (
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
+                                      <span className="text-sm italic text-slate-400">Não escalado</span>
                                     </div>
-                                  ) : (
-                                    <span className="text-sm italic text-slate-400">Não escalado</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-3 whitespace-nowrap">
-                                  <div className="text-sm text-slate-700 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-semibold text-slate-800 whitespace-nowrap">
                                     {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
-                                  <div className="text-xs text-slate-400">
+                                  <div className="text-[11px] text-slate-400">
                                     {formatDiarias(inclusion.dailyRates)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
+                                <td className="px-6 py-4">
                                   <div className="flex flex-col gap-1.5">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
-                                        Cancelado
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="block w-full px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold text-center">
-                                        Escalado
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
                                       </span>
                                     ) : (
-                                      <span className="block w-full px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold text-center">
-                                        Pendente
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="block w-full px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold text-center">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
                                         ✈️ Passagem Comprada
                                       </span>
                                     )}
@@ -1202,11 +1226,9 @@ export default function Scaling() {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="block w-full px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold text-center">
-                                          🏨 Hospedagem Disponível
-                                          {accommodationInfo.hasAttachments && (
-                                            <span className="ml-1">📎</span>
-                                          )}
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨 Hospedagem
+                                          {accommodationInfo.hasAttachments && <span>📎</span>}
                                         </span>
                                       );
                                     })()}
@@ -1234,14 +1256,14 @@ export default function Scaling() {
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mt-4">
                       <div className="overflow-x-auto">
                         <table className="table-fixed w-full">
                           <colgroup>
-                            <col style={{width: "80px"}} />
+                            <col style={{width: "100px"}} />
                             <col style={{width: "28%"}} />
                             <col style={{width: "22%"}} />
-                            <col style={{width: "140px"}} />
+                            <col style={{width: "150px"}} />
                             <col style={{width: "220px"}} />
                           </colgroup>
                           <thead className="bg-slate-50 border-b border-slate-200">
@@ -1250,76 +1272,85 @@ export default function Scaling() {
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-3 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                              <th className="w-[220px] min-w-[220px] px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                                 Escalação
                               </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             <tr>
-                              <td colSpan={5} className="bg-green-50 border-y border-green-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-green-600">
+                              <td colSpan={5} className="bg-green-50 border-y border-green-100 px-6 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-green-500">
                                 ✈ Com Passagem ({withTicket.length})
                               </td>
                             </tr>
                             {withTicket.map((inclusion) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-green-50/30 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
-                                <td className="px-3 py-3 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
-                                    <div className="text-sm font-mono text-slate-500">
+                                    <span className="text-xs font-bold text-[#0033CC] bg-blue-50 px-2 py-1 rounded-lg">
                                       #{inclusion.inclusionNumber || 'N/A'}
-                                    </div>
+                                    </span>
                                     <Eye
-                                      className="ml-2 w-4 h-4 transition-colors text-blue-400 hover:text-blue-600 cursor-pointer"
+                                      className="w-4 h-4 text-slate-300 hover:text-blue-500 transition-colors cursor-pointer"
                                       onClick={(e) => handleViewComments(e, inclusion)}
                                     />
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
-                                  <div className="text-sm font-medium text-slate-800">
+                                <td className="px-6 py-4">
+                                  <div className="text-sm font-bold text-slate-900">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <div className="text-xs text-slate-400">
+                                  <div className="text-[11px] text-slate-400">
                                     {getEventName(inclusion.eventId)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
-                                  {inclusion.collaboratorId ? (
-                                    <div className="text-sm text-slate-700">
-                                      {getCollaboratorName(inclusion.collaboratorId)}
+                                <td className="px-6 py-4">
+                                  {inclusion.collaboratorId ? (() => {
+                                    const name = getCollaboratorName(inclusion.collaboratorId);
+                                    const parts = name.trim().split(/\s+/);
+                                    const ini = parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                                    return (
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-[#0033CC] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
+                                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                                      </div>
+                                    );
+                                  })() : (
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">N/E</div>
+                                      <span className="text-sm italic text-slate-400">Não escalado</span>
                                     </div>
-                                  ) : (
-                                    <span className="text-sm italic text-slate-400">Não escalado</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-3 whitespace-nowrap">
-                                  <div className="text-sm text-slate-700 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-semibold text-slate-800 whitespace-nowrap">
                                     {formatDateRange(inclusion.scheduleStartDate, inclusion.scheduleEndDate)}
                                   </div>
-                                  <div className="text-xs text-slate-400">
+                                  <div className="text-[11px] text-slate-400">
                                     {formatDiarias(inclusion.dailyRates)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3">
+                                <td className="px-6 py-4">
                                   <div className="flex flex-col gap-1.5">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="block w-full px-3 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold text-center">
-                                        Cancelado
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="block w-full px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold text-center">
-                                        Escalado
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
                                       </span>
                                     ) : (
-                                      <span className="block w-full px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg text-xs font-semibold text-center">
-                                        Pendente
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="block w-full px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold text-center">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
                                         ✈️ Passagem Comprada
                                       </span>
                                     )}
@@ -1327,11 +1358,9 @@ export default function Scaling() {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="block w-full px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-xs font-semibold text-center">
-                                          🏨 Hospedagem Disponível
-                                          {accommodationInfo.hasAttachments && (
-                                            <span className="ml-1">📎</span>
-                                          )}
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨 Hospedagem
+                                          {accommodationInfo.hasAttachments && <span>📎</span>}
                                         </span>
                                       );
                                     })()}

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Norte Meridian - Escalação</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed-variant": "#ea580c",
+              "on-surface": "#0f172a",
+              "on-tertiary-container": "#166534",
+              "tertiary-fixed": "#dcfce7",
+              "error": "#ef4444",
+              "surface-container": "#f1f5f9",
+              "surface-variant": "#f1f5f9",
+              "on-background": "#0f172a",
+              "inverse-on-surface": "#f8fafc",
+              "primary": "#0033CC",
+              "secondary-fixed": "#ffedd5",
+              "on-error": "#ffffff",
+              "error-container": "#fee2e2",
+              "on-primary": "#ffffff",
+              "on-surface-variant": "#64748b",
+              "tertiary": "#22c55e",
+              "primary-fixed-dim": "#bfdbfe",
+              "tertiary-container": "#dcfce7",
+              "surface-bright": "#ffffff",
+              "inverse-primary": "#94a3b8",
+              "on-primary-fixed": "#1e3a8a",
+              "surface-dim": "#f1f5f9",
+              "on-primary-fixed-variant": "#1d4ed8",
+              "secondary-fixed-dim": "#fed7aa",
+              "on-primary-container": "#ffffff",
+              "primary-container": "#0033CC",
+              "on-secondary": "#ffffff",
+              "secondary-container": "#ff4d00",
+              "on-tertiary-fixed": "#064e3b",
+              "surface-container-high": "#e2e8f0",
+              "background": "#f8fafc",
+              "primary-fixed": "#dbeafe",
+              "surface": "#ffffff",
+              "on-tertiary-fixed-variant": "#15803d",
+              "on-tertiary": "#ffffff",
+              "on-error-container": "#991b1b",
+              "surface-container-low": "#f8fafc",
+              "on-secondary-fixed": "#7c2d12",
+              "tertiary-fixed-dim": "#bbf7d0",
+              "secondary": "#ff4d00",
+              "on-secondary-container": "#ffffff",
+              "surface-container-lowest": "#ffffff",
+              "surface-tint": "#0033CC",
+              "surface-container-highest": "#cbd5e1",
+              "outline-variant": "#cbd5e1",
+              "outline": "#e2e8f0",
+              "inverse-surface": "#1e293b"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .active-nav-bg { background-color: rgba(0, 51, 204, 0.08); }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface-container-low text-on-surface">
+<!-- Sidebar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col p-4 z-50 bg-white border-r border-outline w-64">
+<div class="flex items-center gap-3 px-2 mb-8">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-black text-xl">N</div>
+<div>
+<h1 class="text-primary font-black leading-tight text-sm tracking-tight">Norte Meridian</h1>
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Logistics Management</p>
+</div>
+</div>
+<nav class="flex-1 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+<!-- Section: CADASTROS -->
+<div>
+<p class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant mb-3 px-2">CADASTROS</p>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="person_add">person_add</span>
+<span class="text-[13px] font-medium">Cadastro de Usuários</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="event">event</span>
+<span class="text-[13px] font-medium">Eventos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="calendar_month">calendar_month</span>
+<span class="text-[13px] font-medium">Calendário</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="work">work</span>
+<span class="text-[13px] font-medium">Funções</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="groups">groups</span>
+<span class="text-[13px] font-medium">Colaboradores</span>
+</a>
+</div>
+</div>
+<!-- Section: OPERACIONAL -->
+<div>
+<p class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant mb-3 px-2">OPERACIONAL</p>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="person_add_alt">person_add_alt</span>
+<span class="text-[13px] font-medium">Inclusão de Equipe</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-primary/10 text-primary rounded-xl transition-all font-bold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="conveyor_belt" style="font-variation-settings: 'FILL' 1;">conveyor_belt</span>
+<span class="text-[13px]">Escalação</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="airplane_ticket">airplane_ticket</span>
+<span class="text-[13px] font-medium">Compra de Passagem</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="hotel">hotel</span>
+<span class="text-[13px] font-medium">Hospedagem</span>
+</a>
+</div>
+</div>
+<!-- Section: FINANCEIRO -->
+<div>
+<p class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant mb-3 px-2">FINANCEIRO</p>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="payments">payments</span>
+<span class="text-[13px] font-medium">Planejado</span>
+</a>
+</div>
+</div>
+</nav>
+<div class="mt-auto pt-6 border-t border-outline">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all mb-2" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="help">help</span>
+<span class="text-[13px] font-medium">Suporte</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-error hover:bg-error-container/20 rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="logout">logout</span>
+<span class="text-[13px] font-medium">Sair</span>
+</a>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<main class="ml-64 min-h-screen">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full h-16 px-8 z-40 sticky top-0 bg-white shadow-sm border-b border-outline">
+<div class="flex items-center bg-surface-container px-4 py-2 rounded-xl w-96 border border-outline">
+<span class="material-symbols-outlined text-on-surface-variant mr-2" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-on-surface-variant/50" placeholder="Pesquisar no sistema..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-white"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-px bg-outline mx-2"></div>
+<div class="flex items-center gap-3 cursor-pointer hover:bg-surface-container p-1 pr-3 rounded-full transition-colors">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-primary font-bold flex items-center justify-center text-xs">
+                        AM
+                    </div>
+<span class="text-xs font-bold text-on-surface">Alex Moraes</span>
+<span class="material-symbols-outlined text-xs" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+</header>
+<div class="p-8">
+<!-- Header -->
+<div class="flex items-center gap-6 mb-8">
+<div class="w-14 h-14 bg-primary rounded-3xl flex items-center justify-center text-white shadow-xl shadow-primary/20">
+<span class="material-symbols-outlined text-2xl" data-icon="conveyor_belt" style="font-variation-settings: 'FILL' 1;">conveyor_belt</span>
+</div>
+<div>
+<h2 class="text-[30px] font-bold tracking-tighter text-on-surface leading-tight">Escalação - Visualização</h2>
+<p class="text-on-surface-variant text-sm font-medium">Lista de escalações com informações detalhadas</p>
+</div>
+</div>
+<!-- Filters -->
+<section class="bg-white rounded-3xl p-6 shadow-sm border border-outline mb-8">
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">BUSCAR POR ID</label>
+<input class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10 transition-all" placeholder="Ex: #319" type="text"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">EVENTO</label>
+<select class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10 appearance-none">
+<option>Todos Eventos</option>
+<option>Banco do Brasil - Macapá 2025</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">FUNÇÕES</label>
+<select class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10">
+<option>Todas Funções</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">COLABORADOR</label>
+<select class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10">
+<option>Todos Colaboradores</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">ESCALAÇÃO</label>
+<select class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10">
+<option>Todos Status</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold tracking-widest uppercase text-on-surface-variant ml-1">STATUS PASSAGEM</label>
+<select class="w-full h-12 bg-surface-container border-none rounded-xl px-4 text-sm focus:ring-4 focus:ring-primary/10">
+<option>Todos Status</option>
+</select>
+</div>
+</div>
+<div class="flex justify-between items-center pt-2 border-t border-outline/50">
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-10 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+<span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Mostrar Excluídos</span>
+</label>
+<button class="flex items-center gap-2 bg-tertiary-container text-on-tertiary-container px-6 py-3 rounded-xl font-bold text-sm hover:brightness-95 transition-all active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-[20px]" data-icon="file_download">file_download</span>
+                        Exportar para Excel
+                    </button>
+</div>
+</section>
+<!-- Status Tabs -->
+<div class="flex gap-4 mb-8">
+<button class="flex-1 flex items-center justify-between p-6 bg-white border-2 border-primary rounded-3xl shadow-lg shadow-primary/5 group transition-all">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-secondary-fixed flex items-center justify-center">
+<span class="w-3 h-3 bg-secondary rounded-full animate-pulse"></span>
+</div>
+<div class="text-left">
+<p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">LOGÍSTICA PENDENTE</p>
+<h3 class="text-xl font-bold text-on-surface">Sem Passagem (28)</h3>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="chevron_right">chevron_right</span>
+</button>
+<button class="flex-1 flex items-center justify-between p-6 bg-white border border-outline rounded-3xl hover:border-primary/30 transition-all group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-tertiary-fixed flex items-center justify-center">
+<span class="w-3 h-3 bg-tertiary rounded-full"></span>
+</div>
+<div class="text-left">
+<p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">LOGÍSTICA CONCLUÍDA</p>
+<h3 class="text-xl font-bold text-on-surface">Com Passagem (75)</h3>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<!-- Table Section -->
+<div class="bg-white rounded-[32px] overflow-hidden shadow-sm border border-outline">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline">
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">ID</th>
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">FUNÇÃO / EVENTO</th>
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">COLABORADOR</th>
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">PERÍODO / DIÁRIAS</th>
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">ESCALAÇÃO</th>
+<th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant text-right">AÇÕES</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline/50">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="text-xs font-bold text-primary bg-primary/5 px-2 py-1 rounded-lg">#319</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Produção Local</span>
+<span class="text-[11px] text-on-surface-variant">Banco do Brasil - Macapá 2025</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant italic">N/E</div>
+<span class="text-sm font-medium text-error italic">Não escalado</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-surface">06/11 — 09/11</span>
+<span class="text-[11px] text-on-surface-variant">3 diárias</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[11px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                                        Pendente
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 hover:bg-white rounded-lg border border-transparent hover:border-outline transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="text-xs font-bold text-primary bg-primary/5 px-2 py-1 rounded-lg">#320</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Coordenador de Logística</span>
+<span class="text-[11px] text-on-surface-variant">Banco do Brasil - Macapá 2025</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center text-[10px] font-black">WP</div>
+<span class="text-sm font-bold text-on-surface">WAGNER DA SILVA PAULO</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-surface">05/11 — 10/11</span>
+<span class="text-[11px] text-on-surface-variant">5 diárias</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-container text-[11px] font-bold">
+<span class="material-symbols-outlined text-[14px]" data-icon="hotel" style="font-variation-settings: 'FILL' 1;">hotel</span>
+                                        Hospedagem Disponível
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 hover:bg-white rounded-lg border border-transparent hover:border-outline transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="text-xs font-bold text-primary bg-primary/5 px-2 py-1 rounded-lg">#321</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-bold text-on-surface">Staff Evento</span>
+<span class="text-[11px] text-on-surface-variant">Banco do Brasil - Macapá 2025</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center text-[10px] font-black">JS</div>
+<span class="text-sm font-bold text-on-surface">JULIANA SANTOS</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-surface">06/11 — 09/11</span>
+<span class="text-[11px] text-on-surface-variant">3 diárias</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-[11px] font-bold">
+<span class="material-symbols-outlined text-[14px]" data-icon="cancel">cancel</span>
+                                        Cancelado
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-2 hover:bg-white rounded-lg border border-transparent hover:border-outline transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low flex justify-between items-center border-t border-outline">
+<p class="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">Exibindo 1-3 de 103 resultados</p>
+<div class="flex items-center gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline hover:bg-white transition-all">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline hover:bg-white transition-all text-xs font-bold text-on-surface-variant">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline hover:bg-white transition-all text-xs font-bold text-on-surface-variant">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline hover:bg-white transition-all">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB - Suppression on List screen but kept as reference for system -->
+<!-- Suppressed based on UI rules for task-focused detail/list navigation -->
+</body></html>
