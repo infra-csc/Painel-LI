@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
@@ -289,28 +290,27 @@ export default function UserRegistration() {
                   />
                 </div>
 
-                {/* Row 3: Área — full width */}
+                {/* Row 3: Área — full width textarea */}
                 <FormField
                   control={form.control}
                   name="area"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Área Específica <span className="text-slate-400 font-normal text-xs">(opcional)</span>
-                      </FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Área Específica <span className="text-slate-400 font-normal text-xs">(opcional)</span>
+                        </FormLabel>
+                        <span className="text-[10px] text-slate-400 tabular-nums">{(field.value?.length || 0)}/80</span>
+                      </div>
                       <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="Ex: Som, Iluminação, Cenografia, Palco..."
-                            data-testid="input-area"
-                            maxLength={80}
-                            className="h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all pr-14"
-                            {...field}
-                          />
-                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 tabular-nums">
-                            {(field.value?.length || 0)}/80
-                          </span>
-                        </div>
+                        <Textarea
+                          placeholder="Ex: Som, Iluminação, Cenografia, Palco..."
+                          data-testid="input-area"
+                          maxLength={80}
+                          rows={3}
+                          className="text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage className="text-[11px]" />
                     </FormItem>
