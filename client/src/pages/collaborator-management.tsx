@@ -8,7 +8,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
-  ChevronLeft, ChevronRight, Search
+  ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
+  Briefcase, Home, LayoutList
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -131,8 +132,11 @@ export default function CollaboratorManagement() {
   const clearFilters = () => { setFilters({ status: "all", type: "all", search: "" }); setPage(1); };
   const hasFilters = filters.status !== "all" || filters.type !== "all" || filters.search;
 
+  const totalCount    = collaborators?.length ?? 0;
   const pendingCount  = collaborators?.filter(c => c.status === "pendente").length ?? 0;
   const approvedCount = collaborators?.filter(c => c.status === "aprovado").length ?? 0;
+  const freelaCount   = collaborators?.filter(c => c.type === "freela").length ?? 0;
+  const casaCount     = collaborators?.filter(c => c.type === "casa").length ?? 0;
 
   const handleApprove = (c: Collaborator) => {
     setSelectedCollaborator(c); setApprovalAction("approve");
@@ -187,30 +191,33 @@ export default function CollaboratorManagement() {
           </div>
         </div>
 
-        {/* ── Filters + Stats Bento ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-
-          {/* Filters card */}
-          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-wrap items-end gap-4">
-            {/* Search */}
+        {/* ── Bloco 1: Filtros ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex flex-wrap items-end gap-5">
+            {/* Buscar */}
             <div className="flex flex-col gap-1.5 flex-[2] min-w-[200px]">
-              <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase ml-1">Buscar</label>
+              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Buscar</label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Nome ou documento..."
                   value={filters.search}
                   onChange={e => setFilter("search", e.target.value)}
-                  className="w-full h-12 pl-10 pr-4 bg-slate-50 border-none rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all"
+                  className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                 />
+                {filters.search && (
+                  <button onClick={() => setFilter("search", "")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
-            {/* Status filter */}
+            {/* Status */}
             <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-              <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase ml-1">Status</label>
+              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Status</label>
               <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
-                <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-500/10">
+                <SelectTrigger className="h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
                   <SelectValue placeholder="Todos os Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -222,11 +229,11 @@ export default function CollaboratorManagement() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Type filter */}
-            <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
-              <label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase ml-1">Tipo de Vínculo</label>
+            {/* Tipo de Vínculo */}
+            <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Tipo de Vínculo</label>
               <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
-                <SelectTrigger className="h-12 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-500/10">
+                <SelectTrigger className="h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
                   <SelectValue placeholder="Todos os Tipos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,36 +244,45 @@ export default function CollaboratorManagement() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Clear */}
+            {/* Limpar */}
             {hasFilters && (
               <button
                 onClick={clearFilters}
-                className="h-12 w-12 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors shrink-0"
-                title="Limpar filtros"
+                className="h-11 px-4 flex items-center gap-2 text-sm font-medium text-slate-500 border border-slate-200 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" /> Limpar
               </button>
             )}
           </div>
+        </div>
 
-          {/* Stats cards */}
-          <div className="lg:col-span-4 grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
-              <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Total Ativos</p>
-              <h3 className="text-3xl font-black text-[#0033CC] mt-2">{approvedCount}</h3>
-            </div>
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
-              <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Pendentes</p>
-              <div className="flex items-end justify-between mt-2">
-                <h3 className="text-3xl font-black text-amber-500">{pendingCount}</h3>
-                {pendingCount > 0 && (
-                  <span className="material-symbols-outlined text-amber-400 text-2xl mb-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    priority_high
-                  </span>
-                )}
+        {/* ── Bloco 2: Cards de métricas ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[
+            { label: "Total Geral",   value: totalCount,    color: "#6366F1", stripe: "bg-indigo-500",  icon: <LayoutList className="w-5 h-5" />,   iconBg: "bg-indigo-50",  iconText: "text-indigo-500" },
+            { label: "Total Ativos",  value: approvedCount, color: "#3B82F6", stripe: "bg-blue-500",    icon: <UserCheck  className="w-5 h-5" />,   iconBg: "bg-blue-50",    iconText: "text-blue-500"   },
+            { label: "Pendentes",     value: pendingCount,  color: "#F97316", stripe: "bg-orange-500",  icon: <AlertCircle className="w-5 h-5" />,  iconBg: "bg-orange-50",  iconText: "text-orange-500",
+              badge: pendingCount > 0 ? <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-100 text-orange-600">Atenção</span> : null },
+            { label: "Freelancers",   value: freelaCount,   color: "#8B5CF6", stripe: "bg-violet-500",  icon: <Briefcase  className="w-5 h-5" />,   iconBg: "bg-violet-50",  iconText: "text-violet-500" },
+            { label: "Casa",          value: casaCount,     color: "#10B981", stripe: "bg-emerald-500", icon: <Home       className="w-5 h-5" />,   iconBg: "bg-emerald-50", iconText: "text-emerald-500" },
+          ].map(card => (
+            <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className={`h-1.5 w-full ${card.stripe}`} />
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${card.iconBg} ${card.iconText}`}>
+                    {card.icon}
+                  </div>
+                </div>
+                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1 flex items-center gap-1">
+                  {card.label}{"badge" in card && card.badge}
+                </p>
+                <p className="text-[28px] font-bold leading-none" style={{ color: card.color }}>
+                  {card.value}
+                </p>
               </div>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* ── Table ── */}
