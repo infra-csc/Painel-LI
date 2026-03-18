@@ -261,8 +261,7 @@ export default function CollaboratorManagement() {
           {[
             { label: "Total Geral",   value: totalCount,    color: "#374151", stripe: "bg-gray-700",    icon: <LayoutList  className="w-5 h-5" />,  iconBg: "bg-gray-100",   iconText: "text-gray-700"   },
             { label: "Total Ativos",  value: approvedCount, color: "#3B82F6", stripe: "bg-blue-500",    icon: <UserCheck   className="w-5 h-5" />,  iconBg: "bg-blue-50",    iconText: "text-blue-500"   },
-            { label: "Pendentes",     value: pendingCount,  color: "#F97316", stripe: "bg-orange-500",  icon: <AlertCircle className="w-5 h-5" />,  iconBg: "bg-orange-50",  iconText: "text-orange-500",
-              badge: pendingCount > 0 ? <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-100 text-orange-600">Atenção</span> : null },
+            { label: "Pendentes",     value: pendingCount,  color: "#F97316", stripe: "bg-orange-500",  icon: <AlertCircle className="w-5 h-5" />,  iconBg: "bg-orange-50",  iconText: "text-orange-500" },
             { label: "Freelancers",   value: freelaCount,   color: "#8B5CF6", stripe: "bg-violet-500",  icon: <Briefcase   className="w-5 h-5" />,  iconBg: "bg-violet-50",  iconText: "text-violet-500" },
             { label: "Casa",          value: casaCount,     color: "#22C55E", stripe: "bg-green-500",   icon: <Home        className="w-5 h-5" />,  iconBg: "bg-green-50",   iconText: "text-green-600"  },
           ].map(card => (
@@ -274,8 +273,8 @@ export default function CollaboratorManagement() {
                     {card.icon}
                   </div>
                 </div>
-                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1 flex items-center gap-1">
-                  {card.label}{"badge" in card && card.badge}
+                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+                  {card.label}
                 </p>
                 <p className="text-[28px] font-bold leading-none" style={{ color: card.color }}>
                   {card.value}
