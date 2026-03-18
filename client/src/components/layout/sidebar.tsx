@@ -123,7 +123,7 @@ export default function Sidebar() {
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           sidebarHidden && "lg:-translate-x-full"
         )}
-        style={{ width: 260 }}
+        style={{ width: 260, fontFamily: "'Inter', sans-serif" }}
       >
 
         {/* Logo row */}
@@ -150,7 +150,10 @@ export default function Sidebar() {
             if (!items.length) return null;
             return (
               <div key={group.title}>
-                <p className="px-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
+                <p
+                  className="px-3 uppercase text-slate-500 dark:text-slate-400 mb-3"
+                  style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em" }}
+                >
                   {group.title}
                 </p>
                 <div className="space-y-1">
@@ -177,7 +180,7 @@ export default function Sidebar() {
                             filled={isActive}
                             style={{ color: isActive ? ACTIVE_BLUE : tab.iconColor }}
                           />
-                          <span className={cn("text-[14px]", isActive ? "font-semibold" : "font-light")}>{tab.label}</span>
+                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: isActive ? 500 : 400 }}>{tab.label}</span>
                         </div>
                       </Link>
                     );
@@ -199,8 +202,8 @@ export default function Sidebar() {
               {initials(userName)}
             </div>
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user?.name}</span>
-              <span className="text-[11px] text-slate-500 truncate">{user?.email}</span>
+              <span className="truncate text-slate-900 dark:text-white" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>{user?.name}</span>
+              <span className="truncate text-slate-500" style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 400 }}>{user?.email}</span>
             </div>
           </div>
 
