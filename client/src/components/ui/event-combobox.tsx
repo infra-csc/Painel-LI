@@ -68,7 +68,7 @@ export default function EventCombobox({
         <button
           data-testid={testId}
           type="button"
-          className="w-full flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-violet-400 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-200"
+          className="w-full h-10 flex items-center gap-2 px-3 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
           <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
           <span className="flex-1 text-left truncate font-medium text-slate-700">

@@ -157,7 +157,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
               data-testid="filter-status"
             >
-              <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
+              <SelectTrigger className="h-10 w-full border border-slate-200 rounded-xl bg-slate-50 px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                 <SelectValue placeholder="Selecionar status" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
@@ -185,7 +185,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             onValueChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
             data-testid="filter-escalation"
           >
-            <SelectTrigger className="border border-slate-200 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 w-full cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
+            <SelectTrigger className="h-10 w-full border border-slate-200 rounded-xl bg-slate-50 px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
               <SelectValue placeholder="Filtrar por escalação" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">

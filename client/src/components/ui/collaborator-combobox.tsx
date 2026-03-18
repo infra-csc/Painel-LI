@@ -72,7 +72,7 @@ export default function CollaboratorCombobox({
         <button
           data-testid={testId}
           type="button"
-          className="w-full flex items-center justify-between px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50/30 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="w-full h-10 flex items-center justify-between px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-blue-300 hover:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
           <span className="truncate mr-2">{displayValue}</span>
           <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
