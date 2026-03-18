@@ -130,9 +130,9 @@ export default function Sidebar() {
         <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #F1F5F9" }}>
           <div className="flex items-center gap-3 min-w-0">
             <img src={logoImg} alt="Norte" className="h-9 w-9 object-contain shrink-0" />
-            <div className="min-w-0">
-              <p className="font-bold text-slate-900 dark:text-white text-[13px] leading-tight truncate">Norte</p>
-              <p className="text-[10px] text-slate-400 leading-tight truncate">Sistema de Logística Interna</p>
+            <div className="flex flex-col leading-tight truncate">
+              <span className="text-lg font-bold tracking-tight" style={{ color: "#0033CC" }}>Norte</span>
+              <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">Sistema de Logística Interna</span>
             </div>
           </div>
           <button
