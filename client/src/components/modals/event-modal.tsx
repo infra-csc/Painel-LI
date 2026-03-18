@@ -383,22 +383,22 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 items-end">
                     {/* Nome da empresa com autocomplete */}
                     <FormField
                       control={form.control}
                       name="paymentCompanyName"
                       render={({ field }) => (
                         <FormItem className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0">Nome da Empresa</FormLabel>
+                          <div className="flex items-center gap-1.5 h-5">
+                            <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0 leading-none">Nome da Empresa</FormLabel>
                             {isSaved && (
-                              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full leading-none">
                                 <BookMarked className="w-2.5 h-2.5" /> Salva
                               </span>
                             )}
                             {isNew && (
-                              <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full leading-none">
                                 <Sparkles className="w-2.5 h-2.5" /> Nova
                               </span>
                             )}
@@ -445,7 +445,9 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                       name="paymentCompanyCnpj"
                       render={({ field }) => (
                         <FormItem className="space-y-1">
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">CNPJ</FormLabel>
+                          <div className="h-5 flex items-center">
+                            <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0 leading-none">CNPJ</FormLabel>
+                          </div>
                           <FormControl>
                             <CnpjInput
                               value={field.value ?? ""}
