@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary-fixed-variant": "#1d4ed8",
+              "background": "#f8fafc",
+              "tertiary": "#22c55e",
+              "on-surface": "#0f172a",
+              "primary-container": "#0033CC",
+              "surface-dim": "#f1f5f9",
+              "on-tertiary": "#ffffff",
+              "tertiary-fixed-dim": "#bbf7d0",
+              "surface-tint": "#0033CC",
+              "on-tertiary-container": "#166534",
+              "error-container": "#fee2e2",
+              "surface-bright": "#ffffff",
+              "primary": "#0033CC",
+              "secondary-fixed-dim": "#fed7aa",
+              "on-tertiary-fixed-variant": "#15803d",
+              "on-secondary-fixed-variant": "#ea580c",
+              "primary-fixed-dim": "#bfdbfe",
+              "outline-variant": "#cbd5e1",
+              "on-primary-fixed": "#1e3a8a",
+              "secondary": "#ff4d00",
+              "surface-variant": "#f1f5f9",
+              "surface-container": "#f1f5f9",
+              "on-background": "#0f172a",
+              "on-primary": "#ffffff",
+              "on-primary-container": "#ffffff",
+              "primary-fixed": "#dbeafe",
+              "on-secondary": "#ffffff",
+              "inverse-surface": "#1e293b",
+              "surface-container-high": "#e2e8f0",
+              "on-tertiary-fixed": "#064e3b",
+              "surface-container-highest": "#cbd5e1",
+              "secondary-container": "#ff4d00",
+              "outline": "#e2e8f0",
+              "on-error": "#ffffff",
+              "on-secondary-fixed": "#7c2d12",
+              "inverse-primary": "#94a3b8",
+              "surface-container-low": "#f8fafc",
+              "surface": "#ffffff",
+              "error": "#ef4444",
+              "on-surface-variant": "#64748b",
+              "on-secondary-container": "#ffffff",
+              "on-error-container": "#991b1b",
+              "tertiary-container": "#dcfce7",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed": "#ffedd5",
+              "tertiary-fixed": "#dcfce7",
+              "inverse-on-surface": "#f8fafc"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "3xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .sidebar-active { background: rgba(0, 51, 204, 0.08); color: #0033CC; }
+    </style>
+</head>
+<body class="bg-surface-container-low text-on-surface antialiased">
+<!-- SideNavBar (Full Height) -->
+<aside class="h-screen w-64 border-r border-outline fixed left-0 top-0 bg-white z-50 flex flex-col py-6 px-4 shadow-sm">
+<div class="mb-10 px-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-brand-blue/20">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">explore</span>
+</div>
+<div>
+<h1 class="text-xl font-black tracking-tighter text-primary leading-tight">Norte Meridian</h1>
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Logistics Admin</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="mb-4">
+<p class="px-3 mb-2 text-[11px] font-bold tracking-widest text-on-surface-variant uppercase opacity-50">Menu Principal</p>
+<a class="bg-blue-50 text-primary rounded-xl px-3 py-2.5 flex items-center gap-3 font-semibold transition-all scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span class="text-sm">CADASTROS</span>
+</a>
+<a class="text-slate-500 hover:bg-slate-50 rounded-xl px-3 py-2.5 flex items-center gap-3 font-semibold transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">engineering</span>
+<span class="text-sm">OPERACIONAL</span>
+</a>
+<a class="text-slate-500 hover:bg-slate-50 rounded-xl px-3 py-2.5 flex items-center gap-3 font-semibold transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-sm">FINANCEIRO</span>
+</a>
+<a class="text-slate-500 hover:bg-slate-50 rounded-xl px-3 py-2.5 flex items-center gap-3 font-semibold transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="text-sm">GESTÃO</span>
+</a>
+</div>
+</nav>
+<div class="pt-6 border-t border-outline mt-auto space-y-1">
+<a class="text-slate-500 hover:bg-slate-50 rounded-xl px-3 py-2 flex items-center gap-3 text-sm font-medium" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span>Profile</span>
+</a>
+<a class="text-slate-500 hover:bg-slate-50 rounded-xl px-3 py-2 flex items-center gap-3 text-sm font-medium" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+<a class="text-error hover:bg-error-container/30 rounded-xl px-3 py-2 flex items-center gap-3 text-sm font-bold" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- TopNavBar -->
+<header class="h-16 border-b border-outline bg-white/95 backdrop-blur-md sticky top-0 z-40 flex justify-between items-center px-8">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-on-surface-variant/60" placeholder="Buscar por nome ou documento..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-6 border-l border-outline">
+<div class="text-right">
+<p class="text-sm font-bold leading-none">Admin Norte</p>
+<p class="text-[10px] text-on-surface-variant font-medium mt-1">Super User</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary-fixed text-primary flex items-center justify-center font-bold text-sm">
+                        AN
+                    </div>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-8 space-y-8">
+<!-- Page Header Section -->
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<h2 class="text-[1.875rem] font-bold tracking-tight text-on-surface leading-tight">Gerenciamento de Colaboradores</h2>
+<p class="text-sm text-on-surface-variant max-w-2xl">Administre a base de prestadores de serviço, motoristas e colaboradores internos com controle de status e documentação.</p>
+</div>
+<button class="h-12 px-6 bg-primary text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-xl shadow-primary/20 hover:scale-[0.98] transition-transform active:scale-95">
+<span class="material-symbols-outlined text-lg">add</span>
+                    Novo Colaborador
+                </button>
+</div>
+<!-- Filters & Stats Bento -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Filters Card -->
+<div class="col-span-12 lg:col-span-8 bg-white p-6 rounded-3xl border border-outline shadow-sm flex flex-wrap items-center gap-4">
+<div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+<label class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase ml-1">Status do Registro</label>
+<select class="h-12 bg-surface-container-low border-none rounded-xl px-4 text-sm font-medium focus:ring-4 focus:ring-primary/10 cursor-pointer">
+<option>Todos os Status</option>
+<option>Aprovado</option>
+<option>Pendente</option>
+<option>Reprovado</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+<label class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase ml-1">Tipo de Vínculo</label>
+<select class="h-12 bg-surface-container-low border-none rounded-xl px-4 text-sm font-medium focus:ring-4 focus:ring-primary/10 cursor-pointer">
+<option>Todos os Tipos</option>
+<option>Freela</option>
+<option>Casa</option>
+</select>
+</div>
+<button class="h-12 w-12 flex items-center justify-center bg-surface-container-highest/30 rounded-xl text-on-surface-variant mt-auto">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<!-- Simple Stats -->
+<div class="col-span-12 lg:col-span-4 grid grid-cols-2 gap-4">
+<div class="bg-white p-6 rounded-3xl border border-outline shadow-sm flex flex-col justify-between">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Total Ativos</p>
+<h3 class="text-3xl font-black text-primary mt-2">1.284</h3>
+</div>
+<div class="bg-white p-6 rounded-3xl border border-outline shadow-sm flex flex-col justify-between">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Pendentes</p>
+<div class="flex items-end justify-between">
+<h3 class="text-3xl font-black text-secondary mt-2">42</h3>
+<span class="material-symbols-outlined text-secondary text-2xl mb-1">priority_high</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Table Section -->
+<div class="bg-white rounded-3xl border border-outline shadow-sm overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline">Nome</th>
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline">Documento (CPF/RG)</th>
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline">Tipo</th>
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline">Cidade</th>
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline">Status</th>
+<th class="px-6 py-4 text-[10px] font-bold tracking-widest text-on-surface-variant uppercase border-b border-outline text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">RC</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Ricardo Carvalho</p>
+<p class="text-[11px] text-on-surface-variant">ricardo.c@norte.com</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium text-on-surface-variant">123.456.789-00</td>
+<td class="px-6 py-4">
+<span class="text-[11px] font-bold px-2 py-1 bg-slate-100 text-slate-700 rounded-lg">CASA</span>
+</td>
+<td class="px-6 py-4 text-sm text-on-surface-variant">São Paulo - SP</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[11px] font-bold rounded-full">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                        APROVADO
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-sm">MS</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Mariana Souza</p>
+<p class="text-[11px] text-on-surface-variant">mari.souza@email.com</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium text-on-surface-variant">987.654.321-11</td>
+<td class="px-6 py-4">
+<span class="text-[11px] font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">FREELA</span>
+</td>
+<td class="px-6 py-4 text-sm text-on-surface-variant">Curitiba - PR</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-bold rounded-full">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        PENDENTE
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-tertiary-fixed transition-colors" title="Aprovar">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-error hover:bg-error-container transition-colors" title="Reprovar">
+<span class="material-symbols-outlined text-[20px]">cancel</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">FT</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Felipe Teixeira</p>
+<p class="text-[11px] text-on-surface-variant">felipe_t@logistica.com</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium text-on-surface-variant">456.123.789-99</td>
+<td class="px-6 py-4">
+<span class="text-[11px] font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">FREELA</span>
+</td>
+<td class="px-6 py-4 text-sm text-on-surface-variant">Belo Horizonte - MG</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[11px] font-bold rounded-full">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                        APROVADO
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm">AL</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Ana Luiza Lima</p>
+<p class="text-[11px] text-on-surface-variant">ana.luiza@norte.com</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium text-on-surface-variant">333.222.111-00</td>
+<td class="px-6 py-4">
+<span class="text-[11px] font-bold px-2 py-1 bg-slate-100 text-slate-700 rounded-lg">CASA</span>
+</td>
+<td class="px-6 py-4 text-sm text-on-surface-variant">Manaus - AM</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-bold rounded-full">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        PENDENTE
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-tertiary hover:bg-tertiary-fixed transition-colors" title="Aprovar">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-error hover:bg-error-container transition-colors" title="Reprovar">
+<span class="material-symbols-outlined text-[20px]">cancel</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Footer -->
+<div class="px-6 py-4 bg-surface-container-low/30 border-t border-outline flex items-center justify-between">
+<p class="text-xs text-on-surface-variant font-medium">Mostrando 1-4 de 1.284 colaboradores</p>
+<div class="flex items-center gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline bg-white text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors">3</button>
+<span class="px-1 text-on-surface-variant">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors">321</button>
+</div>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg border border-outline bg-white text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
