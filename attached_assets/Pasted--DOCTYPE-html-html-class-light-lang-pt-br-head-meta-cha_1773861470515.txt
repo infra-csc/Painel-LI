@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary-fixed": "#dbeafe",
+                "on-secondary-fixed-variant": "#ea580c",
+                "on-tertiary-fixed-variant": "#15803d",
+                "on-tertiary-fixed": "#064e3b",
+                "on-tertiary": "#ffffff",
+                "tertiary-container": "#dcfce7",
+                "on-tertiary-container": "#166534",
+                "on-background": "#0f172a",
+                "inverse-primary": "#94a3b8",
+                "on-error": "#ffffff",
+                "background": "#f8fafc",
+                "surface-variant": "#f1f5f9",
+                "surface-bright": "#ffffff",
+                "on-primary-container": "#ffffff",
+                "surface-container-low": "#f8fafc",
+                "tertiary-fixed": "#dcfce7",
+                "on-surface": "#0f172a",
+                "tertiary": "#22c55e",
+                "on-secondary-fixed": "#7c2d12",
+                "primary-container": "#0033CC",
+                "on-secondary": "#ffffff",
+                "outline": "#e2e8f0",
+                "on-secondary-container": "#ffffff",
+                "secondary": "#ff4d00",
+                "on-error-container": "#991b1b",
+                "outline-variant": "#cbd5e1",
+                "inverse-surface": "#1e293b",
+                "surface-tint": "#0033CC",
+                "surface-container-high": "#e2e8f0",
+                "on-primary": "#ffffff",
+                "surface-container": "#f1f5f9",
+                "error": "#ef4444",
+                "surface-container-highest": "#cbd5e1",
+                "tertiary-fixed-dim": "#bbf7d0",
+                "error-container": "#fee2e2",
+                "primary": "#0033CC",
+                "inverse-on-surface": "#f8fafc",
+                "secondary-container": "#ff4d00",
+                "on-primary-fixed-variant": "#1d4ed8",
+                "surface": "#ffffff",
+                "secondary-fixed-dim": "#fed7aa",
+                "on-surface-variant": "#64748b",
+                "primary-fixed-dim": "#bfdbfe",
+                "secondary-fixed": "#ffedd5",
+                "surface-container-lowest": "#ffffff",
+                "on-primary-fixed": "#1e3a8a",
+                "surface-dim": "#f1f5f9"
+              },
+              fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "3xl": "1.5rem", "full": "9999px"},
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 border-r fixed left-0 top-0 bg-white flex flex-col p-4 gap-2 border-slate-200 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-primary font-black text-xl tracking-tighter">Norte Meridian</h1>
+<p class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Logistics Control</p>
+</div>
+<div class="flex flex-col gap-1 overflow-y-auto flex-grow">
+<!-- Active Section -->
+<div class="mb-4">
+<p class="text-[11px] font-semibold tracking-wide uppercase text-slate-400 px-3 mb-2">Administrativo</p>
+<a class="flex items-center gap-3 px-3 py-2.5 bg-blue-50 text-blue-700 rounded-xl transition-all duration-200 ease-in-out font-semibold text-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">edit_note</span>
+                    Cadastros
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl transition-all duration-200 ease-in-out font-semibold text-sm mt-1" href="#">
+<span class="material-symbols-outlined">settings_input_component</span>
+                    Operacional
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl transition-all duration-200 ease-in-out font-semibold text-sm mt-1" href="#">
+<span class="material-symbols-outlined">payments</span>
+                    Financeiro
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl transition-all duration-200 ease-in-out font-semibold text-sm mt-1" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                    Gestão
+                </a>
+</div>
+<!-- Contextual Active Link: Calendário -->
+<div class="px-3 border-l-2 border-primary ml-4 py-1 flex flex-col gap-2">
+<a class="text-sm font-bold text-primary" href="#">Calendário de Eventos</a>
+<a class="text-sm font-medium text-slate-500 hover:text-primary transition-colors" href="#">Locais de Prova</a>
+<a class="text-sm font-medium text-slate-500 hover:text-primary transition-colors" href="#">Organizadores</a>
+</div>
+</div>
+<div class="mt-auto pt-4 border-t border-slate-100 flex flex-col gap-1">
+<button class="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-transform mb-4">
+                Novo Evento
+            </button>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-xl transition-all text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Configurações
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-error hover:bg-error-container rounded-xl transition-all text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">logout</span>
+                Sair
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 flex h-16 w-full items-center justify-between px-8 bg-white/95 backdrop-blur-sm border-b border-slate-200">
+<div class="flex items-center gap-4 bg-slate-100 px-4 py-2 rounded-xl w-96">
+<span class="material-symbols-outlined text-slate-400 text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-slate-400" placeholder="Buscar evento ou cidade..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-white"></span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors">
+<span class="material-symbols-outlined">calendar_month</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">Admin Master</p>
+<p class="text-[10px] text-slate-500 uppercase font-medium">Logistics Lead</p>
+</div>
+<img alt="Avatar" class="w-10 h-10 rounded-xl object-cover ring-2 ring-slate-100" data-alt="User profile picture professional male" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbuvwTPgaTCoDgIK1LLD2OOo2JXXnXwyOz0yDxSVOKz8-QuFagFrLdPsD0t-xQIbnYe3ZyTJfXDKtLxiSKy29lx4nl1a1AnBH_Mzr74KAfaptC9ZSglJXTjzi8G_y9n8Vwa8tHi5TvmNGOt_t_tv8MmeGTytpT1E7fGiultfTlulB6welWwL198mRltAbwgGErzXPL9nF3Nt6lmizO-xBFHwIOKnIxt5QIKoxEAOkRHv6zTb069MRf2jHyDcvsldM5pGsOCFH1ysg"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-8 space-y-8">
+<!-- Page Header & Tools -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+</div>
+<h2 class="text-[30px] font-bold tracking-tight text-slate-900">Calendário de Eventos</h2>
+</div>
+<p class="text-slate-500 font-medium">Outubro 2023 • Gestão de 14 eventos ativos</p>
+</div>
+<div class="flex items-center gap-2 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
+<button class="px-6 py-2 bg-primary text-white rounded-xl text-sm font-bold active:scale-95 transition-all">Mês</button>
+<button class="px-6 py-2 text-slate-500 hover:bg-slate-50 rounded-xl text-sm font-bold transition-all">Semana</button>
+<button class="px-6 py-2 text-slate-500 hover:bg-slate-50 rounded-xl text-sm font-bold transition-all">Lista</button>
+</div>
+</div>
+<!-- Calendar Control Bar -->
+<div class="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1">
+<button class="p-2 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<h3 class="text-lg font-bold text-slate-900 min-w-40 text-center">Outubro 2023</h3>
+<button class="p-2 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+<button class="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">Hoje</button>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Filtros:</span>
+<div class="flex items-center gap-4">
+<label class="flex items-center gap-2 cursor-pointer">
+<div class="w-3 h-3 rounded-full bg-tertiary"></div>
+<span class="text-xs font-bold text-slate-600">Concluído</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span class="text-xs font-bold text-slate-600">Planejado</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer">
+<div class="w-3 h-3 rounded-full bg-secondary"></div>
+<span class="text-xs font-bold text-slate-600">Em andamento</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Calendar Grid -->
+<div class="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+<!-- Day Headers -->
+<div class="calendar-grid border-b border-slate-100 bg-slate-50/50">
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Domingo</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Segunda</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Terça</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Quarta</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Quinta</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Sexta</div>
+<div class="py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Sábado</div>
+</div>
+<!-- Days Content -->
+<div class="calendar-grid auto-rows-[160px]">
+<!-- Placeholder Empty Days Sept -->
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">24</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">25</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">26</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">27</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">28</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">29</span>
+</div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4">
+<span class="text-sm font-bold text-slate-300">30</span>
+</div>
+<!-- October Days -->
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">01</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">02</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">03</span>
+<div class="mt-2 space-y-1">
+<div class="bg-tertiary-container text-on-tertiary-container px-2 py-1 rounded-lg text-[10px] font-bold border border-tertiary/20 flex items-center gap-1">
+<span class="w-1 h-1 bg-tertiary rounded-full"></span>
+                                Circuito Estações
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">04</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">05</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">06</span>
+<div class="mt-2 space-y-1">
+<div class="bg-primary text-white px-2 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-primary/10 truncate">
+                                Triathlon Int. Santos
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group hover:bg-blue-50/20 transition-colors">
+<span class="text-sm font-bold text-slate-900">07</span>
+</div>
+<!-- Row 2 -->
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">08</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">09</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group bg-blue-50/10">
+<span class="text-sm font-black text-primary">10</span>
+<div class="absolute top-4 right-4 w-2 h-2 bg-primary rounded-full ring-4 ring-blue-100"></div>
+<div class="mt-2 space-y-1">
+<div class="bg-secondary-container text-on-secondary-container px-2 py-1 rounded-lg text-[10px] font-bold border border-secondary/20 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">timer</span>
+                                Bravus Race SP
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">11</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">12</span>
+<div class="mt-2 space-y-1">
+<div class="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-200">
+                                Reunião Staff
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">13</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">14</span>
+</div>
+<!-- Row 3 (Focus on data points) -->
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">15</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">16</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">17</span>
+<div class="mt-2 space-y-1">
+<div class="bg-tertiary-container text-on-tertiary-container px-2 py-1 rounded-lg text-[10px] font-bold">
+                                Maratona Rio - Finalizado
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">18</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">19</span>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">20</span>
+<div class="mt-2 space-y-1">
+<div class="bg-primary text-white px-2 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-primary/10">
+                                Meia Maratona Curitiba
+                            </div>
+</div>
+</div>
+<div class="border-r border-b border-slate-100 p-4 relative group">
+<span class="text-sm font-bold text-slate-900">21</span>
+</div>
+<!-- Continue patterns... -->
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">22</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">23</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">24</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">25</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">26</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">27</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">28</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">29</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">30</span></div>
+<div class="border-r border-b border-slate-100 p-4"><span class="text-sm font-bold text-slate-900">31</span></div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4"><span class="text-sm font-bold text-slate-300">01</span></div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4"><span class="text-sm font-bold text-slate-300">02</span></div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4"><span class="text-sm font-bold text-slate-300">03</span></div>
+<div class="border-r border-b border-slate-100 bg-slate-50/30 p-4"><span class="text-sm font-bold text-slate-300">04</span></div>
+</div>
+</div>
+<!-- Summary Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex items-center justify-between">
+<div>
+<p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total de Eventos</p>
+<h4 class="text-2xl font-black text-slate-900">24</h4>
+</div>
+<div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex items-center justify-between">
+<div>
+<p class="text-[10px] font-black text-tertiary uppercase tracking-widest mb-1">Concluídos</p>
+<h4 class="text-2xl font-black text-slate-900">08</h4>
+</div>
+<div class="w-12 h-12 bg-tertiary-container rounded-xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex items-center justify-between">
+<div>
+<p class="text-[10px] font-black text-secondary uppercase tracking-widest mb-1">Em Andamento</p>
+<h4 class="text-2xl font-black text-slate-900">02</h4>
+</div>
+<div class="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">speed</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (FAB) - Contextual -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center active:scale-95 transition-all hover:rotate-90">
+<span class="material-symbols-outlined text-2xl">add</span>
+</button>
+</body></html>

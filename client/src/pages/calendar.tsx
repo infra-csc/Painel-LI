@@ -100,7 +100,7 @@ function getEffectiveStatus(event: Event): string {
   return "planejado";
 }
 
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const WEEKDAY_LABELS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -573,11 +573,11 @@ function MonthView({
 
   return (
     <>
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-[32px] border border-slate-200 dark:border-gray-700 overflow-hidden" style={{ boxShadow: "0 20px 60px -10px rgba(148,163,184,0.3), 0 4px 16px -4px rgba(148,163,184,0.2)" }}>
         {/* Weekday header */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50/70 shrink-0">
-          {WEEKDAY_LABELS.map(d => (
-            <div key={d} className={`py-2.5 text-center text-[10px] font-bold uppercase tracking-widest ${d === "Dom" || d === "Sáb" ? "text-slate-400" : "text-slate-500"}`}>
+        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          {WEEKDAY_LABELS.map((d, i) => (
+            <div key={d} className={`py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] ${i === 0 || i === 6 ? "text-slate-400" : "text-slate-400"}`}>
               {d}
             </div>
           ))}
@@ -605,21 +605,21 @@ function MonthView({
                     return (
                       <div
                         key={di}
-                        className={`h-full px-1.5 flex items-center ${
-                          !isCurrentMonth ? "bg-gray-50/70 dark:bg-gray-900/30" :
+                        className={`h-full px-2 flex items-center transition-colors ${
+                          !isCurrentMonth ? "bg-slate-50/30 dark:bg-gray-900/30" :
                           isWeekend ? "bg-slate-50/40 dark:bg-gray-850" : "bg-white dark:bg-gray-800"
-                        }`}
+                        } ${isCurrentMonth ? "hover:bg-blue-50/20" : ""}`}
                       >
-                        {/* Today: z-[50] — highest inside the grid */}
-                        <div className={`text-[13px] font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0 ${
+                        <div className={`text-[13px] font-bold w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition-colors ${
                           isToday
-                            ? "bg-blue-600 text-white shadow-sm z-[50]"
+                            ? "bg-[#0033CC] text-white shadow-md z-[50]"
                             : isCurrentMonth
-                              ? "text-gray-700 dark:text-gray-300"
-                              : "text-gray-300 dark:text-gray-600"
+                              ? "text-slate-800 dark:text-gray-300"
+                              : "text-slate-300 dark:text-gray-600"
                         }`}>
                           {day.getDate()}
                         </div>
+                        {isToday && !isCurrentMonth && null}
                       </div>
                     );
                   })}
@@ -867,141 +867,154 @@ export default function CalendarPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-4 h-[calc(100vh-48px)] lg:h-[calc(100vh-64px)] max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6 h-[calc(100vh-48px)] lg:h-[calc(100vh-64px)] max-w-6xl mx-auto">
+
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-center gap-4 justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
-            <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1.5">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,51,204,0.08)" }}>
+              <span className="material-symbols-outlined text-xl" style={{ color: "#0033CC", fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
+            </div>
+            <h1 className="text-[30px] font-bold tracking-tight text-slate-900 dark:text-gray-100">Calendário de Eventos</h1>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Calendário de Eventos</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Visualize todos os eventos por período</p>
-          </div>
+          <p className="text-slate-500 font-medium text-sm pl-1">
+            {MONTH_NAMES[viewMonth]} {viewYear} &bull; {visibleEvents.length} {visibleEvents.length === 1 ? "evento" : "eventos"} {view === "month" ? "neste calendário" : "no total"}
+          </p>
         </div>
 
-        {/* Month navigation + view toggle */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* View toggle */}
+        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 self-start md:self-auto">
+          <button
+            onClick={() => setView("month")}
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+              view === "month" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+            }`}
+            style={view === "month" ? { background: "#0033CC" } : {}}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> Mês
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+              view === "list" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+            }`}
+            style={view === "list" ? { background: "#0033CC" } : {}}
+          >
+            <List className="w-3.5 h-3.5" /> Lista
+          </button>
+        </div>
+      </div>
+
+      {/* ── Control bar ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white px-5 py-3.5 rounded-3xl shadow-sm border border-slate-100 shrink-0">
+        {/* Left: month nav + today */}
+        <div className="flex items-center gap-3">
           {view === "month" && (
             <>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={prevMonth}
+                  className="p-2 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <h3 className="text-base font-bold text-slate-900 dark:text-gray-100 min-w-[160px] text-center">
+                  {MONTH_NAMES[viewMonth]} {viewYear}
+                </h3>
+                <button
+                  onClick={nextMonth}
+                  className="p-2 hover:bg-slate-50 rounded-lg text-slate-600 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
               <button
                 onClick={goToday}
-                className={`h-8 text-xs px-3 rounded-lg font-semibold border transition-all ${
+                className={`px-4 py-1.5 border rounded-xl text-sm font-bold transition-all ${
                   isCurrentMonth
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-white text-gray-500 border-gray-200 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 Hoje
               </button>
-              <button
-                onClick={prevMonth}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#374151] transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="min-w-[148px] text-center">
-                <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                  {MONTH_NAMES[viewMonth]} {viewYear}
-                </span>
-              </div>
-              <button
-                onClick={nextMonth}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#374151] transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </>
           )}
-
-          {/* View toggle pills */}
-          <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
-            <button
-              onClick={() => setView("month")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
-                view === "month"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-500 hover:bg-gray-50"
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" /> Mês
-            </button>
-            <div className="w-px h-5 bg-gray-200" />
-            <button
-              onClick={() => setView("list")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${
-                view === "list"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-500 hover:bg-gray-50"
-              }`}
-            >
-              <List className="w-3.5 h-3.5" /> Lista
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Filter row: search + status pills ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Search input */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Buscar evento ou cidade…"
-            className="h-[30px] pl-8 pr-3 text-[11px] rounded-full border border-gray-200 bg-white text-gray-700 placeholder-gray-400 outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-100 transition-all w-52"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-3 h-3" />
-            </button>
+          {view === "list" && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar evento ou cidade…"
+                className="h-9 pl-9 pr-3 text-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-700 placeholder-slate-400 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all w-56"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Status filter pills */}
-        <button
-          onClick={() => setStatusFilter("all")}
-          className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
-            statusFilter === "all"
-              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-              : "border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-700 hover:bg-indigo-50 bg-white"
-          }`}
-        >
-          Todos <span className={statusFilter === "all" ? "text-indigo-200" : "text-gray-400"}>{visibleEvents.length}</span>
-        </button>
-        {legendItems.map(item => {
-          const count = statusCounts[item.key] || 0;
-          const isActive = statusFilter === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => setStatusFilter(isActive ? "all" : item.key)}
-              className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all ${
-                isActive
-                  ? `${item.bg} ${item.text} ${item.border} shadow-sm`
-                  : "border-gray-200 text-gray-500 hover:border-gray-300 bg-white"
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
-              {item.label}
-              <span className={count === 0 ? "text-gray-300" : (isActive ? "opacity-70" : "text-gray-400")}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+        {/* Right: filters + search */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {view === "month" && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar…"
+                className="h-8 pl-9 pr-3 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 placeholder-slate-400 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all w-44"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros:</span>
+            {legendItems.map(item => {
+              const count = statusCounts[item.key] || 0;
+              const isActive = statusFilter === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setStatusFilter(isActive ? "all" : item.key)}
+                  className={`flex items-center gap-1.5 text-xs font-bold transition-all ${
+                    isActive ? "opacity-100" : "opacity-60 hover:opacity-90"
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${item.dot} ${isActive ? "ring-2 ring-offset-1 ring-current" : ""}`} />
+                  <span className="text-slate-700">{item.label}</span>
+                  <span className="text-slate-400 tabular-nums text-[10px]">{count}</span>
+                </button>
+              );
+            })}
+            {statusFilter !== "all" && (
+              <button
+                onClick={() => setStatusFilter("all")}
+                className="ml-1 text-[10px] text-slate-400 hover:text-slate-600 font-semibold underline underline-offset-2"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Calendar / List ── */}
       <div className="flex-1 min-h-0">
         {isLoading ? (
-          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="h-full bg-white rounded-[32px] border border-slate-200 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#0033CC", borderTopColor: "transparent" }} />
           </div>
         ) : view === "month" ? (
           <MonthView
