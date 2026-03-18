@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, ChevronRight } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1070,44 +1070,75 @@ export default function Scaling() {
             
             return (
               <Tabs defaultValue={withoutTicket.length > 0 ? "without-ticket" : "with-ticket"} className="w-full">
-                <TabsList className="flex gap-4 h-auto bg-transparent p-0 w-full mb-2">
+                <TabsList className="grid grid-cols-2 gap-4 h-auto bg-transparent p-0 w-full mb-2">
+                  {/* Card: Sem Passagem */}
                   <TabsTrigger
                     value="without-ticket"
                     disabled={withoutTicket.length === 0}
-                    className="flex-1 flex items-center justify-between p-5 bg-white border-2 data-[state=active]:border-[#0033CC] border-slate-200 rounded-3xl shadow-sm data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/10 transition-all disabled:opacity-40 text-left"
+                    className="group relative overflow-hidden rounded-3xl border-2 border-slate-200 bg-white shadow-sm hover:shadow-md data-[state=active]:border-[#F97316] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-lg data-[state=active]:shadow-orange-900/10 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
-                        <span className="w-3 h-3 bg-orange-400 rounded-full animate-pulse" />
+                    {/* Faixa superior laranja */}
+                    <div className="absolute top-0 inset-x-0 h-1.5 bg-[#F97316] rounded-t-[22px]" />
+                    {/* Checkmark no canto superior direito */}
+                    <span className="absolute top-3.5 right-4 w-6 h-6 rounded-full bg-[#F97316] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
+                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                    </span>
+                    <div className="flex items-center gap-5 px-6 pt-7 pb-5">
+                      {/* Ícone em círculo */}
+                      <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                        <Clock className="w-7 h-7 text-[#F97316]" />
                       </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Logística Pendente</p>
-                        <h3 className="text-lg font-bold text-slate-900">Sem Passagem <span className="text-slate-400 font-normal">({withoutTicket.length})</span></h3>
-                        {withoutTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                          <p className="text-[11px] text-orange-500 font-semibold">{withoutTicketPending} pendente{withoutTicketPending !== 1 ? 's' : ''} de escalação</p>
-                        )}
+                      {/* Textos */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-0.5">Logística Pendente</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-slate-900 leading-tight">Sem Passagem</h3>
+                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-xs font-black leading-none">
+                            {withoutTicket.length}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-semibold mt-0.5 text-orange-400">
+                          {withoutTicketPending > 0 && filters.escalationStatus !== "pending"
+                            ? `${withoutTicketPending} pendente${withoutTicketPending !== 1 ? 's' : ''} de escalação`
+                            : <span className="text-slate-300">Nenhum pendente</span>}
+                        </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
                   </TabsTrigger>
+
+                  {/* Card: Com Passagem */}
                   <TabsTrigger
                     value="with-ticket"
                     disabled={withTicket.length === 0}
-                    className="flex-1 flex items-center justify-between p-5 bg-white border-2 data-[state=active]:border-[#0033CC] border-slate-200 rounded-3xl shadow-sm data-[state=active]:shadow-lg data-[state=active]:shadow-blue-900/10 transition-all disabled:opacity-40 text-left"
+                    className="group relative overflow-hidden rounded-3xl border-2 border-slate-200 bg-white shadow-sm hover:shadow-md data-[state=active]:border-[#22C55E] data-[state=active]:bg-green-50/40 data-[state=active]:shadow-lg data-[state=active]:shadow-green-900/10 transition-all duration-200 disabled:opacity-40 text-left p-0 h-auto"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
-                        <span className="w-3 h-3 bg-green-500 rounded-full" />
+                    {/* Faixa superior verde */}
+                    <div className="absolute top-0 inset-x-0 h-1.5 bg-[#22C55E] rounded-t-[22px]" />
+                    {/* Checkmark no canto superior direito */}
+                    <span className="absolute top-3.5 right-4 w-6 h-6 rounded-full bg-[#22C55E] items-center justify-center shadow-md hidden group-data-[state=active]:flex">
+                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                    </span>
+                    <div className="flex items-center gap-5 px-6 pt-7 pb-5">
+                      {/* Ícone em círculo */}
+                      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Plane className="w-7 h-7 text-[#22C55E]" />
                       </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Logística Concluída</p>
-                        <h3 className="text-lg font-bold text-slate-900">Com Passagem <span className="text-slate-400 font-normal">({withTicket.length})</span></h3>
-                        {withTicketPending > 0 && filters.escalationStatus !== "pending" && (
-                          <p className="text-[11px] text-amber-500 font-semibold">{withTicketPending} pendente{withTicketPending !== 1 ? 's' : ''} de escalação</p>
-                        )}
+                      {/* Textos */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-0.5">Logística Concluída</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-slate-900 leading-tight">Com Passagem</h3>
+                          <span className="px-2 py-0.5 rounded-full bg-green-100 text-[#22C55E] text-xs font-black leading-none">
+                            {withTicket.length}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-semibold mt-0.5 text-green-400">
+                          {withTicketPending > 0 && filters.escalationStatus !== "pending"
+                            ? `${withTicketPending} pendente${withTicketPending !== 1 ? 's' : ''} de escalação`
+                            : <span className="text-slate-300">Todos escalados</span>}
+                        </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300 shrink-0" />
                   </TabsTrigger>
                 </TabsList>
 
