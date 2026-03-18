@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Calendário Operacional | Norte Meridian</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-low": "#f8fafc",
+              "primary-container": "#0033CC",
+              "tertiary": "#22c55e",
+              "error-container": "#fee2e2",
+              "inverse-on-surface": "#f8fafc",
+              "on-tertiary-fixed": "#064e3b",
+              "surface-dim": "#f1f5f9",
+              "on-primary": "#ffffff",
+              "background": "#f8fafc",
+              "on-secondary-fixed": "#7c2d12",
+              "on-tertiary-container": "#166534",
+              "secondary-fixed": "#ffedd5",
+              "surface-bright": "#ffffff",
+              "outline-variant": "#cbd5e1",
+              "surface-container-lowest": "#ffffff",
+              "primary-fixed": "#dbeafe",
+              "surface-variant": "#f1f5f9",
+              "outline": "#e2e8f0",
+              "surface-container": "#f1f5f9",
+              "on-secondary-fixed-variant": "#ea580c",
+              "tertiary-container": "#dcfce7",
+              "surface": "#ffffff",
+              "on-surface": "#0f172a",
+              "secondary-container": "#ff4d00",
+              "on-error": "#ffffff",
+              "inverse-surface": "#1e293b",
+              "inverse-primary": "#94a3b8",
+              "on-surface-variant": "#64748b",
+              "error": "#ef4444",
+              "surface-container-highest": "#cbd5e1",
+              "on-background": "#0f172a",
+              "on-error-container": "#991b1b",
+              "secondary-fixed-dim": "#fed7aa",
+              "on-secondary-container": "#ffffff",
+              "on-secondary": "#ffffff",
+              "on-primary-container": "#ffffff",
+              "on-tertiary": "#ffffff",
+              "surface-container-high": "#e2e8f0",
+              "on-tertiary-fixed-variant": "#15803d",
+              "tertiary-fixed": "#dcfce7",
+              "secondary": "#ff4d00",
+              "on-primary-fixed-variant": "#1d4ed8",
+              "tertiary-fixed-dim": "#bbf7d0",
+              "on-primary-fixed": "#1e3a8a",
+              "primary": "#0033CC",
+              "primary-fixed-dim": "#bfdbfe",
+              "surface-tint": "#0033CC"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "3xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col z-40 w-64 border-r border-slate-200 bg-white transition-all duration-200">
+<div class="p-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined" data-icon="explore" style="font-variation-settings: 'FILL' 1;">explore</span>
+</div>
+<div>
+<h1 class="text-xl font-black tracking-tighter text-slate-900 leading-none">Norte Meridian</h1>
+<p class="text-[10px] font-semibold tracking-[0.1em] uppercase text-slate-400 mt-1">Logística de Precisão</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 mt-4 space-y-1">
+<p class="px-4 text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-400 mb-2">Principal</p>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors rounded-xl font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check">fact_check</span>
+<span>Cadastros</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-[14px] active:scale-[0.98] transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="conveyor_belt" style="font-variation-settings: 'FILL' 1;">conveyor_belt</span>
+<span>Operacional</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors rounded-xl font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span>Financeiro</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors rounded-xl font-medium text-[14px]" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+<span>Gestão</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-slate-100">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 transition-colors text-[14px] font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Configurações</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 transition-colors text-[14px] font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Suporte</span>
+</a>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-8 z-30 bg-white/90 backdrop-blur-none border-b border-slate-200 shadow-sm">
+<div class="flex items-center gap-6 flex-1">
+<h2 class="text-[30px] font-bold tracking-[-0.025em] text-slate-900">Calendário Operacional</h2>
+<div class="relative w-96 ml-4">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl" data-icon="search">search</span>
+<input class="w-full h-10 pl-10 pr-4 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-primary/10 transition-all outline-none" placeholder="Buscar carga, veículo ou motorista..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+</button>
+<div class="h-8 w-px bg-slate-200 mx-2"></div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right">
+<p class="text-xs font-bold text-slate-900">Operador Meridian</p>
+<p class="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Turno A</p>
+</div>
+<img alt="User profile avatar photo" class="w-9 h-9 rounded-xl object-cover ring-2 ring-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuvkmG2zSokgWUCKitsCLCOLAOswO8asIMab7ZJZw37PYX1DerQ_WkhbaYyE5yAz-qa_s8qS02Twxx-TVv_zccSvAUt55ATGJQZws3ULmvTYw4TScwCiQpgyIWvaGuO1-Fx3BOrnKRY2CoNa31fLdRdDeRNsabyjzpuAZsX-o3kCgL1qm6ptvgEe2WwR1Ja4Tl7wgx4FIWd4-QCE7kVLUeHtixcOfGdKSXOekc6ipUM_LxRrb5wTNxiIqvhi2u2beiBNU_tVnSAyM"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 pt-16 min-h-screen bg-slate-50">
+<div class="p-8">
+<!-- Calendar Sub-Header (Controls) -->
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-4">
+<div class="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+<button class="p-2 hover:bg-slate-50 rounded-lg text-slate-600">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="px-4 py-1 text-sm font-bold text-slate-900 hover:bg-slate-50 rounded-lg transition-colors">Hoje</button>
+<button class="p-2 hover:bg-slate-50 rounded-lg text-slate-600">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<h3 class="text-xl font-bold text-slate-900">Setembro 2024</h3>
+<span class="px-3 py-1 bg-primary/10 text-primary text-[11px] font-bold rounded-full uppercase tracking-wider">Semana 38</span>
+</div>
+<div class="flex items-center gap-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+<button class="px-5 py-2 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-lg transition-colors">Mês</button>
+<button class="px-5 py-2 text-sm font-bold bg-primary text-white rounded-lg shadow-lg shadow-primary/20">Semana</button>
+<button class="px-5 py-2 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-lg transition-colors">Lista</button>
+</div>
+</div>
+<!-- Calendar Canvas -->
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-250px)]">
+<!-- Days Header -->
+<div class="calendar-grid bg-white border-b border-slate-200">
+<div class="p-6 text-center border-r border-slate-100 bg-slate-50/30">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Dom</p>
+<p class="text-2xl font-black text-slate-900">15</p>
+</div>
+<div class="p-6 text-center border-r border-slate-100">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Seg</p>
+<p class="text-2xl font-black text-slate-900">16</p>
+</div>
+<div class="p-6 text-center border-r border-slate-100">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ter</p>
+<p class="text-2xl font-black text-slate-900">17</p>
+</div>
+<div class="p-6 text-center border-r border-slate-100 relative">
+<p class="text-[11px] font-bold text-primary uppercase tracking-widest mb-1">Qua</p>
+<p class="text-2xl font-black text-primary">18</p>
+<div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-primary rounded-full"></div>
+</div>
+<div class="p-6 text-center border-r border-slate-100">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Qui</p>
+<p class="text-2xl font-black text-slate-900">19</p>
+</div>
+<div class="p-6 text-center border-r border-slate-100">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sex</p>
+<p class="text-2xl font-black text-slate-900">20</p>
+</div>
+<div class="p-6 text-center bg-slate-50/30">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sáb</p>
+<p class="text-2xl font-black text-slate-900">21</p>
+</div>
+</div>
+<!-- Calendar Body -->
+<div class="flex-1 overflow-y-auto custom-scrollbar relative">
+<div class="calendar-grid h-full min-h-0">
+<!-- Sunday -->
+<div class="border-r border-slate-100 bg-slate-50/10 p-4 space-y-4">
+<!-- Event: Concluído -->
+<div class="bg-tertiary-container border-l-4 border-tertiary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<p class="text-[10px] font-bold text-on-tertiary-container uppercase tracking-tight mb-1">Carga #882</p>
+<p class="text-sm font-black text-on-tertiary-container leading-tight">Check-in CD-04</p>
+</div>
+</div>
+<!-- Monday -->
+<div class="border-r border-slate-100 p-4 space-y-4">
+<!-- Event: Planejado -->
+<div class="bg-primary-container/10 border-l-4 border-primary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex justify-between items-start mb-1">
+<p class="text-[10px] font-bold text-primary uppercase tracking-tight">Rota Norte</p>
+<span class="material-symbols-outlined text-xs text-primary" data-icon="schedule">schedule</span>
+</div>
+<p class="text-sm font-black text-slate-900 leading-tight">Coleta Indústria Matriz</p>
+<p class="text-[10px] text-slate-500 mt-2 font-medium">Motorista: J. Silva</p>
+</div>
+</div>
+<!-- Tuesday -->
+<div class="border-r border-slate-100 p-4 space-y-4">
+<!-- Event: Planejado - Manutenção -->
+<div class="bg-primary-container/10 border-l-4 border-primary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<p class="text-[10px] font-bold text-primary uppercase tracking-tight mb-1">Manutenção</p>
+<p class="text-sm font-black text-slate-900 leading-tight">Preventiva Cavalo #440</p>
+</div>
+</div>
+<!-- Wednesday (Today) -->
+<div class="border-r border-slate-100 bg-primary/5 p-4 space-y-4">
+<!-- Event: Em Andamento -->
+<div class="bg-secondary-fixed border-l-4 border-secondary rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex items-center gap-1.5 mb-2">
+<span class="w-2 h-2 bg-secondary animate-pulse rounded-full"></span>
+<p class="text-[10px] font-bold text-on-secondary-fixed-variant uppercase tracking-tight">Em Trânsito</p>
+</div>
+<p class="text-sm font-black text-slate-900 leading-tight">Distribuição Grande Vitória</p>
+<div class="mt-3 w-full bg-white/50 h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[65%]"></div>
+</div>
+<p class="text-[10px] text-on-secondary-fixed-variant mt-2 font-bold uppercase">Status: 65%</p>
+</div>
+</div>
+<!-- Thursday -->
+<div class="border-r border-slate-100 p-4 space-y-4"></div>
+<!-- Friday -->
+<div class="border-r border-slate-100 p-4 space-y-4">
+<!-- Event: Concluído - Auditoria -->
+<div class="bg-tertiary-container border-l-4 border-tertiary rounded-xl p-4 shadow-sm">
+<p class="text-[10px] font-bold text-on-tertiary-container uppercase tracking-tight mb-1">Auditoria</p>
+<p class="text-sm font-black text-on-tertiary-container leading-tight">Auditoria Semanal</p>
+</div>
+</div>
+<!-- Saturday -->
+<div class="bg-slate-50/10 p-4 space-y-4"></div>
+</div>
+</div>
+</div>
+<!-- Footer Stats / Legend -->
+<div class="mt-8 grid grid-cols-4 gap-6">
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+<div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ativos Hoje</p>
+<p class="text-xl font-black text-slate-900">24 Veículos</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+<div class="w-12 h-12 bg-secondary-fixed rounded-xl flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="pending_actions">pending_actions</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Em Andamento</p>
+<p class="text-xl font-black text-slate-900">08 Operações</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+<div class="w-12 h-12 bg-tertiary-container rounded-xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Finalizados</p>
+<p class="text-xl font-black text-slate-900">12 Cargas</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+<div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Alertas</p>
+<p class="text-xl font-black text-slate-900">02 Críticos</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Action -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+</body></html>

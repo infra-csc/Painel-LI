@@ -849,13 +849,146 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
   );
 }
 
+// ─── Week helpers ─────────────────────────────────────────────────────────────
+
+function getWeekStart(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  copy.setDate(copy.getDate() - copy.getDay()); // always Sunday
+  return copy;
+}
+
+function addDays(d: Date, n: number): Date {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + n);
+  return copy;
+}
+
+function isoWeekNumber(d: Date): number {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+const WEEK_DAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+// ─── Week view ────────────────────────────────────────────────────────────────
+
+const WEEK_STATUS_CFG: Record<string, { bg: string; border: string; labelText: string; dotBg: string; pulse: boolean }> = {
+  planejado:    { bg: "bg-blue-50",    border: "border-blue-500",   labelText: "text-blue-700",   dotBg: "bg-blue-500",   pulse: false },
+  em_andamento: { bg: "bg-amber-50",   border: "border-amber-500",  labelText: "text-amber-700",  dotBg: "bg-amber-500",  pulse: true  },
+  concluido:    { bg: "bg-emerald-50", border: "border-emerald-500",labelText: "text-emerald-800",dotBg: "bg-emerald-500",pulse: false },
+};
+
+function WeekView({ weekStart, events, onSelectEvent }: {
+  weekStart: Date;
+  events: Event[];
+  onSelectEvent: SelectEventFn;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  const eventsPerDay = days.map(day => {
+    const dayStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    return events.filter(ev => {
+      return ev.startDate <= dayStr && ev.endDate >= dayStr;
+    });
+  });
+
+  const isWeekend = (i: number) => i === 0 || i === 6;
+
+  return (
+    <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+      {/* Day header row */}
+      <div className="grid grid-cols-7 border-b border-slate-200">
+        {days.map((day, i) => {
+          const isToday = day.getTime() === today.getTime();
+          return (
+            <div
+              key={i}
+              className={`p-4 text-center border-r border-slate-100 last:border-r-0 ${isWeekend(i) ? "bg-slate-50/50" : ""} ${isToday ? "bg-blue-50/60" : ""}`}
+            >
+              <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${isToday ? "text-[#0033CC]" : "text-slate-400"}`}>
+                {WEEK_DAY_SHORT[i]}
+              </p>
+              <p className={`text-2xl font-black ${isToday ? "text-[#0033CC]" : "text-slate-800"}`}>
+                {day.getDate()}
+              </p>
+              {isToday && (
+                <div className="w-1.5 h-1.5 bg-[#0033CC] rounded-full mx-auto mt-1" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Day columns body */}
+      <div className="grid grid-cols-7 flex-1 min-h-0 overflow-y-auto">
+        {days.map((day, i) => {
+          const isToday = day.getTime() === today.getTime();
+          const dayEvents = eventsPerDay[i];
+          return (
+            <div
+              key={i}
+              className={`border-r border-slate-100 last:border-r-0 p-3 space-y-2 min-h-[200px]
+                ${isWeekend(i) ? "bg-slate-50/30" : ""}
+                ${isToday ? "bg-blue-50/20" : ""}
+              `}
+            >
+              {dayEvents.length === 0 && (
+                <div className="h-full flex items-start justify-center pt-6">
+                  <span className="text-[10px] text-slate-300 select-none">–</span>
+                </div>
+              )}
+              {dayEvents.map(ev => {
+                const status = getEffectiveStatus(ev);
+                const wcfg = WEEK_STATUS_CFG[status] || WEEK_STATUS_CFG["planejado"];
+                const cfg = getCfg(status);
+                return (
+                  <button
+                    key={ev.id}
+                    onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+                    className={`w-full text-left rounded-xl p-3 border-l-4 shadow-sm hover:shadow-md transition-shadow ${wcfg.bg} ${wcfg.border}`}
+                  >
+                    {wcfg.pulse ? (
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className={`w-2 h-2 rounded-full ${wcfg.dotBg} animate-pulse`} />
+                        <p className={`text-[10px] font-bold uppercase tracking-tight ${wcfg.labelText}`}>
+                          {cfg.label}
+                        </p>
+                      </div>
+                    ) : null}
+                    <p className={`text-xs font-black leading-tight ${cfg.strikethrough ? "line-through text-slate-400" : "text-slate-900"}`}>
+                      {ev.name}
+                    </p>
+                    {ev.location && (
+                      <p className={`text-[10px] mt-1.5 font-medium truncate ${wcfg.labelText} opacity-80`}>
+                        {ev.location}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [view, setView] = useState<"month" | "list">("month");
+  const [view, setView] = useState<"month" | "week" | "list">("month");
+  const [viewWeekStart, setViewWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [clickPos, setClickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -899,8 +1032,14 @@ export default function CalendarPage() {
   function goToday() {
     setViewYear(today.getFullYear());
     setViewMonth(today.getMonth());
+    setViewWeekStart(getWeekStart(today));
   }
+  function prevWeek() { setViewWeekStart(w => addDays(w, -7)); }
+  function nextWeek() { setViewWeekStart(w => addDays(w, 7)); }
+
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+  const currentWeekStart = getWeekStart(today);
+  const isCurrentWeek = viewWeekStart.getTime() === currentWeekStart.getTime();
 
   // Counts based on visible events only (excludes cancelled/deleted/inactive)
   const statusCounts = useMemo(() => {
@@ -957,6 +1096,39 @@ export default function CalendarPage() {
               </button>
             </div>
           )}
+
+          {/* Week nav — only in week view */}
+          {view === "week" && (() => {
+            const weekEnd = addDays(viewWeekStart, 6);
+            const sameMonth = viewWeekStart.getMonth() === weekEnd.getMonth();
+            const rangeLabel = sameMonth
+              ? `${viewWeekStart.getDate()} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
+              : `${viewWeekStart.getDate()} ${MONTH_NAMES[viewWeekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+            return (
+              <div className="flex items-center gap-1 ml-2 border-l border-slate-100 pl-4">
+                <button onClick={prevWeek} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-2 min-w-[200px] justify-center">
+                  <span className="text-sm font-bold text-slate-800">{rangeLabel}</span>
+                  <span className="px-2 py-0.5 bg-blue-50 text-[#0033CC] text-[10px] font-bold rounded-full uppercase tracking-wider">
+                    Sem. {isoWeekNumber(viewWeekStart)}
+                  </span>
+                </div>
+                <button onClick={nextWeek} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={goToday}
+                  className={`ml-1 px-3 py-1 border rounded-lg text-xs font-bold transition-all ${
+                    isCurrentWeek ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  Hoje
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Right: search + status filters + view toggle */}
@@ -1018,6 +1190,16 @@ export default function CalendarPage() {
               <LayoutGrid className="w-3.5 h-3.5" /> Mês
             </button>
             <button
+              onClick={() => setView("week")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                view === "week" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
+              }`}
+              style={view === "week" ? { background: "#0033CC" } : {}}
+            >
+              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 0" }}>view_week</span>
+              Semana
+            </button>
+            <button
               onClick={() => setView("list")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 view === "list" ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-200"
@@ -1030,7 +1212,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── Calendar / List ── */}
+      {/* ── Calendar / Week / List ── */}
       <div className="flex-1 min-h-0">
         {isLoading ? (
           <div className="h-full bg-white rounded-[32px] border border-slate-200 flex items-center justify-center">
@@ -1040,6 +1222,12 @@ export default function CalendarPage() {
           <MonthView
             year={viewYear}
             month={viewMonth}
+            events={filteredEvents}
+            onSelectEvent={handleSelectEvent}
+          />
+        ) : view === "week" ? (
+          <WeekView
+            weekStart={viewWeekStart}
             events={filteredEvents}
             onSelectEvent={handleSelectEvent}
           />
