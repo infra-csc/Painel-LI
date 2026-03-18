@@ -1090,7 +1090,6 @@ export default function Scaling() {
                       </div>
                       {/* Textos */}
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-0.5">Logística Pendente</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-bold text-slate-900 leading-tight">Sem Passagem</h3>
                           <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F97316] text-xs font-black leading-none">
@@ -1125,7 +1124,6 @@ export default function Scaling() {
                       </div>
                       {/* Textos */}
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-0.5">Logística Concluída</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-bold text-slate-900 leading-tight">Com Passagem</h3>
                           <span className="px-2 py-0.5 rounded-full bg-green-100 text-[#22C55E] text-xs font-black leading-none">
