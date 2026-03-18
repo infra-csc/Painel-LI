@@ -1214,7 +1214,7 @@ export default function Scaling() {
                                     return (
                                       <div className="flex items-center gap-2.5">
                                         <div className="w-8 h-8 rounded-lg bg-[#0033CC] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
-                                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                                        <span className="text-[13px] font-normal text-[#374151]">{name}</span>
                                       </div>
                                     );
                                   })() : (
@@ -1347,7 +1347,7 @@ export default function Scaling() {
                                     return (
                                       <div className="flex items-center gap-2.5">
                                         <div className="w-8 h-8 rounded-lg bg-[#0033CC] text-white flex items-center justify-center text-[10px] font-black shrink-0">{ini}</div>
-                                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                                        <span className="text-[13px] font-normal text-[#374151]">{name}</span>
                                       </div>
                                     );
                                   })() : (
