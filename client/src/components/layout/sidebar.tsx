@@ -44,14 +44,14 @@ export default function Sidebar() {
     // Cadastros
     { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       color: "#3b82f6", permission: "canAccessScreen0"      as const },
     { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       color: "#F97316", permission: "canAccessAdminUsers"    as const },
-    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   color: "#60A5FA", permission: "canAccessCalendar"       as const },
+    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   color: "#3B82F6", permission: "canAccessCalendar"       as const },
     { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         color: "#FB923C", permission: "canAccessScreen0"        as const },
     { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: Users,          color: "#64748B", permission: "canAccessCollaborators"  as const },
     // Operacional
     { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: UserPlus,       color: "#F97316", permission: "canAccessScreen1"        as const },
-    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: Clipboard,      color: "#9CA3AF", permission: "canAccessScreen2"        as const },
+    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: Clipboard,      color: "#94A3B8", permission: "canAccessScreen2"        as const },
     { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,          color: "#F97316", permission: "canAccessScreen3"        as const },
-    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: BedDouble,      color: "#94A3B8", permission: "canAccessScreen3"        as const },
+    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: BedDouble,      color: "#64748B", permission: "canAccessScreen3"        as const },
     // Financeiro
     { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: LayoutGrid,     color: "#F97316", permission: "canAccessScreen0"        as const },
     { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck, color: "#3b82f6", permission: "canAccessScreen0"        as const },
@@ -91,15 +91,24 @@ export default function Sidebar() {
             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#1E40AF]" />
           )}
 
-          <Icon
-            className="flex-shrink-0"
+          {/* Filled icon badge */}
+          <span
+            className="flex-shrink-0 inline-flex items-center justify-center rounded-[5px]"
             style={{
-              width: 16,
-              height: 16,
-              color: isActive ? "#1E40AF" : tab.color,
-              strokeWidth: 1.75,
+              width: 22,
+              height: 22,
+              background: isActive ? "#1E40AF" : tab.color,
             }}
-          />
+          >
+            <Icon
+              style={{
+                width: 13,
+                height: 13,
+                color: "#ffffff",
+                strokeWidth: 1.75,
+              }}
+            />
+          </span>
 
           {!isCompact && (
             <span
@@ -166,7 +175,7 @@ export default function Sidebar() {
         {/* ── Sidebar ── */}
         <aside
           className={cn(
-            "fixed left-0 top-0 h-full z-40 flex flex-col bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out",
+            "fixed left-0 top-0 h-screen z-40 flex flex-col bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
             (isCollapsed || isFocusMode) && "lg:-translate-x-full"
           )}
