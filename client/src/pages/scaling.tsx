@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1198,12 +1198,13 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="text-sm font-bold text-slate-900">
+                                  <div className="text-[14px] font-semibold text-[#111827] leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <div className="text-[11px] text-slate-400">
-                                    {getEventName(inclusion.eventId)}
-                                  </div>
+                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold max-w-full">
+                                    <CalendarDays className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{getEventName(inclusion.eventId)}</span>
+                                  </span>
                                 </td>
                                 <td className="px-6 py-4">
                                   {inclusion.collaboratorId ? (() => {
@@ -1330,12 +1331,13 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="text-sm font-bold text-slate-900">
+                                  <div className="text-[14px] font-semibold text-[#111827] leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <div className="text-[11px] text-slate-400">
-                                    {getEventName(inclusion.eventId)}
-                                  </div>
+                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold max-w-full">
+                                    <CalendarDays className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{getEventName(inclusion.eventId)}</span>
+                                  </span>
                                 </td>
                                 <td className="px-6 py-4">
                                   {inclusion.collaboratorId ? (() => {
