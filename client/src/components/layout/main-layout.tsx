@@ -25,7 +25,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       )}
       <main className={cn(
         "min-h-screen transition-all duration-300",
-        (isCollapsed || isFocusMode) ? "lg:ml-0" : isCompact ? "lg:ml-14" : "lg:ml-[220px]"
+        (isCollapsed || isFocusMode) ? "lg:ml-0" : isCompact ? "lg:ml-14" : "lg:ml-[260px]"
       )}>
         <div className="p-6 lg:p-8">
           {children}
