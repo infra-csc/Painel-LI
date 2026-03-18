@@ -533,79 +533,97 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
 
       {/* ── Mini modal: Gerenciar empresas ── */}
       <Dialog open={showManage} onOpenChange={(v) => { setShowManage(v); if (!v) { setManageNewName(""); setManageNewCnpj(""); } }}>
-        <DialogContent className="p-0 gap-0 sm:max-w-[440px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <h3 className="text-sm font-bold text-slate-800">Empresas salvas</h3>
-              {paymentCompanies.length > 0 && (
-                <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full">{paymentCompanies.length}</span>
-              )}
+        <DialogContent className="p-0 gap-0 sm:max-w-[460px] rounded-2xl border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden flex flex-col max-h-[80vh]">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-3">
+              <Building2 className="w-5 h-5 text-slate-600" />
+              <h3 className="text-base font-bold text-slate-800">Empresas salvas</h3>
+              <span className="text-xs bg-slate-100 text-slate-500 font-semibold px-2 py-0.5 rounded-full tabular-nums">
+                {paymentCompanies.length}
+              </span>
             </div>
-            <button onClick={() => setShowManage(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
-              <X className="w-3.5 h-3.5" />
+            <button
+              onClick={() => setShowManage(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Lista */}
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-2">
             {paymentCompanies.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">Nenhuma empresa cadastrada ainda.</p>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {paymentCompanies.map(c => (
-                  <div key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{c.name}</p>
-                      <p className="text-xs text-slate-400 font-mono">{c.cnpj}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteCompanyMutation.mutate(c.id)}
-                      disabled={deleteCompanyMutation.isPending}
-                      className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                      title="Remover empresa"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+              <div className="text-center py-8">
+                <Building2 className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">Nenhuma empresa cadastrada ainda.</p>
               </div>
+            ) : (
+              paymentCompanies.map(c => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl border border-slate-100 group transition-colors"
+                  style={{ background: "#F9FAFB" }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{c.name}</p>
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">{c.cnpj}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCompanyMutation.mutate(c.id)}
+                    disabled={deleteCompanyMutation.isPending}
+                    className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100"
+                    title="Remover empresa"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
             )}
           </div>
 
-          {/* Formulário de adicionar empresa */}
-          <div className="border-t border-gray-100 bg-emerald-50/60 px-5 py-4 shrink-0 space-y-3">
-            <p className="text-xs font-semibold text-emerald-700">Adicionar empresa</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 mb-1 block">Nome</label>
+          {/* Separador */}
+          <hr className="border-slate-100 mx-6" />
+
+          {/* Seção adicionar */}
+          <div className="px-6 py-5 shrink-0 space-y-4">
+            <div className="flex items-center gap-2">
+              <Plus className="w-4 h-4 text-slate-500" />
+              <p className="text-sm font-semibold text-slate-700">Adicionar empresa</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Nome</label>
                 <Input
                   value={manageNewName}
                   onChange={e => setManageNewName(e.target.value)}
                   placeholder="Produtora Norte Ltda"
-                  className="h-8 text-xs border-gray-200 rounded-lg"
+                  className="h-10 text-sm border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-200"
                 />
               </div>
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 mb-1 block">CNPJ</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">CNPJ</label>
                 <CnpjInput
                   value={manageNewCnpj}
                   onChange={setManageNewCnpj}
                   name="manageNewCnpj"
-                  className="h-8 text-xs"
+                  className="h-10 text-sm border-slate-200 rounded-lg bg-white"
                 />
               </div>
             </div>
-            <button
-              type="button"
-              disabled={!manageNewName.trim() || !validateCnpj(manageNewCnpj) || createCompanyMutation.isPending}
-              onClick={handleManageAddCompany}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              Cadastrar
-            </button>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={!manageNewName.trim() || !validateCnpj(manageNewCnpj) || createCompanyMutation.isPending}
+                onClick={handleManageAddCompany}
+                className="flex items-center gap-2 px-5 h-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm shadow-emerald-200"
+              >
+                <Plus className="w-4 h-4" />
+                Cadastrar
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
