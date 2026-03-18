@@ -1,0 +1,57 @@
+web application/stitch/projects/9546493363156864976/screens/705c96696e9c4d5e9decb19ed1097540
+# Prompt Mestre: Dashboard Administrativo (Otimizado para Replit/IA)
+
+**Objetivo:** Gerar uma tela de sistema administrativo (ERP/SaaS) de alta fidelidade, com foco em navegação complexa, ícones funcionais e identidade visual corporativa (Azul e Laranja).
+
+---
+
+### 1. Estrutura de Layout e Grid
+- **Tipo de Tela:** Dashboard Desktop, layout de duas colunas.
+- **Barra Lateral (Sidebar):** Largura fixa de 260px, fundo branco puro (#FFFFFF), borda fina à direita em cinza muito claro (#E2E8F0).
+- **Área de Conteúdo:** Fundo em cinza "off-white" suave (#F8FAFC) para destacar os cards brancos.
+
+### 2. Identidade Visual e Branding (Referência: {{DATA:IMAGE:IMAGE_4}})
+- **Paleta de Cores:** 
+    - **Primária:** Azul Real (#0033CC) para botões principais, itens ativos e ícones de destaque.
+    - **Secundária:** Laranja Vibrante (#FF4500) para alertas e detalhes de progresso.
+- **Logo:** Posicionado no topo da sidebar com padding generoso. Adicionar um botão discreto de "colapsar" (ícone de seta/chevron) ao lado do logo.
+
+### 3. Sistema de Ícones (Importante para Replit)
+- **Biblioteca:** Utilize **Lucide React** ou **Font Awesome 6 (SVG)** para todos os ícones.
+- **Instrução para IA:** "Certifique-se de importar corretamente a biblioteca de ícones escolhida para que eles sejam renderizados no preview."
+
+### 4. Navegação Lateral (Sidebar Completa com Ícones)
+Organizar em seções com títulos em caixa alta, fonte pequena (11px) e cor cinza médio:
+
+- **CADASTROS:** 
+    - `UserPlus` Cadastro de Usuários (Item Ativo)
+    - `Calendar` Eventos
+    - `CalendarDays` Calendário
+    - `Wrench` Funções
+    - `Users` Colaboradores
+- **OPERACIONAL:** 
+    - `Users2` Inclusão de Equipe
+    - `BarChart3` Escalação
+    - `Plane` Compra de Passagem
+    - `Hotel` Hospedagem
+- **FINANCEIRO:** 
+    - `Calculator` Planejado
+    - `Wallet` Realizado
+    - `TrendingUp` Comparativo
+    - `ShieldCheck` Controle RH
+    - `FileText` Notas Fiscais
+    - `Settings2` Valores Padrão
+- **GESTÃO:** 
+    - `Search` Consulta Geral
+    - `Users` Usuários
+
+**Estilização dos Itens:**
+- **Ativo:** Fundo azul claro (#EFF6FF), texto e ícone em azul vibrante (#1D4ED8), com uma barra vertical de 3px na lateral esquerda.
+- **Inativo:** Ícones lineares (stroke 1.5px), texto em cinza escuro (#334155), efeito de hover azulado.
+- **Rodapé:** Bloco de perfil com avatar circular (Iniciais "AS"), nome "Admin Sistema", e-mail e botão de "Sair" (`LogOut`).
+
+### 5. Componente Central: Formulário de Cadastro
+- **Card:** Fundo branco, cantos arredondados de 12px, sombra leve.
+- **Campos de Entrada:** Inputs com ícones internos (placeholder cinza). 
+- **Feedback:** Campo de e-mail com ícone de `CheckCircle` verde. Campo de senha com ícone de `Eye` e barra de força da senha (nível médio em laranja).
+- **Botões:** Botão "Limpar" (Outline) e botão "Criar Usuário" (Azul Sólido com ícone de `Check`).
