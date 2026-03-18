@@ -728,15 +728,26 @@ function ListView({ events, onSelectEvent }: { events: Event[]; onSelectEvent: S
       }
       map.get(key)!.events.push(ev);
     }
-    return Array.from(map.values())
-      .sort((a, b) => a.key.localeCompare(b.key))
-      .map(g => ({
-        ...g,
-        events: [...g.events].sort(
-          (a, b) => parseLocalDate(a.startDate).getTime() - parseLocalDate(b.startDate).getTime()
-        ),
-      }));
-  }, [events]);
+    const allGroups = Array.from(map.values()).map(g => ({
+      ...g,
+      events: [...g.events].sort(
+        (a, b) => parseLocalDate(a.startDate).getTime() - parseLocalDate(b.startDate).getTime()
+      ),
+    }));
+
+    const toMonthNum = (key: string) => {
+      const [y, m] = key.split("-").map(Number);
+      return y * 12 + m;
+    };
+
+    const current = allGroups.filter(g => toMonthNum(g.key) >= currentMonthNum)
+      .sort((a, b) => toMonthNum(a.key) - toMonthNum(b.key));
+
+    const past = allGroups.filter(g => toMonthNum(g.key) < currentMonthNum)
+      .sort((a, b) => toMonthNum(b.key) - toMonthNum(a.key)); // mais recente primeiro
+
+    return [...current, ...past];
+  }, [events, currentMonthNum]);
 
   if (grouped.length === 0) {
     return (
