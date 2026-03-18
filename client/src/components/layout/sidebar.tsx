@@ -39,10 +39,9 @@ function initials(name: string) {
 }
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
-// iconColor: "orange" = #ff4d00, "blue" = #0025d2 at 70%
 const ORANGE = "#ff4d00";
-const ORANGE70 = "rgba(255,77,0,0.7)";
-const BLUE70 = "rgba(0,37,210,0.7)";
+const ORANGE70 = "#e04400";
+const BLUE70 = "#1a4db5";
 const ACTIVE_BLUE = "#0025d2";
 
 const allTabs = [
@@ -151,7 +150,7 @@ export default function Sidebar() {
             if (!items.length) return null;
             return (
               <div key={group.title}>
-                <p className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+                <p className="px-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
                   {group.title}
                 </p>
                 <div className="space-y-1">
@@ -166,7 +165,7 @@ export default function Sidebar() {
                             "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer",
                             isActive
                               ? "font-semibold"
-                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                           )}
                           style={isActive ? {
                             backgroundColor: "rgba(0,37,210,0.08)",
