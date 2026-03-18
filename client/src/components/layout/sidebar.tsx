@@ -1,333 +1,249 @@
 import { Link, useLocation } from "wouter";
-import {
-  UserPlus, Calendar, CalendarDays, Wrench, Users,
-  Plane, BedDouble, LogOut,
-  Menu, X, ChevronLeft, ChevronRight,
-  Sun, Moon, LayoutGrid, Minimize2,
-  ClipboardCheck, BarChart3, TrendingUp, ShieldCheck, FileText, Settings,
-  Search, Wallet, Clipboard, Maximize
-} from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { useTheme } from "@/contexts/theme-context";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger
-} from "@/components/ui/tooltip";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Material Symbol icon component ──────────────────────────────────────────
+function MI({ name, filled, className, style }: {
+  name: string;
+  filled?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <span
+      className={cn("material-symbols-outlined select-none", className)}
+      style={{
+        fontSize: 20,
+        fontVariationSettings: filled
+          ? "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24"
+          : "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+// ─── Initials helper ──────────────────────────────────────────────────────────
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── Menu groups ──────────────────────────────────────────────────────────────
-const menuGroups = [
-  { title: "Cadastros",   items: ["user-registration", "events", "calendar", "functions", "collaborators"] },
-  { title: "Operacional", items: ["team-inclusion", "scaling", "tickets", "accommodations"] },
-  { title: "Financeiro",  items: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "system-settings"] },
-  { title: "Gestão",      items: ["consultation", "admin-users"] },
+// ─── Nav items ────────────────────────────────────────────────────────────────
+// iconColor: "orange" = #ff4d00, "blue" = #0025d2 at 70%
+const ORANGE = "#ff4d00";
+const ORANGE70 = "rgba(255,77,0,0.7)";
+const BLUE70 = "rgba(0,37,210,0.7)";
+const ACTIVE_BLUE = "#0025d2";
+
+const allTabs = [
+  // Cadastros
+  { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: "person_add",           iconColor: ACTIVE_BLUE,  permission: "canAccessScreen0"     as const },
+  { id: "events",            path: "/events",            label: "Eventos",               icon: "event",               iconColor: ORANGE,       permission: "canAccessAdminUsers"  as const },
+  { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month",      iconColor: BLUE70,       permission: "canAccessCalendar"    as const },
+  { id: "functions",         path: "/functions",         label: "Funções",               icon: "work",                iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
+  { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge",               iconColor: BLUE70,       permission: "canAccessCollaborators" as const },
+  // Operacional
+  { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",           iconColor: ORANGE70,     permission: "canAccessScreen1"     as const },
+  { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",      iconColor: BLUE70,       permission: "canAccessScreen2"     as const },
+  { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: "confirmation_number", iconColor: ORANGE70,     permission: "canAccessScreen3"     as const },
+  { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                 iconColor: BLUE70,       permission: "canAccessScreen3"     as const },
+  // Financeiro
+  { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",     iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
+  { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet", iconColor: BLUE70,   permission: "canAccessScreen0"     as const },
+  { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",         iconColor: ORANGE70,     permission: "canAccessScreen5"     as const },
+  { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: "groups",              iconColor: BLUE70,       permission: "canAccessScreen5"     as const },
+  { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: "receipt_long",        iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
+  { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest",    iconColor: BLUE70,       permission: "canAccessAdminUsers"  as const },
+  // Gestão
+  { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: "manage_search",       iconColor: BLUE70,       permission: "canAccessScreen6"     as const },
+  { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts",     iconColor: BLUE70,       permission: "canAccessAdminUsers"  as const },
 ];
 
+const menuGroups = [
+  { title: "Cadastros",   ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
+  { title: "Operacional", ids: ["team-inclusion", "scaling", "tickets", "accommodations"] },
+  { title: "Financeiro",  ids: ["budget-planned", "budget-actual", "budget-comparison", "rh-control", "invoices", "system-settings"] },
+  { title: "Gestão",      ids: ["consultation", "admin-users"] },
+];
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
 export default function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isCollapsed, isCompact, isFocusMode, toggleCollapsed, toggleCompact, enterFocusMode } = useSidebar();
+  const { isCollapsed, isFocusMode, toggleCollapsed, toggleCompact, enterFocusMode } = useSidebar();
   const { theme, toggleTheme } = useTheme();
 
-  // icon color = color when inactive; when active all icons become #1E40AF
-  const allTabs = [
-    // Cadastros
-    { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: UserPlus,       color: "#3b82f6", permission: "canAccessScreen0"      as const },
-    { id: "events",            path: "/events",            label: "Eventos",               icon: Calendar,       color: "#F97316", permission: "canAccessAdminUsers"    as const },
-    { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: CalendarDays,   color: "#3B82F6", permission: "canAccessCalendar"       as const },
-    { id: "functions",         path: "/functions",         label: "Funções",               icon: Wrench,         color: "#FB923C", permission: "canAccessScreen0"        as const },
-    { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: Users,          color: "#64748B", permission: "canAccessCollaborators"  as const },
-    // Operacional
-    { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: UserPlus,       color: "#F97316", permission: "canAccessScreen1"        as const },
-    { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: Clipboard,      color: "#94A3B8", permission: "canAccessScreen2"        as const },
-    { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: Plane,          color: "#F97316", permission: "canAccessScreen3"        as const },
-    { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: BedDouble,      color: "#64748B", permission: "canAccessScreen3"        as const },
-    // Financeiro
-    { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: LayoutGrid,     color: "#F97316", permission: "canAccessScreen0"        as const },
-    { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: ClipboardCheck, color: "#3b82f6", permission: "canAccessScreen0"        as const },
-    { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: BarChart3,      color: "#F43F5E", permission: "canAccessScreen5"        as const },
-    { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: ShieldCheck,    color: "#6366F1", permission: "canAccessScreen5"        as const },
-    { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: FileText,       color: "#F97316", permission: "canAccessScreen0"        as const },
-    { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: Settings,       color: "#6B7280", permission: "canAccessAdminUsers"     as const },
-    // Gestão
-    { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: Search,         color: "#6B7280", permission: "canAccessScreen6"        as const },
-    { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: Users,          color: "#6B7280", permission: "canAccessAdminUsers"     as const },
-  ];
-
-  const tabs = allTabs.filter(tab => hasPermission(user, tab.permission));
-  const getGroupTabs = (ids: string[]) => tabs.filter(t => ids.includes(t.id));
+  const tabs = allTabs.filter(t => hasPermission(user, t.permission));
+  const getGroup = (ids: string[]) => tabs.filter(t => ids.includes(t.id));
   const userName = user?.name || "Usuário";
 
-  // ── Nav Item ─────────────────────────────────────────────────────────────
-  function NavItem({ tab }: { tab: typeof tabs[0] }) {
-    const isActive = location === tab.path;
-    const Icon = tab.icon;
-
-    const btn = (
-      <Link href={tab.path}>
-        <button
-          onClick={() => setMobileOpen(false)}
-          data-testid={`sidebar-${tab.id}`}
-          className={cn(
-            "group relative w-full flex items-center gap-2.5 px-3 py-[6px] rounded-[6px] text-[13px] transition-colors duration-100 text-left",
-            isCompact && "justify-center px-0 py-2",
-            isActive
-              ? "bg-[#EEF2FF]"
-              : "hover:bg-slate-50"
-          )}
-        >
-          {/* Active 3px left bar */}
-          {isActive && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#1E40AF]" />
-          )}
-
-          {/* Filled icon badge */}
-          <span
-            className="flex-shrink-0 inline-flex items-center justify-center rounded-[5px]"
-            style={{
-              width: 22,
-              height: 22,
-              background: isActive ? "#1E40AF" : tab.color,
-            }}
-          >
-            <Icon
-              style={{
-                width: 13,
-                height: 13,
-                color: "#ffffff",
-                strokeWidth: 1.75,
-              }}
-            />
-          </span>
-
-          {!isCompact && (
-            <span
-              className="truncate leading-tight"
-              style={{
-                color: isActive ? "#1E40AF" : "#374151",
-                fontWeight: isActive ? 600 : 400,
-              }}
-            >
-              {tab.label}
-            </span>
-          )}
-        </button>
-      </Link>
-    );
-
-    if (isCompact) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>{btn}</TooltipTrigger>
-          <TooltipContent side="right" className="text-xs">{tab.label}</TooltipContent>
-        </Tooltip>
-      );
-    }
-    return btn;
-  }
+  const sidebarHidden = (isCollapsed || isFocusMode);
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <>
-        {/* Mobile hamburger */}
+    <>
+      {/* Mobile hamburger */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow border border-slate-200"
+        onClick={() => setMobileOpen(v => !v)}
+      >
+        {mobileOpen
+          ? <X className="w-5 h-5 text-slate-600" />
+          : <Menu className="w-5 h-5 text-slate-600" />}
+      </button>
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Re-open tab */}
+      {sidebarHidden && (
         <button
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-slate-200"
-          onClick={() => setMobileOpen(v => !v)}
+          className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white rounded-r-lg"
+          style={{ width: 28, height: 48, background: ACTIVE_BLUE }}
+          onClick={toggleCollapsed}
         >
-          {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
+          <MI name="chevron_right" style={{ fontSize: 18, color: "#fff" }} />
         </button>
+      )}
 
-        {mobileOpen && (
-          <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
+      {/* ── Aside ── */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-screen flex flex-col shrink-0 z-40 transition-transform duration-300",
+          "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          sidebarHidden && "lg:-translate-x-full"
         )}
+        style={{ width: 260 }}
+      >
 
-        {/* Re-expand tab when collapsed */}
-        {isCollapsed && !isFocusMode && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white"
-                style={{
-                  width: 28, height: 48,
-                  background: "#1E40AF",
-                  borderRadius: "0 8px 8px 0",
-                  boxShadow: "2px 0 10px rgba(30,64,175,0.2)",
-                }}
-                onClick={toggleCollapsed}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">Expandir menu</TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* ── Sidebar ── */}
-        <aside
-          className={cn(
-            "fixed left-0 top-0 h-screen z-40 flex flex-col bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out",
-            mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-            (isCollapsed || isFocusMode) && "lg:-translate-x-full"
-          )}
-          style={{ width: isCompact ? 56 : 260, borderRight: "1px solid #E2E8F0" }}
-        >
-
-          {/* ── Logo ── */}
-          <div
-            className="shrink-0 flex items-center justify-between px-5"
-            style={{ height: 64, borderBottom: "1px solid #E2E8F0" }}
-          >
-            {/* Plain "N" letter — no background box */}
+        {/* Logo row */}
+        <div className="p-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
             <span
-              className="select-none leading-none"
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: "#1E3A8A",
-                fontFamily: "Inter, system-ui, sans-serif",
-                letterSpacing: "-0.03em",
-              }}
+              className="font-bold leading-none select-none"
+              style={{ fontSize: 26, color: ACTIVE_BLUE, fontFamily: "Inter, sans-serif", letterSpacing: "-0.04em" }}
             >
               N
             </span>
-
-            {!isCompact && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    onClick={toggleCollapsed}
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">Recolher</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-
-          {/* ── Nav ── */}
-          <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3">
-            {menuGroups.map((group, idx) => {
-              const groupTabs = getGroupTabs(group.items);
-              if (groupTabs.length === 0) return null;
-
-              return (
-                <div key={group.title} style={{ marginTop: idx > 0 ? 20 : 0 }}>
-                  {!isCompact && (
-                    <p
-                      className="px-3 mb-1.5 select-none uppercase"
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: "0.1em",
-                        color: "#9CA3AF",
-                      }}
-                    >
-                      {group.title}
-                    </p>
-                  )}
-                  {isCompact && idx > 0 && (
-                    <div className="border-t border-slate-100 dark:border-slate-800 mx-2 mb-3" />
-                  )}
-                  <ul className="space-y-0.5">
-                    {groupTabs.map(tab => (
-                      <li key={tab.id}>
-                        <NavItem tab={tab} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </nav>
-
-          {/* ── Footer ── */}
-          <div className="shrink-0">
-            {/* hr separator */}
-            <div style={{ borderTop: "1px solid #E5E7EB" }} />
-
-            <div className="px-4 py-3">
-              {/* User row: avatar + name/email */}
-              <div className={cn("flex items-center gap-3 mb-3", isCompact && "justify-center")}>
-                <div
-                  className="flex-shrink-0 inline-flex items-center justify-center rounded-full text-white font-bold select-none"
-                  style={{
-                    width: 36, height: 36, fontSize: 12,
-                    background: "#7C3AED",
-                  }}
-                >
-                  {initials(userName)}
-                </div>
-                {!isCompact && (
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate leading-tight font-semibold" style={{ fontSize: 13, color: "#111827" }}>
-                      {user?.name}
-                    </p>
-                    <p className="truncate leading-tight" style={{ fontSize: 11, color: "#6B7280" }}>
-                      {user?.email}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* 4 icons row */}
-              <div className={cn(
-                "flex items-center",
-                isCompact ? "flex-col gap-1 items-center" : "justify-between px-0.5"
-              )}>
-                <FooterIcon icon={Maximize}  label="Tela cheia"   onClick={toggleCompact}  compact={isCompact} />
-                <FooterIcon icon={LayoutGrid} label="Modo foco"   onClick={enterFocusMode} compact={isCompact} />
-                <FooterIcon
-                  icon={theme === "light" ? Moon : Sun}
-                  label={theme === "light" ? "Modo escuro" : "Modo claro"}
-                  onClick={toggleTheme}
-                  compact={isCompact}
-                />
-                <FooterIcon icon={LogOut}    label="Sair"         onClick={logout}         compact={isCompact} danger />
-              </div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-white text-sm leading-tight">NORTE</p>
+              <p className="text-[10px] text-slate-500 leading-tight">Marketing Digital</p>
             </div>
           </div>
-        </aside>
-      </>
-    </TooltipProvider>
-  );
-}
+          <button
+            className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors hidden lg:flex"
+            onClick={toggleCollapsed}
+          >
+            <MI name="chevron_left" style={{ fontSize: 18 }} />
+          </button>
+        </div>
 
-// ─── Footer icon button ───────────────────────────────────────────────────────
-function FooterIcon({
-  icon: Icon, label, onClick, danger, compact,
-}: {
-  icon: React.ElementType; label: string; onClick: () => void; danger?: boolean; compact?: boolean;
-}) {
-  const [hov, setHov] = useState(false);
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          onMouseEnter={() => setHov(true)}
-          onMouseLeave={() => setHov(false)}
-          className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
-          style={{
-            color:      hov ? (danger ? "#EF4444" : "#374151") : "#9CA3AF",
-            background: hov ? (danger ? "#FEF2F2" : "#F3F4F6") : undefined,
-          }}
-        >
-          <Icon style={{ width: 16, height: 16, strokeWidth: 1.5 }} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side={compact ? "right" : "top"} className="text-xs">{label}</TooltipContent>
-    </Tooltip>
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-4 py-2" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          {menuGroups.map(group => {
+            const items = getGroup(group.ids);
+            if (!items.length) return null;
+            return (
+              <div key={group.title}>
+                <p className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+                  {group.title}
+                </p>
+                <div className="space-y-1">
+                  {items.map(tab => {
+                    const isActive = location === tab.path;
+                    return (
+                      <Link key={tab.id} href={tab.path}>
+                        <div
+                          role="button"
+                          onClick={() => setMobileOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer",
+                            isActive
+                              ? "font-semibold"
+                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          )}
+                          style={isActive ? {
+                            backgroundColor: "rgba(0,37,210,0.08)",
+                            color: ACTIVE_BLUE,
+                          } : undefined}
+                        >
+                          <MI
+                            name={tab.icon}
+                            filled={isActive}
+                            style={{ color: isActive ? ACTIVE_BLUE : tab.iconColor }}
+                          />
+                          <span className="text-[14px]">{tab.label}</span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+          {/* Avatar + name + email */}
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+              style={{ background: ACTIVE_BLUE }}
+            >
+              {initials(userName)}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user?.name}</span>
+              <span className="text-[11px] text-slate-500 truncate">{user?.email}</span>
+            </div>
+          </div>
+
+          {/* 4 action icons */}
+          <div className="flex items-center justify-between mt-4 px-1">
+            <div className="flex gap-4">
+              <button
+                className="text-slate-400 hover:text-[#0025d2] transition-colors"
+                onClick={toggleCompact}
+                title="Expandir"
+              >
+                <MI name="open_in_full" />
+              </button>
+              <button
+                className="text-slate-400 hover:text-[#0025d2] transition-colors"
+                onClick={enterFocusMode}
+                title="Modo foco"
+              >
+                <MI name="grid_view" />
+              </button>
+              <button
+                className="text-slate-400 hover:text-[#0025d2] transition-colors"
+                onClick={toggleTheme}
+                title={theme === "light" ? "Modo escuro" : "Modo claro"}
+              >
+                <MI name={theme === "light" ? "dark_mode" : "light_mode"} />
+              </button>
+            </div>
+            <button
+              className="text-slate-400 hover:text-red-500 transition-colors"
+              onClick={logout}
+              title="Sair"
+            >
+              <MI name="logout" />
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
