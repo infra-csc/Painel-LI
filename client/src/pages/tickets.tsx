@@ -1240,24 +1240,25 @@ export default function Tickets() {
                         {/* Destino — aeroportos quando comprada */}
                         <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket && (ticket.departureAirport || ticket.destinationAirport) ? (
-                            <div className="flex flex-col gap-1">
-                              {(ticket.departureAirport || ticket.destinationAirport) && (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_takeoff</span>
-                                  <span className="font-black text-slate-800 uppercase tracking-wide">{ticket.departureAirport || '—'}</span>
-                                  <span className="text-slate-300 font-light">→</span>
-                                  <span className="font-black text-slate-800 uppercase tracking-wide">{ticket.destinationAirport || '—'}</span>
+                            <div className="flex flex-col gap-1.5">
+                              {/* IDA */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-9 shrink-0">Ida:</span>
+                                <span className="text-[13px] font-semibold text-slate-800">{ticket.departureAirport || '—'}</span>
+                                <span className="text-slate-300 text-xs">→</span>
+                                <span className="text-[13px] font-semibold text-slate-800">{ticket.destinationAirport || '—'}</span>
+                              </div>
+                              {/* VOLTA — só se houver ao menos um aeroporto inferido */}
+                              {(ticket.destinationAirport || ticket.departureAirport) && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-9 shrink-0">Volta:</span>
+                                  <span className="text-[13px] font-semibold text-slate-800">{ticket.destinationAirport || '—'}</span>
+                                  <span className="text-slate-300 text-xs">→</span>
+                                  <span className="text-[13px] font-semibold text-slate-800">{ticket.departureAirport || '—'}</span>
                                 </div>
                               )}
-                              {(ticket.returnOriginAirport || ticket.returnDestinationAirport || ticket.destinationAirport) && (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
-                                  <span className="font-black text-slate-800 uppercase tracking-wide">{(ticket as any).returnOriginAirport || ticket.destinationAirport || '—'}</span>
-                                  <span className="text-slate-300 font-light">→</span>
-                                  <span className="font-black text-slate-800 uppercase tracking-wide">{(ticket as any).returnDestinationAirport || ticket.departureAirport || '—'}</span>
-                                </div>
-                              )}
-                              <p className="text-[10px] text-slate-400 mt-0.5">{getEventLocation(inclusion.eventId)}</p>
+                              {/* Cidade */}
+                              <p className="text-[11px] text-slate-400 italic mt-0.5">{getEventLocation(inclusion.eventId)}</p>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
