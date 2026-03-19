@@ -1,0 +1,73 @@
+Deixar o painel "Aplicar em Lote" mais compacto e minimalista. 
+Redução final agressiva:
+
+═══════════════════════════════════════
+1. LAYOUT GERAL
+═══════════════════════════════════════
+- Remover todos os cards/boxes com fundo colorido 
+  dos trechos — substituir por apenas uma linha 
+  divisória + label pequeno como separador de seção
+- Seções separadas por: linha <hr> 1px #e5e7eb + 
+  label 10px uppercase cinza à esquerda
+- Fundo branco puro em tudo, sem cards aninhados
+- Gap entre campos: 6px
+- Gap entre seções: 14px
+
+═══════════════════════════════════════
+2. INPUTS
+═══════════════════════════════════════
+- Altura: 32px
+- Font-size: 12px
+- Padding interno: 0 10px
+- Border: 1px solid #e5e7eb
+- Border-radius: 6px
+- Placeholder: cinza #aaa
+- Labels: 10px uppercase #888, margin-bottom 3px
+
+═══════════════════════════════════════
+3. DADOS FINANCEIROS
+═══════════════════════════════════════
+- Remover o header azul cheio — substituir por 
+  label de seção: linha + "DADOS FINANCEIROS" 
+  10px uppercase cinza, igual às outras seções
+- 4 campos em grid 4 colunas numa única linha:
+  [R$ Valor] [LOC/Reserva] [Data da Compra] [Cartão]
+
+═══════════════════════════════════════
+4. TRECHOS
+═══════════════════════════════════════
+- IDA e VOLTA lado a lado, sem fundo colorido
+- Cada trecho: label "✈ TRECHO DE IDA" e 
+  "✈ TRECHO DE VOLTA" em 10px, 
+  azul e laranja respectivamente
+- Campos em grid: 
+  [Origem + sigla] [Destino + sigla] [Data] [Horário]
+  todos na mesma linha horizontal por trecho
+- Botão de sigla: 36px × 26px, font 10px, 
+  fundo #F1F5F9, texto #3B4FE4, sem borda
+
+═══════════════════════════════════════
+5. SIDEBAR
+═══════════════════════════════════════
+- Remover box de Anexos com fundo azul claro —
+  deixar só o botão "Adicionar Anexo" com ícone 
+  e texto descritivo em 10px cinza abaixo
+- Observações: textarea 3 linhas, sem título, 
+  só placeholder
+- Status da Operação: lista limpa, 
+  bullet 6px, nome 11px, subtítulo 10px cinza
+  sem nenhum fundo ou card
+
+═══════════════════════════════════════
+6. FOOTER
+═══════════════════════════════════════
+- Altura 40px, border-top 1px #e5e7eb
+- Passageiros: ícone 14px + número 13px + 
+  label 10px cinza — tudo inline
+- Botão "Aplicar": 32px altura, 
+  font 12px, padding 0 16px
+
+Resultado esperado: formulário todo visível 
+em 1080p, visual clean tipo Notion/Linear, 
+sem caixas empilhadas, sem fundos coloridos pesados.
+Não alterar lógica nem dados.
