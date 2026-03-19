@@ -630,82 +630,82 @@ export default function Tickets() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-3">
           {/* Header */}
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-[#0033CC] rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-900/20">
-              <Plane className="w-7 h-7 text-white" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-[#0033CC] rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-blue-900/20">
+              <Plane className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Compra de Passagens</h1>
-              <p className="text-sm text-slate-500">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+              <h1 className="text-[20px] font-bold tracking-tight text-slate-900">Compra de Passagens</h1>
+              <p className="text-[12px] text-slate-500">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-5">
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Geral</p>
-                <h3 className="text-4xl font-black text-slate-900">{filteredTicketInclusions.length}</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total Geral</p>
+                <h3 className="text-[22px] font-extrabold text-slate-900 leading-none">{filteredTicketInclusions.length}</h3>
               </div>
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0033CC]">
-                <TicketIcon className="w-7 h-7" />
+              <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-[#0033CC]">
+                <TicketIcon className="w-4 h-4" />
               </div>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Passagens Compradas</p>
-                <h3 className="text-4xl font-black text-[#22C55E]">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Passagens Compradas</p>
+                <h3 className="text-[22px] font-extrabold text-[#22C55E] leading-none">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
               </div>
-              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-[#22C55E]">
-                <CheckCircle className="w-7 h-7" />
+              <div className="w-7 h-7 bg-green-50 rounded-lg flex items-center justify-center text-[#22C55E]">
+                <CheckCircle className="w-4 h-4" />
               </div>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Aguardando Emissão</p>
-                <h3 className="text-4xl font-black text-[#F97316]">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Aguardando Emissão</p>
+                <h3 className="text-[22px] font-extrabold text-[#F97316] leading-none">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
               </div>
-              <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-[#F97316]">
-                <Clock className="w-7 h-7" />
+              <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center text-[#F97316]">
+                <Clock className="w-4 h-4" />
               </div>
             </div>
           </div>
 
           {/* Seção de Registro Rápido */}
           <div
-            className="bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
-            style={{borderLeft: '4px solid #F59E0B'}}
+            className="bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
+            style={{borderLeft: '4px solid #F59E0B', height:48}}
             onClick={() => toggleSection('basic')}
           >
-            <div className="flex items-center gap-4 px-5 py-4">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
-                <FileText className="w-5 h-5 text-[#F59E0B]" />
+            <div className="flex items-center gap-3 px-4 h-full">
+              <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-[#F59E0B]" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">Aplicar em Lote</p>
-                <p className="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas passagens</p>
+                <p className="text-[13px] font-semibold text-slate-800">Aplicar em Lote</p>
+                <p className="text-[11px] text-slate-400">Aplicar mesmos dados a múltiplas passagens</p>
               </div>
             </div>
-            <div className="pr-5">
+            <div className="pr-4">
               {expandedSections.basic
-                ? <ChevronDown className="w-5 h-5 text-amber-400" />
-                : <ChevronRight className="w-5 h-5 text-slate-300" />}
+                ? <ChevronDown className="w-4 h-4 text-amber-400" />
+                : <ChevronRight className="w-4 h-4 text-slate-300" />}
             </div>
           </div>
 
           {expandedSections.basic && (
             <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
               {/* Cabeçalho interno */}
-              <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between gap-6">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h3 className="text-[15px] font-bold text-slate-900">Aplicar em Lote</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Insira os dados da operação para múltiplos passageiros simultaneamente.</p>
+                  <h3 className="text-[13px] font-semibold text-slate-900">Aplicar em Lote</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Insira os dados da operação para múltiplos passageiros simultaneamente.</p>
                 </div>
-                <div className="flex items-center gap-4 shrink-0">
+                <div className="flex items-center gap-3 shrink-0">
                   {/* Tipo de transporte como pills */}
-                  <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1" data-testid="select-quick-transport-type">
+                  <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5" data-testid="select-quick-transport-type">
                     {[
                       { value: 'aereo', label: '✈️ Aérea' },
                       { value: 'rodoviario', label: '🚌 Rodoviária' },
@@ -714,25 +714,25 @@ export default function Tickets() {
                       return (
                         <button key={opt.value} type="button"
                           onClick={() => handleTicketDataChange("quick", "transportType", opt.value)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${active ? 'bg-white shadow-sm text-[#0033CC]' : 'text-slate-400 hover:text-slate-600'}`}>
+                          className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all ${active ? 'bg-white shadow-sm text-[#0033CC]' : 'text-slate-400 hover:text-slate-600'}`}>
                           {opt.label}
                         </button>
                       );
                     })}
                   </div>
-                  {/* Toggle apenas ida — label à esquerda, toggle à direita */}
-                  <div className="flex items-center gap-2.5 pl-4 border-l border-slate-200">
-                    <span className="text-sm font-semibold text-slate-600 select-none whitespace-nowrap">Apenas ida</span>
+                  {/* Toggle apenas ida */}
+                  <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+                    <span className="text-[12px] font-semibold text-slate-600 select-none whitespace-nowrap">Apenas ida</span>
                     <button
                       type="button" role="switch"
                       aria-checked={ticketData["quick"]?.isOneWay || false}
                       data-testid="checkbox-quick-one-way"
                       onClick={() => handleTicketDataChange("quick", "isOneWay", !(ticketData["quick"]?.isOneWay || false))}
                       className="relative inline-flex items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#0033CC] focus:ring-offset-1 shrink-0"
-                      style={{ width:48, height:26, backgroundColor: ticketData["quick"]?.isOneWay ? '#0033CC' : '#CBD5E1' }}
+                      style={{ width:40, height:22, backgroundColor: ticketData["quick"]?.isOneWay ? '#0033CC' : '#CBD5E1' }}
                     >
-                      <span className="inline-block w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ease-in-out"
-                        style={{ transform: ticketData["quick"]?.isOneWay ? 'translateX(24px)' : 'translateX(2px)' }} />
+                      <span className="inline-block w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ease-in-out"
+                        style={{ transform: ticketData["quick"]?.isOneWay ? 'translateX(20px)' : 'translateX(2px)' }} />
                     </button>
                   </div>
                 </div>
@@ -758,36 +758,36 @@ export default function Tickets() {
                 const pct = Math.round((filled / total) * 100);
                 const barColor = pct === 100 ? '#22C55E' : pct >= 50 ? '#F59E0B' : '#0033CC';
                 return (
-                  <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                  <div className="px-4 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
                     <div className="flex-1 h-1 rounded-full bg-slate-200 overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-500"
                         style={{ width:`${pct}%`, backgroundColor: barColor }} />
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[11px] font-black" style={{color: barColor}}>{filled}</span>
-                      <span className="text-[11px] font-medium text-slate-400">/ {total} campos</span>
+                      <span className="text-[11px] font-medium text-slate-400">/ {total}</span>
                     </div>
                   </div>
                 );
               })()}
 
               {/* Corpo principal: 8 + 4 colunas */}
-              <div className="grid grid-cols-12 gap-4 p-5">
+              <div className="grid grid-cols-12 gap-3 p-3">
 
                 {/* Coluna esquerda (8 cols) */}
-                <div className="col-span-12 lg:col-span-8 space-y-3.5">
+                <div className="col-span-12 lg:col-span-8 space-y-2">
 
                   {/* Card: Dados Financeiros */}
-                  <section className="rounded-2xl overflow-hidden border border-blue-100">
-                    <div className="flex items-center gap-2 px-5 py-3 bg-[#0033CC]">
-                      <span className="material-symbols-outlined text-white" style={{fontSize:16}}>payments</span>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-white/90">Dados Financeiros</h4>
+                  <section className="rounded-xl overflow-hidden border border-blue-100">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[#0033CC]">
+                      <span className="material-symbols-outlined text-white" style={{fontSize:14}}>payments</span>
+                      <h4 className="text-[11px] font-black uppercase tracking-widest text-white/90">Dados Financeiros</h4>
                     </div>
-                    <div className="p-4 bg-white grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="p-3 bg-white grid grid-cols-2 gap-x-3 gap-y-2">
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor Total *</Label>
-                        <div className="flex h-[38px] rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
-                          <span className="flex items-center px-3 bg-slate-50 text-slate-500 font-semibold text-sm border-r border-slate-200 shrink-0">R$</span>
+                        <div className="flex h-[34px] rounded-lg overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
+                          <span className="flex items-center px-2.5 bg-slate-50 text-slate-500 font-semibold text-xs border-r border-slate-200 shrink-0">R$</span>
                           <input
                             type="number" step="0.01" placeholder="0,00"
                             value={ticketData["quick"]?.value || ""}
@@ -804,7 +804,7 @@ export default function Tickets() {
                         <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : "Ex: AX782Q"}
                           value={ticketData["quick"]?.purchaseOrderNumber || ""}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm font-mono"
+                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs font-mono"
                           data-testid="input-quick-purchase-order"
                         />
                       </div>
@@ -813,7 +813,7 @@ export default function Tickets() {
                         <Input type="date"
                           value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                           data-testid="input-quick-purchase-date"
                         />
                       </div>
@@ -822,7 +822,7 @@ export default function Tickets() {
                         <Input placeholder="0000" maxLength={4}
                           value={ticketData["quick"]?.cardLastFourDigits || ""}
                           onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g,'').slice(0,4))}
-                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                          className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                           data-testid="input-quick-card-digits"
                         />
                       </div>
@@ -836,16 +836,16 @@ export default function Tickets() {
                     {(() => {
                       const isRodo = ticketData["quick"]?.transportType === "rodoviario";
                       return (
-                        <section className="rounded-2xl overflow-hidden border border-blue-100">
-                          <div className="flex items-center gap-2 px-5 py-3 bg-[#EEF2FF]">
-                            <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>
+                        <section className="rounded-xl overflow-hidden border border-blue-100">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-[#EEF2FF]">
+                            <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:13, fontVariationSettings:"'FILL' 1"}}>
                               {isRodo ? "directions_bus" : "flight_takeoff"}
                             </span>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-[#0033CC]">
+                            <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">
                               {isRodo ? "Embarque" : "Trecho de Ida"}
                             </h4>
                           </div>
-                          <div className="p-4 bg-white space-y-3">
+                          <div className="p-3 bg-white space-y-2">
                             {isRodo ? (
                               <>
                                 {/* Rodoviário: Cidade Origem */}
@@ -854,7 +854,7 @@ export default function Tickets() {
                                   <Input placeholder="Ex: São Paulo"
                                     value={ticketData["quick"]?.departureCityOrigin || ""}
                                     onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
-                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                     data-testid="input-quick-departure-city-origin"
                                   />
                                 </div>
@@ -864,7 +864,7 @@ export default function Tickets() {
                                   <Input placeholder="Ex: Rodoviária do Tietê"
                                     value={ticketData["quick"]?.departureAirport || ""}
                                     onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                     data-testid="input-quick-departure-airport"
                                   />
                                 </div>
@@ -874,7 +874,7 @@ export default function Tickets() {
                                   <Input placeholder="Ex: Rio de Janeiro"
                                     value={ticketData["quick"]?.departureCityDestination || ""}
                                     onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                     data-testid="input-quick-departure-city-destination"
                                   />
                                 </div>
@@ -884,7 +884,7 @@ export default function Tickets() {
                                   <Input placeholder="Ex: Rodoviária Novo Rio"
                                     value={ticketData["quick"]?.destinationAirport || ""}
                                     onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                     data-testid="input-quick-destination-airport"
                                   />
                                 </div>
@@ -895,7 +895,7 @@ export default function Tickets() {
                                     <Input type="date"
                                       value={ticketData["quick"]?.actualDepartureDate || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-departure-date"
                                     />
                                   </div>
@@ -904,7 +904,7 @@ export default function Tickets() {
                                     <Input type="time"
                                       value={ticketData["quick"]?.actualDepartureTime || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-departure-time"
                                     />
                                   </div>
@@ -916,7 +916,7 @@ export default function Tickets() {
                                     <Input placeholder="Ex: 42A"
                                       value={ticketData["quick"]?.busPoltrona || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "busPoltrona", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                     />
                                   </div>
                                   <div className="space-y-1.5">
@@ -925,7 +925,7 @@ export default function Tickets() {
                                       value={ticketData["quick"]?.busClasse || "convencional"}
                                       onValueChange={(v) => handleTicketDataChange("quick", "busClasse", v)}
                                     >
-                                      <SelectTrigger className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm">
+                                      <SelectTrigger className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -952,8 +952,8 @@ export default function Tickets() {
                                     <Input placeholder="GRU"
                                       value={ticketData["quick"]?.departureAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                      style={{width:80}}
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
+                                      style={{width:40,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-departure-airport"
                                     />
                                   </div>
@@ -970,8 +970,8 @@ export default function Tickets() {
                                     <Input placeholder="MAO"
                                       value={ticketData["quick"]?.destinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                      style={{width:80}}
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
+                                      style={{width:40,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-destination-airport"
                                     />
                                   </div>
@@ -982,7 +982,7 @@ export default function Tickets() {
                                     <Input type="date"
                                       value={ticketData["quick"]?.actualDepartureDate || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-departure-date"
                                     />
                                   </div>
@@ -991,7 +991,7 @@ export default function Tickets() {
                                     <Input type="time"
                                       value={ticketData["quick"]?.actualDepartureTime || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-departure-time"
                                     />
                                   </div>
@@ -1014,16 +1014,16 @@ export default function Tickets() {
                       {(() => {
                         const isRodo = ticketData["quick"]?.transportType === "rodoviario";
                         return (
-                          <section className="rounded-2xl overflow-hidden border border-orange-100">
-                            <div className="flex items-center gap-2 px-5 py-3 bg-[#FFF7ED]">
-                              <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>
+                          <section className="rounded-xl overflow-hidden border border-orange-100">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-[#FFF7ED]">
+                              <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:13, fontVariationSettings:"'FILL' 1"}}>
                                 {isRodo ? "directions_bus" : "flight_land"}
                               </span>
-                              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#F97316]">
+                              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">
                                 {isRodo ? "Desembarque" : "Trecho de Volta"}
                               </h4>
                             </div>
-                            <div className="p-4 bg-white space-y-3">
+                            <div className="p-3 bg-white space-y-2">
                               {isRodo ? (
                                 <>
                                   {/* Rodoviário: Cidade Origem */}
@@ -1032,7 +1032,7 @@ export default function Tickets() {
                                     <Input placeholder="Ex: Rio de Janeiro"
                                       value={ticketData["quick"]?.returnCityOrigin || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-return-city-origin"
                                     />
                                   </div>
@@ -1042,7 +1042,7 @@ export default function Tickets() {
                                     <Input placeholder="Ex: Rodoviária Novo Rio"
                                       value={ticketData["quick"]?.returnOriginAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-return-origin-airport"
                                     />
                                   </div>
@@ -1052,7 +1052,7 @@ export default function Tickets() {
                                     <Input placeholder="Ex: São Paulo"
                                       value={ticketData["quick"]?.returnCityDestination || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-return-city-destination"
                                     />
                                   </div>
@@ -1062,7 +1062,7 @@ export default function Tickets() {
                                     <Input placeholder="Ex: Rodoviária do Tietê"
                                       value={ticketData["quick"]?.returnDestinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       data-testid="input-quick-return-destination-airport"
                                     />
                                   </div>
@@ -1073,7 +1073,7 @@ export default function Tickets() {
                                       <Input type="date"
                                         value={ticketData["quick"]?.actualReturnDate || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                         data-testid="input-quick-return-date"
                                       />
                                     </div>
@@ -1082,7 +1082,7 @@ export default function Tickets() {
                                       <Input type="time"
                                         value={ticketData["quick"]?.actualReturnTime || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                         data-testid="input-quick-return-time"
                                       />
                                     </div>
@@ -1094,7 +1094,7 @@ export default function Tickets() {
                                       <Input placeholder="Ex: 12B"
                                         value={ticketData["quick"]?.busPoltronaVolta || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "busPoltronaVolta", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                       />
                                     </div>
                                     <div className="space-y-1.5">
@@ -1103,7 +1103,7 @@ export default function Tickets() {
                                         value={ticketData["quick"]?.busClasseVolta || "convencional"}
                                         onValueChange={(v) => handleTicketDataChange("quick", "busClasseVolta", v)}
                                       >
-                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm">
+                                        <SelectTrigger className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1129,8 +1129,8 @@ export default function Tickets() {
                                       <Input placeholder="MAO"
                                         value={ticketData["quick"]?.returnOriginAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                        style={{width:80}}
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
+                                        style={{width:40,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-origin-airport"
                                       />
                                     </div>
@@ -1147,8 +1147,8 @@ export default function Tickets() {
                                       <Input placeholder="GRU"
                                         value={ticketData["quick"]?.returnDestinationAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                        style={{width:80}}
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
+                                        style={{width:40,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-destination-airport"
                                       />
                                     </div>
@@ -1159,7 +1159,7 @@ export default function Tickets() {
                                       <Input type="date"
                                         value={ticketData["quick"]?.actualReturnDate || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                         data-testid="input-quick-return-date"
                                       />
                                     </div>
@@ -1168,7 +1168,7 @@ export default function Tickets() {
                                       <Input type="time"
                                         value={ticketData["quick"]?.actualReturnTime || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs"
                                         data-testid="input-quick-return-time"
                                       />
                                     </div>
@@ -1184,12 +1184,12 @@ export default function Tickets() {
                 </div>
 
                 {/* Coluna direita (4 cols) */}
-                <div className="col-span-12 lg:col-span-4 space-y-3">
+                <div className="col-span-12 lg:col-span-4 space-y-2">
 
                   {/* Anexos */}
-                  <section className="rounded-2xl border border-slate-100 p-4 bg-white">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>attachment</span>
+                  <section className="rounded-xl border border-slate-100 p-3 bg-white">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>attachment</span>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos</h4>
                     </div>
                     <AttachmentUpload
@@ -1200,17 +1200,17 @@ export default function Tickets() {
                   </section>
 
                   {/* Observações */}
-                  <section className="rounded-2xl border border-slate-100 p-4 bg-white">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>notes</span>
+                  <section className="rounded-xl border border-slate-100 p-3 bg-white">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>notes</span>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Observações (Opcional)</h4>
                     </div>
                     <Textarea
                       placeholder="Adicione notas relevantes sobre este lote de passagens..."
                       value={ticketData["quick"]?.ticketObservations || ""}
                       onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
-                      className="text-sm resize-none bg-slate-50 border-slate-200 rounded-xl"
-                      style={{height:80}}
+                      className="text-xs resize-none bg-slate-50 border-slate-200 rounded-lg"
+                      style={{height:64}}
                       data-testid="textarea-quick-ticket-observations"
                     />
                   </section>
@@ -1245,39 +1245,39 @@ export default function Tickets() {
                           <span className="material-symbols-outlined text-slate-400" style={{fontSize:14}}>checklist</span>
                           <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status da Operação</h4>
                         </div>
-                        <ul className="p-3 space-y-2.5 bg-white">
-                          <li className="flex items-center gap-2.5">
+                        <ul className="p-3 space-y-2 bg-white">
+                          <li className="flex items-center gap-2">
                             {dot(financialStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold ${textColor(financialStatus)}`}>Dados financeiros</p>
-                              <p className="text-[11px] text-slate-400">
+                              <p className={`text-[11px] font-semibold ${textColor(financialStatus)}`}>Dados financeiros</p>
+                              <p className="text-[10px] text-slate-400">
                                 {financialStatus === 'done' ? 'Valor e LOC preenchidos' : financialStatus === 'partial' ? 'Parcialmente preenchidos' : 'Valor e LOC pendentes'}
                               </p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-2.5">
+                          <li className="flex items-center gap-2">
                             {dot(idaStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold ${textColor(idaStatus)}`}>
+                              <p className={`text-[11px] font-semibold ${textColor(idaStatus)}`}>
                                 {q?.transportType === "rodoviario" ? "Trecho de embarque" : "Trecho de ida"}
                               </p>
-                              <p className="text-[11px] text-slate-400">
+                              <p className="text-[10px] text-slate-400">
                                 {idaStatus === 'done' ? 'Origem, destino e data OK' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
                               </p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-2.5">
+                          <li className="flex items-center gap-2">
                             {dot(attachStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
-                              <p className="text-[11px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s)` : 'Nenhum (opcional)'}</p>
+                              <p className={`text-[11px] font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
+                              <p className="text-[10px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s)` : 'Nenhum (opcional)'}</p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-2.5">
+                          <li className="flex items-center gap-2">
                             {dot(selectionStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold ${textColor(selectionStatus)}`}>Passagens selecionadas</p>
-                              <p className="text-[11px] text-slate-400">
+                              <p className={`text-[11px] font-semibold ${textColor(selectionStatus)}`}>Passagens selecionadas</p>
+                              <p className="text-[10px] text-slate-400">
                                 {selectedTickets.length > 0 ? `${selectedTickets.length} na fila` : 'Selecione na tabela'}
                               </p>
                             </div>
@@ -1290,18 +1290,18 @@ export default function Tickets() {
               </div>
 
               {/* Rodapé de ação */}
-              <div className="border-t border-slate-100 px-5 py-3 bg-slate-50 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="border-t border-slate-100 px-4 py-2 bg-slate-50 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
                   {/* Badge de passageiros */}
-                  <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-all ${selectedTickets.length > 0 ? 'bg-[#0033CC] text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
-                    <span className="material-symbols-outlined" style={{fontSize:20}}>group</span>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${selectedTickets.length > 0 ? 'bg-[#0033CC] text-white shadow-md shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
+                    <span className="material-symbols-outlined" style={{fontSize:16}}>group</span>
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-widest opacity-70 leading-none mb-0.5">Passageiros</p>
-                      <p className="text-xl font-black leading-none">{selectedTickets.length}</p>
+                      <p className="text-[18px] font-black leading-none">{selectedTickets.length}</p>
                     </div>
                   </div>
 
-                  <div className="h-10 w-px bg-slate-200" />
+                  <div className="h-7 w-px bg-slate-200" />
 
                   {/* Pill de status */}
                   {(() => {
@@ -1337,16 +1337,16 @@ export default function Tickets() {
                         size="sm"
                         onClick={() => { setTicketData(prev => { const d = {...prev}; delete d["quick"]; return d; }); }}
                         disabled={!ticketData["quick"] || Object.keys(ticketData["quick"]).length === 0}
-                        className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-700"
+                        className="h-[34px] rounded-lg border-slate-200 text-[12px] text-slate-500 hover:text-slate-700"
                         data-testid="button-clear-quick"
                       >
-                        Limpar Campos
+                        Limpar
                       </Button>
                       <Button
                         onClick={handleApplyToSelected}
                         disabled={selectedTickets.length === 0 || createTicketMutation.isPending}
                         data-testid="button-apply-to-selected"
-                        className="h-[38px] px-6 font-bold rounded-xl flex items-center gap-2 transition-all"
+                        className="h-[34px] px-5 font-bold rounded-lg text-[12px] flex items-center gap-2 transition-all"
                         style={{
                           background: selectedTickets.length === 0 ? '#E2E8F0' : '#0033CC',
                           color: selectedTickets.length === 0 ? '#94A3B8' : 'white',
