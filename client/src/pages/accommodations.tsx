@@ -1447,6 +1447,7 @@ export default function Accommodations() {
                           data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkInDate ? (
                           <div>
+                            <div style={{fontSize:10,fontWeight:700,color:'#16A34A',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>↓ IN</div>
                             <div style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>{formatDate(accommodation.checkInDate)}</div>
                             {accommodation.checkInTime && (
                               <div style={{fontSize:13,fontWeight:700,color:'#3B4FE4',marginTop:2}}>{accommodation.checkInTime}</div>
@@ -1459,6 +1460,7 @@ export default function Accommodations() {
                           data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkOutDate ? (
                           <div>
+                            <div style={{fontSize:10,fontWeight:700,color:'#D97706',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>↑ OUT</div>
                             <div style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>{formatDate(accommodation.checkOutDate)}</div>
                             {accommodation.checkOutTime && (
                               <div style={{fontSize:13,fontWeight:700,color:'#3B4FE4',marginTop:2}}>{accommodation.checkOutTime}</div>
