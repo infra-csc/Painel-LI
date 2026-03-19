@@ -1384,7 +1384,7 @@ export default function Accommodations() {
                 <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:64}}>ID</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Evento</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Colaborador / Função</th>
-                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:220}}>Período</th>
+                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Período</th>
                 <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Hotel</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Status</th>
                 <th style={{padding:'16px 8px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
@@ -1442,27 +1442,28 @@ export default function Accommodations() {
                         </div>
                       </td>
                       {/* PERÍODO (Check-in + Check-out) */}
-                      <td style={{padding:'18px 16px',width:220}}
+                      <td style={{padding:'18px 16px',width:180}}
                           data-testid={`accommodation-period-${inclusion.inclusionNumber}`}>
                         {(accommodation?.checkInDate || accommodation?.checkOutDate) ? (
-                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'nowrap'}}>
-                            {/* Check-in */}
-                            <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
-                              <span style={{fontSize:13,color:'#374151'}}>
+                          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                            {/* Entrada */}
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontSize:10,fontWeight:700,color:'#3B4FE4',textTransform:'uppercase',letterSpacing:'0.04em',width:42,flexShrink:0}}>Entrada</span>
+                              <span style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>
                                 {accommodation?.checkInDate ? formatDate(accommodation.checkInDate) : '—'}
                               </span>
                               {accommodation?.checkInTime && (
-                                <span style={{fontSize:12,fontWeight:600,color:'#3B4FE4'}}>{accommodation.checkInTime}</span>
+                                <span style={{fontSize:13,fontWeight:700,color:'#3B4FE4'}}>{accommodation.checkInTime}</span>
                               )}
                             </div>
-                            <span style={{color:'#CBD5E1',fontSize:14,fontWeight:400,flexShrink:0}}>→</span>
-                            {/* Check-out */}
-                            <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
-                              <span style={{fontSize:13,color:'#374151'}}>
+                            {/* Saída */}
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'0.04em',width:42,flexShrink:0}}>Saída</span>
+                              <span style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>
                                 {accommodation?.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}
                               </span>
                               {accommodation?.checkOutTime && (
-                                <span style={{fontSize:12,fontWeight:600,color:'#3B4FE4'}}>{accommodation.checkOutTime}</span>
+                                <span style={{fontSize:13,fontWeight:700,color:'#3B4FE4'}}>{accommodation.checkOutTime}</span>
                               )}
                             </div>
                           </div>
