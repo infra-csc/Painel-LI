@@ -5,9 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
-import SimpleFilters from "@/components/common/simple-filters";
 import StatusBadge from "@/components/common/status-badge";
-import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CommentsModal from "@/components/modals/comments-modal";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
@@ -1080,104 +1079,72 @@ export default function Accommodations() {
 
   const canEditField = canEditScreen(user, "accommodations");
 
+  const totalCount = filteredData.length;
+  const purchasedCount = filteredData.filter(inc => accommodationMap.get(inc.id)).length;
+  const pendingCount = filteredData.filter(inc => !accommodationMap.get(inc.id)).length;
+
   return (
     <>
-      <div className="bg-card rounded-lg shadow-sm border border-border mb-6">
-        <div className="px-6 py-4 border-b border-border">
-          <h2 className="text-2xl font-bold text-foreground mb-1">🏨 Hospedagem</h2>
-          <p className="text-muted-foreground text-sm">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Total Hospedagens</p>
+            <h3 style={{fontSize:30,fontWeight:900,color:'#0F172A',lineHeight:1}}>{totalCount}</h3>
+          </div>
+          <div style={{width:48,height:48,borderRadius:12,background:'#F1F5F9',display:'flex',alignItems:'center',justifyContent:'center',color:'#94A3B8'}}>
+            <span className="material-symbols-outlined" style={{fontSize:24}}>hotel</span>
+          </div>
         </div>
-        <div className="px-6 py-4 grid grid-cols-3 gap-4">
-          <div style={{background:'#fff',borderRadius:12,padding:'16px 24px',boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',gap:16}}>
-            <div style={{width:44,height:44,borderRadius:10,background:'#EEF2FF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🏨</div>
-            <div>
-              <div style={{fontSize:28,fontWeight:700,color:'#3B5BDB',lineHeight:1}}>{filteredData.length}</div>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginTop:4}}>Hospedagens</div>
-            </div>
+        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Compradas</p>
+            <h3 style={{fontSize:30,fontWeight:900,color:'#22C55E',lineHeight:1}}>{purchasedCount}</h3>
           </div>
-          <div style={{background:'#fff',borderRadius:12,padding:'16px 24px',boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',gap:16}}>
-            <div style={{width:44,height:44,borderRadius:10,background:'#D1FAE5',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
-            <div>
-              <div style={{fontSize:28,fontWeight:700,color:'#10B981',lineHeight:1}}>{filteredData.filter(inc => accommodationMap.get(inc.id)).length}</div>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginTop:4}}>Compradas</div>
-            </div>
+          <div style={{width:48,height:48,borderRadius:12,background:'#DCFCE7',display:'flex',alignItems:'center',justifyContent:'center',color:'#22C55E'}}>
+            <span className="material-symbols-outlined" style={{fontSize:24,fontVariationSettings:"'FILL' 1"}}>check_circle</span>
           </div>
-          <div style={{background:'#fff',borderRadius:12,padding:'16px 24px',boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',gap:16}}>
-            <div style={{width:44,height:44,borderRadius:10,background:'#FEF3C7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>⏰</div>
-            <div>
-              <div style={{fontSize:28,fontWeight:700,color:'#F59E0B',lineHeight:1}}>{filteredData.filter(inc => !accommodationMap.get(inc.id)).length}</div>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginTop:4}}>Pendentes</div>
-            </div>
+        </div>
+        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Pendentes</p>
+            <h3 style={{fontSize:30,fontWeight:900,color:'#F97316',lineHeight:1}}>{pendingCount}</h3>
+          </div>
+          <div style={{width:48,height:48,borderRadius:12,background:'#FFEDD5',display:'flex',alignItems:'center',justifyContent:'center',color:'#F97316'}}>
+            <span className="material-symbols-outlined" style={{fontSize:24,fontVariationSettings:"'FILL' 1"}}>pending</span>
           </div>
         </div>
       </div>
 
-        <div className="mb-6">
-          <SimpleFilters
-            filters={filters}
-            onFiltersChange={(newFilters) => {
-              // Detect clear-all from SimpleFilters and also reset page-specific filters
-              if (newFilters.eventId === "all" && !newFilters.searchId &&
-                  !('accommodationStatus' in newFilters) && !('inclusionStatus' in newFilters)) {
-                setFilters({
-                  eventId: "all", functionId: [], collaboratorId: "all", searchId: "",
-                  accommodationStatus: "all", inclusionStatus: "active",
-                });
-              } else {
-                setFilters(prev => ({ ...prev, ...newFilters }));
-              }
-            }}
-            extraItems={[
-              {
-                label: "Status da Hospedagem",
-                element: (
-                  <Select value={filters.accommodationStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, accommodationStatus: v }))}>
-                    <SelectTrigger className="w-full border border-[#E2E8F0] rounded-xl bg-slate-50 text-sm" data-testid="select-accommodation-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="processed">Processado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )
-              },
-              {
-                label: "Status da Inclusão",
-                element: (
-                  <Select value={filters.inclusionStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, inclusionStatus: v }))}>
-                    <SelectTrigger className="w-full border border-[#E2E8F0] rounded-xl bg-slate-50 text-sm" data-testid="select-inclusion-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Ativas</SelectItem>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="cancelado">Canceladas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )
-              }
-            ]}
-          />
-        </div>
-
-        {/* Seção de Registro Rápido */}
-        <div className="mb-6 rounded-lg overflow-hidden" style={{border:'1px solid #E2E8F0',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
-          <div 
-            className="flex items-center gap-3 cursor-pointer"
-            style={{borderLeft:'4px solid #F59E0B',background:'#FFFBEB',padding:'14px 20px',borderRadius:expandedSections.basic ? '8px 8px 0 0' : '8px'}}
+      {/* Registro Rápido em Lote — blue banner */}
+      <div className="mb-6 overflow-hidden" style={{background:'#0033CC',borderRadius:32,padding:'32px',position:'relative',boxShadow:'0 20px 40px rgba(0,51,204,0.2)'}}>
+        <div style={{position:'relative',zIndex:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <h4 style={{fontSize:22,fontWeight:800,color:'#fff',letterSpacing:'-0.02em'}}>Registro Rápido em Lote</h4>
+            <p style={{color:'#BFDBFE',marginTop:4,maxWidth:420,fontSize:14}}>Aplique os mesmos dados de hotel a múltiplas hospedagens simultaneamente com validação automática.</p>
+          </div>
+          <button
             onClick={() => toggleSection('basic')}
+            style={{background:'#fff',color:'#0033CC',padding:'0 32px',height:56,borderRadius:12,fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:8,border:'none',cursor:'pointer',boxShadow:'0 4px 12px rgba(0,0,0,0.15)',transition:'background 0.15s'}}
+            onMouseEnter={e => (e.currentTarget.style.background = '#EFF6FF')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            data-testid="button-toggle-quick-register"
           >
-            <span style={{fontSize:18}}>🏨</span>
-            <div className="flex-1">
-              <span style={{fontWeight:700,fontSize:15,color:'#1E293B'}}>Registro Rápido em Lote</span>
-              <span style={{fontSize:13,color:'#94A3B8',marginLeft:8}}>Aplicar mesmos dados a múltiplas hospedagens</span>
-            </div>
-            <ChevronDown style={{width:18,height:18,color:'#94A3B8',transform: expandedSections.basic ? 'rotate(0deg)' : 'rotate(-90deg)',transition:'transform 0.2s ease'}} />
+            <span className="material-symbols-outlined" style={{fontSize:20}}>hotel_class</span>
+            {expandedSections.basic ? 'FECHAR PAINEL' : 'ABRIR PAINEL'}
+          </button>
+        </div>
+        <div style={{position:'absolute',right:0,top:0,height:'100%',width:'33%',background:'rgba(255,255,255,0.05)',transform:'skewX(12deg)',marginRight:-64}} />
+        <div style={{position:'absolute',right:40,top:0,height:'100%',width:48,background:'rgba(255,255,255,0.05)',transform:'skewX(12deg)'}} />
+      </div>
+
+      {/* Quick Register Form Panel */}
+      {expandedSections.basic && (
+        <div className="mb-6 rounded-xl overflow-hidden" style={{border:'1px solid #E2E8F0',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
+          <div style={{borderLeft:'4px solid #0033CC',background:'#EEF2FF',padding:'12px 20px'}}>
+            <span style={{fontWeight:700,fontSize:13,color:'#0033CC'}}>Preencha os dados comuns e selecione as hospedagens na tabela</span>
           </div>
 
-          {expandedSections.basic && (
             <>
               {/* Grade Organizada por Seções */}
               <div className="space-y-4" style={{background:'#fff',padding:'16px 20px'}}>
@@ -1363,31 +1330,89 @@ export default function Accommodations() {
                 )}
               </div>
             </>
-          )}
         </div>
+      )}
 
-        <div className="rounded-xl overflow-hidden" style={{border:'1px solid #E2E8F0',boxShadow:'0 1px 3px rgba(0,0,0,0.08)',borderTop:'3px solid #3B5BDB'}}>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr style={{background:'#F8FAFC',borderBottom:'1px solid #E2E8F0'}}>
-                  <th style={{padding:'10px 16px',textAlign:'left'}}>
-                    <input
-                      type="checkbox"
-                      checked={selectedInclusionsForBatch.length > 0}
-                      onChange={toggleAllInclusions}
-                      style={{borderRadius:4,borderColor:'#CBD5E1',cursor:'pointer'}}
-                      data-testid="checkbox-select-all"
-                    />
+      {/* Filter Bar */}
+      <div className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 grid grid-cols-5 gap-4">
+        <div className="space-y-1">
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>ID Reserva</label>
+          <input
+            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+            placeholder="Ex: 4412"
+            value={filters.searchId}
+            onChange={e => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
+            data-testid="filter-search-id"
+          />
+        </div>
+        <div className="space-y-1">
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Evento</label>
+          <Select value={filters.eventId} onValueChange={v => setFilters(prev => ({ ...prev, eventId: v }))}>
+            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-event">
+              <SelectValue placeholder="Todos os Eventos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Eventos</SelectItem>
+              {events?.map(ev => <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Função</label>
+          <Select
+            value={filters.functionId.length === 1 ? filters.functionId[0] : "all"}
+            onValueChange={v => setFilters(prev => ({ ...prev, functionId: v === "all" ? [] : [v] }))}
+          >
+            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-function">
+              <SelectValue placeholder="Todas as Funções" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Funções</SelectItem>
+              {functions?.map(fn => <SelectItem key={fn.id} value={fn.id}>{fn.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Colaborador</label>
+          <Select value={filters.collaboratorId} onValueChange={v => setFilters(prev => ({ ...prev, collaboratorId: v }))}>
+            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-collaborator">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {collaborators?.map(c => <SelectItem key={c.id} value={c.id}>{fixEncoding(c.fullName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Status</label>
+          <Select value={filters.accommodationStatus} onValueChange={v => setFilters(prev => ({ ...prev, accommodationStatus: v }))}>
+            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-status">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="processed">Comprada</SelectItem>
+              <SelectItem value="pending">Pendente</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Main Table */}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-200">
+                {(['ID','Evento','Colaborador / Função','Check-in','Check-out','Hotel','Status','Ações'] as const).map(label => (
+                  <th key={label} style={{padding:'16px 24px',fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',whiteSpace:'nowrap', textAlign: label === 'Ações' ? 'right' : 'left'}}>
+                    {label}
                   </th>
-                  {(['id','Evento','Função','Colaborador','Check-in','Check-out','Hotel','Status','Ações'] as const).map((label, i) => (
-                    <th key={label} style={{padding:'10px 16px',textAlign:'left',fontSize:10,fontWeight:700,color:'#94A3B8',letterSpacing:'0.08em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
-                      {label === 'id' ? 'ID' : label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
                 {filteredData.map((inclusion, idx) => {
                   const event = events?.find(e => e.id === inclusion.eventId);
                   const func = functions?.find(f => f.id === inclusion.functionId);
@@ -1396,117 +1421,109 @@ export default function Accommodations() {
                   const hasAccommodation = !!accommodation;
                   const isCanceled = inclusion.status === 'cancelado';
                   const isPostPurchaseRow = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(inclusion.status);
-                  const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+                  const rowBg = '#fff';
+
+                  const colNameInitials = (fixEncoding(collaborator?.fullName) || '??').split(' ').slice(0,2).map((n:string) => n[0]).join('').toUpperCase();
+                  const borderColor = isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
 
                   return (
-                    <tr 
+                    <tr
                       key={inclusion.id}
                       data-testid={`accommodation-row-${inclusion.inclusionNumber}`}
-                      style={{background:rowBg,borderBottom:'1px solid #F1F5F9',opacity: isCanceled ? 0.7 : 1}}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F0F7FF'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = rowBg; }}
+                      className="transition-colors"
+                      style={{
+                        borderLeft: `3px solid ${borderColor}`,
+                        opacity: isCanceled ? 0.6 : 1,
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFC'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
                     >
-                      <td style={{padding:'10px 16px'}} onClick={(e) => e.stopPropagation()}>
-                        {!accommodation && !isCanceled ? (
-                          <input
-                            type="checkbox"
-                            checked={selectedInclusionsForBatch.includes(inclusion.id)}
-                            onChange={() => toggleInclusionSelection(inclusion.id)}
-                            style={{borderRadius:4,borderColor:'#CBD5E1',cursor:'pointer'}}
-                            data-testid={`checkbox-inclusion-${inclusion.id}`}
-                          />
-                        ) : (
-                          <div style={{width:16,height:16}} />
-                        )}
+                      {/* ID */}
+                      <td style={{padding:'20px 24px'}}>
+                        <span style={{fontFamily:'monospace',fontSize:12,color:'#94A3B8'}}>#{inclusion.inclusionNumber || 'N/A'}</span>
                       </td>
-                      <td style={{padding:'10px 16px',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-id-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
-                        <div style={{display:'flex',alignItems:'center',gap:6}}>
-                          <span style={{background:'#EEF2FF',color:'#3B5BDB',fontWeight:700,fontSize:12,padding:'2px 8px',borderRadius:6,fontFamily:'monospace'}}>
-                            #{inclusion.inclusionNumber || 'N/A'}
-                          </span>
-                          {!isCanceled && (
-                            <Eye style={{
-                              width:14,height:14,color:'#3B5BDB',flexShrink:0,
-                              opacity: isPostPurchaseRow ? 0.4 : 1,
-                              cursor: isPostPurchaseRow ? 'not-allowed' : 'pointer',
-                            }} />
-                          )}
+                      {/* Evento */}
+                      <td style={{padding:'20px 24px',fontSize:14,fontWeight:600,color:'#0F172A'}}
+                          data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
+                        {event?.name || '—'}
+                      </td>
+                      {/* Colaborador / Função */}
+                      <td style={{padding:'20px 24px'}}
+                          data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}>
+                        <div style={{display:'flex',alignItems:'center',gap:12}}>
+                          <div style={{width:32,height:32,borderRadius:'50%',background:'#F1F5F9',color:'#475569',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,border:'1px solid #E2E8F0',flexShrink:0}}>
+                            {collaborator ? colNameInitials : '?'}
+                          </div>
+                          <div>
+                            <p style={{fontSize:14,fontWeight:700,color:'#0F172A',lineHeight:1.2}}>{fixEncoding(collaborator?.fullName) || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
+                            <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>{func?.name || '—'}</p>
+                          </div>
                         </div>
                       </td>
-                      <td style={{padding:'10px 16px',fontSize:13,color:'#1E293B',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-event-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
-                        {event?.name}
-                      </td>
-                      <td style={{padding:'10px 16px',fontSize:13,color:'#64748B',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-function-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
-                        {func?.name}
-                      </td>
-                      <td style={{padding:'10px 16px',fontSize:13,fontWeight:600,color:'#1E293B',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
-                        {fixEncoding(collaborator?.fullName)}
-                      </td>
-                      <td style={{padding:'10px 16px',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
+                      {/* Check-in */}
+                      <td style={{padding:'20px 24px',fontSize:14,color:'#475569'}}
+                          data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkInDate ? (
                           <div>
-                            <div style={{fontSize:13,fontWeight:600,color:'#1E293B'}}>{formatDate(accommodation.checkInDate)}</div>
-                            {accommodation.checkInTime && (
-                              <div style={{fontSize:11,color:'#3B5BDB'}}>{accommodation.checkInTime}</div>
-                            )}
+                            <div style={{fontWeight:500}}>{formatDate(accommodation.checkInDate)}</div>
+                            {accommodation.checkInTime && <div style={{fontSize:11,color:'#0033CC'}}>{accommodation.checkInTime}</div>}
                           </div>
-                        ) : (
-                          <span style={{color:'#CBD5E1',fontSize:13}}>—</span>
-                        )}
+                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
                       </td>
-                      <td style={{padding:'10px 16px',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
+                      {/* Check-out */}
+                      <td style={{padding:'20px 24px',fontSize:14,color:'#475569'}}
+                          data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkOutDate ? (
                           <div>
-                            <div style={{fontSize:13,fontWeight:600,color:'#1E293B'}}>{formatDate(accommodation.checkOutDate)}</div>
-                            {accommodation.checkOutTime && (
-                              <div style={{fontSize:11,color:'#F59E0B'}}>{accommodation.checkOutTime}</div>
-                            )}
+                            <div style={{fontWeight:500}}>{formatDate(accommodation.checkOutDate)}</div>
+                            {accommodation.checkOutTime && <div style={{fontSize:11,color:'#F59E0B'}}>{accommodation.checkOutTime}</div>}
                           </div>
-                        ) : (
-                          <span style={{color:'#CBD5E1',fontSize:13}}>—</span>
-                        )}
+                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
                       </td>
-                      <td style={{padding:'10px 16px',cursor: isCanceled ? 'default' : 'pointer'}}
-                          data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}
-                          onClick={isCanceled ? undefined : () => handleViewAccommodationDetails(inclusion)}>
+                      {/* Hotel */}
+                      <td style={{padding:'20px 24px'}}
+                          data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
                         {accommodation?.hotelName ? (
                           <div>
-                            <div style={{fontSize:13,fontWeight:700,color:'#1E293B'}}>{accommodation.hotelName}</div>
-                            {accommodation.hotelLocation && (
-                              <div style={{fontSize:11,color:'#94A3B8'}}>{accommodation.hotelLocation}</div>
-                            )}
+                            <p style={{fontSize:14,fontWeight:600,color:'#0F172A',lineHeight:1.2}}>{accommodation.hotelName}</p>
+                            {accommodation.hotelLocation && <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',marginTop:2}}>{accommodation.hotelLocation}</p>}
                           </div>
+                        ) : <span style={{color:'#CBD5E1',fontSize:14}}>—</span>}
+                      </td>
+                      {/* Status */}
+                      <td style={{padding:'20px 24px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
+                        {isCanceled ? (
+                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#F1F5F9',color:'#64748B',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>CANCELADO</span>
+                        ) : hasAccommodation ? (
+                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#DCFCE7',color:'#166534',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>COMPRADA</span>
                         ) : (
-                          <span style={{color:'#CBD5E1',fontSize:13}}>—</span>
+                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#FFEDD5',color:'#7C2D12',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>PENDENTE</span>
                         )}
                       </td>
-                      <td style={{padding:'10px 16px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
-                        <StatusBadge status={inclusion.status} />
-                      </td>
-                      <td style={{padding:'10px 16px'}}>
-                        {hasAccommodation && (
-                          <button
-                            onClick={() => {
-                              setSelectedInclusion(inclusion);
-                              setShowCommentsModal(true);
-                            }}
-                            data-testid={`comments-accommodation-${inclusion.inclusionNumber}`}
-                            style={{display:'flex',alignItems:'center',gap:4,background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,padding:'5px 10px',cursor:'pointer',color:'#64748B',fontSize:13}}
-                          >
-                            <MessageCircle style={{width:14,height:14}} />
-                          </button>
+                      {/* Ações */}
+                      <td style={{padding:'20px 24px',textAlign:'right'}}>
+                        {!isCanceled && (
+                          hasAccommodation ? (
+                            <button
+                              onClick={() => handleViewAccommodationDetails(inclusion)}
+                              data-testid={`view-accommodation-${inclusion.inclusionNumber}`}
+                              style={{padding:'6px 8px',color:'#94A3B8',background:'none',border:'none',cursor:'pointer',borderRadius:8,transition:'color 0.15s'}}
+                              onMouseEnter={e => (e.currentTarget.style.color = '#0033CC')}
+                              onMouseLeave={e => (e.currentTarget.style.color = '#94A3B8')}
+                            >
+                              <span className="material-symbols-outlined" style={{fontSize:20}}>visibility</span>
+                            </button>
+                          ) : canEditField ? (
+                            <button
+                              onClick={() => handleViewAccommodationDetails(inclusion)}
+                              data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
+                              style={{background:'#0033CC',color:'#fff',fontSize:10,fontWeight:700,padding:'8px 16px',borderRadius:8,border:'none',cursor:'pointer',letterSpacing:'0.06em',transition:'background 0.15s'}}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#1D4ED8')}
+                              onMouseLeave={e => (e.currentTarget.style.background = '#0033CC')}
+                            >
+                              COMPRAR
+                            </button>
+                          ) : null
                         )}
                       </td>
                     </tr>
@@ -1514,12 +1531,23 @@ export default function Accommodations() {
                 })}
               </tbody>
             </table>
-            
+
             {filteredData.length === 0 && (
-              <div style={{textAlign:'center',padding:'40px 0',color:'#94A3B8',fontSize:14}} data-testid="no-accommodations">
+              <div style={{textAlign:'center',padding:'48px 0',color:'#94A3B8',fontSize:14}} data-testid="no-accommodations">
                 Nenhuma inclusão com hospedagem encontrada.
               </div>
             )}
+          </div>
+          {/* Table footer / count */}
+          <div style={{padding:'16px 24px',background:'#F8FAFC',borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <p style={{fontSize:10,fontWeight:700,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+              Exibindo {filteredData.length} {filteredData.length === 1 ? 'resultado' : 'resultados'}
+            </p>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:11,color:'#94A3B8',fontWeight:600}}>
+                {purchasedCount} compradas · {pendingCount} pendentes
+              </span>
+            </div>
           </div>
         </div>
 
