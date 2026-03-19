@@ -7,6 +7,7 @@ import { z } from "zod";
 import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
 import StatusBadge from "@/components/common/status-badge";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
+import SimpleFilters from "@/components/common/simple-filters";
 import CommentsModal from "@/components/modals/comments-modal";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
@@ -1352,70 +1353,27 @@ export default function Accommodations() {
       )}
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 grid grid-cols-5 gap-4">
-        <div className="space-y-1">
-          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>ID Reserva</label>
-          <input
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-100"
-            placeholder="Ex: 4412"
-            value={filters.searchId}
-            onChange={e => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
-            data-testid="filter-search-id"
-          />
-        </div>
-        <div className="space-y-1">
-          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Evento</label>
-          <Select value={filters.eventId} onValueChange={v => setFilters(prev => ({ ...prev, eventId: v }))}>
-            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-event">
-              <SelectValue placeholder="Todos os Eventos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Eventos</SelectItem>
-              {events?.map(ev => <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Função</label>
-          <Select
-            value={filters.functionId.length === 1 ? filters.functionId[0] : "all"}
-            onValueChange={v => setFilters(prev => ({ ...prev, functionId: v === "all" ? [] : [v] }))}
-          >
-            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-function">
-              <SelectValue placeholder="Todas as Funções" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Funções</SelectItem>
-              {functions?.map(fn => <SelectItem key={fn.id} value={fn.id}>{fn.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Colaborador</label>
-          <Select value={filters.collaboratorId} onValueChange={v => setFilters(prev => ({ ...prev, collaboratorId: v }))}>
-            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-collaborator">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {collaborators?.map(c => <SelectItem key={c.id} value={c.id}>{fixEncoding(c.fullName)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>Status</label>
-          <Select value={filters.accommodationStatus} onValueChange={v => setFilters(prev => ({ ...prev, accommodationStatus: v }))}>
-            <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50 text-sm" data-testid="filter-status">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="processed">Comprada</SelectItem>
-              <SelectItem value="pending">Pendente</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <SimpleFilters
+        filters={filters}
+        onFiltersChange={(updated) => setFilters(prev => ({ ...prev, ...updated }))}
+        extraItems={[
+          {
+            label: "Status da Hospedagem",
+            element: (
+              <select
+                value={filters.accommodationStatus}
+                onChange={e => setFilters(prev => ({ ...prev, accommodationStatus: e.target.value }))}
+                className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
+                data-testid="filter-status"
+              >
+                <option value="all">Todos</option>
+                <option value="pending">Pendentes</option>
+                <option value="processed">Compradas</option>
+              </select>
+            ),
+          },
+        ]}
+      />
 
       {/* Main Table */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
