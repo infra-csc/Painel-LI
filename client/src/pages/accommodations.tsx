@@ -1384,7 +1384,8 @@ export default function Accommodations() {
                 <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:64}}>ID</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Evento</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Colaborador / Função</th>
-                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Período</th>
+                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:110}}>Check-in</th>
+                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:110}}>Check-out</th>
                 <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Hotel</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Status</th>
                 <th style={{padding:'16px 8px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
@@ -1441,33 +1442,29 @@ export default function Accommodations() {
                           </div>
                         </div>
                       </td>
-                      {/* PERÍODO (Check-in + Check-out) */}
-                      <td style={{padding:'18px 16px',width:180}}
-                          data-testid={`accommodation-period-${inclusion.inclusionNumber}`}>
-                        {(accommodation?.checkInDate || accommodation?.checkOutDate) ? (
-                          <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                            {/* Entrada */}
-                            <div style={{display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontSize:10,fontWeight:700,color:'#3B4FE4',textTransform:'uppercase',letterSpacing:'0.04em',width:42,flexShrink:0}}>Entrada</span>
-                              <span style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>
-                                {accommodation?.checkInDate ? formatDate(accommodation.checkInDate) : '—'}
-                              </span>
-                              {accommodation?.checkInTime && (
-                                <span style={{fontSize:13,fontWeight:700,color:'#3B4FE4'}}>{accommodation.checkInTime}</span>
-                              )}
-                            </div>
-                            {/* Saída */}
-                            <div style={{display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontSize:10,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'0.04em',width:42,flexShrink:0}}>Saída</span>
-                              <span style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>
-                                {accommodation?.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}
-                              </span>
-                              {accommodation?.checkOutTime && (
-                                <span style={{fontSize:13,fontWeight:700,color:'#3B4FE4'}}>{accommodation.checkOutTime}</span>
-                              )}
-                            </div>
+                      {/* Check-in */}
+                      <td style={{padding:'18px 16px',width:110}}
+                          data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
+                        {accommodation?.checkInDate ? (
+                          <div>
+                            <div style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>{formatDate(accommodation.checkInDate)}</div>
+                            {accommodation.checkInTime && (
+                              <div style={{fontSize:13,fontWeight:700,color:'#3B4FE4',marginTop:2}}>{accommodation.checkInTime}</div>
+                            )}
                           </div>
-                        ) : <span style={{color:'#CBD5E1',fontSize:13,fontStyle:'italic'}}>Não informado</span>}
+                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
+                      </td>
+                      {/* Check-out */}
+                      <td style={{padding:'18px 16px',width:110}}
+                          data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
+                        {accommodation?.checkOutDate ? (
+                          <div>
+                            <div style={{fontSize:13,fontWeight:500,color:'#1a1a2e'}}>{formatDate(accommodation.checkOutDate)}</div>
+                            {accommodation.checkOutTime && (
+                              <div style={{fontSize:13,fontWeight:700,color:'#3B4FE4',marginTop:2}}>{accommodation.checkOutTime}</div>
+                            )}
+                          </div>
+                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
                       </td>
                       {/* Hotel */}
                       <td style={{padding:'18px 16px',width:180}}
