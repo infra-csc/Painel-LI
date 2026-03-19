@@ -174,6 +174,13 @@ export default function Tickets() {
     return event?.location || "Destino não informado";
   };
 
+  const toTitleCase = (str: string) => {
+    if (!str) return str;
+    const lower = str.toLowerCase();
+    if (lower === 'não escalado') return 'Não escalado';
+    return lower.replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
   const isDateUrgent = (dateStr: string) => {
     const today = new Date();
     const targetDate = new Date(dateStr);
@@ -1156,20 +1163,20 @@ export default function Tickets() {
                         className="transition-colors group border-b border-slate-100 last:border-0"
                         style={{
                           backgroundColor: inclusion.status === 'cancelado'
-                            ? '#F8FAFC'
+                            ? '#FAFAFA'
                             : ticket
                             ? '#F0FDF4'
-                            : '#FFF7ED'
+                            : '#FFFBF5'
                         }}
                         onMouseEnter={(e) => {
                           (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
                             inclusion.status === 'cancelado' ? '#F1F5F9'
-                            : ticket ? '#DCFCE7' : '#FFEDD5';
+                            : ticket ? '#DCFCE7' : '#FFF3E0';
                         }}
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                            inclusion.status === 'cancelado' ? '#F8FAFC'
-                            : ticket ? '#F0FDF4' : '#FFF7ED';
+                            inclusion.status === 'cancelado' ? '#FAFAFA'
+                            : ticket ? '#F0FDF4' : '#FFFBF5';
                         }}
                       >
                         {/* Checkbox */}
@@ -1197,55 +1204,83 @@ export default function Tickets() {
 
                         {/* Evento / Função */}
                         <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <p className="text-sm font-bold text-slate-900">{getEventName(inclusion.eventId)}</p>
-                          <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{getFunctionName(inclusion.functionId)}</p>
+                          {(() => {
+                            const eventName = getEventName(inclusion.eventId);
+                            const notFound = eventName === 'Evento não encontrado';
+                            return (
+                              <>
+                                {notFound ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-500 text-[11px] font-semibold rounded-md">
+                                    ⚠ Evento não encontrado
+                                  </span>
+                                ) : (
+                                  <p className="text-sm font-bold text-slate-900">{eventName}</p>
+                                )}
+                                <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{getFunctionName(inclusion.functionId)}</p>
+                              </>
+                            );
+                          })()}
                         </td>
 
                         {/* Colaborador — avatar com iniciais */}
                         <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
-                            const name = getCollaboratorName(inclusion.collaboratorId || undefined);
-                            const initials = name === 'Não escalado' ? '?' : name.split(' ').filter(Boolean).slice(0,2).map(n => n[0]).join('').toUpperCase();
+                            const rawName = getCollaboratorName(inclusion.collaboratorId || undefined);
+                            const name = toTitleCase(rawName);
+                            const initials = rawName === 'Não escalado' ? '?' : rawName.split(' ').filter(Boolean).slice(0,2).map(n => n[0]).join('').toUpperCase();
                             return (
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-[#EEF2FF] text-[#0033CC] flex items-center justify-center text-xs font-black shrink-0">{initials}</div>
-                                <span className="text-sm font-semibold text-slate-700 capitalize">{name}</span>
+                                <span className="text-sm font-semibold text-slate-700">{name}</span>
                               </div>
                             );
                           })()}
                         </td>
 
-                        {/* Destino */}
+                        {/* Destino — aeroportos quando comprada */}
                         <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                            <span className="material-symbols-outlined text-slate-400" style={{fontSize:18}}>location_on</span>
-                            {getEventLocation(inclusion.eventId)}
-                          </div>
+                          {ticket && (ticket.departureAirport || ticket.destinationAirport) ? (
+                            <div className="flex flex-col gap-1">
+                              {(ticket.departureAirport || ticket.destinationAirport) && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_takeoff</span>
+                                  <span className="font-black text-slate-800 uppercase tracking-wide">{ticket.departureAirport || '—'}</span>
+                                  <span className="text-slate-300 font-light">→</span>
+                                  <span className="font-black text-slate-800 uppercase tracking-wide">{ticket.destinationAirport || '—'}</span>
+                                </div>
+                              )}
+                              {(ticket.returnOriginAirport || ticket.returnDestinationAirport || ticket.destinationAirport) && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
+                                  <span className="font-black text-slate-800 uppercase tracking-wide">{(ticket as any).returnOriginAirport || ticket.destinationAirport || '—'}</span>
+                                  <span className="text-slate-300 font-light">→</span>
+                                  <span className="font-black text-slate-800 uppercase tracking-wide">{(ticket as any).returnDestinationAirport || ticket.departureAirport || '—'}</span>
+                                </div>
+                              )}
+                              <p className="text-[10px] text-slate-400 mt-0.5">{getEventLocation(inclusion.eventId)}</p>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                              <span className="material-symbols-outlined text-slate-400" style={{fontSize:16}}>location_on</span>
+                              <span>{getEventLocation(inclusion.eventId)}</span>
+                            </div>
+                          )}
                         </td>
 
                         {/* Datas e Horários */}
-                        <td
-                          className={`py-5 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
-                          style={ticket ? {
-                            paddingLeft: '20px',
-                            paddingRight: '20px',
-                            borderLeft: '3px solid #22C55E',
-                            background: 'transparent',
-                          } : { paddingLeft: '24px', paddingRight: '24px' }}
-                          onClick={() => handleViewTicketDetails(inclusion)}
-                        >
+                        <td className={`px-6 py-5 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="flex flex-col gap-1">
                               <span className="text-[10px] font-bold text-[#16A34A] tracking-wide mb-0.5">✓ Passagem confirmada</span>
                               <div className="flex items-center gap-2 text-xs">
-                                <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:14}}>flight_takeoff</span>
-                                <span className="font-bold text-[#166534]">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
-                                {ticket.actualDepartureTime && <span className="text-[#4ADE80] font-medium">{ticket.actualDepartureTime}</span>}
+                                <span className="material-symbols-outlined text-[#16A34A]" style={{fontSize:13}}>flight_takeoff</span>
+                                <span className="font-bold text-slate-700">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
+                                {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
                               </div>
                               <div className="flex items-center gap-2 text-xs">
-                                <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:14}}>flight_land</span>
-                                <span className="font-bold text-[#166534]">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : '—'}</span>
-                                {ticket.actualReturnTime && <span className="text-[#4ADE80] font-medium">{ticket.actualReturnTime}</span>}
+                                <span className="material-symbols-outlined text-[#22C55E]" style={{fontSize:13}}>flight_land</span>
+                                <span className="font-bold text-slate-700">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : '—'}</span>
+                                {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}</span>}
                               </div>
                             </div>
                           ) : (
@@ -1264,26 +1299,30 @@ export default function Tickets() {
                             }
                             return (
                               <div
-                                className="inline-flex flex-col gap-1 px-2.5 py-2 rounded-xl border border-amber-200 cursor-help"
-                                style={{background:'#FEFCE8'}}
+                                className="flex flex-col gap-1 px-2.5 py-2 rounded-xl border border-amber-200 cursor-help"
+                                style={{background:'#FEFCE8', minWidth:'160px'}}
                                 title="Horário sugerido — ainda não confirmado"
                               >
                                 <div className="flex items-center gap-1 mb-0.5">
-                                  <span className="material-symbols-outlined text-[#D97706]" style={{fontSize:12}}>schedule</span>
+                                  <span className="material-symbols-outlined text-[#D97706]" style={{fontSize:11}}>schedule</span>
                                   <span className="text-[9px] font-black uppercase tracking-widest text-[#D97706]">Sugestão</span>
                                 </div>
                                 {!idaVazia && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <span className="material-symbols-outlined text-[#D97706]" style={{fontSize:12}}>flight_takeoff</span>
-                                    <span className="font-semibold text-[#92400E]">{formatSuggestionDate(travelInfo.ida)}</span>
-                                    {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <span className="text-amber-500 text-[11px]">{travelInfo.chegada}</span>}
+                                  <div className="flex items-center gap-1 text-xs flex-nowrap">
+                                    <span className="material-symbols-outlined text-[#D97706] shrink-0" style={{fontSize:11}}>flight_takeoff</span>
+                                    <span className="font-semibold text-[#92400E] whitespace-nowrap">{formatSuggestionDate(travelInfo.ida)}</span>
+                                    {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && (
+                                      <span className="text-amber-500 whitespace-nowrap ml-1">{travelInfo.chegada}</span>
+                                    )}
                                   </div>
                                 )}
                                 {!voltaVazia && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <span className="material-symbols-outlined text-[#D97706]" style={{fontSize:12}}>flight_land</span>
-                                    <span className="font-semibold text-[#92400E]">{formatSuggestionDate(travelInfo.retorno)}</span>
-                                    {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <span className="text-amber-500 text-[11px]">{travelInfo.horario}</span>}
+                                  <div className="flex items-center gap-1 text-xs flex-nowrap">
+                                    <span className="material-symbols-outlined text-[#D97706] shrink-0" style={{fontSize:11}}>flight_land</span>
+                                    <span className="font-semibold text-[#92400E] whitespace-nowrap">{formatSuggestionDate(travelInfo.retorno)}</span>
+                                    {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && (
+                                      <span className="text-amber-500 whitespace-nowrap ml-1">{travelInfo.horario}</span>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -1294,15 +1333,15 @@ export default function Tickets() {
                         {/* Status */}
                         <td className={`px-6 py-5 cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {inclusion.status === 'cancelado' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full border border-slate-200">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full">
                               Cancelado
                             </span>
                           ) : ticket ? (
-                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#16A34A] text-white text-[11px] font-black uppercase rounded-full shadow-sm shadow-green-200">
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#DCFCE7] text-[#166534] text-[11px] font-black uppercase rounded-full">
                               <CheckCircle className="w-3 h-3" /> Comprada
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-[#EA580C] text-[11px] font-black uppercase rounded-full border-2 border-[#F97316]">
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FFEDD5] text-[#C2410C] text-[11px] font-black uppercase rounded-full">
                               <Clock className="w-3 h-3" /> Pendente
                             </span>
                           )}
