@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Norte Meridian - Registro Rápido em Lote</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-surface": "#1e293b",
+                        "on-primary-container": "#ffffff",
+                        "error-container": "#fee2e2",
+                        "on-tertiary-fixed": "#064e3b",
+                        "secondary-container": "#ff4d00",
+                        "on-tertiary-fixed-variant": "#15803d",
+                        "on-secondary-fixed-variant": "#ea580c",
+                        "error": "#ef4444",
+                        "on-surface": "#0f172a",
+                        "surface-container-low": "#f8fafc",
+                        "tertiary": "#22c55e",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#cbd5e1",
+                        "on-secondary-fixed": "#7c2d12",
+                        "on-error-container": "#991b1b",
+                        "surface-dim": "#f1f5f9",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#f1f5f9",
+                        "outline": "#e2e8f0",
+                        "secondary-fixed-dim": "#fed7aa",
+                        "on-error": "#ffffff",
+                        "secondary": "#ff4d00",
+                        "surface-tint": "#0033CC",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dbeafe",
+                        "surface": "#ffffff",
+                        "on-primary-fixed": "#1e3a8a",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed-dim": "#bbf7d0",
+                        "tertiary-fixed": "#dcfce7",
+                        "surface-variant": "#f1f5f9",
+                        "inverse-on-surface": "#f8fafc",
+                        "surface-container-high": "#e2e8f0",
+                        "primary-fixed-dim": "#bfdbfe",
+                        "inverse-primary": "#94a3b8",
+                        "tertiary-container": "#dcfce7",
+                        "surface-bright": "#ffffff",
+                        "on-surface-variant": "#64748b",
+                        "background": "#f8fafc",
+                        "on-background": "#0f172a",
+                        "secondary-fixed": "#ffedd5",
+                        "primary-container": "#0033CC",
+                        "primary": "#0033CC",
+                        "on-primary-fixed-variant": "#1d4ed8",
+                        "outline-variant": "#cbd5e1",
+                        "on-secondary-container": "#ffffff",
+                        "on-tertiary-container": "#166534"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px", "3xl": "1.5rem"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen flex">
+<!-- Sidebar Navigation -->
+<aside class="h-screen w-64 border-r border-slate-200 dark:border-slate-800 bg-surface dark:bg-slate-900 fixed left-0 top-0 z-50 flex flex-col p-4 space-y-2">
+<div class="flex items-center space-x-3 px-2 mb-8 mt-2">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-xl shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white" data-icon="flight_takeoff">flight_takeoff</span>
+</div>
+<div>
+<h1 class="text-[#0033CC] font-black text-lg leading-none tracking-tight">Norte Meridian</h1>
+<p class="text-[10px] text-on-surface-variant font-medium tracking-widest uppercase mt-1">Logística de Precisão</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-[0.15em] px-3 mb-2 mt-6">Menu Principal</div>
+<a class="flex items-center space-x-3 px-4 py-3 text-slate-500 hover:bg-slate-50 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="folder_shared">folder_shared</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">CADASTROS</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 bg-blue-50 text-[#0033CC] rounded-xl transition-all font-bold" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="flight_takeoff" style="font-variation-settings: 'FILL' 1;">flight_takeoff</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">OPERACIONAL</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-slate-500 hover:bg-slate-50 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="payments">payments</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">FINANCEIRO</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-slate-500 hover:bg-slate-50 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="analytics">analytics</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">GESTÃO</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-slate-100 flex flex-col space-y-1">
+<a class="flex items-center space-x-3 px-4 py-3 text-slate-500 hover:bg-slate-50 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">Configurações</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-error/80 hover:bg-error/5 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="logout">logout</span>
+<span class="font-['Inter'] uppercase tracking-widest text-[11px] font-semibold">Sair</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- Top Navbar -->
+<header class="flex justify-between items-center h-16 px-8 w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+<div class="flex items-center space-x-4">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-[18px]" data-icon="search">search</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400" placeholder="Buscar registros..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-50 text-slate-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-50 text-slate-600 transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<div class="flex items-center space-x-3 pl-2">
+<div class="text-right">
+<p class="text-xs font-bold text-on-surface">Admin Global</p>
+<p class="text-[10px] text-on-surface-variant font-semibold tracking-wider">NORTE_01</p>
+</div>
+<img class="w-9 h-9 rounded-full border-2 border-primary/20 object-cover" data-alt="User profile photo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpP0BZMRz9i_gv9_4HlpNFC2D-XPsDQrDWeKwzpIcE14O87kwhG9N0MiX7ap_Np6oRmy3W0uT0Xo7N0HgrE6YKEBk8CfTNk08wzCGI3z1T-e-roqXeVBqY55jTEN7hkb6hK4UrfJJ8AWRudwX3h8sRJn4dDkRS7Rq48qilo8dP7sisXZBunTZTy2Pt2WFO7zw4D05_M3GXPhgk-s0AFtONulocNc9SSRbkq4BzNMRpD_uq3vLGYWSt83dj146iauSb9p2I_sVK440"/>
+</div>
+</div>
+</header>
+<!-- Page Header -->
+<div class="px-8 pt-8 pb-4">
+<div class="flex items-center space-x-5">
+<div class="w-14 h-14 bg-primary/5 text-primary flex items-center justify-center rounded-2xl">
+<span class="material-symbols-outlined text-[32px]" data-icon="inventory_2">inventory_2</span>
+</div>
+<div>
+<h2 class="text-[1.875rem] font-bold tracking-tight text-on-surface">Registro Rápido em Lote</h2>
+<p class="text-on-surface-variant text-sm font-medium">Insira os dados da operação aérea para múltiplos passageiros simultaneamente.</p>
+</div>
+</div>
+</div>
+<!-- Form Canvas -->
+<div class="px-8 pb-24 grid grid-cols-12 gap-6">
+<!-- Left Column -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<!-- Financial Data -->
+<section class="bg-surface rounded-3xl shadow-sm border border-outline p-6">
+<div class="flex items-center space-x-2 mb-6">
+<span class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Dados Financeiros</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-tight">Valor Total (R$)</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 px-4 font-bold text-on-surface" placeholder="0,00" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-tight">LOC / Reserva</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 px-4 uppercase font-mono" placeholder="Ex: AX782Q" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-tight">Data da Compra</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 px-4" type="date"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-tight">Cartão (Final 4)</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl focus:ring-4 focus:ring-primary/10 px-4" maxlength="4" placeholder="0000" type="text"/>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Outbound Flight -->
+<section class="bg-surface rounded-3xl shadow-sm border border-outline p-6">
+<div class="flex items-center space-x-2 mb-6">
+<span class="material-symbols-outlined text-primary" data-icon="flight_takeoff" style="font-variation-settings: 'FILL' 1;">flight_takeoff</span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Trecho de Ida</h3>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="col-span-2 space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Cidade Origem</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" placeholder="Ex: São Paulo" type="text"/>
+</div>
+<div class="col-span-2 space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Cidade Destino</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" placeholder="Ex: Manaus" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">IATA Origem</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4 font-bold" placeholder="GRU" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">IATA Destino</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4 font-bold" placeholder="MAO" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Data Partida</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" type="date"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Horário</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" type="time"/>
+</div>
+</div>
+</section>
+<!-- Inbound Flight -->
+<section class="bg-surface rounded-3xl shadow-sm border border-outline p-6">
+<div class="flex items-center space-x-2 mb-6">
+<span class="material-symbols-outlined text-secondary" data-icon="flight_land" style="font-variation-settings: 'FILL' 1;">flight_land</span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Trecho de Volta</h3>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="col-span-2 space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Cidade Origem</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" placeholder="Ex: Manaus" type="text"/>
+</div>
+<div class="col-span-2 space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Cidade Destino</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" placeholder="Ex: São Paulo" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">IATA Origem</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4 font-bold" placeholder="MAO" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">IATA Destino</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4 font-bold" placeholder="GRU" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Data Retorno</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" type="date"/>
+</div>
+<div class="space-y-2">
+<label class="block text-xs font-semibold text-slate-600 uppercase">Horário</label>
+<input class="w-full h-12 bg-slate-50 border-outline rounded-xl px-4" type="time"/>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Right Column -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<!-- Attachments -->
+<section class="bg-surface rounded-3xl shadow-sm border border-outline p-6">
+<div class="flex items-center space-x-2 mb-6">
+<span class="material-symbols-outlined text-primary" data-icon="attachment">attachment</span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Anexos</h3>
+</div>
+<div class="border-2 border-dashed border-outline rounded-2xl p-8 text-center bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-slate-400 text-[40px] group-hover:text-primary transition-colors" data-icon="cloud_upload">cloud_upload</span>
+<p class="mt-4 text-sm font-semibold text-on-surface">Arraste arquivos aqui</p>
+<p class="text-xs text-on-surface-variant mt-1">Ou clique para escolher arquivo</p>
+<p class="text-[10px] text-slate-400 mt-4 uppercase tracking-tighter">PDF, PNG, JPG (MAX 10MB)</p>
+</div>
+</section>
+<!-- Observations -->
+<section class="bg-surface rounded-3xl shadow-sm border border-outline p-6">
+<div class="flex items-center space-x-2 mb-4">
+<span class="material-symbols-outlined text-primary" data-icon="notes">notes</span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Observações (Opcional)</h3>
+</div>
+<textarea class="w-full bg-slate-50 border-outline rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-primary/10 transition-all" placeholder="Adicione notas relevantes sobre este lote de passagens..." rows="4"></textarea>
+</section>
+<!-- Quick Selection Status -->
+<div class="bg-[#0033CC]/5 border border-primary/20 rounded-3xl p-6">
+<h4 class="text-[11px] font-bold text-primary uppercase tracking-[0.2em] mb-4">Status da Operação</h4>
+<ul class="space-y-3">
+<li class="flex items-center space-x-3">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-xs font-medium text-slate-700">Validação de campos OK</span>
+</li>
+<li class="flex items-center space-x-3">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-xs font-medium text-slate-700">Arquivos processados (0)</span>
+</li>
+<li class="flex items-center space-x-3">
+<div class="w-2 h-2 rounded-full bg-slate-300"></div>
+<span class="text-xs font-medium text-slate-400">Aguardando confirmação</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Sticky Footer Summary -->
+<footer class="fixed bottom-0 left-64 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-8 py-4 z-40">
+<div class="max-w-7xl mx-auto flex items-center justify-between">
+<div class="flex items-center space-x-8">
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Passageiros Selecionados</span>
+<div class="flex items-center space-x-2 mt-1">
+<span class="text-xl font-black text-on-surface">12</span>
+<span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">BATCH_029</span>
+</div>
+</div>
+<div class="h-10 w-[1px] bg-slate-200"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Custo Total Est.</span>
+<div class="flex items-center space-x-2 mt-1">
+<span class="text-xl font-black text-[#0033CC]">R$ 14.850,20</span>
+<span class="material-symbols-outlined text-tertiary text-[16px]" data-icon="trending_up">trending_up</span>
+</div>
+</div>
+<div class="h-10 w-[1px] bg-slate-200"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Batch</span>
+<div class="flex items-center space-x-2 mt-1">
+<span class="px-3 py-1 bg-tertiary-fixed text-on-tertiary-container rounded-full text-[10px] font-bold uppercase tracking-wider">Pronto p/ Processar</span>
+</div>
+</div>
+</div>
+<button class="bg-primary hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-xl shadow-xl shadow-primary/25 active:scale-95 transition-all flex items-center space-x-3">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+<span class="uppercase tracking-widest text-sm">Aplicar a 12 passagens</span>
+</button>
+</div>
+</footer>
+</main>
+</body></html>
