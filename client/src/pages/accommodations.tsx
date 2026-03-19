@@ -1539,11 +1539,12 @@ export default function Accommodations() {
                             <button
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
-                              style={{background:'transparent',color:'#0033CC',fontSize:10,fontWeight:700,padding:'7px 16px',borderRadius:8,border:'1.5px solid #0033CC',cursor:'pointer',letterSpacing:'0.06em',transition:'all 0.15s'}}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#EFF6FF'; }}
+                              style={{background:'transparent',color:'#7C3AED',fontSize:10,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'1.5px solid #7C3AED',cursor:'pointer',letterSpacing:'0.04em',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F3FF'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                             >
-                              COMPRAR
+                              <span className="material-symbols-outlined" style={{fontSize:14,fontVariationSettings:"'FILL' 1"}}>bed</span>
+                              Registrar hospedagem
                             </button>
                           ) : null
                         )}

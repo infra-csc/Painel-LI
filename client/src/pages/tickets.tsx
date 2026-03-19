@@ -1445,6 +1445,7 @@ export default function Tickets() {
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Voos Sugeridos</th>
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1643,6 +1644,34 @@ export default function Tickets() {
                             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FFEDD5] text-[#C2410C] text-[11px] font-black uppercase rounded-full">
                               <Clock className="w-3 h-3" /> Pendente
                             </span>
+                          )}
+                        </td>
+
+                        {/* Ações */}
+                        <td className="px-6 py-5 text-right whitespace-nowrap">
+                          {inclusion.status !== 'cancelado' && (
+                            ticket ? (
+                              <button
+                                onClick={() => handleViewTicketDetails(inclusion)}
+                                data-testid={`view-ticket-${inclusion.inclusionNumber}`}
+                                style={{padding:'6px 8px',color:'#94A3B8',background:'none',border:'none',cursor:'pointer',borderRadius:8,transition:'color 0.15s'}}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#0033CC')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#94A3B8')}
+                              >
+                                <Eye className="w-5 h-5" />
+                              </button>
+                            ) : canEditScreen(user, "tickets") ? (
+                              <button
+                                onClick={() => handleViewTicketDetails(inclusion)}
+                                data-testid={`buy-ticket-${inclusion.inclusionNumber}`}
+                                style={{background:'transparent',color:'#7C3AED',fontSize:10,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'1.5px solid #7C3AED',cursor:'pointer',letterSpacing:'0.04em',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F3FF'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                              >
+                                <Plane className="w-3.5 h-3.5" />
+                                Registrar passagem
+                              </button>
+                            ) : null
                           )}
                         </td>
                       </tr>
