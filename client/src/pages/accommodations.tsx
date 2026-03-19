@@ -1381,12 +1381,11 @@ export default function Accommodations() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-200">
-                <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:72}}>ID</th>
+                <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:64}}>ID</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Evento</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Colaborador / Função</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Check-in</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Check-out</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Hotel</th>
+                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:220}}>Período</th>
+                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Hotel</th>
                 <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Status</th>
                 <th style={{padding:'16px 8px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
               </tr>
@@ -1419,18 +1418,15 @@ export default function Accommodations() {
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
                     >
                       {/* ID */}
-                      <td style={{padding:'18px 12px',width:72}}>
-                        <span style={{fontSize:11,fontWeight:700,color:'#3B4FE4'}}>
-                          #
-                        </span>
-                        <span style={{fontSize:12,fontWeight:600,color:'#64748B',marginLeft:1}}>
-                          {inclusion.inclusionNumber || 'N/A'}
+                      <td style={{padding:'18px 12px',width:64}}>
+                        <span style={{display:'inline-block',background:'#EEF2FF',color:'#3B4FE4',fontSize:13,fontWeight:600,borderRadius:6,padding:'4px 8px',whiteSpace:'nowrap'}}>
+                          #{inclusion.inclusionNumber || 'N/A'}
                         </span>
                       </td>
                       {/* Evento */}
-                      <td style={{padding:'18px 24px',fontSize:14,fontWeight:600,color:'#1a1a2e'}}
+                      <td style={{padding:'18px 16px',maxWidth:180}}
                           data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
-                        {event?.name || '—'}
+                        <p style={{fontSize:14,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:172}}>{event?.name || '—'}</p>
                       </td>
                       {/* Colaborador / Função */}
                       <td style={{padding:'18px 24px'}}
@@ -1445,38 +1441,47 @@ export default function Accommodations() {
                           </div>
                         </div>
                       </td>
-                      {/* Check-in */}
-                      <td style={{padding:'20px 24px',fontSize:14,color:'#475569'}}
-                          data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
-                        {accommodation?.checkInDate ? (
-                          <div>
-                            <div style={{fontWeight:500}}>{formatDate(accommodation.checkInDate)}</div>
-                            {accommodation.checkInTime && <div style={{fontSize:11,color:'#0033CC'}}>{accommodation.checkInTime}</div>}
-                          </div>
-                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
-                      </td>
-                      {/* Check-out */}
-                      <td style={{padding:'20px 24px',fontSize:14,color:'#475569'}}
-                          data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
-                        {accommodation?.checkOutDate ? (
-                          <div>
-                            <div style={{fontWeight:500}}>{formatDate(accommodation.checkOutDate)}</div>
-                            {accommodation.checkOutTime && <div style={{fontSize:11,color:'#F59E0B'}}>{accommodation.checkOutTime}</div>}
-                          </div>
-                        ) : <span style={{color:'#CBD5E1'}}>—</span>}
-                      </td>
-                      {/* Hotel */}
-                      <td style={{padding:'20px 24px'}}
-                          data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
-                        {accommodation?.hotelName ? (
-                          <div style={{display:'flex',alignItems:'center',gap:8}}>
-                            <span className="material-symbols-outlined" style={{fontSize:16,color:'#94A3B8',flexShrink:0,fontVariationSettings:"'FILL' 1"}}>bed</span>
-                            <div>
-                              <p style={{fontSize:14,fontWeight:600,color:'#0F172A',lineHeight:1.2}}>{accommodation.hotelName}</p>
-                              {accommodation.hotelLocation && <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',marginTop:2}}>{accommodation.hotelLocation}</p>}
+                      {/* PERÍODO (Check-in + Check-out) */}
+                      <td style={{padding:'18px 16px',width:220}}
+                          data-testid={`accommodation-period-${inclusion.inclusionNumber}`}>
+                        {(accommodation?.checkInDate || accommodation?.checkOutDate) ? (
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'nowrap'}}>
+                            {/* Check-in */}
+                            <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
+                              <span style={{fontSize:13,color:'#374151'}}>
+                                {accommodation?.checkInDate ? formatDate(accommodation.checkInDate) : '—'}
+                              </span>
+                              {accommodation?.checkInTime && (
+                                <span style={{fontSize:12,fontWeight:600,color:'#3B4FE4'}}>{accommodation.checkInTime}</span>
+                              )}
+                            </div>
+                            <span style={{color:'#CBD5E1',fontSize:14,fontWeight:400,flexShrink:0}}>→</span>
+                            {/* Check-out */}
+                            <div style={{display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
+                              <span style={{fontSize:13,color:'#374151'}}>
+                                {accommodation?.checkOutDate ? formatDate(accommodation.checkOutDate) : '—'}
+                              </span>
+                              {accommodation?.checkOutTime && (
+                                <span style={{fontSize:12,fontWeight:600,color:'#3B4FE4'}}>{accommodation.checkOutTime}</span>
+                              )}
                             </div>
                           </div>
-                        ) : <span style={{color:'#CBD5E1',fontSize:14}}>—</span>}
+                        ) : <span style={{color:'#CBD5E1',fontSize:13,fontStyle:'italic'}}>Não informado</span>}
+                      </td>
+                      {/* Hotel */}
+                      <td style={{padding:'18px 16px',width:180}}
+                          data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
+                        {accommodation?.hotelName ? (
+                          <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                            <span className="material-symbols-outlined" style={{fontSize:16,color:'#3B4FE4',flexShrink:0,marginTop:2,fontVariationSettings:"'FILL' 1"}}>bed</span>
+                            <div style={{overflow:'hidden'}}>
+                              <p style={{fontSize:14,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:148}}>{accommodation.hotelName}</p>
+                              {accommodation.hotelLocation
+                                ? <p style={{fontSize:11,color:'#94A3B8',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:148}}>{accommodation.hotelLocation}</p>
+                                : null}
+                            </div>
+                          </div>
+                        ) : <span style={{color:'#CBD5E1',fontSize:13,fontStyle:'italic'}}>Não informado</span>}
                       </td>
                       {/* Status */}
                       <td style={{padding:'18px 24px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
@@ -1507,9 +1512,9 @@ export default function Accommodations() {
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
                               title="Registrar hospedagem"
-                              style={{width:32,height:32,borderRadius:'50%',background:'#F5F3FF',color:'#7C3AED',border:'1.5px solid #DDD6FE',display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.15s'}}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#7C3AED'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F5F3FF'; (e.currentTarget as HTMLButtonElement).style.color='#7C3AED'; }}
+                              style={{width:32,height:32,borderRadius:8,background:'#EEF2FF',color:'#3B4FE4',border:'none',display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.15s'}}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#3B4FE4'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
                             >
                               <span className="material-symbols-outlined" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>bed</span>
                             </button>
