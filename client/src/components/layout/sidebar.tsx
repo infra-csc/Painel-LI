@@ -54,7 +54,7 @@ const allTabs = [
   // Operacional
   { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",           iconColor: ORANGE70,     permission: "canAccessScreen1"     as const },
   { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",      iconColor: BLUE70,       permission: "canAccessScreen2"     as const },
-  { id: "tickets",           path: "/tickets",           label: "Compra de Passagem",    icon: "confirmation_number", iconColor: ORANGE70,     permission: "canAccessScreen3"     as const },
+  { id: "tickets",           path: "/tickets",           label: "Passagem",    icon: "confirmation_number", iconColor: ORANGE70,     permission: "canAccessScreen3"     as const },
   { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                 iconColor: BLUE70,       permission: "canAccessScreen3"     as const },
   // Financeiro
   { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",     iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
