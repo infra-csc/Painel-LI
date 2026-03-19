@@ -1381,11 +1381,14 @@ export default function Accommodations() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-200">
-                {(['ID','Evento','Colaborador / Função','Check-in','Check-out','Hotel','Status','Ações'] as const).map(label => (
-                  <th key={label} style={{padding:'16px 24px',fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',whiteSpace:'nowrap', textAlign: label === 'Ações' ? 'right' : 'left'}}>
-                    {label}
-                  </th>
-                ))}
+                <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:72}}>ID</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Evento</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Colaborador / Função</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Check-in</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Check-out</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Hotel</th>
+                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Status</th>
+                <th style={{padding:'16px 8px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1416,24 +1419,29 @@ export default function Accommodations() {
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
                     >
                       {/* ID */}
-                      <td style={{padding:'20px 24px'}}>
-                        <span style={{fontFamily:'monospace',fontSize:12,color:'#94A3B8'}}>#{inclusion.inclusionNumber || 'N/A'}</span>
+                      <td style={{padding:'18px 12px',width:72}}>
+                        <span style={{fontSize:11,fontWeight:700,color:'#3B4FE4'}}>
+                          #
+                        </span>
+                        <span style={{fontSize:12,fontWeight:600,color:'#64748B',marginLeft:1}}>
+                          {inclusion.inclusionNumber || 'N/A'}
+                        </span>
                       </td>
                       {/* Evento */}
-                      <td style={{padding:'20px 24px',fontSize:14,fontWeight:600,color:'#0F172A'}}
+                      <td style={{padding:'18px 24px',fontSize:14,fontWeight:600,color:'#1a1a2e'}}
                           data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
                         {event?.name || '—'}
                       </td>
                       {/* Colaborador / Função */}
-                      <td style={{padding:'20px 24px'}}
+                      <td style={{padding:'18px 24px'}}
                           data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}>
                         <div style={{display:'flex',alignItems:'center',gap:12}}>
-                          <div style={{width:32,height:32,borderRadius:'50%',background:'#F1F5F9',color:'#475569',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,border:'1px solid #E2E8F0',flexShrink:0}}>
+                          <div style={{width:36,height:36,borderRadius:'50%',background:'#E8EFFE',color:'#3B4FE4',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
                             {collaborator ? colNameInitials : '?'}
                           </div>
                           <div>
-                            <p style={{fontSize:14,fontWeight:700,color:'#0F172A',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
-                            <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>{func?.name || '—'}</p>
+                            <p style={{fontSize:14,fontWeight:500,color:'#1a1a2e',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
+                            <p style={{fontSize:12,color:'#999',marginTop:2}}>{func?.name || '—'}</p>
                           </div>
                         </div>
                       </td>
@@ -1471,38 +1479,39 @@ export default function Accommodations() {
                         ) : <span style={{color:'#CBD5E1',fontSize:14}}>—</span>}
                       </td>
                       {/* Status */}
-                      <td style={{padding:'20px 24px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
+                      <td style={{padding:'18px 24px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
                         {isCanceled ? (
-                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#F1F5F9',color:'#64748B',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>CANCELADO</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#F1F5F9',color:'#64748B',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>CANCELADO</span>
                         ) : hasAccommodation ? (
-                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#DCFCE7',color:'#166534',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>COMPRADA</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#DCFCE7',color:'#16A34A',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>✓ COMPRADA</span>
                         ) : (
-                          <span style={{display:'inline-flex',alignItems:'center',padding:'4px 12px',borderRadius:9999,background:'#FFEDD5',color:'#7C2D12',fontSize:10,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>PENDENTE</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#FEF3C7',color:'#D97706',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>⏱ PENDENTE</span>
                         )}
                       </td>
-                      {/* Ações */}
-                      <td style={{padding:'20px 24px',textAlign:'right'}}>
+                      {/* Ações — ícone-apenas, largura 72px centrado */}
+                      <td style={{padding:'18px 8px',textAlign:'center',width:72}}>
                         {!isCanceled && (
                           hasAccommodation ? (
                             <button
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`view-accommodation-${inclusion.inclusionNumber}`}
-                              style={{padding:'6px 8px',color:'#94A3B8',background:'none',border:'none',cursor:'pointer',borderRadius:8,transition:'color 0.15s'}}
-                              onMouseEnter={e => (e.currentTarget.style.color = '#0033CC')}
-                              onMouseLeave={e => (e.currentTarget.style.color = '#94A3B8')}
+                              title="Visualizar hospedagem"
+                              style={{width:32,height:32,borderRadius:'50%',background:'#F1F5F9',color:'#94A3B8',display:'inline-flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',transition:'all 0.15s'}}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F1F5F9'; (e.currentTarget as HTMLButtonElement).style.color='#94A3B8'; }}
                             >
-                              <span className="material-symbols-outlined" style={{fontSize:20}}>visibility</span>
+                              <Eye className="w-4 h-4" />
                             </button>
                           ) : canEditField ? (
                             <button
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
-                              style={{background:'transparent',color:'#7C3AED',fontSize:10,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'1.5px solid #7C3AED',cursor:'pointer',letterSpacing:'0.04em',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F3FF'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                              title="Registrar hospedagem"
+                              style={{width:32,height:32,borderRadius:'50%',background:'#F5F3FF',color:'#7C3AED',border:'1.5px solid #DDD6FE',display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.15s'}}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#7C3AED'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F5F3FF'; (e.currentTarget as HTMLButtonElement).style.color='#7C3AED'; }}
                             >
-                              <span className="material-symbols-outlined" style={{fontSize:14,fontVariationSettings:"'FILL' 1"}}>bed</span>
-                              Registrar hospedagem
+                              <span className="material-symbols-outlined" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>bed</span>
                             </button>
                           ) : null
                         )}

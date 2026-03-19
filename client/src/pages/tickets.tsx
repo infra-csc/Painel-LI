@@ -1429,7 +1429,7 @@ export default function Tickets() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <th className="px-4 py-4 w-10">
                       <input
                         type="checkbox"
                         checked={selectedTickets.length > 0}
@@ -1438,14 +1438,14 @@ export default function Tickets() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
-                    <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
+                    <th className="px-4 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] w-[72px]">ID</th>
                     <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destino</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888]">Destino</th>
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Voos Sugeridos</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888]">Voos Sugeridos</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] text-center">Status</th>
+                    <th className="py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] text-center w-[72px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1478,8 +1478,8 @@ export default function Tickets() {
                             : ticket ? '#F0FDF4' : '#FFFBF5';
                         }}
                       >
-                        {/* Checkbox */}
-                        <td className="px-6 py-5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {/* Checkbox — só para PENDENTES */}
+                        <td className="px-4 py-[18px] whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
                             <input
                               type="checkbox"
@@ -1494,11 +1494,9 @@ export default function Tickets() {
                         </td>
 
                         {/* ID */}
-                        <td className={`px-8 py-5 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-[#0033CC]">#{inclusion.inclusionNumber || 'N/A'}</span>
-                            <Eye className={`w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity ${inclusion.status === 'cancelado' ? 'text-slate-300' : 'text-slate-400'}`} />
-                          </div>
+                        <td className={`px-4 py-[18px] whitespace-nowrap w-[72px] ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                          <span className="text-[11px] font-bold text-[#3B4FE4]">#</span>
+                          <span className="text-[12px] font-semibold text-slate-500 ml-0.5">{inclusion.inclusionNumber || 'N/A'}</span>
                         </td>
 
                         {/* Evento / Função */}
@@ -1522,15 +1520,15 @@ export default function Tickets() {
                         </td>
 
                         {/* Colaborador — avatar com iniciais */}
-                        <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-6 py-[18px] cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const rawName = getCollaboratorName(inclusion.collaboratorId || undefined);
                             const name = toTitleCase(rawName);
                             const initials = rawName === 'Não escalado' ? '?' : rawName.split(' ').filter(Boolean).slice(0,2).map(n => n[0]).join('').toUpperCase();
                             return (
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-[#EEF2FF] text-[#0033CC] flex items-center justify-center text-xs font-black shrink-0">{initials}</div>
-                                <span className="text-sm font-semibold text-slate-700">{name}</span>
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{background:'#E8EFFE',color:'#3B4FE4'}}>{initials}</div>
+                                <span className="text-[14px] font-[500] text-[#1a1a2e]">{name}</span>
                               </div>
                             );
                           })()}
@@ -1631,45 +1629,48 @@ export default function Tickets() {
                         </td>
 
                         {/* Status */}
-                        <td className={`px-6 py-5 cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-6 py-[18px] cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {inclusion.status === 'cancelado' ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full">
                               Cancelado
                             </span>
                           ) : ticket ? (
-                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#DCFCE7] text-[#166534] text-[11px] font-black uppercase rounded-full">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase rounded-full" style={{background:'#DCFCE7',color:'#16A34A'}}>
                               <CheckCircle className="w-3 h-3" /> Comprada
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FFEDD5] text-[#C2410C] text-[11px] font-black uppercase rounded-full">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase rounded-full" style={{background:'#FEF3C7',color:'#D97706'}}>
                               <Clock className="w-3 h-3" /> Pendente
                             </span>
                           )}
                         </td>
 
-                        {/* Ações */}
-                        <td className="px-6 py-5 text-right whitespace-nowrap">
+                        {/* Ações — ícone-apenas, largura fixa 72px */}
+                        <td className="py-[18px] text-center whitespace-nowrap w-[72px]">
                           {inclusion.status !== 'cancelado' && (
                             ticket ? (
                               <button
                                 onClick={() => handleViewTicketDetails(inclusion)}
                                 data-testid={`view-ticket-${inclusion.inclusionNumber}`}
-                                style={{padding:'6px 8px',color:'#94A3B8',background:'none',border:'none',cursor:'pointer',borderRadius:8,transition:'color 0.15s'}}
-                                onMouseEnter={e => (e.currentTarget.style.color = '#0033CC')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#94A3B8')}
+                                title="Visualizar passagem"
+                                className="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors"
+                                style={{background:'#F1F5F9',color:'#94A3B8'}}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#EEF2FF'; (e.currentTarget as HTMLButtonElement).style.color='#3B4FE4'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F1F5F9'; (e.currentTarget as HTMLButtonElement).style.color='#94A3B8'; }}
                               >
-                                <Eye className="w-5 h-5" />
+                                <Eye className="w-4 h-4" />
                               </button>
                             ) : canEditScreen(user, "tickets") ? (
                               <button
                                 onClick={() => handleViewTicketDetails(inclusion)}
                                 data-testid={`buy-ticket-${inclusion.inclusionNumber}`}
-                                style={{background:'transparent',color:'#7C3AED',fontSize:10,fontWeight:700,padding:'7px 14px',borderRadius:8,border:'1.5px solid #7C3AED',cursor:'pointer',letterSpacing:'0.04em',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F3FF'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                                title="Registrar passagem"
+                                className="w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-colors"
+                                style={{background:'#F5F3FF',color:'#7C3AED',border:'1.5px solid #DDD6FE'}}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='#7C3AED'; (e.currentTarget as HTMLButtonElement).style.color='#fff'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='#F5F3FF'; (e.currentTarget as HTMLButtonElement).style.color='#7C3AED'; }}
                               >
-                                <Plane className="w-3.5 h-3.5" />
-                                Registrar passagem
+                                <Plane className="w-4 h-4" />
                               </button>
                             ) : null
                           )}

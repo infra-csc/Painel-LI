@@ -1,0 +1,44 @@
+Preciso padronizar as telas de "Gestão de Passagens" e "Gestão de Hospedagem" 
+do sistema, seguindo o design já estabelecido no app (referência: tela de 
+Cadastro de Usuários — fundo branco, azul escuro #3B4FE4, tipografia limpa, 
+cards com sombra suave, badges de status arredondados).
+
+Problemas a corrigir:
+
+1. COLUNA ID (ambas as telas)
+   - O ID está com largura inconsistente entre as telas
+   - Padronizar: width fixo de ~60px, fonte pequena (12px), cor cinza médio, 
+     prefixo "#" em azul — igual nas duas telas
+
+2. BOTÃO DE AÇÃO (Registrar Passagem / Registrar Hospedagem)
+   - O texto está sendo cortado na tela de Passagens
+   - Substituir o botão longo por um botão compacto com ícone + tooltip, 
+     ou usar apenas ícone (ex: ícone de avião ✈ para passagem, 
+     ícone de cama 🛏 para hospedagem) com a label "Registrar" abaixo
+   - Largura máxima da coluna AÇÕES: 80px, centralizada
+   - Para registros já "COMPRADA", mostrar apenas o ícone de olho (visualizar), 
+     sem botão de registrar
+
+3. PADRONIZAÇÃO GERAL entre as duas telas
+   - Mesma altura de linha (row height): 72px
+   - Mesmos tamanhos de fonte:
+       • Header da coluna: 11px, uppercase, letter-spacing 0.08em, cinza #888
+       • Conteúdo principal da célula: 14px, peso 500, cor #1a1a2e
+       • Subtítulo/função: 12px, cinza #999
+   - Avatar de iniciais: círculo 36px, fundo azul claro (#E8EFFE), 
+     texto azul escuro (#3B4FE4), peso 600
+   - Badges de status padronizados:
+       • COMPRADA: fundo #DCFCE7, texto #16A34A, ícone ✓
+       • PENDENTE: fundo #FEF3C7, texto #D97706, ícone ⏱
+   - Checkbox de seleção à esquerda apenas em linhas PENDENTES
+
+4. COLUNA EVENTO/FUNÇÃO (Passagens) vs EVENTO (Hospedagem)
+   - Nome do evento: 14px, peso 600, cor #1a1a2e
+   - Função/subtítulo logo abaixo: 12px, cor #888, itálico opcional
+   - Mesma estrutura visual nas duas telas
+
+5. RESPONSIVIDADE
+   - Em telas menores, ocultar colunas secundárias (Voos Sugeridos, 
+     Datas e Horários) e manter: ID, Colaborador, Status, Ações
+
+Manter toda a lógica existente, alterar apenas o CSS/layout.
