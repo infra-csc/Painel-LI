@@ -1243,13 +1243,22 @@ export default function Tickets() {
                             <div className="flex flex-col gap-0.5">
                               {/* Cidade em destaque */}
                               <p className="text-[14px] font-semibold text-[#111827]">{getEventLocation(inclusion.eventId)}</p>
-                              {/* Ida · Volta em uma linha */}
-                              <p className="text-[11px] text-[#6B7280] whitespace-nowrap">
-                                <span>ida: {ticket.departureAirport || '—'} → {ticket.destinationAirport || '—'}</span>
-                                {(ticket.destinationAirport || ticket.departureAirport) && (
-                                  <span> · volta: {ticket.destinationAirport || '—'} → {ticket.departureAirport || '—'}</span>
-                                )}
-                              </p>
+                              {/* Ida */}
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_takeoff</span>
+                                <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
+                                <span className="text-[10px] text-slate-300">→</span>
+                                <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
+                              </div>
+                              {/* Volta */}
+                              {(ticket.destinationAirport || ticket.departureAirport) && (
+                                <div className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-slate-400" style={{fontSize:12}}>flight_land</span>
+                                  <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.destinationAirport || '—'}</span>
+                                  <span className="text-[10px] text-slate-300">→</span>
+                                  <span className="text-[11px] font-medium text-[#6B7280] uppercase">{ticket.departureAirport || '—'}</span>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
