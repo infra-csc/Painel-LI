@@ -1083,59 +1083,77 @@ export default function Accommodations() {
   const purchasedCount = filteredData.filter(inc => accommodationMap.get(inc.id)).length;
   const pendingCount = filteredData.filter(inc => !accommodationMap.get(inc.id)).length;
 
+  const toTitleCase = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return fixEncoding(str).replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  };
+
   return (
     <>
+      <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="w-14 h-14 bg-[#0033CC] rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-900/20">
+          <Hotel className="w-7 h-7 text-white" />
+        </div>
+        <div>
+          <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Compra de Hospedagem</h1>
+          <p className="text-sm text-slate-500">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
+        </div>
+      </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div className="grid grid-cols-3 gap-5">
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Total Hospedagens</p>
-            <h3 style={{fontSize:30,fontWeight:900,color:'#0F172A',lineHeight:1}}>{totalCount}</h3>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Hospedagens</p>
+            <h3 className="text-4xl font-black text-slate-900">{totalCount}</h3>
           </div>
-          <div style={{width:48,height:48,borderRadius:12,background:'#F1F5F9',display:'flex',alignItems:'center',justifyContent:'center',color:'#94A3B8'}}>
-            <span className="material-symbols-outlined" style={{fontSize:24}}>hotel</span>
+          <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0033CC]">
+            <span className="material-symbols-outlined" style={{fontSize:28}}>hotel</span>
           </div>
         </div>
-        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Compradas</p>
-            <h3 style={{fontSize:30,fontWeight:900,color:'#22C55E',lineHeight:1}}>{purchasedCount}</h3>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Compradas</p>
+            <h3 className="text-4xl font-black text-[#22C55E]">{purchasedCount}</h3>
           </div>
-          <div style={{width:48,height:48,borderRadius:12,background:'#DCFCE7',display:'flex',alignItems:'center',justifyContent:'center',color:'#22C55E'}}>
-            <span className="material-symbols-outlined" style={{fontSize:24,fontVariationSettings:"'FILL' 1"}}>check_circle</span>
+          <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-[#22C55E]">
+            <span className="material-symbols-outlined" style={{fontSize:28,fontVariationSettings:"'FILL' 1"}}>check_circle</span>
           </div>
         </div>
-        <div style={{background:'#fff',padding:24,borderRadius:24,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:'1px solid #E2E8F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#94A3B8',textTransform:'uppercase',marginBottom:4}}>Pendentes</p>
-            <h3 style={{fontSize:30,fontWeight:900,color:'#F97316',lineHeight:1}}>{pendingCount}</h3>
+            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Pendentes</p>
+            <h3 className="text-4xl font-black text-[#F97316]">{pendingCount}</h3>
           </div>
-          <div style={{width:48,height:48,borderRadius:12,background:'#FFEDD5',display:'flex',alignItems:'center',justifyContent:'center',color:'#F97316'}}>
-            <span className="material-symbols-outlined" style={{fontSize:24,fontVariationSettings:"'FILL' 1"}}>pending</span>
+          <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-[#F97316]">
+            <span className="material-symbols-outlined" style={{fontSize:28,fontVariationSettings:"'FILL' 1"}}>pending</span>
           </div>
         </div>
       </div>
 
-      {/* Registro Rápido em Lote — blue banner */}
-      <div className="mb-6 overflow-hidden" style={{background:'#0033CC',borderRadius:32,padding:'32px',position:'relative',boxShadow:'0 20px 40px rgba(0,51,204,0.2)'}}>
-        <div style={{position:'relative',zIndex:10,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <div>
-            <h4 style={{fontSize:22,fontWeight:800,color:'#fff',letterSpacing:'-0.02em'}}>Registro Rápido em Lote</h4>
-            <p style={{color:'#BFDBFE',marginTop:4,maxWidth:420,fontSize:14}}>Aplique os mesmos dados de hotel a múltiplas hospedagens simultaneamente com validação automática.</p>
+      {/* Aplicar em Lote — discrete card (same as Passagens) */}
+      <div
+        className="bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
+        style={{borderLeft: '4px solid #F59E0B'}}
+        onClick={() => toggleSection('basic')}
+        data-testid="button-toggle-quick-register"
+      >
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+            <Hotel className="w-5 h-5 text-[#F59E0B]" />
           </div>
-          <button
-            onClick={() => toggleSection('basic')}
-            style={{background:'#fff',color:'#0033CC',padding:'0 32px',height:56,borderRadius:12,fontWeight:700,fontSize:13,display:'flex',alignItems:'center',gap:8,border:'none',cursor:'pointer',boxShadow:'0 4px 12px rgba(0,0,0,0.15)',transition:'background 0.15s'}}
-            onMouseEnter={e => (e.currentTarget.style.background = '#EFF6FF')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-            data-testid="button-toggle-quick-register"
-          >
-            <span className="material-symbols-outlined" style={{fontSize:20}}>hotel_class</span>
-            {expandedSections.basic ? 'FECHAR PAINEL' : 'ABRIR PAINEL'}
-          </button>
+          <div>
+            <p className="text-sm font-bold text-slate-800">Aplicar em Lote</p>
+            <p className="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas hospedagens</p>
+          </div>
         </div>
-        <div style={{position:'absolute',right:0,top:0,height:'100%',width:'33%',background:'rgba(255,255,255,0.05)',transform:'skewX(12deg)',marginRight:-64}} />
-        <div style={{position:'absolute',right:40,top:0,height:'100%',width:48,background:'rgba(255,255,255,0.05)',transform:'skewX(12deg)'}} />
+        <div className="pr-5">
+          {expandedSections.basic
+            ? <ChevronDown className="w-5 h-5 text-amber-400" />
+            : <ChevronRight className="w-5 h-5 text-slate-300" />}
+        </div>
       </div>
 
       {/* Quick Register Form Panel */}
@@ -1334,7 +1352,7 @@ export default function Accommodations() {
       )}
 
       {/* Filter Bar */}
-      <div className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 grid grid-cols-5 gap-4">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 grid grid-cols-5 gap-4">
         <div className="space-y-1">
           <label style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#94A3B8',textTransform:'uppercase',paddingLeft:4,display:'block'}}>ID Reserva</label>
           <input
@@ -1423,7 +1441,8 @@ export default function Accommodations() {
                   const isPostPurchaseRow = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(inclusion.status);
                   const rowBg = '#fff';
 
-                  const colNameInitials = (fixEncoding(collaborator?.fullName) || '??').split(' ').slice(0,2).map((n:string) => n[0]).join('').toUpperCase();
+                  const displayName = toTitleCase(collaborator?.fullName);
+                  const colNameInitials = (displayName || '??').split(' ').slice(0,2).map((n:string) => n[0]).join('').toUpperCase();
                   const borderColor = isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
 
                   return (
@@ -1455,7 +1474,7 @@ export default function Accommodations() {
                             {collaborator ? colNameInitials : '?'}
                           </div>
                           <div>
-                            <p style={{fontSize:14,fontWeight:700,color:'#0F172A',lineHeight:1.2}}>{fixEncoding(collaborator?.fullName) || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
+                            <p style={{fontSize:14,fontWeight:700,color:'#0F172A',lineHeight:1.2}}>{displayName || <span style={{color:'#CBD5E1'}}>Sem colaborador</span>}</p>
                             <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>{func?.name || '—'}</p>
                           </div>
                         </div>
@@ -1484,9 +1503,12 @@ export default function Accommodations() {
                       <td style={{padding:'20px 24px'}}
                           data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
                         {accommodation?.hotelName ? (
-                          <div>
-                            <p style={{fontSize:14,fontWeight:600,color:'#0F172A',lineHeight:1.2}}>{accommodation.hotelName}</p>
-                            {accommodation.hotelLocation && <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',marginTop:2}}>{accommodation.hotelLocation}</p>}
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <span className="material-symbols-outlined" style={{fontSize:16,color:'#94A3B8',flexShrink:0,fontVariationSettings:"'FILL' 1"}}>bed</span>
+                            <div>
+                              <p style={{fontSize:14,fontWeight:600,color:'#0F172A',lineHeight:1.2}}>{accommodation.hotelName}</p>
+                              {accommodation.hotelLocation && <p style={{fontSize:10,color:'#94A3B8',textTransform:'uppercase',marginTop:2}}>{accommodation.hotelLocation}</p>}
+                            </div>
                           </div>
                         ) : <span style={{color:'#CBD5E1',fontSize:14}}>—</span>}
                       </td>
@@ -1517,9 +1539,9 @@ export default function Accommodations() {
                             <button
                               onClick={() => handleViewAccommodationDetails(inclusion)}
                               data-testid={`buy-accommodation-${inclusion.inclusionNumber}`}
-                              style={{background:'#0033CC',color:'#fff',fontSize:10,fontWeight:700,padding:'8px 16px',borderRadius:8,border:'none',cursor:'pointer',letterSpacing:'0.06em',transition:'background 0.15s'}}
-                              onMouseEnter={e => (e.currentTarget.style.background = '#1D4ED8')}
-                              onMouseLeave={e => (e.currentTarget.style.background = '#0033CC')}
+                              style={{background:'transparent',color:'#0033CC',fontSize:10,fontWeight:700,padding:'7px 16px',borderRadius:8,border:'1.5px solid #0033CC',cursor:'pointer',letterSpacing:'0.06em',transition:'all 0.15s'}}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#EFF6FF'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                             >
                               COMPRAR
                             </button>
@@ -1564,6 +1586,7 @@ export default function Accommodations() {
           teamInclusionId={selectedInclusion.id}
         />
       )}
+      </div>
     </>
   );
 }

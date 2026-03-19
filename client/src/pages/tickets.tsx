@@ -684,7 +684,7 @@ export default function Tickets() {
                 <FileText className="w-5 h-5 text-[#F59E0B]" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800">Registro Rápido em Lote</p>
+                <p className="text-sm font-bold text-slate-800">Aplicar em Lote</p>
                 <p className="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas passagens</p>
               </div>
             </div>
@@ -700,7 +700,7 @@ export default function Tickets() {
               {/* Cabeçalho interno */}
               <div className="px-8 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between gap-6">
                 <div className="min-w-0">
-                  <h3 className="text-[17px] font-bold text-slate-900">Registro Rápido em Lote</h3>
+                  <h3 className="text-[17px] font-bold text-slate-900">Aplicar em Lote</h3>
                   <p className="text-sm text-slate-400 mt-0.5">Insira os dados da operação aérea para múltiplos passageiros simultaneamente.</p>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
