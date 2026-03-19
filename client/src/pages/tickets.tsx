@@ -698,10 +698,10 @@ export default function Tickets() {
           {expandedSections.basic && (
             <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
               {/* Cabeçalho interno */}
-              <div className="px-8 pt-7 pb-5 border-b border-slate-100 flex items-center justify-between gap-6">
+              <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between gap-6">
                 <div className="min-w-0">
-                  <h3 className="text-[17px] font-bold text-slate-900">Aplicar em Lote</h3>
-                  <p className="text-sm text-slate-400 mt-0.5">Insira os dados da operação aérea para múltiplos passageiros simultaneamente.</p>
+                  <h3 className="text-[15px] font-bold text-slate-900">Aplicar em Lote</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Insira os dados da operação para múltiplos passageiros simultaneamente.</p>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   {/* Tipo de transporte como pills */}
@@ -758,24 +758,24 @@ export default function Tickets() {
                 const pct = Math.round((filled / total) * 100);
                 const barColor = pct === 100 ? '#22C55E' : pct >= 50 ? '#F59E0B' : '#0033CC';
                 return (
-                  <div className="px-8 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
-                    <div className="flex-1 h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                    <div className="flex-1 h-1 rounded-full bg-slate-200 overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-500"
                         style={{ width:`${pct}%`, backgroundColor: barColor }} />
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-sm font-black" style={{color: barColor}}>{filled}</span>
-                      <span className="text-[11px] font-medium text-slate-400">/ {total} campos preenchidos</span>
+                      <span className="text-[11px] font-black" style={{color: barColor}}>{filled}</span>
+                      <span className="text-[11px] font-medium text-slate-400">/ {total} campos</span>
                     </div>
                   </div>
                 );
               })()}
 
               {/* Corpo principal: 8 + 4 colunas */}
-              <div className="grid grid-cols-12 gap-6 p-8">
+              <div className="grid grid-cols-12 gap-4 p-5">
 
                 {/* Coluna esquerda (8 cols) */}
-                <div className="col-span-12 lg:col-span-8 space-y-5">
+                <div className="col-span-12 lg:col-span-8 space-y-3.5">
 
                   {/* Card: Dados Financeiros */}
                   <section className="rounded-2xl overflow-hidden border border-blue-100">
@@ -783,10 +783,10 @@ export default function Tickets() {
                       <span className="material-symbols-outlined text-white" style={{fontSize:16}}>payments</span>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-white/90">Dados Financeiros</h4>
                     </div>
-                    <div className="p-5 bg-white grid grid-cols-2 gap-x-5 gap-y-4">
+                    <div className="p-4 bg-white grid grid-cols-2 gap-x-4 gap-y-3">
                       <div className="space-y-1.5">
                         <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor Total *</Label>
-                        <div className="flex h-11 rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
+                        <div className="flex h-[38px] rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
                           <span className="flex items-center px-3 bg-slate-50 text-slate-500 font-semibold text-sm border-r border-slate-200 shrink-0">R$</span>
                           <input
                             type="number" step="0.01" placeholder="0,00"
@@ -804,7 +804,7 @@ export default function Tickets() {
                         <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : "Ex: AX782Q"}
                           value={ticketData["quick"]?.purchaseOrderNumber || ""}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                          className="h-11 bg-slate-50 border-slate-200 rounded-xl text-sm font-mono"
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm font-mono"
                           data-testid="input-quick-purchase-order"
                         />
                       </div>
@@ -813,7 +813,7 @@ export default function Tickets() {
                         <Input type="date"
                           value={ticketData["quick"]?.purchaseDate || new Date().toISOString().split('T')[0]}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseDate", e.target.value)}
-                          className="h-11 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
                           data-testid="input-quick-purchase-date"
                         />
                       </div>
@@ -822,7 +822,7 @@ export default function Tickets() {
                         <Input placeholder="0000" maxLength={4}
                           value={ticketData["quick"]?.cardLastFourDigits || ""}
                           onChange={(e) => handleTicketDataChange("quick", "cardLastFourDigits", e.target.value.replace(/\D/g,'').slice(0,4))}
-                          className="h-11 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                          className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
                           data-testid="input-quick-card-digits"
                         />
                       </div>
@@ -1184,12 +1184,12 @@ export default function Tickets() {
                 </div>
 
                 {/* Coluna direita (4 cols) */}
-                <div className="col-span-12 lg:col-span-4 space-y-5">
+                <div className="col-span-12 lg:col-span-4 space-y-3">
 
                   {/* Anexos */}
-                  <section className="rounded-2xl border border-slate-100 p-5 bg-white">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:18}}>attachment</span>
+                  <section className="rounded-2xl border border-slate-100 p-4 bg-white">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>attachment</span>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos</h4>
                     </div>
                     <AttachmentUpload
@@ -1200,9 +1200,9 @@ export default function Tickets() {
                   </section>
 
                   {/* Observações */}
-                  <section className="rounded-2xl border border-slate-100 p-5 bg-white">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:18}}>notes</span>
+                  <section className="rounded-2xl border border-slate-100 p-4 bg-white">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>notes</span>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Observações (Opcional)</h4>
                     </div>
                     <Textarea
@@ -1210,7 +1210,7 @@ export default function Tickets() {
                       value={ticketData["quick"]?.ticketObservations || ""}
                       onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
                       className="text-sm resize-none bg-slate-50 border-slate-200 rounded-xl"
-                      style={{height:100}}
+                      style={{height:80}}
                       data-testid="textarea-quick-ticket-observations"
                     />
                   </section>
@@ -1234,7 +1234,7 @@ export default function Tickets() {
                     const dot = (status: 'done'|'partial'|'empty') => {
                       const map = { done: 'bg-green-500', partial: 'bg-yellow-400', empty: 'bg-red-400' };
                       const pulse = status === 'partial' ? 'animate-pulse' : '';
-                      return <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${map[status]} ${pulse}`} />;
+                      return <div className={`w-2 h-2 rounded-full shrink-0 ${map[status]} ${pulse}`} />;
                     };
                     const textColor = (status: 'done'|'partial'|'empty') =>
                       status === 'done' ? 'text-slate-700' : status === 'partial' ? 'text-yellow-700' : 'text-slate-400';
@@ -1245,40 +1245,40 @@ export default function Tickets() {
                           <span className="material-symbols-outlined text-slate-400" style={{fontSize:14}}>checklist</span>
                           <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status da Operação</h4>
                         </div>
-                        <ul className="p-4 space-y-3 bg-white">
-                          <li className="flex items-center gap-3">
+                        <ul className="p-3 space-y-2.5 bg-white">
+                          <li className="flex items-center gap-2.5">
                             {dot(financialStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold ${textColor(financialStatus)}`}>Dados financeiros</p>
-                              <p className="text-[10px] text-slate-400">
-                                {financialStatus === 'done' ? 'Valor e LOC preenchidos' : financialStatus === 'partial' ? 'Campos parcialmente preenchidos' : 'Valor e LOC pendentes'}
+                              <p className={`text-[12px] font-semibold ${textColor(financialStatus)}`}>Dados financeiros</p>
+                              <p className="text-[11px] text-slate-400">
+                                {financialStatus === 'done' ? 'Valor e LOC preenchidos' : financialStatus === 'partial' ? 'Parcialmente preenchidos' : 'Valor e LOC pendentes'}
                               </p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-3">
+                          <li className="flex items-center gap-2.5">
                             {dot(idaStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold ${textColor(idaStatus)}`}>
+                              <p className={`text-[12px] font-semibold ${textColor(idaStatus)}`}>
                                 {q?.transportType === "rodoviario" ? "Trecho de embarque" : "Trecho de ida"}
                               </p>
-                              <p className="text-[10px] text-slate-400">
-                                {idaStatus === 'done' ? 'Origem, destino e data definidos' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
+                              <p className="text-[11px] text-slate-400">
+                                {idaStatus === 'done' ? 'Origem, destino e data OK' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
                               </p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-3">
+                          <li className="flex items-center gap-2.5">
                             {dot(attachStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
-                              <p className="text-[10px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s) adicionado(s)` : 'Nenhum arquivo (opcional)'}</p>
+                              <p className={`text-[12px] font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
+                              <p className="text-[11px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s)` : 'Nenhum (opcional)'}</p>
                             </div>
                           </li>
-                          <li className="flex items-center gap-3">
+                          <li className="flex items-center gap-2.5">
                             {dot(selectionStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold ${textColor(selectionStatus)}`}>Passagens selecionadas</p>
-                              <p className="text-[10px] text-slate-400">
-                                {selectedTickets.length > 0 ? `${selectedTickets.length} passagem(ns) na fila` : 'Selecione na tabela abaixo'}
+                              <p className={`text-[12px] font-semibold ${textColor(selectionStatus)}`}>Passagens selecionadas</p>
+                              <p className="text-[11px] text-slate-400">
+                                {selectedTickets.length > 0 ? `${selectedTickets.length} na fila` : 'Selecione na tabela'}
                               </p>
                             </div>
                           </li>
@@ -1290,7 +1290,7 @@ export default function Tickets() {
               </div>
 
               {/* Rodapé de ação */}
-              <div className="border-t border-slate-100 px-8 py-4 bg-slate-50 flex items-center justify-between gap-4">
+              <div className="border-t border-slate-100 px-5 py-3 bg-slate-50 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   {/* Badge de passageiros */}
                   <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-all ${selectedTickets.length > 0 ? 'bg-[#0033CC] text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
@@ -1346,7 +1346,7 @@ export default function Tickets() {
                         onClick={handleApplyToSelected}
                         disabled={selectedTickets.length === 0 || createTicketMutation.isPending}
                         data-testid="button-apply-to-selected"
-                        className="h-11 px-7 font-bold rounded-xl flex items-center gap-2 transition-all"
+                        className="h-[38px] px-6 font-bold rounded-xl flex items-center gap-2 transition-all"
                         style={{
                           background: selectedTickets.length === 0 ? '#E2E8F0' : '#0033CC',
                           color: selectedTickets.length === 0 ? '#94A3B8' : 'white',

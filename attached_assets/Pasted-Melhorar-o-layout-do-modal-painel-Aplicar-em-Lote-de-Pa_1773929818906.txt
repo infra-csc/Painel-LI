@@ -1,0 +1,66 @@
+Melhorar o layout do modal/painel "Aplicar em Lote" de Passagens 
+e o painel de registro de Hospedagem, seguindo o mesmo design system do app.
+
+═══════════════════════════════════════
+1. TAMANHO GERAL — Aplicar em Lote (Passagens)
+═══════════════════════════════════════
+- O painel está grande demais em 100% de zoom — reduzir tudo:
+  • Padding interno dos cards: 16px (era ~24px)
+  • Espaçamento entre seções: 12px (era ~20px)
+  • Altura dos inputs: 38px (era ~44px)
+  • Font-size dos labels: 11px uppercase
+  • Font-size dos inputs: 13px
+  • Títulos das seções (DADOS FINANCEIROS, TRECHO DE IDA): 12px uppercase
+- O layout de 2 colunas (conteúdo + sidebar) deve usar: 
+  conteúdo 65% | sidebar 35%
+- O painel inteiro deve caber na viewport sem scroll 
+  vertical em monitores 1080p
+
+═══════════════════════════════════════
+2. MELHORIAS DE LAYOUT — Passagens (Aérea e Rodoviária)
+═══════════════════════════════════════
+- DADOS FINANCEIROS: manter header azul escuro, 
+  mas reduzir altura do header para 36px
+- TRECHO DE IDA (azul) e TRECHO DE VOLTA (laranja): 
+  cards lado a lado, mesma altura, cantos arredondados 10px,
+  borda 1px sólida na cor do tema (azul #DBEAFE / laranja #FEF3C7)
+  sem sombra pesada
+- Botões de sigla (GRU, MAO): menor — 44px largura, 
+  32px altura, fonte 11px peso 700, 
+  fundo #EEF2FF, texto #3B4FE4, border-radius 6px
+- Toggle "Apenas ida": alinhar verticalmente ao centro 
+  com os botões Aérea/Rodoviária no header
+- Barra de progresso (X / 15 campos preenchidos): 
+  fonte 11px, altura da barra 4px, cor #3B4FE4
+- STATUS DA OPERAÇÃO na sidebar: 
+  bullets coloridos menores (8px), 
+  texto 12px, subtítulo 11px cinza
+
+═══════════════════════════════════════
+3. ABA RODOVIÁRIA — mesmas regras acima +
+═══════════════════════════════════════
+- Seções EMBARQUE (azul) e DESEMBARQUE (laranja): 
+  mesmo padrão visual do TRECHO DE IDA/VOLTA aéreo
+- Campos: Cidade de Origem, Terminal/Rodoviária, 
+  Cidade de Destino — inputs compactos 38px
+- Manter mesma sidebar de Anexos + Status da Operação
+
+═══════════════════════════════════════
+4. HOSPEDAGEM — registro em lote
+═══════════════════════════════════════
+Aplicar exatamente o mesmo padrão visual da tela de Passagens:
+- Header da seção: fundo azul escuro #3B4FE4, 
+  texto branco 12px uppercase, altura 36px
+- CHECK-IN (azul claro #DBEAFE) e CHECK-OUT (laranja claro #FEF3C7):
+  cards lado a lado, borda 1px, border-radius 10px
+- Inputs compactos: 38px altura, font 13px
+- Labels: 11px uppercase cinza #888
+- Seção ANEXOS: mesmo estilo da passagem — 
+  borda azul tracejada, botão "Adicionar Anexo" 
+  com ícone, fundo #F0F4FF
+- Footer fixo com "Aplicar a 0 Hospedagens" 
+  em azul #3B4FE4 e "Limpar Campos" em cinza, 
+  separados à direita
+- Padding geral reduzido para caber em 1080p sem scroll
+
+Não alterar lógica, validações ou dados. Apenas CSS/layout.

@@ -1159,196 +1159,300 @@ export default function Accommodations() {
 
       {/* Quick Register Form Panel */}
       {expandedSections.basic && (
-        <div className="mb-6 rounded-xl overflow-hidden" style={{border:'1px solid #E2E8F0',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
-          <div style={{borderLeft:'4px solid #0033CC',background:'#EEF2FF',padding:'12px 20px'}}>
-            <span style={{fontWeight:700,fontSize:13,color:'#0033CC'}}>Preencha os dados comuns e selecione as hospedagens na tabela</span>
+        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+          {/* Cabeçalho */}
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between gap-6">
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-slate-900">Aplicar em Lote</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Insira os dados comuns para múltiplas hospedagens simultaneamente.</p>
+            </div>
           </div>
 
-            <>
-              {/* Grade Organizada por Seções */}
-              <div className="space-y-4" style={{background:'#fff',padding:'16px 20px'}}>
-                {/* Seção de Informações Gerais */}
-                <div className="grid grid-cols-3 gap-3 rounded-lg" style={{background:'#F0FDF4',padding:12}}>
-                  <div>
-                    <Label className="text-[10px] font-medium">Nome do Hotel *</Label>
+          {/* Grid principal: 8 cols + 4 cols */}
+          <div className="grid grid-cols-12 gap-4 p-5">
+
+            {/* Coluna esquerda (8 cols) */}
+            <div className="col-span-12 lg:col-span-8 space-y-3.5">
+
+              {/* Card: Dados do Hotel */}
+              <section className="rounded-2xl overflow-hidden border border-blue-100">
+                <div className="flex items-center gap-2 px-5 py-2.5 bg-[#0033CC]">
+                  <span className="material-symbols-outlined text-white" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>hotel</span>
+                  <h4 className="text-[11px] font-black uppercase tracking-widest text-white/90">Dados do Hotel</h4>
+                </div>
+                <div className="p-4 bg-white grid grid-cols-3 gap-x-4 gap-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Nome do Hotel *</Label>
                     <Input
                       placeholder="Hotel Copacabana"
                       value={accommodationData["quick"]?.hotelName || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "hotelName", e.target.value)}
-                      className="h-6 text-xs px-1"
+                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
                       data-testid="input-quick-hotel-name"
                     />
                   </div>
-                  <div>
-                    <Label className="text-[10px] font-medium">Localização *</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Localização *</Label>
                     <Input
                       placeholder="Rio de Janeiro, RJ"
                       value={accommodationData["quick"]?.hotelLocation || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "hotelLocation", e.target.value)}
-                      className="h-6 text-xs px-1"
+                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
                       data-testid="input-quick-hotel-location"
                     />
                   </div>
-                  <div>
-                    <Label className="text-[10px] font-medium">Valor da Diária *</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="250.00"
-                      value={accommodationData["quick"]?.dailyRate || ""}
-                      onChange={(e) => handleAccommodationDataChange("quick", "dailyRate", e.target.value)}
-                      className="h-6 text-xs px-1"
-                      data-testid="input-quick-daily-rate"
-                    />
-                  </div>
-                </div>
-
-                {/* Seção de Datas */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Check-in */}
-                  <div className="p-3 rounded-lg" style={{borderLeft:'3px solid #3B5BDB',background:'#EEF2FF'}}>
-                    <h5 style={{fontSize:11,fontWeight:700,color:'#3B5BDB',marginBottom:8}}>
-                      📅 CHECK-IN
-                    </h5>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[10px] font-medium">Data *</Label>
-                        <Input
-                          type="date"
-                          value={accommodationData["quick"]?.checkInDate || ""}
-                          onChange={(e) => handleAccommodationDataChange("quick", "checkInDate", e.target.value)}
-                          className="h-6 text-xs px-1"
-                          data-testid="input-quick-checkin-date"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] font-medium">Horário</Label>
-                        <Input
-                          type="time"
-                          value={accommodationData["quick"]?.checkInTime || "14:00"}
-                          onChange={(e) => handleAccommodationDataChange("quick", "checkInTime", e.target.value)}
-                          className="h-6 text-xs px-1"
-                          data-testid="input-quick-checkin-time"
-                        />
-                      </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Valor da Diária *</Label>
+                    <div className="flex h-[38px] rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-[#0033CC]/20">
+                      <span className="flex items-center px-3 bg-slate-50 text-slate-500 font-semibold text-sm border-r border-slate-200 shrink-0">R$</span>
+                      <input
+                        type="number" step="0.01" placeholder="0,00"
+                        value={accommodationData["quick"]?.dailyRate || ""}
+                        onChange={(e) => handleAccommodationDataChange("quick", "dailyRate", e.target.value)}
+                        className="flex-1 px-3 text-sm font-bold bg-white border-0 outline-none w-full"
+                        data-testid="input-quick-daily-rate"
+                      />
                     </div>
                   </div>
-
-                  {/* Check-out */}
-                  <div className="p-3 rounded-lg" style={{borderLeft:'3px solid #F59E0B',background:'#FFF7ED'}}>
-                    <h5 style={{fontSize:11,fontWeight:700,color:'#B45309',marginBottom:8}}>
-                      📅 CHECK-OUT
-                    </h5>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[10px] font-medium">Data *</Label>
-                        <Input
-                          type="date"
-                          value={accommodationData["quick"]?.checkOutDate || ""}
-                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutDate", e.target.value)}
-                          className="h-6 text-xs px-1"
-                          data-testid="input-quick-checkout-date"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] font-medium">Horário</Label>
-                        <Input
-                          type="time"
-                          value={accommodationData["quick"]?.checkOutTime || "12:00"}
-                          onChange={(e) => handleAccommodationDataChange("quick", "checkOutTime", e.target.value)}
-                          className="h-6 text-xs px-1"
-                          data-testid="input-quick-checkout-time"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Seção de Informações Adicionais */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-[10px] font-medium">Reserva/LOC (opcional)</Label>
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Reserva / LOC <span className="text-slate-300 normal-case">(opcional)</span></Label>
                     <Input
                       placeholder="Número da reserva"
                       value={accommodationData["quick"]?.reservationNumber || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "reservationNumber", e.target.value)}
-                      className="h-7 text-xs px-2 mt-1"
+                      className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
                       data-testid="input-quick-reservation-number"
                     />
                   </div>
-                  <div>
-                    <Label className="text-[10px] font-medium">Observações sobre a hospedagem (opcional)</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Observações <span className="text-slate-300 normal-case">(opcional)</span></Label>
                     <Textarea
-                      placeholder="Informações adicionais sobre a hospedagem..."
+                      placeholder="Informações adicionais..."
                       value={accommodationData["quick"]?.accommodationObservations || ""}
                       onChange={(e) => handleAccommodationDataChange("quick", "accommodationObservations", e.target.value)}
-                      className="h-16 text-xs px-2 py-1 resize-none mt-1"
+                      className="text-sm resize-none bg-slate-50 border-slate-200 rounded-xl"
+                      style={{height:62}}
                       data-testid="textarea-quick-accommodation-observations"
                     />
                   </div>
                 </div>
+              </section>
 
-                {/* Seção de Anexos */}
-                <div className="rounded-lg" style={{background:'#F8FAFC',border:'1px solid #E2E8F0',padding:12}}>
-                  <h5 style={{fontSize:11,fontWeight:700,color:'#64748B',marginBottom:8,letterSpacing:'0.06em',textTransform:'uppercase'}}>
-                    📎 Anexos da Hospedagem
-                  </h5>
-                  <AttachmentUpload
-                    attachmentIds={accommodationData["quick"]?.attachmentIds || []}
-                    onAttachmentsChange={(attachmentIds) => 
-                      handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
-                    }
-                    disabled={!canEditScreen(user, 'accommodations')}
-                  />
+              {/* Cards de data: Check-in | Check-out */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Check-in */}
+                <section className="rounded-2xl overflow-hidden border border-blue-100">
+                  <div className="flex items-center gap-2 px-5 py-2.5 bg-[#EEF2FF]">
+                    <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>login</span>
+                    <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">Check-in</h4>
+                  </div>
+                  <div className="p-4 bg-white grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Data *</Label>
+                      <Input
+                        type="date"
+                        value={accommodationData["quick"]?.checkInDate || ""}
+                        onChange={(e) => handleAccommodationDataChange("quick", "checkInDate", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-checkin-date"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Horário</Label>
+                      <Input
+                        type="time"
+                        value={accommodationData["quick"]?.checkInTime || "14:00"}
+                        onChange={(e) => handleAccommodationDataChange("quick", "checkInTime", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-checkin-time"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Check-out */}
+                <section className="rounded-2xl overflow-hidden border border-orange-100">
+                  <div className="flex items-center gap-2 px-5 py-2.5 bg-[#FFF7ED]">
+                    <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>logout</span>
+                    <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">Check-out</h4>
+                  </div>
+                  <div className="p-4 bg-white grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Data *</Label>
+                      <Input
+                        type="date"
+                        value={accommodationData["quick"]?.checkOutDate || ""}
+                        onChange={(e) => handleAccommodationDataChange("quick", "checkOutDate", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-checkout-date"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">Horário</Label>
+                      <Input
+                        type="time"
+                        value={accommodationData["quick"]?.checkOutTime || "12:00"}
+                        onChange={(e) => handleAccommodationDataChange("quick", "checkOutTime", e.target.value)}
+                        className="h-[38px] bg-slate-50 border-slate-200 rounded-xl text-sm"
+                        data-testid="input-quick-checkout-time"
+                      />
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* Coluna direita (4 cols) */}
+            <div className="col-span-12 lg:col-span-4 space-y-3">
+
+              {/* Anexos */}
+              <section className="rounded-2xl border border-slate-100 p-4 bg-white">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>attachment</span>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos</h4>
+                </div>
+                <AttachmentUpload
+                  attachmentIds={accommodationData["quick"]?.attachmentIds || []}
+                  onAttachmentsChange={(attachmentIds) =>
+                    handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
+                  }
+                  disabled={!canEditScreen(user, 'accommodations')}
+                />
+              </section>
+
+              {/* Status da operação */}
+              {(() => {
+                const q = accommodationData["quick"];
+                const hasHotel = !!(q?.hotelName);
+                const hasDates = !!(q?.checkInDate && q?.checkOutDate);
+                const attachCount = q?.attachmentIds?.length || 0;
+                const selectionCount = selectedInclusionsForBatch.length;
+
+                const hotelStatus = hasHotel && !!(q?.hotelLocation) && !!(q?.dailyRate) ? 'done' : hasHotel ? 'partial' : 'empty';
+                const dateStatus = hasDates ? 'done' : !!(q?.checkInDate || q?.checkOutDate) ? 'partial' : 'empty';
+                const attachStatus = attachCount > 0 ? 'done' : 'empty';
+                const selectionStatus = selectionCount > 0 ? 'done' : 'empty';
+
+                const dot = (status: 'done'|'partial'|'empty') => {
+                  const map = { done: 'bg-green-500', partial: 'bg-yellow-400', empty: 'bg-red-400' };
+                  const pulse = status === 'partial' ? 'animate-pulse' : '';
+                  return <div className={`w-2 h-2 rounded-full shrink-0 ${map[status]} ${pulse}`} />;
+                };
+                const textColor = (s: 'done'|'partial'|'empty') =>
+                  s === 'done' ? 'text-slate-700' : s === 'partial' ? 'text-yellow-700' : 'text-slate-400';
+
+                return (
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <span className="material-symbols-outlined text-slate-400" style={{fontSize:14}}>checklist</span>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status da Operação</h4>
+                    </div>
+                    <ul className="p-3 space-y-2.5 bg-white">
+                      <li className="flex items-center gap-2.5">
+                        {dot(hotelStatus)}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[12px] font-semibold ${textColor(hotelStatus)}`}>Dados do hotel</p>
+                          <p className="text-[11px] text-slate-400">{hotelStatus === 'done' ? 'Nome, local e diária OK' : hotelStatus === 'partial' ? 'Dados incompletos' : 'Nenhum campo preenchido'}</p>
+                        </div>
+                      </li>
+                      <li className="flex items-center gap-2.5">
+                        {dot(dateStatus)}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[12px] font-semibold ${textColor(dateStatus)}`}>Datas de estadia</p>
+                          <p className="text-[11px] text-slate-400">{dateStatus === 'done' ? 'Check-in e check-out definidos' : dateStatus === 'partial' ? 'Uma data faltando' : 'Datas não preenchidas'}</p>
+                        </div>
+                      </li>
+                      <li className="flex items-center gap-2.5">
+                        {dot(attachStatus)}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[12px] font-semibold ${textColor(attachStatus)}`}>Arquivos anexados</p>
+                          <p className="text-[11px] text-slate-400">{attachCount > 0 ? `${attachCount} arquivo(s)` : 'Nenhum (opcional)'}</p>
+                        </div>
+                      </li>
+                      <li className="flex items-center gap-2.5">
+                        {dot(selectionStatus)}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[12px] font-semibold ${textColor(selectionStatus)}`}>Hospedagens selecionadas</p>
+                          <p className="text-[11px] text-slate-400">{selectionCount > 0 ? `${selectionCount} na fila` : 'Selecione na tabela'}</p>
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Rodapé de ação */}
+          <div className="border-t border-slate-100 px-5 py-3 bg-slate-50 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl transition-all ${selectedInclusionsForBatch.length > 0 ? 'bg-[#0033CC] text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'}`}>
+                <span className="material-symbols-outlined" style={{fontSize:18}}>bed</span>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest opacity-70 leading-none mb-0.5">Hospedagens</p>
+                  <p className="text-lg font-black leading-none">{selectedInclusionsForBatch.length}</p>
                 </div>
               </div>
-              {/* Action footer */}
-              <div className="flex items-center justify-between" style={{background:'#F8FAFC',borderTop:'1px solid #E2E8F0',borderRadius:'0 0 12px 12px',padding:'12px 20px',margin:'0 -20px -16px'}}>
-                <p style={{fontSize:13,color:'#94A3B8',fontStyle:'italic'}}>
-                  Preencha os dados comuns e selecione as hospedagens na tabela para aplicar
-                  {selectedInclusionsForBatch.length > 0 && (
-                    <span style={{color:'#3B5BDB',fontWeight:600,fontStyle:'normal',marginLeft:8}}>
-                      ({selectedInclusionsForBatch.length} hospedagens selecionadas)
-                    </span>
-                  )}
-                </p>
-                {canEditScreen(user, 'accommodations') && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleApplyToSelected}
-                      disabled={selectedInclusionsForBatch.length === 0 || createAccommodationMutation.isPending}
-                      data-testid="button-apply-to-selected"
-                      style={{
-                        background: selectedInclusionsForBatch.length === 0 ? undefined : '#3B5BDB',
-                        color: selectedInclusionsForBatch.length === 0 ? undefined : '#fff',
-                        opacity: selectedInclusionsForBatch.length === 0 ? 0.5 : 1,
-                        cursor: selectedInclusionsForBatch.length === 0 ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedInclusionsForBatch.length} Hospedagens`}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setAccommodationData(prev => {
-                          const newData = { ...prev };
-                          delete newData["quick"];
-                          return newData;
-                        });
-                      }}
-                      disabled={!accommodationData["quick"] || Object.keys(accommodationData["quick"]).length === 0}
-                      data-testid="button-clear-quick"
-                      style={{borderColor:'#E2E8F0',color:'#64748B'}}
-                    >
-                      Limpar Campos
-                    </Button>
-                  </div>
-                )}
+              {(() => {
+                const q = accommodationData["quick"];
+                const ready = selectedInclusionsForBatch.length > 0 && !!(q?.hotelName) && !!(q?.checkInDate) && !!(q?.checkOutDate);
+                const partial = !ready && (selectedInclusionsForBatch.length > 0 || !!(q?.hotelName));
+                if (ready) return (
+                  <span className="flex items-center gap-1.5 px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Pronto para aplicar
+                  </span>
+                );
+                if (partial) return (
+                  <span className="flex items-center gap-1.5 px-4 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                    Em andamento
+                  </span>
+                );
+                return (
+                  <span className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-100 text-slate-400 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    Aguardando dados
+                  </span>
+                );
+              })()}
+            </div>
+            {canEditScreen(user, 'accommodations') && (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAccommodationData(prev => {
+                      const newData = { ...prev };
+                      delete newData["quick"];
+                      return newData;
+                    });
+                  }}
+                  disabled={!accommodationData["quick"] || Object.keys(accommodationData["quick"]).length === 0}
+                  data-testid="button-clear-quick"
+                  className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-700"
+                >
+                  Limpar Campos
+                </Button>
+                <Button
+                  onClick={handleApplyToSelected}
+                  disabled={selectedInclusionsForBatch.length === 0 || createAccommodationMutation.isPending}
+                  data-testid="button-apply-to-selected"
+                  className="h-[38px] px-6 font-bold rounded-xl flex items-center gap-2 transition-all"
+                  style={{
+                    background: selectedInclusionsForBatch.length === 0 ? '#E2E8F0' : '#0033CC',
+                    color: selectedInclusionsForBatch.length === 0 ? '#94A3B8' : 'white',
+                    boxShadow: selectedInclusionsForBatch.length > 0 ? '0 4px 14px rgba(0,51,204,0.3)' : 'none',
+                    cursor: selectedInclusionsForBatch.length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <Save className="w-4 h-4" />
+                  {createAccommodationMutation.isPending ? "Aplicando..." : `Aplicar a ${selectedInclusionsForBatch.length} Hospedagens`}
+                </Button>
               </div>
-            </>
+            )}
+          </div>
         </div>
       )}
 
