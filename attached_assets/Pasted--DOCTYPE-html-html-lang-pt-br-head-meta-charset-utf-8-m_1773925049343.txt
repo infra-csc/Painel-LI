@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Norte Meridian - Compra de Passagens</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed-variant": "#1d4ed8",
+                        "background": "#f8fafc",
+                        "tertiary": "#22c55e",
+                        "on-surface": "#0f172a",
+                        "tertiary-fixed-dim": "#bbf7d0",
+                        "primary-container": "#0033CC",
+                        "surface-dim": "#f1f5f9",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#fee2e2",
+                        "surface-tint": "#0033CC",
+                        "on-tertiary-container": "#166534",
+                        "surface-bright": "#ffffff",
+                        "primary": "#0033CC",
+                        "secondary-fixed-dim": "#fed7aa",
+                        "on-tertiary-fixed-variant": "#15803d",
+                        "on-secondary-fixed-variant": "#ea580c",
+                        "secondary": "#ff4d00",
+                        "primary-fixed-dim": "#bfdbfe",
+                        "outline-variant": "#cbd5e1",
+                        "on-primary-fixed": "#1e3a8a",
+                        "surface-variant": "#f1f5f9",
+                        "on-primary-container": "#ffffff",
+                        "surface-container": "#f1f5f9",
+                        "on-background": "#0f172a",
+                        "on-primary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#1e293b",
+                        "surface-container-high": "#e2e8f0",
+                        "on-tertiary-fixed": "#064e3b",
+                        "primary-fixed": "#dbeafe",
+                        "on-secondary-fixed": "#7c2d12",
+                        "inverse-primary": "#94a3b8",
+                        "surface-container-highest": "#cbd5e1",
+                        "secondary-container": "#ff4d00",
+                        "outline": "#e2e8f0",
+                        "on-error": "#ffffff",
+                        "error": "#ef4444",
+                        "on-surface-variant": "#64748b",
+                        "on-secondary-container": "#ffffff",
+                        "surface-container-low": "#f8fafc",
+                        "surface": "#ffffff",
+                        "on-error-container": "#991b1b",
+                        "secondary-fixed": "#ffedd5",
+                        "tertiary-container": "#dcfce7",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#dcfce7",
+                        "inverse-on-surface": "#f8fafc"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface-container-low text-on-surface">
+<!-- SideNavBar Implementation -->
+<aside class="fixed left-0 top-0 h-full flex flex-col p-4 h-screen w-64 border-r border-slate-200 bg-white shadow-sm z-50">
+<div class="mb-8 px-2">
+<h1 class="text-2xl font-black text-[#0033CC] tracking-tighter uppercase">Norte Meridian</h1>
+<p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Logística Admin</p>
+</div>
+<button class="mb-8 w-full py-3 px-4 bg-[#0033CC] text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-[#0033CC]/20">
+<span class="material-symbols-outlined text-sm">add</span>
+<span>Novo Registro</span>
+</button>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-[#0033CC]/5 transition-colors duration-200 rounded-xl font-semibold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="folder_shared">folder_shared</span>
+            Cadastros
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-[#0033CC]/10 text-[#0033CC] rounded-xl font-bold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+            Operacional
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-[#0033CC]/5 transition-colors duration-200 rounded-xl font-semibold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+            Financeiro
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-[#0033CC]/5 transition-colors duration-200 rounded-xl font-semibold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+            Gestão
+        </a>
+</nav>
+<div class="mt-auto border-t border-slate-100 pt-4">
+<div class="flex items-center gap-3 px-2 mb-4">
+<div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAP0vzEH6TiNnKE7zY2LX3QkQmw4gp9yIcOCDfJlE9pDMyMbGVbJuSQO1vIsl4HKMeDm0ya2G5Ym4ppalZ_gzxhEvVHLNXx519QppJEcwu0mAXH7qFXMyki_yoHH7L74GGB1Yyng_5YnWZqnZgBSMP_Wf2wUR1UYv0SxeVhgUYDasHJAMYejRjDSamLPYLboHeRmp-2-UoML71nMUK_OlgsjmhvhaBEYAeaoIM6ju974A6nfeD5FSGN0_5C8kPa763nMHM3TZkJhoc"/>
+</div>
+<div class="overflow-hidden">
+<p class="text-sm font-bold truncate">Admin Norte</p>
+<p class="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">Administrador</p>
+</div>
+</div>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-primary transition-colors text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="settings">settings</span>
+            Configurações
+        </a>
+<a class="flex items-center gap-3 px-4 py-2 text-error hover:text-red-700 transition-colors text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="logout">logout</span>
+            Sair
+        </a>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="ml-64 min-h-screen">
+<!-- TopAppBar Implementation -->
+<header class="flex justify-between items-center h-20 px-10 bg-white/95 sticky top-0 z-40">
+<div>
+<h2 class="font-['Inter'] text-[1.875rem] font-bold leading-tight tracking-[-0.025em] text-on-surface">Logística Central</h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-[11px] font-bold uppercase tracking-widest text-slate-400">Status do Sistema: Operacional</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
+<input class="pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-primary/10 w-64 transition-all" placeholder="Buscar passagens..." type="text"/>
+</div>
+<div class="flex items-center gap-2 border-r border-slate-100 pr-6">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-500 transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-white"></span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-500 transition-colors">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+</div>
+<button class="bg-[#ff4d00] hover:bg-[#e64500] text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-[#ff4d00]/20">
+<span class="material-symbols-outlined text-sm">flight_takeoff</span>
+                Emitir Passagem
+            </button>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-10 space-y-8">
+<!-- Summary Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+<div>
+<p class="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Geral</p>
+<h3 class="text-4xl font-black text-on-surface">28</h3>
+</div>
+<div class="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl" data-icon="airplane_ticket">airplane_ticket</span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+<div>
+<p class="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Passagens Compradas</p>
+<h3 class="text-4xl font-black text-tertiary">16</h3>
+</div>
+<div class="w-14 h-14 bg-tertiary/5 rounded-2xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-3xl" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+<div>
+<p class="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Aguardando Emissão</p>
+<h3 class="text-4xl font-black text-secondary">12</h3>
+</div>
+<div class="w-14 h-14 bg-secondary/5 rounded-2xl flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-3xl" data-icon="pending_actions">pending_actions</span>
+</div>
+</div>
+</div>
+<!-- Registro Rápido em Lote Section -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-[#ffb800] p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-[#fffbeb] rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-[#ffb800]">description</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-800">Registro Rápido em Lote</h4>
+<p class="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas passagens</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</div>
+<!-- Tickets Table Card -->
+<div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+<div class="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+<h4 class="text-xl font-bold tracking-tight">Gestão de Passagens</h4>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        Filtrar
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Exportar
+                    </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50/50">
+<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">ID</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Evento / Função</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Colaborador</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Destino</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Datas e Horários</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Voos</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 text-center">Status</th>
+<th class="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/80 transition-colors group">
+<td class="px-8 py-6 text-sm font-black text-primary">#159</td>
+<td class="px-6 py-6">
+<p class="text-sm font-bold text-on-surface">Running Lad - 2021</p>
+<p class="text-[11px] font-semibold text-slate-400">Suporte Técnico</p>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-primary flex items-center justify-center text-xs font-black">RL</div>
+<span class="text-sm font-semibold">Ricardo Lima</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-1.5 text-sm font-semibold">
+<span class="material-symbols-outlined text-slate-400 text-lg">location_on</span>
+                                Rio de Janeiro
+                            </div>
+</td>
+<td class="px-6 py-6 whitespace-nowrap">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-primary">flight_takeoff</span>
+<span class="font-bold">12/05/2024</span>
+<span class="text-slate-400 font-medium">08:30</span>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">flight_land</span>
+<span class="font-bold">15/05/2024</span>
+<span class="text-slate-400 font-medium">19:45</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center" title="LATAM">
+<span class="material-symbols-outlined text-primary text-xl">flight</span>
+</div>
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center" title="AZUL">
+<span class="material-symbols-outlined text-secondary text-xl" style="transform: rotate(180deg)">flight</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6 text-center">
+<span class="px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[11px] font-black uppercase rounded-full border border-tertiary/20">Comprada</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/80 transition-colors group">
+<td class="px-8 py-6 text-sm font-black text-primary">#160</td>
+<td class="px-6 py-6">
+<p class="text-sm font-bold text-on-surface">Expedição Norte-Sul</p>
+<p class="text-[11px] font-semibold text-slate-400">Gerência Operacional</p>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-fixed text-secondary flex items-center justify-center text-xs font-black">AM</div>
+<span class="text-sm font-semibold">Aline Mendes</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-1.5 text-sm font-semibold">
+<span class="material-symbols-outlined text-slate-400 text-lg">location_on</span>
+                                Manaus
+                            </div>
+</td>
+<td class="px-6 py-6 whitespace-nowrap">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-primary">flight_takeoff</span>
+<span class="font-bold">18/05/2024</span>
+<span class="text-slate-400 font-medium">06:15</span>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">flight_land</span>
+<span class="font-bold">22/05/2024</span>
+<span class="text-slate-400 font-medium">21:00</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl">flight</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6 text-center">
+<span class="px-3 py-1 bg-secondary-container text-white text-[11px] font-black uppercase rounded-full border border-secondary/20">Pendente</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/80 transition-colors group">
+<td class="px-8 py-6 text-sm font-black text-primary">#161</td>
+<td class="px-6 py-6">
+<p class="text-sm font-bold text-on-surface">Workshop Logística 4.0</p>
+<p class="text-[11px] font-semibold text-slate-400">Convidado Especial</p>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed text-tertiary flex items-center justify-center text-xs font-black">FP</div>
+<span class="text-sm font-semibold">Felipe Portela</span>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-1.5 text-sm font-semibold">
+<span class="material-symbols-outlined text-slate-400 text-lg">location_on</span>
+                                Curitiba
+                            </div>
+</td>
+<td class="px-6 py-6 whitespace-nowrap">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-primary">flight_takeoff</span>
+<span class="font-bold">20/05/2024</span>
+<span class="text-slate-400 font-medium">10:45</span>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">flight_land</span>
+<span class="font-bold">21/05/2024</span>
+<span class="text-slate-400 font-medium">18:30</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl">flight</span>
+</div>
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary text-xl" style="transform: rotate(180deg)">flight</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-6 text-center">
+<span class="px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[11px] font-black uppercase rounded-full border border-tertiary/20">Comprada</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-400">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+<p class="text-sm text-slate-500 font-semibold">Exibindo <span class="text-on-surface font-bold">1-10</span> de 28 resultados</p>
+<div class="flex gap-2">
+<button class="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-400 cursor-not-allowed">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center border border-primary/20 rounded-xl bg-primary/5 text-primary font-bold">1</button>
+<button class="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:bg-slate-50 font-bold transition-colors">2</button>
+<button class="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:bg-slate-50 font-bold transition-colors">3</button>
+<button class="w-10 h-10 flex items-center justify-center border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-on-surface transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

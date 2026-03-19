@@ -623,64 +623,68 @@ export default function Tickets() {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5" style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)'}}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center">
-                <Plane className="w-4 h-4 text-[#3B5BDB]" />
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-[#0033CC] rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-900/20">
+              <Plane className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Compra de Passagens</h1>
+              <p className="text-sm text-slate-500">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-5">
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-[#1E293B]">Compra de Passagens</h2>
-                <p className="text-xs text-[#64748B]">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Geral</p>
+                <h3 className="text-4xl font-black text-slate-900">{filteredTicketInclusions.length}</h3>
+              </div>
+              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0033CC]">
+                <TicketIcon className="w-7 h-7" />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-[#EEF2FF] rounded-xl p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#3B5BDB] flex items-center justify-center shrink-0">
-                  <TicketIcon className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-[#3B5BDB]">{filteredTicketInclusions.length}</div>
-                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Total</div>
-                </div>
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Passagens Compradas</p>
+                <h3 className="text-4xl font-black text-[#22C55E]">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
               </div>
-              <div className="bg-[#D1FAE5] rounded-xl p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#10B981] flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-[#10B981]">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</div>
-                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Compradas</div>
-                </div>
+              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-[#22C55E]">
+                <CheckCircle className="w-7 h-7" />
               </div>
-              <div className="bg-[#FEF3C7] rounded-xl p-3 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#F59E0B] flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-[#F59E0B]">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</div>
-                  <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Pendentes</div>
-                </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Aguardando Emissão</p>
+                <h3 className="text-4xl font-black text-[#F97316]">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
+              </div>
+              <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-[#F97316]">
+                <Clock className="w-7 h-7" />
               </div>
             </div>
           </div>
 
           {/* Seção de Registro Rápido */}
           <div
-            className="bg-white border border-[#E2E8F0] rounded-xl flex items-center gap-3 cursor-pointer hover:bg-[#FFF7ED] transition-colors overflow-hidden"
-            style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)', borderLeft: '4px solid #F59E0B'}}
+            className="bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
+            style={{borderLeft: '4px solid #F59E0B'}}
             onClick={() => toggleSection('basic')}
           >
-            <div className="pl-4 pr-2 py-3 flex items-center gap-3 flex-1">
-              <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] flex items-center justify-center shrink-0">
-                <FileText className="w-4 h-4 text-[#F59E0B]" />
+            <div className="flex items-center gap-4 px-5 py-4">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-[#F59E0B]" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[#1E293B]">Registro Rápido em Lote</p>
-                <p className="text-xs text-[#64748B]">Aplicar mesmos dados a múltiplas passagens</p>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Registro Rápido em Lote</p>
+                <p className="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas passagens</p>
               </div>
-              {expandedSections.basic ? <ChevronDown className="w-4 h-4 text-[#F59E0B]" /> : <ChevronRight className="w-4 h-4 text-[#F59E0B]" />}
+            </div>
+            <div className="pr-5">
+              {expandedSections.basic
+                ? <ChevronDown className="w-5 h-5 text-amber-400" />
+                : <ChevronRight className="w-5 h-5 text-slate-300" />}
             </div>
           </div>
 
@@ -1099,7 +1103,11 @@ export default function Tickets() {
             ]}
           />
 
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] overflow-hidden" style={{boxShadow: '0 1px 3px rgba(0,0,0,0.08)'}}>
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+              <h4 className="text-xl font-bold tracking-tight text-slate-900">Gestão de Passagens</h4>
+              <span className="text-sm text-slate-400 font-medium">{filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}</span>
+            </div>
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
               <Plane className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -1118,186 +1126,145 @@ export default function Tickets() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200 border-t-[3px] border-t-[#3B5BDB]">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
                       <input
                         type="checkbox"
                         checked={selectedTickets.length > 0}
                         onChange={toggleAllTickets}
-                        className="rounded border-gray-300 mr-2 accent-blue-500"
+                        className="rounded border-gray-300 accent-blue-600"
                         data-testid="checkbox-select-all"
                       />
-                      Seleção
                     </th>
                     <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                     <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Destino</th>
-                    <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Data Ida</SortableHeader>
-                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Data Volta</th>
-                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Voos Sugeridos</th>
-                    <th className="px-4 py-3 text-left text-[11px] uppercase tracking-widest text-slate-400 font-semibold">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destino</th>
+                    <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Voos Sugeridos</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTicketInclusions.map((inclusion, rowIndex) => {
+                  {filteredTicketInclusions.map((inclusion) => {
                     const ticket = getTicket(inclusion.id);
                     return (
-                      <tr 
-                        key={inclusion.id} 
-                        className="transition-colors"
-                        style={{ backgroundColor: rowIndex % 2 === 1 ? '#F8FAFC' : '#ffffff' }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#EEF2FF'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = rowIndex % 2 === 1 ? '#F8FAFC' : '#ffffff'; }}
+                      <tr
+                        key={inclusion.id}
+                        className="hover:bg-slate-50/80 transition-colors group border-b border-slate-50 last:border-0"
                       >
-                        <td className="px-4 py-5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {/* Checkbox */}
+                        <td className="px-6 py-6 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
                             <input
                               type="checkbox"
                               checked={selectedTickets.includes(inclusion.id)}
                               onChange={() => toggleTicketSelection(inclusion.id)}
-                              className="rounded border-gray-300 accent-blue-500"
+                              className="rounded border-gray-300 accent-blue-600"
                               data-testid={`checkbox-ticket-${inclusion.id}`}
                             />
                           ) : (
-                            <div className="w-4 h-4"></div>
+                            <div className="w-4 h-4" />
                           )}
                         </td>
-                        <td className={`px-4 py-5 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+
+                        {/* ID */}
+                        <td className={`px-8 py-6 whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-0.5 bg-[#EEF2FF] text-[#3B5BDB] text-xs font-bold px-2 py-0.5 rounded-md font-mono">
-                              <span className="text-[#3B5BDB] opacity-60">#</span>{inclusion.inclusionNumber || 'N/A'}
-                            </span>
-                            <div title={inclusion.status === 'cancelado' ? 'Não é possível interagir com registros cancelados' : ''}>
-                              <Eye 
-                                className={`w-4 h-4 transition-colors ${inclusion.status === 'cancelado' ? 'text-gray-300 cursor-not-allowed' : 'text-[#64748B] hover:text-[#3B5BDB] cursor-pointer'}`}
-                              />
-                            </div>
+                            <span className="text-sm font-black text-[#0033CC]">#{inclusion.inclusionNumber || 'N/A'}</span>
+                            <Eye className={`w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity ${inclusion.status === 'cancelado' ? 'text-slate-300' : 'text-slate-400'}`} />
                           </div>
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="font-medium text-slate-800 text-sm">
-                            {getEventName(inclusion.eventId)}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {getFunctionName(inclusion.functionId)}
-                          </div>
+
+                        {/* Evento / Função */}
+                        <td className={`px-6 py-6 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                          <p className="text-sm font-bold text-slate-900">{getEventName(inclusion.eventId)}</p>
+                          <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{getFunctionName(inclusion.functionId)}</p>
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-sm text-slate-700 capitalize">
-                            {getCollaboratorName(inclusion.collaboratorId || undefined)}
-                          </div>
+
+                        {/* Colaborador — avatar com iniciais */}
+                        <td className={`px-6 py-6 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                          {(() => {
+                            const name = getCollaboratorName(inclusion.collaboratorId || undefined);
+                            const initials = name === 'Não escalado' ? '?' : name.split(' ').filter(Boolean).slice(0,2).map(n => n[0]).join('').toUpperCase();
+                            return (
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-[#EEF2FF] text-[#0033CC] flex items-center justify-center text-xs font-black shrink-0">{initials}</div>
+                                <span className="text-sm font-semibold text-slate-700 capitalize">{name}</span>
+                              </div>
+                            );
+                          })()}
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="text-blue-600 font-medium text-sm">
+
+                        {/* Destino */}
+                        <td className={`px-6 py-6 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                            <span className="material-symbols-outlined text-slate-400" style={{fontSize:18}}>location_on</span>
                             {getEventLocation(inclusion.eventId)}
                           </div>
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+
+                        {/* Datas e Horários (ida + volta com ícones) */}
+                        <td className={`px-6 py-6 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
-                            <div className="text-sm font-medium text-foreground">
-                              {ticket.actualDepartureDate ? (
-                                <div>
-                                  <div>{formatDate(ticket.actualDepartureDate)}</div>
-                                  {(ticket.departureAirport || ticket.actualDepartureTime) && (
-                                    <div className="text-xs text-slate-400">
-                                      {ticket.departureAirport && ticket.actualDepartureTime 
-                                        ? `${ticket.departureAirport} às ${ticket.actualDepartureTime}`
-                                        : ticket.departureAirport || `às ${ticket.actualDepartureTime}`
-                                      }
-                                    </div>
-                                  )}
-                                </div>
-                              ) : "-"}
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>flight_takeoff</span>
+                                <span className="font-bold text-slate-800">{ticket.actualDepartureDate ? formatDate(ticket.actualDepartureDate) : '—'}</span>
+                                {ticket.actualDepartureTime && <span className="text-slate-400 font-medium">{ticket.actualDepartureTime}</span>}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:14}}>flight_land</span>
+                                <span className="font-bold text-slate-800">{ticket.actualReturnDate ? formatDate(ticket.actualReturnDate) : '—'}</span>
+                                {ticket.actualReturnTime && <span className="text-slate-400 font-medium">{ticket.actualReturnTime}</span>}
+                              </div>
                             </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">
-                              -
-                            </div>
+                            <span className="text-sm text-slate-300">—</span>
                           )}
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          {ticket ? (
-                            <div className="text-sm font-medium text-foreground">
-                              {ticket.actualReturnDate ? (
-                                <div>
-                                  <div>{formatDate(ticket.actualReturnDate)}</div>
-                                  {(ticket.destinationAirport || ticket.actualReturnTime) && (
-                                    <div className="text-xs text-slate-400">
-                                      {ticket.destinationAirport && ticket.actualReturnTime 
-                                        ? `${ticket.destinationAirport} às ${ticket.actualReturnTime}`
-                                        : ticket.destinationAirport || `às ${ticket.actualReturnTime}`
-                                      }
-                                    </div>
-                                  )}
-                                </div>
-                              ) : "-"}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-muted-foreground">
-                              -
-                            </div>
-                          )}
-                        </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+
+                        {/* Voos Sugeridos */}
+                        <td className={`px-6 py-6 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
                             const idaVazia = travelInfo.ida === 'Não definido' || travelInfo.ida === 'Não informado';
                             const voltaVazia = travelInfo.retorno === 'Não definido' || travelInfo.retorno === 'Não informado';
                             if (idaVazia && voltaVazia) {
-                              return (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-[#94A3B8]">
-                                  Não informado
-                                </span>
-                              );
+                              return <span className="text-[11px] font-medium text-slate-300">Não informado</span>;
                             }
                             return (
-                              <div className="text-xs text-[#64748B] space-y-1">
-                                <div className="flex items-start gap-1">
-                                  <span className="text-base leading-none">✈️</span>
-                                  <div>
-                                    <span className="font-semibold text-[#3B5BDB]">Ida:</span>{' '}
-                                    {formatSuggestionDate(!idaVazia ? travelInfo.ida : "Não informado")}
-                                    {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Chegada: {travelInfo.chegada}</div>}
+                              <div className="flex flex-col gap-1">
+                                {!idaVazia && (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>flight_takeoff</span>
+                                    <span className="font-bold text-slate-800">{formatSuggestionDate(travelInfo.ida)}</span>
+                                    {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && <span className="text-slate-400">{travelInfo.chegada}</span>}
                                   </div>
-                                </div>
-                                <div className="flex items-start gap-1">
-                                  <span className="text-base leading-none">🔄</span>
-                                  <div>
-                                    <span className="font-semibold text-[#F59E0B]">Volta:</span>{' '}
-                                    {formatSuggestionDate(!voltaVazia ? travelInfo.retorno : "Não informado")}
-                                    {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <div className="text-[10px] text-[#94A3B8]">Horário: {travelInfo.horario}</div>}
+                                )}
+                                {!voltaVazia && (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:14}}>flight_land</span>
+                                    <span className="font-bold text-slate-800">{formatSuggestionDate(travelInfo.retorno)}</span>
+                                    {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && <span className="text-slate-400">{travelInfo.horario}</span>}
                                   </div>
-                                </div>
+                                )}
                               </div>
                             );
                           })()}
                         </td>
-                        <td className={`px-4 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
-                          <div className="flex flex-col gap-1">
-                            {(() => {
-                              if (ticket) {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#D1FAE5', color:'#065F46'}}>
-                                    <CheckCircle className="w-3 h-3" /> Comprada
-                                  </span>
-                                );
-                              } else {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#FEF3C7', color:'#92400E'}}>
-                                    <Clock className="w-3 h-3" /> Pendente
-                                  </span>
-                                );
-                              }
-                            })()}
-                            {inclusion.status === "cancelado" && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold" style={{background:'#FEE2E2', color:'#991B1B'}}>
-                                Cancelado
-                              </span>
-                            )}
-                          </div>
+
+                        {/* Status */}
+                        <td className={`px-6 py-6 cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                          {inclusion.status === 'cancelado' ? (
+                            <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full border border-slate-200">Cancelado</span>
+                          ) : ticket ? (
+                            <span className="px-3 py-1 bg-[#DCFCE7] text-[#166534] text-[11px] font-black uppercase rounded-full border border-green-200">Comprada</span>
+                          ) : (
+                            <span className="px-3 py-1 bg-[#FFEDD5] text-[#9A3412] text-[11px] font-black uppercase rounded-full border border-orange-200">Pendente</span>
+                          )}
                         </td>
                       </tr>
                     );
