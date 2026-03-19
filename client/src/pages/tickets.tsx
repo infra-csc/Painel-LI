@@ -798,11 +798,13 @@ export default function Tickets() {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">LOC / Reserva *</Label>
-                        <Input placeholder="Ex: AX782Q"
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight">
+                          {ticketData["quick"]?.transportType === "rodoviario" ? "Número do Bilhete *" : "LOC / Reserva *"}
+                        </Label>
+                        <Input placeholder={ticketData["quick"]?.transportType === "rodoviario" ? "Ex: 012345678" : "Ex: AX782Q"}
                           value={ticketData["quick"]?.purchaseOrderNumber || ""}
                           onChange={(e) => handleTicketDataChange("quick", "purchaseOrderNumber", e.target.value)}
-                          className="h-11 bg-slate-50 border-slate-200 rounded-xl text-sm font-mono uppercase"
+                          className="h-11 bg-slate-50 border-slate-200 rounded-xl text-sm font-mono"
                           data-testid="input-quick-purchase-order"
                         />
                       </div>
@@ -830,158 +832,353 @@ export default function Tickets() {
                   {/* Cards de voo: Ida | Volta */}
                   <div className="grid grid-cols-2 gap-5">
 
-                    {/* Trecho de Ida */}
-                    <section className="rounded-2xl overflow-hidden border border-blue-100">
-                      <div className="flex items-center justify-between px-5 py-3 bg-[#EEF2FF]">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>flight_takeoff</span>
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-[#0033CC]">
-                            {ticketData["quick"]?.transportType === "rodoviario" ? "Partida" : "Trecho de Ida"}
-                          </h4>
-                        </div>
-                      </div>
-                      <div className="p-4 bg-white space-y-3">
-                        {/* Linha 1: Cidade + IATA Origem */}
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
-                          <div className="flex gap-2" style={{gridTemplateColumns:'1fr 80px'}}>
-                            <Input placeholder="Ex: São Paulo"
-                              value={ticketData["quick"]?.departureCityOrigin || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
-                              data-testid="input-quick-departure-city-origin"
-                            />
-                            <Input placeholder="GRU"
-                              value={ticketData["quick"]?.departureAirport || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                              style={{width:80}}
-                              data-testid="input-quick-departure-airport"
-                            />
+                    {/* Trecho de Ida / Embarque */}
+                    {(() => {
+                      const isRodo = ticketData["quick"]?.transportType === "rodoviario";
+                      return (
+                        <section className="rounded-2xl overflow-hidden border border-blue-100">
+                          <div className="flex items-center gap-2 px-5 py-3 bg-[#EEF2FF]">
+                            <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>
+                              {isRodo ? "directions_bus" : "flight_takeoff"}
+                            </span>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-[#0033CC]">
+                              {isRodo ? "Embarque" : "Trecho de Ida"}
+                            </h4>
                           </div>
-                        </div>
-                        {/* Linha 2: Cidade + IATA Destino */}
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
-                          <div className="flex gap-2">
-                            <Input placeholder="Ex: Manaus"
-                              value={ticketData["quick"]?.departureCityDestination || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
-                              data-testid="input-quick-departure-city-destination"
-                            />
-                            <Input placeholder="MAO"
-                              value={ticketData["quick"]?.destinationAirport || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                              style={{width:80}}
-                              data-testid="input-quick-destination-airport"
-                            />
+                          <div className="p-4 bg-white space-y-3">
+                            {isRodo ? (
+                              <>
+                                {/* Rodoviário: Cidade Origem */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
+                                  <Input placeholder="Ex: São Paulo"
+                                    value={ticketData["quick"]?.departureCityOrigin || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
+                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    data-testid="input-quick-departure-city-origin"
+                                  />
+                                </div>
+                                {/* Terminal de Origem (usa campo departureAirport) */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária *</Label>
+                                  <Input placeholder="Ex: Rodoviária do Tietê"
+                                    value={ticketData["quick"]?.departureAirport || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    data-testid="input-quick-departure-airport"
+                                  />
+                                </div>
+                                {/* Cidade Destino */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Destino *</Label>
+                                  <Input placeholder="Ex: Rio de Janeiro"
+                                    value={ticketData["quick"]?.departureCityDestination || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    data-testid="input-quick-departure-city-destination"
+                                  />
+                                </div>
+                                {/* Terminal de Destino (usa campo destinationAirport) */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária Destino</Label>
+                                  <Input placeholder="Ex: Rodoviária Novo Rio"
+                                    value={ticketData["quick"]?.destinationAirport || ""}
+                                    onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                                    className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    data-testid="input-quick-destination-airport"
+                                  />
+                                </div>
+                                {/* Data + Horário */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
+                                    <Input type="date"
+                                      value={ticketData["quick"]?.actualDepartureDate || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-departure-date"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
+                                    <Input type="time"
+                                      value={ticketData["quick"]?.actualDepartureTime || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-departure-time"
+                                    />
+                                  </div>
+                                </div>
+                                {/* Poltrona + Classe */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Poltrona <span className="text-slate-300 normal-case">(opcional)</span></Label>
+                                    <Input placeholder="Ex: 42A"
+                                      value={ticketData["quick"]?.busPoltrona || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "busPoltrona", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Classe</Label>
+                                    <Select
+                                      value={ticketData["quick"]?.busClasse || "convencional"}
+                                      onValueChange={(v) => handleTicketDataChange("quick", "busClasse", v)}
+                                    >
+                                      <SelectTrigger className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="convencional">Convencional</SelectItem>
+                                        <SelectItem value="executivo">Executivo</SelectItem>
+                                        <SelectItem value="leito">Leito</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {/* Aéreo: Cidade + IATA na mesma linha */}
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
+                                  <div className="flex gap-2">
+                                    <Input placeholder="Ex: São Paulo"
+                                      value={ticketData["quick"]?.departureCityOrigin || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                      data-testid="input-quick-departure-city-origin"
+                                    />
+                                    <Input placeholder="GRU"
+                                      value={ticketData["quick"]?.departureAirport || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
+                                      style={{width:80}}
+                                      data-testid="input-quick-departure-airport"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
+                                  <div className="flex gap-2">
+                                    <Input placeholder="Ex: Manaus"
+                                      value={ticketData["quick"]?.departureCityDestination || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                      data-testid="input-quick-departure-city-destination"
+                                    />
+                                    <Input placeholder="MAO"
+                                      value={ticketData["quick"]?.destinationAirport || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
+                                      style={{width:80}}
+                                      data-testid="input-quick-destination-airport"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
+                                    <Input type="date"
+                                      value={ticketData["quick"]?.actualDepartureDate || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-departure-date"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
+                                    <Input type="time"
+                                      value={ticketData["quick"]?.actualDepartureTime || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-departure-time"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            )}
                           </div>
-                        </div>
-                        {/* Linha 3: Data + Horário */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                            <Input type="date"
-                              value={ticketData["quick"]?.actualDepartureDate || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "actualDepartureDate", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
-                              data-testid="input-quick-departure-date"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                            <Input type="time"
-                              value={ticketData["quick"]?.actualDepartureTime || ""}
-                              onChange={(e) => handleTicketDataChange("quick", "actualDepartureTime", e.target.value)}
-                              className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
-                              data-testid="input-quick-departure-time"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+                        </section>
+                      );
+                    })()}
 
-                    {/* Trecho de Volta — com animação */}
+                    {/* Trecho de Volta / Desembarque — com animação */}
                     <div style={{
                       overflow:'hidden',
                       transition:'all 0.3s ease',
                       opacity: ticketData["quick"]?.isOneWay ? 0 : 1,
-                      maxHeight: ticketData["quick"]?.isOneWay ? '0px' : '600px',
+                      maxHeight: ticketData["quick"]?.isOneWay ? '0px' : '800px',
                       pointerEvents: ticketData["quick"]?.isOneWay ? 'none' : 'auto',
                     }}>
-                      <section className="rounded-2xl overflow-hidden border border-orange-100">
-                        <div className="flex items-center justify-between px-5 py-3 bg-[#FFF7ED]">
-                          <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>flight_land</span>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-[#F97316]">
-                              {ticketData["quick"]?.transportType === "rodoviario" ? "Retorno" : "Trecho de Volta"}
-                            </h4>
-                          </div>
-                        </div>
-                        <div className="p-4 bg-white space-y-3">
-                          {/* Linha 1: Cidade + IATA Origem */}
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
-                            <div className="flex gap-2">
-                              <Input placeholder="Ex: Manaus"
-                                value={ticketData["quick"]?.returnCityOrigin || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
-                                data-testid="input-quick-return-city-origin"
-                              />
-                              <Input placeholder="MAO"
-                                value={ticketData["quick"]?.returnOriginAirport || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                style={{width:80}}
-                                data-testid="input-quick-return-origin-airport"
-                              />
+                      {(() => {
+                        const isRodo = ticketData["quick"]?.transportType === "rodoviario";
+                        return (
+                          <section className="rounded-2xl overflow-hidden border border-orange-100">
+                            <div className="flex items-center gap-2 px-5 py-3 bg-[#FFF7ED]">
+                              <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:16, fontVariationSettings:"'FILL' 1"}}>
+                                {isRodo ? "directions_bus" : "flight_land"}
+                              </span>
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-[#F97316]">
+                                {isRodo ? "Desembarque" : "Trecho de Volta"}
+                              </h4>
                             </div>
-                          </div>
-                          {/* Linha 2: Cidade + IATA Destino */}
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
-                            <div className="flex gap-2">
-                              <Input placeholder="Ex: São Paulo"
-                                value={ticketData["quick"]?.returnCityDestination || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
-                                data-testid="input-quick-return-city-destination"
-                              />
-                              <Input placeholder="GRU"
-                                value={ticketData["quick"]?.returnDestinationAirport || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
-                                style={{width:80}}
-                                data-testid="input-quick-return-destination-airport"
-                              />
+                            <div className="p-4 bg-white space-y-3">
+                              {isRodo ? (
+                                <>
+                                  {/* Rodoviário: Cidade Origem */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Origem *</Label>
+                                    <Input placeholder="Ex: Rio de Janeiro"
+                                      value={ticketData["quick"]?.returnCityOrigin || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-return-city-origin"
+                                    />
+                                  </div>
+                                  {/* Terminal de Origem volta (usa returnOriginAirport) */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária *</Label>
+                                    <Input placeholder="Ex: Rodoviária Novo Rio"
+                                      value={ticketData["quick"]?.returnOriginAirport || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-return-origin-airport"
+                                    />
+                                  </div>
+                                  {/* Cidade Destino volta */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Cidade de Destino *</Label>
+                                    <Input placeholder="Ex: São Paulo"
+                                      value={ticketData["quick"]?.returnCityDestination || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-return-city-destination"
+                                    />
+                                  </div>
+                                  {/* Terminal de Destino volta (usa returnDestinationAirport) */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Terminal / Rodoviária Destino</Label>
+                                    <Input placeholder="Ex: Rodoviária do Tietê"
+                                      value={ticketData["quick"]?.returnDestinationAirport || ""}
+                                      onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
+                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      data-testid="input-quick-return-destination-airport"
+                                    />
+                                  </div>
+                                  {/* Data + Horário */}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
+                                      <Input type="date"
+                                        value={ticketData["quick"]?.actualReturnDate || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        data-testid="input-quick-return-date"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
+                                      <Input type="time"
+                                        value={ticketData["quick"]?.actualReturnTime || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        data-testid="input-quick-return-time"
+                                      />
+                                    </div>
+                                  </div>
+                                  {/* Poltrona + Classe volta */}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Poltrona <span className="text-slate-300 normal-case">(opcional)</span></Label>
+                                      <Input placeholder="Ex: 12B"
+                                        value={ticketData["quick"]?.busPoltronaVolta || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "busPoltronaVolta", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Classe</Label>
+                                      <Select
+                                        value={ticketData["quick"]?.busClasseVolta || "convencional"}
+                                        onValueChange={(v) => handleTicketDataChange("quick", "busClasseVolta", v)}
+                                      >
+                                        <SelectTrigger className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="convencional">Convencional</SelectItem>
+                                          <SelectItem value="executivo">Executivo</SelectItem>
+                                          <SelectItem value="leito">Leito</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Origem *</Label>
+                                    <div className="flex gap-2">
+                                      <Input placeholder="Ex: Manaus"
+                                        value={ticketData["quick"]?.returnCityOrigin || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                        data-testid="input-quick-return-city-origin"
+                                      />
+                                      <Input placeholder="MAO"
+                                        value={ticketData["quick"]?.returnOriginAirport || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
+                                        style={{width:80}}
+                                        data-testid="input-quick-return-origin-airport"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Destino *</Label>
+                                    <div className="flex gap-2">
+                                      <Input placeholder="Ex: São Paulo"
+                                        value={ticketData["quick"]?.returnCityDestination || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                        data-testid="input-quick-return-city-destination"
+                                      />
+                                      <Input placeholder="GRU"
+                                        value={ticketData["quick"]?.returnDestinationAirport || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm font-bold uppercase text-center"
+                                        style={{width:80}}
+                                        data-testid="input-quick-return-destination-airport"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
+                                      <Input type="date"
+                                        value={ticketData["quick"]?.actualReturnDate || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        data-testid="input-quick-return-date"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
+                                      <Input type="time"
+                                        value={ticketData["quick"]?.actualReturnTime || ""}
+                                        onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
+                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
+                                        data-testid="input-quick-return-time"
+                                      />
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                          </div>
-                          {/* Linha 3: Data + Horário */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Data *</Label>
-                              <Input type="date"
-                                value={ticketData["quick"]?.actualReturnDate || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "actualReturnDate", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
-                                data-testid="input-quick-return-date"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight">Horário *</Label>
-                              <Input type="time"
-                                value={ticketData["quick"]?.actualReturnTime || ""}
-                                onChange={(e) => handleTicketDataChange("quick", "actualReturnTime", e.target.value)}
-                                className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm"
-                                data-testid="input-quick-return-time"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </section>
+                          </section>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1061,7 +1258,9 @@ export default function Tickets() {
                           <li className="flex items-center gap-3">
                             {dot(idaStatus)}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold ${textColor(idaStatus)}`}>Trecho de ida</p>
+                              <p className={`text-xs font-semibold ${textColor(idaStatus)}`}>
+                                {q?.transportType === "rodoviario" ? "Trecho de embarque" : "Trecho de ida"}
+                              </p>
                               <p className="text-[10px] text-slate-400">
                                 {idaStatus === 'done' ? 'Origem, destino e data definidos' : idaStatus === 'partial' ? 'Informações incompletas' : 'Nenhum campo preenchido'}
                               </p>
