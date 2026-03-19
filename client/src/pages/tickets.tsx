@@ -1459,7 +1459,12 @@ export default function Tickets() {
                             ? '#FAFAFA'
                             : ticket
                             ? '#F0FDF4'
-                            : '#FFFBF5'
+                            : '#FFFBF5',
+                          borderLeft: inclusion.status === 'cancelado'
+                            ? '3px solid #E2E8F0'
+                            : ticket
+                            ? '3px solid #22C55E'
+                            : '3px solid #F97316'
                         }}
                         onMouseEnter={(e) => {
                           (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
