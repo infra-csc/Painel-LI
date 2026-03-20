@@ -364,129 +364,111 @@ export function SplitVagaModal({
   // ── Render ────────────────────────────────────────────────────────────────
   return createPortal(
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 680, maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+      <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
 
-          {/* ── Modal title header ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px 16px", borderBottom: "1px solid #F1F5F9", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#7C3AED,#4F46E5)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <UserPlus style={{ width: 18, height: 18, color: "#fff" }} />
+          {/* ── Title header ── */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0" style={{background: '#6d28d9'}}>
+                <UserPlus className="w-4.5 h-4.5 text-white" style={{width:18,height:18}} />
               </div>
               <div>
-                <p style={{ fontWeight: 700, fontSize: 15, color: "#1E293B", margin: 0 }}>Dividir escalação</p>
-                <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>Atribua dias específicos a outro colaborador</p>
+                <p className="font-bold text-[15px] text-slate-800 leading-tight m-0">Dividir escalação</p>
+                <p className="text-xs text-slate-400 m-0">Atribua dias específicos a outro colaborador</p>
               </div>
             </div>
-            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", padding: 4 }}>
-              <X style={{ width: 20, height: 20 }} />
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* ── Step indicator ── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 24px", background: "#F8FAFC", borderBottom: "1px solid #F1F5F9", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 800, flexShrink: 0,
-                background: step === 1 ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "#10B981",
-                color: "#fff",
-              }}>
-                {step === 1 ? "1" : "✓"}
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex-shrink-0">
+            {/* Step 1 */}
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                style={{background: step === 1 ? '#6d28d9' : '#10B981'}}>
+                {step === 1 ? '1' : '✓'}
               </div>
-              <span style={{ fontSize: 12, fontWeight: step === 1 ? 700 : 500, color: step === 1 ? "#3B5BDB" : "#10B981" }}>
-                Selecionar colaborador
+              <span className="text-xs font-semibold" style={{color: step === 1 ? '#6d28d9' : '#10B981'}}>
+                Colaborador & dias
               </span>
             </div>
-            <ChevronRight style={{ width: 14, height: 14, color: "#CBD5E1" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 800, flexShrink: 0,
-                background: step === 2 ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "#E2E8F0",
-                color: step === 2 ? "#fff" : "#94A3B8",
-              }}>
+            <div className="flex-1 h-px bg-slate-200" />
+            {/* Step 2 */}
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0"
+                style={{background: step === 2 ? '#6d28d9' : '#E2E8F0', color: step === 2 ? '#fff' : '#94A3B8'}}>
                 2
               </div>
-              <span style={{ fontSize: 12, fontWeight: step === 2 ? 700 : 400, color: step === 2 ? "#3B5BDB" : "#94A3B8" }}>
-                Informar valores
+              <span className="text-xs font-semibold" style={{color: step === 2 ? '#6d28d9' : '#94A3B8'}}>
+                Valores
               </span>
             </div>
           </div>
 
           {/* ══ STEP 1 ══════════════════════════════════════════════════════ */}
           {step === 1 && (
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20, flex: 1, overflowY: "auto" }}>
+            <div className="flex flex-col gap-5 flex-1 overflow-y-auto p-5 bg-slate-50">
 
               {/* Collaborator picker */}
-              <div>
-                <SmLabel>Colaborador</SmLabel>
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Colaborador</p>
                 <div ref={dropRef}>
-                  {/* Trigger button */}
                   <button
                     onClick={openDrop}
+                    className="flex items-center justify-between gap-2 w-full h-11 px-3 rounded-lg bg-white text-left cursor-pointer transition-all"
                     style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                      width: "100%", height: 44, padding: "0 12px",
-                      border: collabDropOpen ? "1.5px solid #7C3AED" : "1.5px solid #E2E8F0",
-                      borderRadius: 10, background: "#fff",
-                      cursor: "pointer", textAlign: "left", boxSizing: "border-box",
-                      boxShadow: collabDropOpen ? "0 0 0 3px rgba(124,58,237,0.1)" : "0 1px 2px rgba(0,0,0,0.05)",
-                      transition: "border-color 0.15s, box-shadow 0.15s",
+                      border: collabDropOpen ? '1.5px solid #6d28d9' : '1.5px solid #E2E8F0',
+                      boxShadow: collabDropOpen ? '0 0 0 3px rgba(109,40,217,0.1)' : '0 1px 2px rgba(0,0,0,0.05)',
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       {selectedCollab ? (
                         <>
-                          <div style={{
-                            width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                            background: "linear-gradient(135deg,#7C3AED,#4F46E5)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 10, fontWeight: 800, color: "#fff",
-                          }}>
+                          <div className="w-7 h-7 rounded-[8px] flex-shrink-0 flex items-center justify-center text-[11px] font-black text-white"
+                            style={{background: '#6d28d9'}}>
                             {fixEncoding(selectedCollab.fullName || "?").charAt(0).toUpperCase()}
                           </div>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span className="text-sm font-semibold text-slate-800 truncate">
                             {capitalizeName(fixEncoding(selectedCollab.fullName || ""))}
                           </span>
                         </>
                       ) : (
                         <>
-                          <Search style={{ width: 15, height: 15, color: "#94A3B8", flexShrink: 0 }} />
-                          <span style={{ fontSize: 14, color: "#94A3B8" }}>Buscar colaborador...</span>
+                          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          <span className="text-sm text-slate-400">Buscar colaborador...</span>
                         </>
                       )}
                     </div>
-                    <ChevronDown style={{ width: 15, height: 15, color: "#94A3B8", flexShrink: 0, transform: collabDropOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform" style={{transform: collabDropOpen ? 'rotate(180deg)' : 'none'}} />
                   </button>
 
-                  {/* Dropdown portal */}
                   {collabDropOpen && dropRect && createPortal(
                     <div
                       id="split-collab-portal"
+                      className="absolute bg-white rounded-xl overflow-hidden"
                       style={{
-                        position: "absolute", top: dropRect.top, left: dropRect.left, width: dropRect.width,
-                        zIndex: 10000, background: "#fff",
-                        border: "1.5px solid #E2E8F0", borderRadius: 12,
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
-                        overflow: "hidden",
+                        top: dropRect.top, left: dropRect.left, width: dropRect.width,
+                        zIndex: 10000,
+                        border: '1.5px solid #E2E8F0',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                       }}
                     >
-                      {/* Search input */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
-                        <Search style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
+                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100">
+                        <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         <input
                           ref={inputRef}
                           value={collabSearch}
                           onChange={e => setCollabSearch(e.target.value)}
                           placeholder="Buscar colaborador..."
-                          style={{ flex: 1, border: "none", outline: "none", fontSize: 13, color: "#1E293B", background: "transparent" }}
+                          className="flex-1 border-0 outline-none text-[13px] text-slate-800 bg-transparent"
                         />
                       </div>
-                      {/* List */}
-                      <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                      <div className="max-h-[240px] overflow-y-auto">
                         {filteredCollabs.length === 0 ? (
-                          <div style={{ padding: "14px 16px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Nenhum colaborador encontrado</div>
+                          <div className="py-4 text-center text-slate-400 text-[13px]">Nenhum colaborador encontrado</div>
                         ) : filteredCollabs.map(c => {
                           const name = capitalizeName(fixEncoding(c.fullName || ""));
                           const isSel = c.id === selectedCollabId;
@@ -495,28 +477,19 @@ export function SplitVagaModal({
                             <button
                               key={c.id}
                               onMouseDown={e => { e.preventDefault(); setSelectedCollabId(c.id); setCollabDropOpen(false); setCollabSearch(""); }}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 10, width: "100%",
-                                padding: "8px 14px", border: "none",
-                                background: isSel ? "#EDE9FE" : "transparent",
-                                cursor: "pointer", textAlign: "left",
-                                borderBottom: "1px solid #F8FAFC",
-                              }}
-                              onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = "#F8FAFC"; }}
-                              onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                              className="flex items-center gap-2.5 w-full px-3.5 py-2 border-0 border-b border-slate-50 cursor-pointer text-left transition-colors"
+                              style={{background: isSel ? '#EDE9FE' : 'transparent'}}
+                              onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+                              onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
-                              <div style={{
-                                width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                                background: isSel ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : "linear-gradient(135deg,#94A3B8,#64748B)",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: 11, fontWeight: 800, color: "#fff",
-                              }}>
+                              <div className="w-7 h-7 rounded-[8px] flex-shrink-0 flex items-center justify-center text-[11px] font-black text-white"
+                                style={{background: isSel ? '#6d28d9' : '#94A3B8'}}>
                                 {ini}
                               </div>
-                              <span style={{ fontSize: 13, fontWeight: isSel ? 600 : 400, color: isSel ? "#6D28D9" : "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span className="text-[13px] truncate" style={{fontWeight: isSel ? 600 : 400, color: isSel ? '#6D28D9' : '#334155'}}>
                                 {name}
                               </span>
-                              {isSel && <Check style={{ width: 13, height: 13, color: "#7C3AED", marginLeft: "auto", flexShrink: 0 }} />}
+                              {isSel && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0" style={{color: '#6d28d9'}} />}
                             </button>
                           );
                         })}
@@ -529,48 +502,70 @@ export function SplitVagaModal({
 
               {/* Day picker */}
               {availableDays.length > 0 && (
-                <div>
-                  <SmLabel>Dias que este colaborador irá cobrir</SmLabel>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+                    Dias que este colaborador irá cobrir
+                  </p>
+                  <div className="flex flex-wrap gap-2">
                     {availableDays.map(day => {
                       const isSel = selectedDays.has(day);
                       const isTaken = takenSet.has(day);
                       const notParent = !parentWorkedDays.includes(day);
                       const wknd = isWeekend(day);
+
+                      let bg = '#F8FAFC', border = '#E2E8F0', color = '#64748B';
+                      if (isTaken) { bg = '#F1F5F9'; border = '#CBD5E1'; color = '#CBD5E1'; }
+                      else if (isSel && wknd) { bg = '#FFF7ED'; border = '#F97316'; color = '#C2410C'; }
+                      else if (isSel) { bg = '#EDE9FE'; border = '#6d28d9'; color = '#6d28d9'; }
+                      else if (wknd) { bg = '#FFFBEB'; border = '#FDE68A'; color = '#92400E'; }
+
                       return (
                         <button
                           key={day}
                           onClick={() => toggleDay(day)}
                           disabled={isTaken}
                           title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : undefined}
+                          className="flex flex-col items-center rounded-xl transition-all"
                           style={{
-                            padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            cursor: isTaken ? "not-allowed" : "pointer", border: "1px solid",
-                            background: isTaken ? "#F1F5F9" : isSel ? (wknd ? "#FFF7ED" : "#EEF2FF") : "#F8FAFC",
-                            borderColor: isTaken ? "#CBD5E1" : isSel ? (wknd ? "#F97316" : "#3B5BDB") : "#E2E8F0",
-                            color: isTaken ? "#CBD5E1" : isSel ? (wknd ? "#C2410C" : "#3B5BDB") : "#64748B",
-                            opacity: isTaken ? 0.6 : 1,
-                            textDecoration: isTaken ? "line-through" : "none",
+                            padding: '6px 10px', minWidth: 56,
+                            cursor: isTaken ? 'not-allowed' : 'pointer',
+                            border: `1.5px solid ${border}`, background: bg,
+                            opacity: isTaken ? 0.5 : 1,
                           }}
                         >
-                          {isSel && !isTaken && <Check style={{ width: 10, height: 10, display: "inline", marginRight: 3 }} />}
-                          {formatDay(day)}
-                          {notParent && !isSel && !isTaken && <span style={{ fontSize: 9, color: "#F59E0B", marginLeft: 4 }}>⚠</span>}
+                          {isSel && !isTaken
+                            ? <Check style={{width:12, height:12, color, marginBottom:1}} />
+                            : <span style={{fontSize: 9, fontWeight: 700, color: isTaken ? '#CBD5E1' : wknd ? '#F59E0B' : '#94A3B8', textTransform:'uppercase', letterSpacing:'0.05em', lineHeight:'14px'}}>
+                                {new Date(day+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase()}
+                              </span>
+                          }
+                          <span style={{fontSize: 13, fontWeight: 700, color, lineHeight: '16px', textDecoration: isTaken ? 'line-through' : 'none'}}>
+                            {new Date(day+'T12:00:00').getDate()}
+                          </span>
+                          <span style={{fontSize: 9, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight:'12px'}}>
+                            {new Date(day+'T12:00:00').toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase()}
+                          </span>
+                          {notParent && !isSel && !isTaken && (
+                            <span style={{fontSize:8, color:'#F59E0B', marginTop:1}}>⚠</span>
+                          )}
                         </button>
                       );
                     })}
                   </div>
                   {selectedDays.size > 0 && (
-                    <p style={{ marginTop: 8, fontSize: 12, color: "#64748B" }}>
-                      <strong>{selectedDays.size} dia(s)</strong> selecionado(s)
-                      {selWeekdays > 0 && ` — ${selWeekdays} útil(is)`}
-                      {selWeekends > 0 && ` — ${selWeekends} fim(s) de semana`}
-                    </p>
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                      <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                      <p className="text-xs text-slate-600 m-0">
+                        <strong>{selectedDays.size}</strong> {selectedDays.size === 1 ? 'dia selecionado' : 'dias selecionados'}
+                        {selWeekdays > 0 && <span className="text-indigo-600"> · {selWeekdays} {selWeekdays === 1 ? 'útil' : 'úteis'}</span>}
+                        {selWeekends > 0 && <span className="text-amber-600"> · {selWeekends} fim{selWeekends > 1 ? 's' : ''} de semana</span>}
+                      </p>
+                    </div>
                   )}
                   {takenDays.length > 0 && (
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, padding: "7px 10px", borderRadius: 8, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                      <Info style={{ width: 13, height: 13, color: "#3B5BDB", flexShrink: 0 }} />
-                      <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>Dias riscados já estão atribuídos a outro colaborador desta divisão.</p>
+                    <div className="flex gap-2 items-start mt-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                      <Info className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-slate-500 m-0">Dias acinzentados já estão atribuídos a outro colaborador desta divisão.</p>
                     </div>
                   )}
                 </div>
@@ -578,30 +573,26 @@ export function SplitVagaModal({
 
               {/* Validations */}
               {!selectedCollabId && (
-                <div style={{ fontSize: 12, color: "#EF4444", display: "flex", alignItems: "center", gap: 6 }}>
-                  <AlertTriangle style={{ width: 12, height: 12 }} /> Selecione um colaborador para continuar.
+                <div className="flex items-center gap-2 text-xs text-red-500">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Selecione um colaborador para continuar.
                 </div>
               )}
               {selectedCollabId && selectedDays.size === 0 && (
-                <div style={{ fontSize: 12, color: "#EF4444", display: "flex", alignItems: "center", gap: 6 }}>
-                  <AlertTriangle style={{ width: 12, height: 12 }} /> Selecione pelo menos 1 dia para o novo colaborador.
+                <div className="flex items-center gap-2 text-xs text-red-500">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Selecione pelo menos 1 dia para o novo colaborador.
                 </div>
               )}
 
-              {/* Footer buttons */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 4, borderTop: "1px solid #F1F5F9", flexShrink: 0 }}>
-                <Button variant="outline" onClick={onClose}>Cancelar</Button>
+              {/* Footer */}
+              <div className="flex justify-end gap-2.5 pt-1 border-t border-slate-100 flex-shrink-0">
+                <Button variant="outline" className="h-9 px-4 rounded-xl" onClick={onClose}>Cancelar</Button>
                 <Button
                   onClick={goToStep2}
                   disabled={!canGoNext}
-                  style={{
-                    background: canGoNext ? "linear-gradient(135deg,#7C3AED,#4F46E5)" : undefined,
-                    color: canGoNext ? "#fff" : undefined,
-                    border: "none",
-                    display: "flex", alignItems: "center", gap: 6,
-                  }}
+                  className="h-9 px-5 rounded-xl text-white flex items-center gap-1.5"
+                  style={{background: canGoNext ? '#6d28d9' : undefined}}
                 >
-                  Próximo <ChevronRight style={{ width: 14, height: 14 }} />
+                  Próximo <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
@@ -610,34 +601,33 @@ export function SplitVagaModal({
           {/* ══ STEP 2 ══════════════════════════════════════════════════════ */}
           {step === 2 && selectedCollab && (() => {
             const collabName = selectedCollab.fullName || "";
-            const colBg = avatarColor(collabName);
             const firstDay = selDaysSorted[0];
             const lastDay = selDaysSorted[selDaysSorted.length - 1];
 
             return (
               <>
                 {/* Collaborator header */}
-                <div className="bg-gradient-to-br from-violet-600 to-purple-700 px-6 pt-4 pb-4" style={{ flexShrink: 0 }}>
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${colBg} border-2 border-white/30 flex items-center justify-center flex-shrink-0 shadow-lg`}>
+                <div className="px-5 pt-4 pb-4 flex-shrink-0" style={{background: '#6d28d9'}}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-sm font-bold">{initials(collabName)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-base font-bold text-white truncate">{collabName}</h2>
-                      <p className="text-xs text-violet-200 mt-1">Preencha os valores realizados para este colaborador</p>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <h2 className="text-sm font-bold text-white truncate leading-tight m-0">{capitalizeName(collabName)}</h2>
+                      <p className="text-[11px] text-violet-200 mt-1 m-0">Preencha os valores para este colaborador</p>
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         {selWeekdays > 0 && (
-                          <span className="text-[10px] bg-blue-400/30 text-blue-100 px-2 py-0.5 rounded-full font-medium">
-                            {selWeekdays} dia(s) útil(is)
+                          <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium">
+                            {selWeekdays} {selWeekdays === 1 ? 'dia útil' : 'dias úteis'}
                           </span>
                         )}
                         {selWeekends > 0 && (
                           <span className="text-[10px] bg-amber-400/30 text-amber-100 px-2 py-0.5 rounded-full font-medium">
-                            {selWeekends} fim(s) de semana
+                            {selWeekends} fim{selWeekends > 1 ? 's' : ''} de semana
                           </span>
                         )}
-                        <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium">
-                          {selectedDays.size} {selectedDays.size === 1 ? "dia" : "dias"} no total
+                        <span className="text-[10px] bg-white/10 text-white/80 px-2 py-0.5 rounded-full font-medium">
+                          {selectedDays.size} {selectedDays.size === 1 ? 'dia' : 'dias'} total
                         </span>
                       </div>
                     </div>
@@ -645,149 +635,134 @@ export function SplitVagaModal({
                 </div>
 
                 {/* Body */}
-                <div className="overflow-y-auto px-6 py-5 space-y-4 bg-gray-50/80" style={{ flex: 1 }}>
+                <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3 bg-slate-50">
 
-                  {/* Period pill */}
+                  {/* Period */}
                   {firstDay && (
-                    <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 flex items-center justify-between">
+                    <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center">
-                          <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-700">
-                          {firstDay === lastDay ? formatDate(firstDay) : `${formatDate(firstDay)} até ${formatDate(lastDay)}`}
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-semibold text-slate-600">
+                          {firstDay === lastDay ? formatDate(firstDay) : `${formatDate(firstDay)} → ${formatDate(lastDay)}`}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {selWeekdays > 0 && (
-                          <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-                            {selWeekdays} {selWeekdays === 1 ? "dia útil" : "dias úteis"}
+                          <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                            {selWeekdays} {selWeekdays === 1 ? 'dia útil' : 'dias úteis'}
                           </span>
                         )}
                         {selWeekends > 0 && (
-                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                            {selWeekends} {selWeekends === 1 ? "fim de sem." : "fins de sem."}
+                          <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                            {selWeekends} fim{selWeekends > 1 ? 's' : ''} de sem.
                           </span>
                         )}
-                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                          {selectedDays.size} {selectedDays.size === 1 ? "dia" : "dias"}
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {selectedDays.size}d
                         </span>
                       </div>
                     </div>
                   )}
 
                   {/* Diárias */}
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/60 border-b border-blue-100">
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="h-[3px] bg-indigo-500" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50/60 border-b border-indigo-100">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Diárias</span>
+                        <div className="w-5 h-5 rounded-md bg-indigo-500 flex items-center justify-center">
+                          <Calendar className="w-3 h-3 text-white" />
+                        </div>
+                        <span className="text-[11px] font-black text-indigo-700 uppercase">Diárias</span>
                       </div>
-                      <span className="text-sm font-bold text-blue-700 tabular-nums">{fmtR$(s2SubDiarias)}</span>
+                      <span className="text-sm font-black text-indigo-700 tabular-nums">{fmtR$(s2SubDiarias)}</span>
                     </div>
-                    <div className="p-4 space-y-3">
-                      {/* Dias úteis */}
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <Briefcase className="w-3.5 h-3.5 text-blue-500" />
-                          <div>
-                            <div className="text-xs font-semibold text-gray-700">Dias Úteis</div>
-                            <div className="text-[10px] text-gray-400">{selWeekdays} {selWeekdays === 1 ? "dia" : "dias"}</div>
-                          </div>
+                    <div className="p-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Briefcase className="w-3 h-3 text-indigo-500" />
+                          <span className="text-[11px] font-semibold text-slate-600">Dias Úteis</span>
+                          <span className="text-[10px] text-slate-400 ml-auto">{selWeekdays}d</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-400 font-medium">R$</span>
+                          <span className="text-[10px] text-slate-400">R$</span>
                           <ModalCurrencyInput
-                            className={`h-9 text-sm w-24 text-center font-medium ${selWeekdays === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.valorDiariaUtil}
                             onChange={v => setStep2Form(f => ({ ...f, valorDiariaUtil: v }))}
                             disabled={selWeekdays === 0}
                           />
-                          <span className="text-[10px] text-gray-400">/dia</span>
+                          <span className="text-[10px] text-slate-400">/d</span>
                         </div>
-                        <div className="text-right min-w-[90px]">
-                          <span className="text-sm font-bold text-gray-700 tabular-nums">{fmtR$(s2SubDiariasUtil)}</span>
-                          {selWeekdays > 0 && (
-                            <div className="text-[10px] text-gray-400 tabular-nums">{selWeekdays} × {fmtR$(step2Form.valorDiariaUtil)}</div>
-                          )}
-                        </div>
+                        <div className="text-[11px] font-black text-indigo-700 tabular-nums text-center mt-1.5">{fmtR$(s2SubDiariasUtil)}</div>
                       </div>
-                      <div className="border-t border-gray-100" />
-                      {/* Fim de semana */}
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <Sun className="w-3.5 h-3.5 text-amber-500" />
-                          <div>
-                            <div className="text-xs font-semibold text-gray-700">Fim de Semana</div>
-                            <div className="text-[10px] text-gray-400">{selWeekends} {selWeekends === 1 ? "dia" : "dias"}</div>
-                          </div>
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Sun className="w-3 h-3 text-amber-500" />
+                          <span className="text-[11px] font-semibold text-slate-600">Fim de Semana</span>
+                          <span className="text-[10px] text-slate-400 ml-auto">{selWeekends}d</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-400 font-medium">R$</span>
+                          <span className="text-[10px] text-slate-400">R$</span>
                           <ModalCurrencyInput
-                            className={`h-9 text-sm w-24 text-center font-medium ${selWeekends === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.valorDiariaFds}
                             onChange={v => setStep2Form(f => ({ ...f, valorDiariaFds: v }))}
                             disabled={selWeekends === 0}
                           />
-                          <span className="text-[10px] text-gray-400">/dia</span>
+                          <span className="text-[10px] text-slate-400">/d</span>
                         </div>
-                        <div className="text-right min-w-[90px]">
-                          <span className={`text-sm font-bold tabular-nums ${selWeekends === 0 ? "text-gray-300" : "text-gray-700"}`}>{fmtR$(s2SubDiariasFds)}</span>
-                          {selWeekends > 0 && (
-                            <div className="text-[10px] text-gray-400 tabular-nums">{selWeekends} × {fmtR$(step2Form.valorDiariaFds)}</div>
-                          )}
-                        </div>
+                        <div className={`text-[11px] font-black tabular-nums text-center mt-1.5 ${selWeekends === 0 ? 'text-slate-300' : 'text-indigo-700'}`}>{fmtR$(s2SubDiariasFds)}</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Mobilidade */}
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-purple-50/60 border-b border-purple-100">
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="h-[3px] bg-violet-500" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/60 border-b border-violet-100">
                       <div className="flex items-center gap-2">
-                        <Car className="w-3.5 h-3.5 text-purple-500" />
-                        <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wide">Mobilidade</span>
-                      </div>
-                      <span className="text-sm font-bold text-purple-700 tabular-nums">{fmtR$(step2Form.mobility)}</span>
-                    </div>
-                    <div className="p-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[11px] font-medium text-gray-500 mb-1 block">Total do período (R$)</label>
-                          <ModalCurrencyInput
-                            className="h-9 text-sm"
-                            value={step2Form.mobility}
-                            onChange={v => setStep2Form(f => ({ ...f, mobility: v }))}
-                          />
+                        <div className="w-5 h-5 rounded-md bg-violet-500 flex items-center justify-center">
+                          <Car className="w-3 h-3 text-white" />
                         </div>
-                        <div>
-                          <label className="text-[11px] font-medium text-gray-500 mb-1 block">Por dia</label>
-                          <div className="h-9 flex items-center px-3 rounded-md bg-gray-50 border border-gray-100 text-xs text-gray-400 tabular-nums">
-                            {selectedDays.size > 0 ? fmtR$(Math.round(step2Form.mobility / selectedDays.size)) : fmtR$(0)}
-                          </div>
+                        <span className="text-[11px] font-black text-violet-700 uppercase">Mobilidade</span>
+                      </div>
+                      <span className="text-sm font-black text-violet-700 tabular-nums">{fmtR$(step2Form.mobility)}</span>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">Total do período (R$)</label>
+                        <ModalCurrencyInput
+                          className="h-9 text-sm"
+                          value={step2Form.mobility}
+                          onChange={v => setStep2Form(f => ({ ...f, mobility: v }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">Por dia</label>
+                        <div className="h-9 flex items-center px-3 rounded-lg bg-slate-50 border border-slate-100 text-xs text-slate-400 tabular-nums">
+                          {selectedDays.size > 0 ? fmtR$(Math.round(step2Form.mobility / selectedDays.size)) : fmtR$(0)}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Alimentação 2×2 */}
-                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-100">
+                  {/* Alimentação */}
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="h-[3px] bg-orange-400" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/60 border-b border-orange-100">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-orange-400 flex items-center justify-center">
-                          <Utensils className="w-3.5 h-3.5 text-white" />
+                        <div className="w-5 h-5 rounded-md bg-orange-400 flex items-center justify-center">
+                          <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Alimentação</span>
+                        <span className="text-[11px] font-black text-orange-700 uppercase">Alimentação</span>
                       </div>
-                      <span className="text-sm font-black text-orange-700 tabular-nums border-l border-orange-200 pl-2">{fmtR$(s2TotalAlim)}</span>
+                      <span className="text-sm font-black text-orange-700 tabular-nums">{fmtR$(s2TotalAlim)}</span>
                     </div>
                     <div className="p-3">
-                      {/* Column headers */}
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
                         <div />
                         <div className="text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
                             <Briefcase className="w-2.5 h-2.5" /> Dias Úteis
                           </span>
                         </div>
@@ -797,124 +772,105 @@ export function SplitVagaModal({
                           </span>
                         </div>
                       </div>
-                      {/* Almoço */}
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
                         <div className="flex items-center gap-1">
                           <Sun className="w-3 h-3 text-amber-400" />
-                          <span className="text-[11px] font-semibold text-gray-600">Almoço</span>
+                          <span className="text-[11px] font-semibold text-slate-600">Almoço</span>
                         </div>
-                        <div className="rounded-xl p-2 border border-gray-100 bg-gray-50/50">
+                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
                           <ModalCurrencyInput
-                            className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekdayLunch}
                             onChange={v => setStep2Form(f => ({ ...f, weekdayLunch: v }))}
                             disabled={selWeekdays === 0}
                           />
                         </div>
-                        <div className="rounded-xl p-2 border border-gray-100 bg-gray-50/50">
+                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
                           <ModalCurrencyInput
-                            className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekendLunch}
                             onChange={v => setStep2Form(f => ({ ...f, weekendLunch: v }))}
                             disabled={selWeekends === 0}
                           />
                         </div>
                       </div>
-                      {/* Jantar */}
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
                         <div className="flex items-center gap-1">
                           <Moon className="w-3 h-3 text-indigo-400" />
-                          <span className="text-[11px] font-semibold text-gray-600">Jantar</span>
+                          <span className="text-[11px] font-semibold text-slate-600">Jantar</span>
                         </div>
-                        <div className="rounded-xl p-2 border border-gray-100 bg-gray-50/50">
+                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
                           <ModalCurrencyInput
-                            className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-xs text-center w-full ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekdayDinner}
                             onChange={v => setStep2Form(f => ({ ...f, weekdayDinner: v }))}
                             disabled={selWeekdays === 0}
                           />
                         </div>
-                        <div className="rounded-xl p-2 border border-gray-100 bg-gray-50/50">
+                        <div className="rounded-lg p-2 border border-slate-100 bg-slate-50/50">
                           <ModalCurrencyInput
-                            className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`h-8 text-xs text-center w-full ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={step2Form.weekendDinner}
                             onChange={v => setStep2Form(f => ({ ...f, weekendDinner: v }))}
                             disabled={selWeekends === 0}
                           />
                         </div>
                       </div>
-                      {/* Subtotal */}
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-gray-100 pt-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center">Subtotal</span>
-                        <div className="text-center">
-                          <span className="text-xs font-black text-blue-600 tabular-nums">{fmtR$(step2Form.weekdayLunch + step2Form.weekdayDinner)}</span>
-                        </div>
-                        <div className="text-center">
-                          <span className="text-xs font-black text-amber-600 tabular-nums">{fmtR$(step2Form.weekendLunch + step2Form.weekendDinner)}</span>
-                        </div>
+                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-slate-100 pt-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase self-center">Subtotal</span>
+                        <div className="text-center"><span className="text-xs font-black text-indigo-600 tabular-nums">{fmtR$(step2Form.weekdayLunch + step2Form.weekdayDinner)}</span></div>
+                        <div className="text-center"><span className="text-xs font-black text-amber-600 tabular-nums">{fmtR$(step2Form.weekendLunch + step2Form.weekendDinner)}</span></div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Warning: parent gets 0 days */}
                   {remainingForParent.length === 0 && (
-                    <div style={{ display: "flex", gap: 8, padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", alignItems: "flex-start" }}>
-                      <AlertTriangle style={{ width: 14, height: 14, color: "#EF4444", flexShrink: 0, marginTop: 1 }} />
-                      <p style={{ fontSize: 12, color: "#991B1B", margin: 0 }}>
-                        O colaborador original ficará <strong>sem dias atribuídos</strong>. Ao confirmar, você precisará remover o registro original manualmente ou ele ficará zerado.
+                    <div className="flex gap-2 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 items-start">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-800 m-0">
+                        O colaborador original ficará <strong>sem dias atribuídos</strong>. Ao confirmar, o registro original ficará zerado.
                       </p>
                     </div>
                   )}
                 </div>
 
-                {/* ── Footer ── */}
-                <div className="border-t border-gray-200 bg-white" style={{ flexShrink: 0 }}>
-                  {/* Totals bar: PLANEJADO / REALIZADO / DIFERENÇA */}
-                  <div className="grid grid-cols-3 divide-x divide-gray-200">
+                {/* Footer */}
+                <div className="border-t border-slate-200 bg-white flex-shrink-0">
+                  <div className="grid grid-cols-3 divide-x divide-slate-200">
                     <div className="px-3 py-3 text-center">
-                      <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Planejado proporcional</div>
-                      <div className="text-sm font-black text-gray-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
-                      {proportionalPlannedBreakdown && (
-                        <div className="text-[9px] text-gray-400 mt-1 leading-tight">{proportionalPlannedBreakdown}</div>
-                      )}
+                      <div className="text-[9px] uppercase text-slate-400 font-black tracking-widest mb-1">Planejado prop.</div>
+                      <div className="text-sm font-black text-slate-600 tabular-nums">{fmtR$(proportionalPlanned)}</div>
                     </div>
-                    <div className="px-4 py-3 text-center bg-violet-50/50">
-                      <div className="text-[9px] uppercase text-violet-500 font-bold tracking-widest mb-1">Realizado</div>
+                    <div className="px-4 py-3 text-center bg-violet-50/60">
+                      <div className="text-[9px] uppercase text-violet-500 font-black tracking-widest mb-1">Realizado</div>
                       <div className="text-sm font-black text-violet-700 tabular-nums">{fmtR$(s2Realizado)}</div>
                     </div>
-                    <div className={`px-4 py-3 text-center ${Math.abs(s2Difference) <= 1 ? "bg-gray-50/60" : s2Difference < 0 ? "bg-emerald-50/60" : "bg-red-50/60"}`}>
-                      <div className="text-[9px] uppercase text-gray-400 font-bold tracking-widest mb-1">Diferença</div>
+                    <div className={`px-4 py-3 text-center ${Math.abs(s2Difference) <= 1 ? 'bg-slate-50/60' : s2Difference < 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
+                      <div className="text-[9px] uppercase text-slate-400 font-black tracking-widest mb-1">Diferença</div>
                       {Math.abs(s2Difference) <= 1 ? (
-                        <div className="text-sm font-black text-gray-400 tabular-nums">—</div>
+                        <div className="text-sm font-black text-slate-300 tabular-nums">—</div>
                       ) : (
                         <div className="flex items-center justify-center gap-1">
-                          {s2Difference < 0
-                            ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" />
-                            : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
-                          <span className={`text-sm font-black tabular-nums ${s2Difference < 0 ? "text-emerald-700" : "text-red-700"}`}>
-                            {s2Difference > 0 ? "+" : "−"}{fmtR$(Math.abs(s2Difference))}
+                          {s2Difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                          <span className={`text-sm font-black tabular-nums ${s2Difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                            {s2Difference > 0 ? '+' : '−'}{fmtR$(Math.abs(s2Difference))}
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
-                  {/* Action buttons */}
-                  <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
-                    <Button
-                      variant="ghost"
-                      className="h-9 px-4 text-sm text-gray-500 hover:text-gray-700 rounded-xl flex items-center gap-2"
-                      onClick={() => setStep(1)}
-                      disabled={isPending}
-                    >
+                  <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <Button variant="ghost" className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700 rounded-xl flex items-center gap-2" onClick={() => setStep(1)} disabled={isPending}>
                       <ArrowLeft className="w-4 h-4" /> Voltar
                     </Button>
                     <Button
                       onClick={attemptConfirm}
                       disabled={isPending}
-                      className="h-10 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-md shadow-violet-200 flex items-center gap-2"
+                      className="h-9 px-5 text-sm rounded-xl text-white flex items-center gap-2"
+                      style={{background: '#6d28d9'}}
                     >
                       <CheckCheck className="w-4 h-4" />
-                      {isPending ? "Confirmando..." : "Confirmar divisão"}
+                      {isPending ? 'Confirmando...' : 'Confirmar divisão'}
                     </Button>
                   </div>
                 </div>
@@ -924,26 +880,26 @@ export function SplitVagaModal({
         </div>
       </div>
 
-      {/* Zero-day confirmation dialog */}
+      {/* Zero-day confirmation */}
       {showZeroDayConfirm && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 420, width: "100%", padding: "28px 28px 22px", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 18 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <AlertTriangle style={{ width: 20, height: 20, color: "#EF4444" }} />
+        <div className="fixed inset-0 z-[10001] bg-black/60 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl max-w-[420px] w-full p-7 shadow-2xl">
+            <div className="flex gap-3 items-start mb-5">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <p style={{ fontWeight: 700, fontSize: 15, color: "#1E293B", margin: "0 0 6px" }}>Colaborador original sem dias</p>
-                <p style={{ fontSize: 13, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+                <p className="font-bold text-[15px] text-slate-800 m-0 mb-1.5">Colaborador original sem dias</p>
+                <p className="text-[13px] text-slate-500 m-0 leading-relaxed">
                   Todos os dias foram redistribuídos para o novo colaborador. O registro original ficará com <strong>0 dias</strong>. Deseja continuar mesmo assim?
                 </p>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <Button variant="outline" onClick={() => setShowZeroDayConfirm(false)}>Cancelar</Button>
+            <div className="flex justify-end gap-2.5">
+              <Button variant="outline" className="rounded-xl" onClick={() => setShowZeroDayConfirm(false)}>Cancelar</Button>
               <Button
                 onClick={() => { setShowZeroDayConfirm(false); doConfirm(); }}
-                style={{ background: "linear-gradient(135deg,#EF4444,#DC2626)", color: "#fff", border: "none" }}
+                className="rounded-xl text-white bg-red-500 hover:bg-red-600"
               >
                 Confirmar mesmo assim
               </Button>
