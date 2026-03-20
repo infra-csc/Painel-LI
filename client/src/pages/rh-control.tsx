@@ -1408,6 +1408,11 @@ export default function RhControlPage() {
           {eventGroups.map(group => {
             const isOpen = expandedEvents.has(group.event.id);
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
+            // Split aprovada_faturamento: only truly concluded when NF is approved
+            const nfApprovedCount = group.items.filter(i =>
+              i.status === "aprovada_faturamento" && i.actual && getInvoiceForActual(i.actual.id)?.status === "aprovada"
+            ).length;
+            const agNfCount = (statuses.aprovada_faturamento || 0) - nfApprovedCount;
             return (
               <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
                 <button
@@ -1436,7 +1441,8 @@ export default function RhControlPage() {
                           {statuses.planejamento_pendente ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} plan.</span> : null}
                           {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} dev.</span> : null}
                           {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} ag.</span> : null}
-                          {statuses.aprovada_faturamento ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{statuses.aprovada_faturamento} apr.</span> : null}
+                          {agNfCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200">{agNfCount} ag.NF</span> : null}
+                          {nfApprovedCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} conc.</span> : null}
                           {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} rec.</span> : null}
                         </div>
                       </TooltipTrigger>
@@ -1446,7 +1452,8 @@ export default function RhControlPage() {
                         {statuses.planejamento_pendente ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /><span className="text-amber-600">Planejamento pendente ({statuses.planejamento_pendente})</span></div> : null}
                         {statuses.devolvida_para_ajuste ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" /><span className="text-orange-600">Devolvida ({statuses.devolvida_para_ajuste})</span></div> : null}
                         {statuses.aguardando_prestacao ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" /><span className="text-slate-500">Aguardando prestação ({statuses.aguardando_prestacao})</span></div> : null}
-                        {statuses.aprovada_faturamento ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /><span className="text-emerald-600">Aprovada ({statuses.aprovada_faturamento})</span></div> : null}
+                        {agNfCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-violet-400 shrink-0" /><span className="text-violet-600">Aguardando Nota Fiscal ({agNfCount})</span></div> : null}
+                        {nfApprovedCount > 0 ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" /><span className="text-emerald-600">Concluído ({nfApprovedCount})</span></div> : null}
                         {statuses.recusada ? <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 shrink-0" /><span className="text-red-600">Recusada ({statuses.recusada})</span></div> : null}
                       </TooltipContent>
                     </Tooltip>
