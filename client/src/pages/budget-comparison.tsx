@@ -23,6 +23,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { useSidebar } from "@/contexts/sidebar-context";
 
 const AVATAR_COLORS = [
   'bg-violet-500','bg-blue-500','bg-emerald-500','bg-orange-500',
@@ -72,6 +73,7 @@ export default function BudgetComparisonPage() {
   } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isCollapsed, isCompact, isFocusMode } = useSidebar();
   const qc = useQueryClient();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -1110,7 +1112,7 @@ export default function BudgetComparisonPage() {
 
       {/* ── Fixed RH Decision footer ── */}
       {comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)]">
+        <div className={`fixed bottom-0 right-0 z-40 px-6 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 ${(isCollapsed || isFocusMode) ? 'left-0' : isCompact ? 'left-14' : 'left-[260px]'}`}>
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-black text-slate-800">Decisão do RH</h3>
