@@ -1130,7 +1130,7 @@ export default function RhControlPage() {
               <div className="text-4xl font-bold tabular-nums mt-1 mb-2" style={{ color: iconColor }}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : value}
               </div>
-              <div className="flex flex-wrap gap-x-1 gap-y-0.5 text-[11px] text-slate-400 leading-relaxed">
+              <div className="flex flex-wrap gap-x-1 gap-y-0.5 text-xs text-slate-500 leading-relaxed">
                 {children}
               </div>
             </div>
