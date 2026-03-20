@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon } from "lucide-react";
+import { Plane, Bus, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon, CreditCard, Paperclip, NotebookPen, ClipboardCheck } from "lucide-react";
 import EventCombobox from "@/components/ui/event-combobox";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
 import FunctionMultiSelect from "@/components/ui/function-multi-select";
@@ -704,14 +704,15 @@ export default function Tickets() {
                   {/* Tipo de transporte como pills */}
                   <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5" data-testid="select-quick-transport-type">
                     {[
-                      { value: 'aereo', label: '✈️ Aérea' },
-                      { value: 'rodoviario', label: '🚌 Rodoviária' },
+                      { value: 'aereo', label: 'Aérea', Icon: Plane },
+                      { value: 'rodoviario', label: 'Rodoviária', Icon: Bus },
                     ].map(opt => {
                       const active = (ticketData["quick"]?.transportType || 'aereo') === opt.value;
                       return (
                         <button key={opt.value} type="button"
                           onClick={() => handleTicketDataChange("quick", "transportType", opt.value)}
-                          className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all ${active ? 'bg-white shadow-sm text-[#0033CC]' : 'text-slate-400 hover:text-slate-600'}`}>
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold transition-all ${active ? 'bg-white shadow-sm text-[#0033CC]' : 'text-slate-400 hover:text-slate-600'}`}>
+                          <opt.Icon className="w-3.5 h-3.5" />
                           {opt.label}
                         </button>
                       );
@@ -775,10 +776,12 @@ export default function Tickets() {
                 <div className="col-span-12 lg:col-span-8 space-y-2">
 
                   {/* Card: Dados Financeiros */}
-                  <section className="rounded-xl overflow-hidden border border-blue-100">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-[#0033CC]">
-                      <span className="material-symbols-outlined text-white" style={{fontSize:14}}>payments</span>
-                      <h4 className="text-[11px] font-black uppercase tracking-widest text-white/90">Dados Financeiros</h4>
+                  <section className="rounded-xl overflow-hidden border border-slate-200">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                        <CreditCard className="w-3 h-3 text-white" />
+                      </div>
+                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados Financeiros</h4>
                     </div>
                     <div className="p-3 bg-white grid grid-cols-2 gap-x-3 gap-y-2">
                       <div className="space-y-1.5">
@@ -833,11 +836,11 @@ export default function Tickets() {
                     {(() => {
                       const isRodo = ticketData["quick"]?.transportType === "rodoviario";
                       return (
-                        <section className="rounded-xl overflow-hidden border border-blue-100">
-                          <div className="flex items-center gap-2 px-3 py-2 bg-[#EEF2FF]">
-                            <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:13, fontVariationSettings:"'FILL' 1"}}>
-                              {isRodo ? "directions_bus" : "flight_takeoff"}
-                            </span>
+                        <section className="rounded-xl overflow-hidden border border-slate-200">
+                          <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
+                            <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                              {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white" />}
+                            </div>
                             <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">
                               {isRodo ? "Embarque" : "Trecho de Ida"}
                             </h4>
@@ -943,14 +946,14 @@ export default function Tickets() {
                                     <Input placeholder="Ex: São Paulo"
                                       value={ticketData["quick"]?.departureCityOrigin || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "departureCityOrigin", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
                                       data-testid="input-quick-departure-city-origin"
                                     />
                                     <Input placeholder="GRU"
                                       value={ticketData["quick"]?.departureAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
                                       className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:40,fontSize:10,fontWeight:700}}
+                                      style={{width:44,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-departure-airport"
                                     />
                                   </div>
@@ -961,14 +964,14 @@ export default function Tickets() {
                                     <Input placeholder="Ex: Manaus"
                                       value={ticketData["quick"]?.departureCityDestination || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "departureCityDestination", e.target.value)}
-                                      className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                      className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
                                       data-testid="input-quick-departure-city-destination"
                                     />
                                     <Input placeholder="MAO"
                                       value={ticketData["quick"]?.destinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
                                       className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:40,fontSize:10,fontWeight:700}}
+                                      style={{width:44,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-destination-airport"
                                     />
                                   </div>
@@ -1011,11 +1014,11 @@ export default function Tickets() {
                       {(() => {
                         const isRodo = ticketData["quick"]?.transportType === "rodoviario";
                         return (
-                          <section className="rounded-xl overflow-hidden border border-orange-100">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-[#FFF7ED]">
-                              <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:13, fontVariationSettings:"'FILL' 1"}}>
-                                {isRodo ? "directions_bus" : "flight_land"}
-                              </span>
+                          <section className="rounded-xl overflow-hidden border border-slate-200">
+                            <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
+                              <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
+                                {isRodo ? <Bus className="w-3 h-3 text-white" /> : <Plane className="w-3 h-3 text-white rotate-180" />}
+                              </div>
                               <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">
                                 {isRodo ? "Desembarque" : "Trecho de Volta"}
                               </h4>
@@ -1120,14 +1123,14 @@ export default function Tickets() {
                                       <Input placeholder="Ex: Manaus"
                                         value={ticketData["quick"]?.returnCityOrigin || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnCityOrigin", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
                                         data-testid="input-quick-return-city-origin"
                                       />
                                       <Input placeholder="MAO"
                                         value={ticketData["quick"]?.returnOriginAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
                                         className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:40,fontSize:10,fontWeight:700}}
+                                        style={{width:44,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-origin-airport"
                                       />
                                     </div>
@@ -1138,14 +1141,14 @@ export default function Tickets() {
                                       <Input placeholder="Ex: São Paulo"
                                         value={ticketData["quick"]?.returnCityDestination || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnCityDestination", e.target.value)}
-                                        className="h-10 bg-slate-50 border-slate-200 rounded-xl text-sm flex-1"
+                                        className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-xs flex-1"
                                         data-testid="input-quick-return-city-destination"
                                       />
                                       <Input placeholder="GRU"
                                         value={ticketData["quick"]?.returnDestinationAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
                                         className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:40,fontSize:10,fontWeight:700}}
+                                        style={{width:44,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-destination-airport"
                                       />
                                     </div>
@@ -1184,32 +1187,40 @@ export default function Tickets() {
                 <div className="col-span-12 lg:col-span-4 space-y-2">
 
                   {/* Anexos */}
-                  <section className="rounded-xl border border-slate-100 p-3 bg-white">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>attachment</span>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos</h4>
+                  <section className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                        <Paperclip className="w-3 h-3 text-white" />
+                      </div>
+                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Anexos</h4>
                     </div>
-                    <AttachmentUpload
-                      attachmentIds={ticketData["quick"]?.attachmentIds || []}
-                      onAttachmentsChange={(attachmentIds) => handleTicketDataChange("quick", "attachmentIds", attachmentIds)}
-                      disabled={!canEditScreen(user, 'tickets')}
-                    />
+                    <div className="p-3">
+                      <AttachmentUpload
+                        attachmentIds={ticketData["quick"]?.attachmentIds || []}
+                        onAttachmentsChange={(attachmentIds) => handleTicketDataChange("quick", "attachmentIds", attachmentIds)}
+                        disabled={!canEditScreen(user, 'tickets')}
+                      />
+                    </div>
                   </section>
 
                   {/* Observações */}
-                  <section className="rounded-xl border border-slate-100 p-3 bg-white">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:14}}>notes</span>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Observações (Opcional)</h4>
+                  <section className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                        <NotebookPen className="w-3 h-3 text-white" />
+                      </div>
+                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Observações</h4>
                     </div>
-                    <Textarea
-                      placeholder="Adicione notas relevantes sobre este lote de passagens..."
-                      value={ticketData["quick"]?.ticketObservations || ""}
-                      onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
-                      className="text-xs resize-none bg-slate-50 border-slate-200 rounded-lg"
-                      style={{height:64}}
-                      data-testid="textarea-quick-ticket-observations"
-                    />
+                    <div className="p-3">
+                      <Textarea
+                        placeholder="Adicione notas relevantes sobre este lote de passagens..."
+                        value={ticketData["quick"]?.ticketObservations || ""}
+                        onChange={(e) => handleTicketDataChange("quick", "ticketObservations", e.target.value)}
+                        className="text-xs resize-none bg-slate-50 border-slate-200 rounded-lg"
+                        style={{height:60}}
+                        data-testid="textarea-quick-ticket-observations"
+                      />
+                    </div>
                   </section>
 
                   {/* Status da operação */}
@@ -1237,10 +1248,12 @@ export default function Tickets() {
                       status === 'done' ? 'text-slate-700' : status === 'partial' ? 'text-yellow-700' : 'text-slate-400';
 
                     return (
-                      <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                          <span className="material-symbols-outlined text-slate-400" style={{fontSize:14}}>checklist</span>
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status da Operação</h4>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                          <div className="w-5 h-5 rounded-md bg-slate-500 flex items-center justify-center shrink-0">
+                            <ClipboardCheck className="w-3 h-3 text-white" />
+                          </div>
+                          <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Status da Operação</h4>
                         </div>
                         <ul className="p-3 space-y-2 bg-white">
                           <li className="flex items-center gap-2">
