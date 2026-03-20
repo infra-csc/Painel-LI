@@ -484,12 +484,14 @@ export default function TeamInclusionTable() {
               <div
                 key={testId}
                 onClick={handleClick}
-                className={`border border-slate-200 border-t-2 ${border} rounded-xl p-3 text-center cursor-pointer transition-all duration-150 select-none
-                  ${isActive ? `${activeBg} shadow-md border-2` : "bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+                className={`border border-t-2 ${border} rounded-xl px-3 py-2.5 text-center cursor-pointer transition-all duration-150 select-none
+                  ${isActive
+                    ? `${activeBg} border-slate-200 shadow-sm`
+                    : "bg-white border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
                 data-testid={testId}
               >
-                <div className={`text-2xl font-bold tabular-nums ${color}`}>{value}</div>
-                <div className="text-[10px] uppercase tracking-widest text-slate-400 mt-1 leading-tight">{label}</div>
+                <div className={`text-[22px] font-bold tabular-nums leading-none ${color}`}>{value}</div>
+                <div className="text-[9px] uppercase tracking-widest text-slate-400 mt-1.5 leading-tight font-semibold">{label}</div>
               </div>
             );
           })}
@@ -580,7 +582,7 @@ export default function TeamInclusionTable() {
                   return (
                   <tr
                     key={inclusion.id}
-                    className={`border-b border-slate-100 transition-colors ${isCanceled ? 'opacity-50' : ''} hover:bg-blue-50/50`}
+                    className={`border-b border-slate-100 transition-colors ${isCanceled ? 'opacity-40' : ''} ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/40`}
                     data-testid={`row-inclusion-${inclusion.id}`}
                   >
                     <td className="px-2 py-3">
@@ -629,13 +631,13 @@ export default function TeamInclusionTable() {
                     <td className="px-2 py-3">
                       {inclusion.collaboratorId ? (
                         <div
-                          className="text-sm text-slate-700 whitespace-normal break-words"
+                          className="text-sm text-slate-800 font-medium whitespace-normal break-words leading-snug"
                           title={toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
                         >
                           {toTitleCase(getCollaboratorName(inclusion.collaboratorId) || "")}
                         </div>
                       ) : (
-                        <span className="text-sm italic text-slate-400">Não Escalado</span>
+                        <span className="inline-flex items-center text-[11px] font-medium bg-slate-100 text-slate-400 rounded-full px-2 py-0.5">Não escalado</span>
                       )}
                     </td>
                     <td className="px-2 py-3 whitespace-nowrap">
@@ -653,16 +655,24 @@ export default function TeamInclusionTable() {
                     </td>
                     <td className="px-2 py-3 text-center">
                       {inclusion.needsTicket ? (
-                        <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de passagem" />
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100" title="Precisa de passagem">
+                          <Check className="w-3 h-3 text-green-600 shrink-0" />
+                        </span>
                       ) : (
-                        <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de passagem" />
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100" title="Não precisa de passagem">
+                          <X className="w-3 h-3 text-slate-400 shrink-0" />
+                        </span>
                       )}
                     </td>
                     <td className="px-2 py-3 text-center">
                       {inclusion.needsAccommodation ? (
-                        <Check className="w-4 h-4 text-green-600 mx-auto shrink-0" title="Precisa de hospedagem" />
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100" title="Precisa de hospedagem">
+                          <Check className="w-3 h-3 text-green-600 shrink-0" />
+                        </span>
                       ) : (
-                        <X className="w-4 h-4 text-red-400 mx-auto shrink-0" title="Não precisa de hospedagem" />
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100" title="Não precisa de hospedagem">
+                          <X className="w-3 h-3 text-slate-400 shrink-0" />
+                        </span>
                       )}
                     </td>
                     <td className="w-[100px] whitespace-nowrap pl-4 pr-2 py-3 text-right text-sm font-medium">
