@@ -81,6 +81,9 @@ interface CollaboratorModalProps {
 }
 
 const INPUT_CLS = "h-10 text-sm border-gray-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all";
+const LBL = "text-[11px] font-bold text-slate-500 uppercase tracking-wide";
+const REQ = <span className="text-red-400 normal-case tracking-normal font-bold"> *</span>;
+const OPT = <span className="text-slate-400 normal-case tracking-normal font-normal"> (opcional)</span>;
 
 const TYPE_OPTIONS = [
   { value: "casa",   label: "Casa",   icon: Home },
@@ -224,7 +227,7 @@ export default function CollaboratorModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-6 py-5">
+        <div className="overflow-y-auto flex-1 px-5 py-5">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit, (errors) => {
@@ -239,7 +242,7 @@ export default function CollaboratorModal({
                 <div className="col-span-2">
                   <FormField control={form.control} name="fullName" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nome Completo <span className="text-red-400 normal-case tracking-normal">*</span></FormLabel>
+                      <FormLabel className={LBL}>Nome Completo{REQ}</FormLabel>
                       <FormControl>
                         <Input placeholder="Nome completo do colaborador" className={INPUT_CLS} data-testid="input-collaborator-name" {...field} />
                       </FormControl>
@@ -250,7 +253,7 @@ export default function CollaboratorModal({
                 <div>
                   <FormField control={form.control} name="cpf" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">CPF <span className="text-red-400">*</span></FormLabel>
+                      <FormLabel className={LBL}>CPF{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -268,7 +271,7 @@ export default function CollaboratorModal({
                 <div>
                   <FormField control={form.control} name="rg" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">RG <span className="text-slate-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel className={LBL}>RG{OPT}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -282,7 +285,7 @@ export default function CollaboratorModal({
                 <div>
                   <FormField control={form.control} name="birthDate" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">Nascimento <span className="text-red-400">*</span></FormLabel>
+                      <FormLabel className={LBL}>Nascimento{REQ}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -296,7 +299,7 @@ export default function CollaboratorModal({
                 <div>
                   <FormField control={form.control} name="type" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-medium text-slate-600">Tipo <span className="text-red-400">*</span></FormLabel>
+                      <FormLabel className={LBL}>Tipo{REQ}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger className={INPUT_CLS} data-testid="select-collaborator-type">
@@ -327,7 +330,7 @@ export default function CollaboratorModal({
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium text-slate-600">Telefone <span className="text-slate-400 font-normal">(opcional)</span></FormLabel>
+                    <FormLabel className={LBL}>Telefone{OPT}</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -340,7 +343,7 @@ export default function CollaboratorModal({
 
                 <FormField control={form.control} name="city" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium text-slate-600">Cidade <span className="text-red-400">*</span></FormLabel>
+                    <FormLabel className={LBL}>Cidade{REQ}</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -356,7 +359,7 @@ export default function CollaboratorModal({
               <div className="border-t border-gray-100 pt-4">
                 <FormField control={form.control} name="documentAttachmentId" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-medium text-slate-600">Documento (CPF/RG) <span className="text-red-400">*</span></FormLabel>
+                    <FormLabel className={LBL}>Documento (CPF/RG){REQ}</FormLabel>
                     <FormControl>
                       <AttachmentUpload
                         attachmentIds={documentAttachments}
@@ -372,11 +375,16 @@ export default function CollaboratorModal({
               {/* Emergency section */}
               {isEmergency && (
                 <div className="border-t border-gray-100 pt-4 space-y-3">
-                  <p className="text-xs font-semibold text-slate-600">Informações do Trabalho Emergencial</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-amber-50 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 12, fontVariationSettings: "'FILL' 1" }}>emergency</span>
+                    </div>
+                    <p className={LBL}>Informações do Trabalho Emergencial</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <FormField control={form.control} name="eventId" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Evento <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className={LBL}>Evento{REQ}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className={INPUT_CLS} data-testid="select-emergency-event"><SelectValue placeholder="Selecione o evento" /></SelectTrigger>
@@ -392,7 +400,7 @@ export default function CollaboratorModal({
                     )} />
                     <FormField control={form.control} name="functionId" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Função <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className={LBL}>Função{REQ}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className={INPUT_CLS} data-testid="select-emergency-function"><SelectValue placeholder="Selecione a função" /></SelectTrigger>
@@ -406,7 +414,7 @@ export default function CollaboratorModal({
                     )} />
                     <FormField control={form.control} name="actualStartDate" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Início <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className={LBL}>Início{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -418,7 +426,7 @@ export default function CollaboratorModal({
                     )} />
                     <FormField control={form.control} name="actualEndDate" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-slate-600">Fim <span className="text-red-400">*</span></FormLabel>
+                        <FormLabel className={LBL}>Fim{REQ}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -436,12 +444,12 @@ export default function CollaboratorModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/50 shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-slate-400">Campos marcados com <span className="text-red-400">*</span> são obrigatórios</p>
             <div className="flex items-center gap-2">
               <button type="button" onClick={handleClose} data-testid="button-cancel-collaborator"
-                className="px-4 py-2 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                className="h-9 px-4 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
                 Cancelar
               </button>
               <button
