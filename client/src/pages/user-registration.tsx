@@ -5,50 +5,103 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { hasPermission } from "@/lib/role-utils";
-import {
-  UserPlus, Shield, User, Mail, Lock, Eye, EyeOff,
-  Check, Briefcase, Settings, CreditCard,
-  ShoppingCart, CheckCircle, AlertCircle,
-} from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 const userRegistrationSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Digite um e-mail válido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   role: z.enum(["admin", "production", "function_area", "purchasing", "financial"], {
-    required_error: "Selecione uma área",
+    required_error: "Selecione um perfil de acesso",
   }),
   area: z.string().optional(),
 });
 
 type UserRegistrationData = z.infer<typeof userRegistrationSchema>;
 
-function getPasswordStrength(password: string): { score: number; label: string; color: string } {
-  if (!password) return { score: 0, label: "", color: "" };
-  let score = 0;
-  if (password.length >= 6) score++;
-  if (password.length >= 10) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-  if (score <= 1) return { score, label: "Fraca", color: "bg-red-500" };
-  if (score <= 3) return { score, label: "Média", color: "bg-amber-400" };
-  return { score, label: "Forte", color: "bg-emerald-500" };
+function getPasswordStrength(pw: string) {
+  if (!pw) return { score: 0, label: "", color: "#E2E8F0" };
+  let s = 0;
+  if (pw.length >= 6) s++;
+  if (pw.length >= 10) s++;
+  if (/[A-Z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  if (s <= 1) return { score: s, label: "Fraca", color: "#EF4444" };
+  if (s <= 3) return { score: s, label: "Média", color: "#F59E0B" };
+  return { score: s, label: "Forte", color: "#22C55E" };
 }
 
-const ROLE_OPTIONS = [
-  { value: "admin",         label: "Administrador",                    icon: Shield,      desc: "Acesso completo ao sistema" },
-  { value: "production",    label: "Logística Interna",                icon: Briefcase,   desc: "Gerencia escalações e eventos" },
-  { value: "function_area", label: "Área responsável por funções",     icon: Settings,    desc: "Responsável por funções de evento" },
-  { value: "purchasing",    label: "Área de Compras/Viagem",           icon: ShoppingCart,desc: "Gerencia compras e viagens" },
-  { value: "financial",     label: "Área Financeira",                  icon: CreditCard,  desc: "Gerencia prestações de contas" },
+function initials(name: string) {
+  const p = name.trim().split(/\s+/);
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+
+const ROLES = [
+  {
+    value: "admin",
+    label: "Administrador",
+    desc: "Acesso completo ao sistema",
+    icon: "admin_panel_settings",
+    color: "#7C3AED",
+    bg: "#F5F3FF",
+  },
+  {
+    value: "production",
+    label: "Logística Interna",
+    desc: "Escalações e eventos",
+    icon: "local_shipping",
+    color: "#0033CC",
+    bg: "#EEF2FF",
+  },
+  {
+    value: "function_area",
+    label: "Área de Função",
+    desc: "Responsável por funções",
+    icon: "work",
+    color: "#EA580C",
+    bg: "#FFF7ED",
+  },
+  {
+    value: "purchasing",
+    label: "Compras / Viagem",
+    desc: "Passagens e hospedagem",
+    icon: "shopping_cart",
+    color: "#0891B2",
+    bg: "#ECFEFF",
+  },
+  {
+    value: "financial",
+    label: "Financeiro",
+    desc: "Prestações de contas",
+    icon: "account_balance_wallet",
+    color: "#059669",
+    bg: "#ECFDF5",
+  },
 ];
+
+const BLUE = "#0033CC";
+const BLUE_BG = "#EEF2FF";
+
+const lbl: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, color: "#64748B",
+  textTransform: "uppercase", letterSpacing: "0.06em",
+  marginBottom: 5, display: "block",
+};
+
+const inp: React.CSSProperties = {
+  height: 38, fontSize: 13, padding: "0 12px",
+  border: "1px solid #E2E8F0", borderRadius: 8,
+  background: "white", outline: "none", width: "100%",
+  boxSizing: "border-box", color: "#1E293B", fontFamily: "inherit",
+  transition: "border-color 0.15s",
+};
 
 export default function UserRegistration() {
   const { toast } = useToast();
@@ -57,310 +110,377 @@ export default function UserRegistration() {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
 
-  if (!hasPermission(user, 'canAccessScreen0')) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-800 p-10 text-center max-w-md">
-          <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-4">
-            <Shield className="w-6 h-6 text-red-400" />
-          </div>
-          <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-2">Acesso Negado</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Apenas administradores podem acessar o cadastro de usuários.</p>
-        </div>
-      </div>
-    );
-  }
-
   const form = useForm<UserRegistrationData>({
     resolver: zodResolver(userRegistrationSchema),
     defaultValues: { name: "", email: "", password: "", area: "" },
   });
 
   const createUserMutation = useMutation({
-    mutationFn: async (userData: UserRegistrationData) => {
-      const response = await apiRequest("POST", "/api/users", userData);
-      return response.json();
+    mutationFn: async (data: UserRegistrationData) => {
+      const r = await apiRequest("POST", "/api/users", data);
+      return r.json();
     },
     onSuccess: () => {
       toast({ title: "Usuário criado", description: "Conta criada com sucesso." });
       form.reset();
       setPasswordValue("");
     },
-    onError: (error: Error) => {
-      toast({ title: "Erro ao criar usuário", description: error.message || "Tente novamente.", variant: "destructive" });
+    onError: (e: Error) => {
+      toast({ title: "Erro ao criar usuário", description: e.message || "Tente novamente.", variant: "destructive" });
     },
   });
 
-  const onSubmit = (data: UserRegistrationData) => createUserMutation.mutate(data);
+  if (!hasPermission(user, 'canAccessScreen0')) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 40, color: "#EF4444" }}>gpp_bad</span>
+          <p style={{ marginTop: 12, fontSize: 14, color: "#64748B" }}>Apenas administradores podem acessar esta página.</p>
+        </div>
+      </div>
+    );
+  }
 
-  const emailValue = form.watch("email");
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
+  const onSubmit = (data: UserRegistrationData) => createUserMutation.mutate(data);
+  const emailVal = form.watch("email");
+  const roleVal = form.watch("role");
+  const nameVal = form.watch("name");
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
   const pwStrength = getPasswordStrength(passwordValue);
+  const selectedRole = ROLES.find(r => r.value === roleVal);
 
   return (
-    <div className="flex items-start justify-center py-8 px-4">
-      <div className="w-full max-w-2xl">
+    <div style={{ padding: "24px 24px", maxWidth: 900, margin: "0 auto" }}>
 
-        {/* Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+      {/* Page header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, background: BLUE,
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: "white", fontVariationSettings: "'FILL' 1" }}>person_add</span>
+        </div>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.2 }}>Cadastro de Usuários</h1>
+          <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>Crie uma nova conta de acesso ao sistema</p>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#FEF3C7", borderRadius: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#D97706", fontVariationSettings: "'FILL' 1" }}>lock</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#D97706" }}>Acesso restrito</span>
+        </div>
+      </div>
 
-          {/* Top accent bar */}
-          <div className="bg-indigo-50/60 dark:bg-indigo-950/20 px-8 py-3 border-b border-indigo-100 dark:border-indigo-900/30 flex items-center gap-2">
-            <Shield className="w-[15px] h-[15px] text-indigo-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Acesso restrito — Administrador</span>
-          </div>
+      {/* Main layout: form + sidebar */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
 
-          {/* Header */}
-          <div className="px-8 lg:px-10 pt-8 pb-6">
-            <div className="flex items-start gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center shrink-0">
-                <UserPlus className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">Cadastro de Usuários</h1>
-                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Preencha os dados para criar uma nova conta no sistema</p>
-              </div>
+        {/* ── Form card ── */}
+        <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", overflow: "hidden" }}>
+
+          {/* Section: Dados pessoais */}
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#94A3B8" }}>person</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Dados Pessoais</span>
             </div>
-          </div>
 
-          {/* Form */}
-          <div className="px-8 lg:px-10 pb-8">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-
-                {/* Row 1: Nome + Email */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
 
                   {/* Nome */}
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Nome Completo <span className="text-orange-500">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input
-                              placeholder="Ex: Ana Silva"
-                              data-testid="input-name"
-                              className="pl-10 h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="name" render={({ field }) => (
+                    <FormItem>
+                      <label style={lbl}>Nome Completo <span style={{ color: "#EF4444" }}>*</span></label>
+                      <FormControl>
+                        <div style={{ position: "relative" }}>
+                          <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: "#CBD5E1" }}>person</span>
+                          <input
+                            placeholder="Ex: Ana Silva"
+                            data-testid="input-name"
+                            style={{ ...inp, paddingLeft: 32 }}
+                            {...field}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage style={{ fontSize: 11 }} />
+                    </FormItem>
+                  )} />
 
                   {/* Email */}
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          E-mail <span className="text-orange-500">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input
-                              type="email"
-                              placeholder="email@empresa.com"
-                              data-testid="input-email"
-                              className={`pl-10 pr-10 h-11 text-sm rounded-xl transition-all ${
-                                emailValue && isEmailValid
-                                  ? 'border-emerald-400 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10'
-                                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'
-                              }`}
-                              {...field}
-                            />
-                            {emailValue && isEmailValid && (
-                              <CheckCircle className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
-                            )}
-                            {emailValue && !isEmailValid && (
-                              <AlertCircle className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                            )}
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Row 2: Senha + Role */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                  {/* Senha */}
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Senha <span className="text-orange-500">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="space-y-2">
-                            <div className="relative">
-                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                              <Input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Mínimo 6 caracteres"
-                                data-testid="input-password"
-                                className="pl-10 pr-10 h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  setPasswordValue(e.target.value);
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                                onClick={() => setShowPassword(!showPassword)}
-                                tabIndex={-1}
-                              >
-                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                            {passwordValue && (
-                              <div className="space-y-1">
-                                <div className="flex gap-1">
-                                  {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= pwStrength.score ? pwStrength.color : 'bg-gray-100 dark:bg-slate-700'}`} />
-                                  ))}
-                                </div>
-                                <span className={`text-[11px] font-semibold ${
-                                  pwStrength.score <= 1 ? 'text-red-500' :
-                                  pwStrength.score <= 3 ? 'text-amber-500' : 'text-emerald-600'
-                                }`}>{pwStrength.label}</span>
-                              </div>
-                            )}
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Role */}
-                  <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Tipo de acesso <span className="text-orange-500">*</span>
-                        </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-role" className="h-11 text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all">
-                              <SelectValue placeholder="Selecione o perfil" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="rounded-xl">
-                            {ROLE_OPTIONS.map(opt => {
-                              const Icon = opt.icon;
-                              return (
-                                <SelectItem key={opt.value} value={opt.value} className="py-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                    <span>{opt.label}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        {field.value && (() => {
-                          const opt = ROLE_OPTIONS.find(o => o.value === field.value);
-                          return opt ? (
-                            <p className="text-[11px] text-slate-400 mt-1">{opt.desc}</p>
-                          ) : null;
-                        })()}
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Row 3: Área — full width textarea */}
-                <FormField
-                  control={form.control}
-                  name="area"
-                  render={({ field }) => (
+                  <FormField control={form.control} name="email" render={({ field }) => (
                     <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Área Específica <span className="text-slate-400 font-normal text-xs">(opcional)</span>
-                        </FormLabel>
-                        <span className="text-[10px] text-slate-400 tabular-nums">{(field.value?.length || 0)}/80</span>
-                      </div>
+                      <label style={lbl}>E-mail <span style={{ color: "#EF4444" }}>*</span></label>
                       <FormControl>
-                        <Textarea
-                          placeholder="Ex: Som, Iluminação, Cenografia, Palco..."
-                          data-testid="input-area"
-                          maxLength={80}
-                          rows={3}
-                          className="text-sm border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
-                          {...field}
-                        />
+                        <div style={{ position: "relative" }}>
+                          <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: "#CBD5E1" }}>mail</span>
+                          <input
+                            type="email"
+                            placeholder="email@empresa.com"
+                            data-testid="input-email"
+                            style={{
+                              ...inp, paddingLeft: 32, paddingRight: 32,
+                              borderColor: emailVal ? (isEmailValid ? "#22C55E" : "#E2E8F0") : "#E2E8F0",
+                            }}
+                            {...field}
+                          />
+                          {emailVal && (
+                            <span className="material-symbols-outlined" style={{
+                              position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                              fontSize: 15, color: isEmailValid ? "#22C55E" : "#CBD5E1",
+                              fontVariationSettings: "'FILL' 1",
+                            }}>{isEmailValid ? "check_circle" : "radio_button_unchecked"}</span>
+                          )}
+                        </div>
                       </FormControl>
-                      <FormMessage className="text-[11px]" />
+                      <FormMessage style={{ fontSize: 11 }} />
                     </FormItem>
-                  )}
-                />
-
-                {/* Divider + Footer */}
-                <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => { form.reset(); setPasswordValue(""); }}
-                      data-testid="button-clear"
-                      className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-all"
-                    >
-                      Limpar
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={createUserMutation.isPending}
-                      data-testid="button-submit"
-                      className="flex items-center gap-2 px-7 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm shadow-indigo-200 dark:shadow-none hover:shadow-md hover:shadow-indigo-200/50 transition-all"
-                    >
-                      {createUserMutation.isPending ? (
-                        <span className="flex items-center gap-2">
-                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Criando...
-                        </span>
-                      ) : (
-                        <>
-                          <Check className="w-4 h-4" strokeWidth={3} />
-                          Criar Usuário
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Security note */}
-                  <div className="flex items-center justify-center gap-1.5 mt-5">
-                    <Lock className="w-3 h-3 text-slate-300 dark:text-slate-600" />
-                    <span className="text-[10px] text-slate-400 dark:text-slate-600">Os dados são criptografados e protegidos</span>
-                  </div>
+                  )} />
                 </div>
+
+                {/* Senha */}
+                <FormField control={form.control} name="password" render={({ field }) => (
+                  <FormItem>
+                    <label style={lbl}>Senha <span style={{ color: "#EF4444" }}>*</span></label>
+                    <FormControl>
+                      <div>
+                        <div style={{ position: "relative" }}>
+                          <span className="material-symbols-outlined" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: "#CBD5E1" }}>lock</span>
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Mínimo 6 caracteres"
+                            data-testid="input-password"
+                            style={{ ...inp, paddingLeft: 32, paddingRight: 36 }}
+                            {...field}
+                            onChange={(e) => { field.onChange(e); setPasswordValue(e.target.value); }}
+                          />
+                          <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
+                            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex" }}>
+                            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
+                        {passwordValue && (
+                          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", gap: 3, flex: 1 }}>
+                              {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} style={{
+                                  height: 3, flex: 1, borderRadius: 2,
+                                  background: i <= pwStrength.score ? pwStrength.color : "#E2E8F0",
+                                  transition: "background 0.2s",
+                                }} />
+                              ))}
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: pwStrength.color, minWidth: 36 }}>{pwStrength.label}</span>
+                          </div>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormMessage style={{ fontSize: 11 }} />
+                  </FormItem>
+                )} />
 
               </form>
             </Form>
           </div>
+
+          {/* Section: Perfil de acesso */}
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#94A3B8" }}>shield</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Perfil de Acesso</span>
+              {form.formState.errors.role && (
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "#EF4444", fontWeight: 600 }}>
+                  {form.formState.errors.role.message}
+                </span>
+              )}
+            </div>
+
+            <FormField control={form.control} name="role" render={({ field }) => (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {ROLES.map(role => {
+                  const isSelected = field.value === role.value;
+                  return (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => field.onChange(role.value)}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "flex-start",
+                        gap: 6, padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+                        border: isSelected ? `1.5px solid ${role.color}` : "1.5px solid #E8ECF8",
+                        background: isSelected ? role.bg : "white",
+                        transition: "all 0.15s", textAlign: "left",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                        <span className="material-symbols-outlined"
+                          style={{ fontSize: 18, color: isSelected ? role.color : "#CBD5E1", fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}>
+                          {role.icon}
+                        </span>
+                        {isSelected && (
+                          <span className="material-symbols-outlined" style={{ fontSize: 13, color: role.color, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        )}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: isSelected ? role.color : "#374151", margin: 0, lineHeight: 1.3 }}>{role.label}</p>
+                        <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, lineHeight: 1.3 }}>{role.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )} />
+          </div>
+
+          {/* Section: Área específica */}
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#94A3B8" }}>location_on</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Área Específica</span>
+              <span style={{ fontSize: 10, color: "#CBD5E1", marginLeft: 2 }}>(opcional)</span>
+              <span style={{ marginLeft: "auto", fontSize: 10, color: "#CBD5E1" }}>
+                {(form.watch("area")?.length || 0)}/80
+              </span>
+            </div>
+            <FormField control={form.control} name="area" render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <Textarea
+                    placeholder="Ex: Som, Iluminação, Cenografia, Palco..."
+                    data-testid="input-area"
+                    maxLength={80}
+                    rows={2}
+                    className="resize-none text-sm rounded-lg border-slate-200 bg-white focus:border-[#0033CC] focus:ring-1 focus:ring-[#0033CC]/20"
+                    style={{ fontSize: 13 }}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage style={{ fontSize: 11 }} />
+              </FormItem>
+            )} />
+          </div>
+
+          {/* Footer: actions */}
+          <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FAFBFF" }}>
+            <button
+              type="button"
+              onClick={() => { form.reset(); setPasswordValue(""); }}
+              data-testid="button-clear"
+              style={{
+                height: 36, padding: "0 16px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                border: "1px solid #E2E8F0", background: "white", color: "#64748B",
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Limpar
+            </button>
+            <button
+              type="submit"
+              form="user-reg-form"
+              disabled={createUserMutation.isPending}
+              data-testid="button-submit"
+              onClick={form.handleSubmit(onSubmit)}
+              style={{
+                height: 36, padding: "0 20px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                border: "none", background: BLUE, color: "white",
+                cursor: createUserMutation.isPending ? "not-allowed" : "pointer",
+                opacity: createUserMutation.isPending ? 0.7 : 1,
+                display: "flex", alignItems: "center", gap: 7, fontFamily: "inherit",
+              }}
+            >
+              {createUserMutation.isPending ? (
+                <>
+                  <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", display: "inline-block" }} className="animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                  Criar Usuário
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
+        {/* ── Right sidebar ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Preview card */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid #F1F5F9" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Pré-visualização</span>
+            </div>
+            <div style={{ padding: "16px 14px" }}>
+              {/* Avatar */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  background: nameVal ? BLUE : "#E2E8F0",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: nameVal ? "white" : "#94A3B8", fontSize: 14, fontWeight: 700,
+                  transition: "background 0.2s",
+                }}>
+                  {nameVal ? initials(nameVal) : <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#94A3B8" }}>person</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: nameVal ? "#0F172A" : "#CBD5E1", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {nameVal || "Nome do usuário"}
+                  </p>
+                  <p style={{ fontSize: 11, color: emailVal && isEmailValid ? "#64748B" : "#CBD5E1", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {emailVal && isEmailValid ? emailVal : "email@empresa.com"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Role badge */}
+              {selectedRole ? (
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 10px", borderRadius: 6,
+                  background: selectedRole.bg, border: `1px solid ${selectedRole.color}22`,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13, color: selectedRole.color, fontVariationSettings: "'FILL' 1" }}>{selectedRole.icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: selectedRole.color }}>{selectedRole.label}</span>
+                </div>
+              ) : (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 6, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#CBD5E1" }}>shield</span>
+                  <span style={{ fontSize: 11, color: "#CBD5E1" }}>Sem perfil</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Checklist card */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E8ECF8", overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid #F1F5F9" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Checklist</span>
+            </div>
+            <div style={{ padding: "12px 14px" }}>
+              {[
+                { label: "Nome preenchido", ok: nameVal.length >= 2 },
+                { label: "E-mail válido", ok: isEmailValid },
+                { label: "Senha segura", ok: passwordValue.length >= 6 },
+                { label: "Perfil selecionado", ok: !!roleVal },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: i < 3 ? 8 : 0 }}>
+                  <span className="material-symbols-outlined" style={{
+                    fontSize: 15, fontVariationSettings: "'FILL' 1",
+                    color: item.ok ? "#22C55E" : "#E2E8F0",
+                    transition: "color 0.2s",
+                  }}>check_circle</span>
+                  <span style={{ fontSize: 12, color: item.ok ? "#374151" : "#CBD5E1", fontWeight: item.ok ? 500 : 400 }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Security note */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #F1F5F9" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#CBD5E1" }}>encrypted</span>
+            <span style={{ fontSize: 10, color: "#94A3B8" }}>Dados criptografados e protegidos</span>
+          </div>
+        </div>
       </div>
     </div>
   );
