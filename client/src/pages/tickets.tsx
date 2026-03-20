@@ -632,43 +632,46 @@ export default function Tickets() {
     <>
       <div className="space-y-3">
           {/* Header */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#0033CC] rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-blue-900/20">
+          <div className="flex items-center gap-5">
+            <div
+              className="w-10 h-10 bg-[#0033CC] rounded-[10px] flex items-center justify-center shrink-0"
+              style={{ boxShadow: "0 4px 14px #0033CC50" }}
+            >
               <Plane className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-[20px] font-bold tracking-tight text-slate-900">Compra de Passagens</h1>
-              <p className="text-[12px] text-slate-500">Gerencie a compra de passagens aéreas para os colaboradores escalados.</p>
+              <h1 className="text-[18px] font-bold tracking-tight text-slate-900 leading-tight">Compra de Passagens</h1>
+              <p className="text-[13px] text-slate-400 mt-0.5">Gerencie a compra de passagens para os colaboradores escalados.</p>
             </div>
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Total Geral</p>
-                <h3 className="text-[22px] font-extrabold text-slate-900 leading-none">{filteredTicketInclusions.length}</h3>
+            <div className="bg-white rounded-2xl border border-slate-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(0,51,204,0.06)'}}>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                <TicketIcon className="w-4.5 h-4.5 text-[#0033CC]" style={{width:18,height:18}} />
               </div>
-              <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-[#0033CC]">
-                <TicketIcon className="w-4 h-4" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none">Total Geral</p>
+                <h3 className="text-[22px] font-extrabold text-slate-900 leading-tight mt-0.5">{filteredTicketInclusions.length}</h3>
               </div>
             </div>
-            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Passagens Compradas</p>
-                <h3 className="text-[22px] font-extrabold text-[#22C55E] leading-none">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
+            <div className="bg-white rounded-2xl border border-green-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(34,197,94,0.08)'}}>
+              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4.5 h-4.5 text-[#22C55E]" style={{width:18,height:18}} />
               </div>
-              <div className="w-7 h-7 bg-green-50 rounded-lg flex items-center justify-center text-[#22C55E]">
-                <CheckCircle className="w-4 h-4" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-green-400 leading-none">Compradas</p>
+                <h3 className="text-[22px] font-extrabold text-[#16A34A] leading-tight mt-0.5">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
               </div>
             </div>
-            <div className="bg-white rounded-[10px] shadow-sm border border-slate-100 flex items-center justify-between" style={{padding:'12px 16px'}}>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Aguardando Emissão</p>
-                <h3 className="text-[22px] font-extrabold text-[#F97316] leading-none">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
+            <div className="bg-white rounded-2xl border border-orange-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(249,115,22,0.08)'}}>
+              <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                <Clock className="w-4.5 h-4.5 text-[#F97316]" style={{width:18,height:18}} />
               </div>
-              <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center text-[#F97316]">
-                <Clock className="w-4 h-4" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 leading-none">Aguardando</p>
+                <h3 className="text-[22px] font-extrabold text-[#F97316] leading-tight mt-0.5">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
               </div>
             </div>
           </div>
@@ -1403,20 +1406,22 @@ export default function Tickets() {
             ]}
           />
 
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-              <h4 className="text-xl font-bold tracking-tight text-slate-900">Gestão de Passagens</h4>
-              <span className="text-sm text-slate-400 font-medium">{filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}</span>
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,51,204,0.06)'}}>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="text-[15px] font-bold tracking-tight text-slate-900">Gestão de Passagens</h4>
+              <span className="text-[12px] text-slate-400 font-medium bg-slate-50 px-3 py-1 rounded-full border border-slate-100">{filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}</span>
             </div>
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
-              <Plane className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-700 mb-2">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                <Plane className="w-7 h-7 text-blue-200" />
+              </div>
+              <h3 className="text-[15px] font-bold text-slate-600 mb-1">
                 {filters.ticketStatus === "pending" ? "Nenhuma passagem pendente" : 
                  filters.ticketStatus === "processed" ? "Nenhuma passagem comprada" : 
                  "Nenhuma passagem encontrada"}
               </h3>
-              <p className="text-slate-400">
+              <p className="text-[13px] text-slate-400">
                 {filters.ticketStatus === "pending" 
                   ? "Todas as passagens foram compradas ou não há colaboradores escalados."
                   : filters.ticketStatus === "processed"
@@ -1427,8 +1432,8 @@ export default function Tickets() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+                  <tr>
                     <th className="px-4 py-4 w-10">
                       <input
                         type="checkbox"
@@ -1438,24 +1443,25 @@ export default function Tickets() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
-                    <th className="px-3 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] w-[64px]">ID</th>
+                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 w-[64px]">ID</th>
                     <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888]">Destino</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Destino</th>
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
-                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888]">Voos Sugeridos</th>
-                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] text-center">Status</th>
-                    <th className="py-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[#888] text-center w-[72px]">Ações</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Voos Sugeridos</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
+                    <th className="py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center w-[72px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTicketInclusions.map((inclusion) => {
+                  {filteredTicketInclusions.map((inclusion, rowIdx) => {
                     const ticket = getTicket(inclusion.id);
                     return (
                       <tr
                         key={inclusion.id}
-                        className="transition-colors group border-b border-slate-100 last:border-0"
+                        className={`transition-colors group border-b border-slate-100 last:border-0 hover:bg-blue-50/30 ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
                         style={{
+                          opacity: inclusion.status === 'cancelado' ? 0.5 : 1,
                           backgroundColor: inclusion.status === 'cancelado'
                             ? '#FAFAFA'
                             : ticket
@@ -1688,33 +1694,41 @@ export default function Tickets() {
 
         {/* Modal de Detalhes da Passagem */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
             {selectedInclusion && (
               <div>
-                <DialogHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-2">
-                      <DialogTitle style={{fontSize: 18, fontWeight: 700, color: '#1E293B'}}>
-                        Detalhes da Passagem #{selectedInclusion.inclusionNumber} — {getEventName(selectedInclusion.eventId)}
-                      </DialogTitle>
-                      {isReadOnly(selectedInclusion) ? (
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#FEF3C7',color:'#92400E',fontSize:12,fontWeight:600}}>
-                          Somente Leitura
-                        </span>
-                      ) : getTicket(selectedInclusion.id) ? (
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#D1FAE5',color:'#065F46',fontSize:12,fontWeight:600}}>
-                          ✓ Passagem Comprada
-                        </span>
-                      ) : (
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:999,background:'#FEF9C3',color:'#854D0E',fontSize:12,fontWeight:600}}>
-                          Pendente
-                        </span>
-                      )}
+                <DialogHeader className="bg-white px-6 pt-5 pb-4 border-b border-slate-100 sticky top-0 z-10">
+                  <DialogTitle className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center text-white shrink-0"
+                      style={{ boxShadow: "0 4px 12px #0033CC40" }}
+                    >
+                      <Plane className="w-4 h-4" />
                     </div>
-                  </div>
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-bold text-slate-900 leading-tight truncate">
+                        Passagem #{selectedInclusion.inclusionNumber} — {getEventName(selectedInclusion.eventId)}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {isReadOnly(selectedInclusion) ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">
+                            Somente Leitura
+                          </span>
+                        ) : getTicket(selectedInclusion.id) ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-bold border border-green-200">
+                            <CheckCircle className="w-3 h-3" /> Passagem Comprada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold border border-orange-200">
+                            <Clock className="w-3 h-3" /> Pendente
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-6 mt-6">
+                <div className="space-y-6 px-6 py-5">
                   {/* Informações Gerais */}
                   <div style={{background:'#F8FAFC',borderRadius:12,border:'1px solid #E2E8F0',padding:16}}>
                     <h3 style={{fontSize:13,fontWeight:600,color:'#1E293B',marginBottom:12}}>Informações Gerais</h3>
