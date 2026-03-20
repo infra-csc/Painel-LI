@@ -1111,43 +1111,25 @@ export default function BudgetPlannedPage() {
                           )}
 
                           {/* Avatar */}
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm ${avatarColor(name)}`}>
+                          <div className={`w-9 h-9 rounded-[8px] flex items-center justify-center text-white text-[12px] font-bold shrink-0 ${avatarColor(name)}`}>
                             {initials || '?'}
                           </div>
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate">
-                                {name}
-                              </span>
+                              <span className="font-bold text-slate-800 text-[14px] truncate">{name}</span>
                               {budget.hasOverride && (
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-medium rounded-md">
-                                {getFunctionName(budget.inclusion.functionId)}
-                              </Badge>
-                              <Badge className={`text-[10px] h-5 px-1.5 font-medium rounded-md ${
-                                isCasa 
-                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300' 
-                                  : 'bg-orange-100 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300'
-                              }`}>
-                                {isCasa ? 'Casa' : 'Freela'}
-                              </Badge>
-                              {isSent && (
-                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600">
-                                  No Realizado
-                                </Badge>
-                              )}
-                              {isNotAttended && (
-                                <Badge className="text-[10px] h-5 px-1.5 font-medium rounded-md bg-gray-200 text-gray-500 border border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600 flex items-center gap-0.5">
-                                  <UserX className="w-2.5 h-2.5" />Não participou
-                                </Badge>
-                              )}
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">{getFunctionName(budget.inclusion.functionId)}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                              {isSent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">No Realizado</span>}
+                              {isNotAttended && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 flex items-center gap-0.5"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
                             {isNotAttended && planRecord?.didNotAttendReason && (
-                              <p className="text-[10px] text-gray-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
+                              <p className="text-[10px] text-slate-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
                             )}
                           </div>
                         </div>
@@ -1218,65 +1200,51 @@ export default function BudgetPlannedPage() {
                       
                       {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
-                        <div className="px-4 pt-3 pb-2 text-sm flex-1 flex flex-col gap-1">
+                        <div className="px-4 py-3 flex-1 flex flex-col gap-2">
                           {/* Período */}
                           {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
-                              <Calendar className="w-3 h-3" />
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 -mt-1">
+                              <Calendar className="w-3 h-3 shrink-0" />
                               {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                             </div>
                           )}
-
-                          {/* Itens em duas colunas */}
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                                <span className="text-xs">Diárias</span>
+                          {/* 3 blocos coloridos */}
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* Diárias */}
+                            <div className="rounded-lg p-2.5 border border-indigo-100 bg-indigo-50/50">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <div className="w-4 h-4 rounded-md bg-indigo-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
+                                <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Diárias</span>
                               </div>
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.subtotalDiarias)}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                                <Car className="w-3.5 h-3.5 text-violet-400" />
-                                <span className="text-xs">Mobilidade</span>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.mobilidade)}</span>
-                                {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
-                                  <div className="text-[9px] text-violet-400 tabular-nums">
-                                    {formatCurrency(budget.mobilidadeIda)} · {formatCurrency(budget.mobilidadeVolta)}
-                                  </div>
-                                )}
+                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.subtotalDiarias)}</div>
+                              <div className="mt-1.5 space-y-0.5">
+                                {budget.weekdays > 0 && <div className="text-[10px] text-indigo-600 tabular-nums">{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>}
+                                {budget.weekends > 0 && <div className="text-[10px] text-indigo-500 tabular-nums">{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>}
                               </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                                <Utensils className="w-3.5 h-3.5 text-orange-400" />
-                                <span className="text-xs">Alimentação</span>
+                            {/* Alimentação */}
+                            <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
+                                <span className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Alimentação</span>
                               </div>
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                                <Coffee className="w-3.5 h-3.5 text-amber-400" />
-                                <span className="text-xs">Ajuda de custo</span>
+                            {/* Mobilidade + Ajuda */}
+                            <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
+                                <span className="text-[9px] font-black text-violet-700 uppercase tracking-widest">Mobilidade</span>
                               </div>
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(budget.ajudaCusto)}</span>
+                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.mobilidade)}</div>
+                              {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
+                                <div className="text-[9px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(budget.mobilidadeIda)} · Volta: {formatCurrency(budget.mobilidadeVolta)}</div>
+                              )}
+                              {budget.ajudaCusto > 0 && (
+                                <div className="text-[9px] text-amber-600 tabular-nums mt-0.5">+{formatCurrency(budget.ajudaCusto)} ajuda</div>
+                              )}
                             </div>
                           </div>
-
-                          {/* Detalhe diárias */}
-                          {(budget.weekdays > 0 || budget.weekends > 0) && (
-                            <div className="mt-1 pl-5 space-y-0.5">
-                              {budget.weekdays > 0 && (
-                                <div className="text-[10px] text-gray-400">{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>
-                              )}
-                              {budget.weekends > 0 && (
-                                <div className="text-[10px] text-gray-400">{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       )}
 
