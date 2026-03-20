@@ -668,147 +668,159 @@ export default function BudgetActualPage() {
       } as BudgetPlanned;
     })();
 
+    const stripeColor = isSelected ? '#7c3aed'
+      : cardItem.rhStatus === 'aprovado' ? '#059669'
+      : cardItem.rhStatus === 'devolvido' ? '#d97706'
+      : cardItem.rhStatus === 'rejeitado' ? '#ef4444'
+      : cardItem.sentForReview ? '#2563eb'
+      : diverges ? '#f59e0b'
+      : '#cbd5e1';
+
     return (
       <div
         data-card-id={cardItem.id}
         className={[
-          'rounded-2xl border overflow-hidden transition-all duration-300 bg-white dark:bg-gray-800',
-          isInGroup ? 'border-l-4 border-l-purple-400' : '',
-          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100 dark:shadow-violet-900/30'
-            : isSelected ? 'ring-2 ring-violet-300 border-violet-200 dark:border-violet-700 shadow-md shadow-violet-50'
-            : diverges ? 'border-amber-200 dark:border-amber-800/50'
-            : isInGroup ? 'border-purple-200 dark:border-purple-800/50'
-            : 'border-gray-200 dark:border-gray-700',
+          'rounded-xl border overflow-hidden transition-all duration-300 bg-white',
+          isInGroup ? 'border-l-[3px] border-l-purple-300' : '',
+          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100'
+            : isSelected ? 'ring-2 ring-violet-300 border-violet-200 shadow-md'
+            : diverges ? 'border-amber-200'
+            : isInGroup ? 'border-purple-200'
+            : 'border-slate-200',
         ].join(' ')}
       >
-        {/* Card Header */}
-        <div className="flex items-center justify-between px-3 py-1.5">
-          <div className="flex items-center gap-3">
-            {isItemLocked ? (
-              <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 cursor-default" />
-              </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
-            ) : isItemEditable ? (
-              <button onClick={() => toggleSelect(cardItem.id)} className="flex-shrink-0">
-                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 border-violet-600' : 'border-gray-300 dark:border-gray-600 hover:border-violet-400'}`}>
-                  {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                </div>
-              </button>
-            ) : null}
-            <div className={`w-9 h-9 rounded-xl ${avatarBg} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-              <span className="text-white text-xs font-bold">{initials || '?'}</span>
-            </div>
-            <div>
-              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{collabName}</span>
-              <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-                <Badge variant="secondary" className="text-[10px] h-[18px] px-1.5 font-medium">{getFunctionName(cardItem.functionId)}</Badge>
-                <Badge className={`text-[10px] h-[18px] px-1.5 font-medium ${isCasa ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-50'}`}>{isCasa ? 'Casa' : 'Freela'}</Badge>
-                {statusBadge}
-                {diverges && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-50">Divergência</Badge>}
-                {isGParent && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-100 text-purple-700 border border-purple-300 hover:bg-purple-100">Titular</Badge>}
-                {isGChild && <Badge className="text-[10px] h-[18px] px-1.5 font-medium bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-50 flex items-center gap-0.5"><GitFork className="w-2.5 h-2.5" />Divisão</Badge>}
+          <div className="h-[3px]" style={{background: stripeColor}} />
+
+          {/* Card Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-50/60">
+            <div className="flex items-center gap-3">
+              {isItemLocked ? (
+                <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                  <Lock className="w-4 h-4 text-slate-300 flex-shrink-0 cursor-default" />
+                </TooltipTrigger><TooltipContent side="right" className="text-xs">Prestação bloqueada para edição</TooltipContent></Tooltip></TooltipProvider>
+              ) : isItemEditable ? (
+                <button onClick={() => toggleSelect(cardItem.id)} className="flex-shrink-0">
+                  <div className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 border-violet-600' : 'border-slate-300 hover:border-violet-400'}`}>
+                    {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                </button>
+              ) : null}
+              <div className={`w-9 h-9 rounded-[8px] ${avatarBg} flex items-center justify-center flex-shrink-0`}>
+                <span className="text-white text-[12px] font-bold">{initials || '?'}</span>
               </div>
-              {workedDaysStr && isInGroup && (
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <Calendar className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                  <span className="text-[10px] text-purple-600 dark:text-purple-400 leading-tight">{workedDaysStr}</span>
+              <div>
+                <span className="font-bold text-slate-800 text-[14px]">{collabName}</span>
+                <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">{getFunctionName(cardItem.functionId)}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                  {statusBadge}
+                  {diverges && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600">Divergência</span>}
+                  {isGParent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700">Titular</span>}
+                  {isGChild && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 flex items-center gap-0.5"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
                 </div>
+                {workedDaysStr && isInGroup && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Calendar className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                    <span className="text-[10px] text-purple-600 leading-tight">{workedDaysStr}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {isItemEditable ? (
+                <>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" onClick={() => openEditModal(cardItem)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg" onClick={() => setSplittingItem(cardItem)} title="Dividir" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
+                </>
+              ) : (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
               )}
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 rounded-lg" onClick={() => toggleCollapse(cardItem.id)}>
+                {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-0.5">
-            {isItemEditable ? (
-              <>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditModal(cardItem)} title="Editar prestação"><Edit className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-500 hover:text-purple-700 hover:bg-purple-50" onClick={() => setSplittingItem(cardItem)} title="Dividir escalação" disabled={splitMutation.isPending}><GitFork className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setConfirmDeleteId(cardItem.id)} title="Remover"><Trash2 className="w-3.5 h-3.5" /></Button>
-              </>
-            ) : (
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => openEditModal(cardItem)} title="Visualizar"><Eye className="w-3.5 h-3.5" /></Button>
-            )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toggleCollapse(cardItem.id)}>
-              {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-            </Button>
-          </div>
-        </div>
-        {/* Card Body */}
-        {!isCollapsed && (() => {
-          const planned = cardPlanned;
-          const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
-          const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
-          const diffInline = (actual: number, plan: number) => {
-            if (!planned) return null;
-            const d = actual - plan;
-            if (Math.abs(d) <= 1) return null;
-            return <span className={`text-[10px] tabular-nums font-semibold ml-1.5 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
-          };
-          return (
-            <div className="px-2.5 pb-2 border-t border-gray-100 dark:border-gray-700/60 pt-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-lg p-2 border border-blue-100 dark:border-blue-900/40 h-full flex flex-col justify-between">
-                  <div className="flex items-center gap-1 mb-1">
-                    <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center"><Calendar className="w-2 h-2 text-white" /></div>
-                    <span className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Diárias</span>
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
-                    {diffInline(cardSubtotalDiarias, plannedDiarias)}
-                  </div>
-                  {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
-                  <div className="mt-1 space-y-0.5">
-                    {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
-                    {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 dark:text-indigo-400 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-lg p-2 border border-orange-100 dark:border-orange-900/40">
-                    <div className="flex items-center gap-1 mb-1">
-                      <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center"><Utensils className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider">Alimentação</span>
+
+          {/* Card Body */}
+          {!isCollapsed && (() => {
+            const planned = cardPlanned;
+            const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
+            const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
+            const diffInline = (actual: number, plan: number) => {
+              if (!planned) return null;
+              const d = actual - plan;
+              if (Math.abs(d) <= 1) return null;
+              return <span className={`text-[10px] tabular-nums font-bold ml-1 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
+            };
+            return (
+              <div className="px-4 py-3 border-t border-slate-100">
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Diárias */}
+                  <div className="rounded-lg p-2.5 border border-blue-100 bg-blue-50/50">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className="w-4 h-4 rounded-md bg-blue-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
+                      <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">Diárias</span>
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                      {diffInline(cardSubtotalDiarias, plannedDiarias)}
+                    </div>
+                    {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
+                    <div className="mt-1.5 space-y-0.5">
+                      {cardDays.weekdays > 0 && <div className="text-[10px] text-blue-600 tabular-nums">{formatDiasUteis(cardDays.weekdays)} × {formatCurrency(cardValorUtil)}</div>}
+                      {cardDays.weekends > 0 && <div className="text-[10px] text-indigo-500 tabular-nums">{formatFds(cardDays.weekends)} × {formatCurrency(cardValorFds)}</div>}
+                    </div>
+                  </div>
+                  {/* Alimentação */}
+                  <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
+                      <span className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Alimentação</span>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
-                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
+                    {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                   </div>
-                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 rounded-lg p-2 border border-violet-100 dark:border-violet-900/40">
-                    <div className="flex items-center gap-1 mb-1">
-                      <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center"><Car className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Mobilidade</span>
+                  {/* Mobilidade */}
+                  <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
+                      <span className="text-[9px] font-black text-violet-700 uppercase tracking-widest">Mobilidade</span>
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {(() => {
                       const ida = (cardItem as any).mobilityIda;
                       const volta = (cardItem as any).mobilityVolta;
                       if (typeof ida === 'number' && (ida > 0 || volta > 0)) {
-                        return <div className="text-[9px] text-violet-400 dark:text-violet-500 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
+                        return <div className="text-[9px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(ida)} · Volta: {formatCurrency(volta ?? 0)}</div>;
                       }
                       return planned && Math.abs(cardItem.mobility - (planned?.mobility ?? 0)) > 1
-                        ? <div className="text-[9px] text-gray-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
+                        ? <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(planned.mobility)}</div>
                         : null;
                     })()}
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
         {/* Card Footer */}
         {(() => {
           const planned = cardPlanned;
           const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
           return (
-            <div className={`flex items-center justify-between px-3 py-2 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40' : 'border-amber-100 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/40') : 'border-gray-100 dark:border-gray-700/60'}`}>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
-                {planned && <span className="text-[10px] text-gray-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
+            <div className={`flex items-center justify-between px-4 py-2.5 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/50' : 'border-amber-100 bg-amber-50/50') : 'border-slate-100 bg-slate-50/60'}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                {planned && <span className="text-[10px] text-slate-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
               </div>
               <div className="flex items-center gap-2">
-                {planned && Math.abs(diff) > 1 && <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
+                {planned && Math.abs(diff) > 1 && <span className={`text-[11px] font-bold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
                 <span className="text-[16px] font-black tabular-nums text-violet-700">{formatCurrency(cardItem.totalValue)}</span>
               </div>
             </div>
