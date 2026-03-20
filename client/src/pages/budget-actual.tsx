@@ -758,9 +758,9 @@ export default function BudgetActualPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {/* Diárias */}
                   <div className="rounded-lg p-2.5 border border-blue-100 bg-blue-50/50">
-                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
-                      <div className="w-4 h-4 rounded-md bg-blue-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-blue-700 uppercase tracking-normal truncate">Diárias</span>
+                    <div className="flex items-center gap-1 mb-2">
+                      <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
+                      <span className="text-[8px] font-black text-blue-700 uppercase">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
@@ -774,9 +774,9 @@ export default function BudgetActualPage() {
                   </div>
                   {/* Alimentação */}
                   <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
-                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
-                      <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-orange-700 uppercase tracking-normal truncate">Alimentação</span>
+                    <div className="flex items-center gap-1 mb-2">
+                      <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
+                      <span className="text-[8px] font-black text-orange-700 uppercase">Aliment.</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
@@ -786,9 +786,9 @@ export default function BudgetActualPage() {
                   </div>
                   {/* Mobilidade */}
                   <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
-                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
-                      <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-violet-700 uppercase tracking-normal truncate">Mobilidade</span>
+                    <div className="flex items-center gap-1 mb-2">
+                      <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
+                      <span className="text-[8px] font-black text-violet-700 uppercase">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
