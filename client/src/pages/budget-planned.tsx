@@ -829,6 +829,18 @@ export default function BudgetPlannedPage() {
                     <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Progresso</div>
                   </div>
                 </div>
+                {stats.total > 0 && (
+                  <>
+                    <div className="w-px h-9" style={{background:'#0033CC20'}} />
+                    <div className="flex-1">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Envio</div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{background:'#0033CC20'}}>
+                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{width:`${stats.progressoEnvio}%`}} />
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-1">{stats.enviados} de {stats.total} enviados</div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
