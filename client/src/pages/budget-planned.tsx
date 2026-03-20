@@ -833,69 +833,6 @@ export default function BudgetPlannedPage() {
             </div>
 
 
-            {/* ── Cards de métricas ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {/* Casa */}
-              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
-                <div className="h-0.5 bg-blue-500" />
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                    <Home className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Casa</div>
-                    <div className="text-[18px] font-black text-slate-800 leading-none truncate">{formatCurrency(stats.valorCasa)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{stats.totalCasa} colab.</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Freela */}
-              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
-                <div className="h-0.5 bg-orange-500" />
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                    <UserCheck className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Freela</div>
-                    <div className="text-[18px] font-black text-slate-800 leading-none truncate">{formatCurrency(stats.valorFreela)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{stats.totalFreela} colab.</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Custo médio / colaborador */}
-              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
-                <div className="h-0.5 bg-violet-500" />
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-                    <Users className="w-4 h-4 text-violet-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Médio / Pessoa</div>
-                    <div className="text-[18px] font-black text-violet-600 leading-none truncate">{formatCurrency(stats.media)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">por colaborador</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Custo médio / dia */}
-              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
-                <div className="h-0.5 bg-teal-500" />
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
-                    <BarChart3 className="w-4 h-4 text-teal-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Médio / Dia</div>
-                    <div className="text-[18px] font-black text-teal-600 leading-none truncate">{formatCurrency(stats.mediaPorDia)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">por dia trabalhado</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* ── Timeline de etapas ── */}
             {(() => {
               const currentStep = 1;
@@ -965,6 +902,69 @@ export default function BudgetPlannedPage() {
                 </div>
               );
             })()}
+
+            {/* ── Cards de métricas ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Casa */}
+              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <div className="h-0.5 bg-blue-500" />
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                    <Home className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Casa</div>
+                    <div className="text-[18px] font-black text-slate-800 leading-none truncate">{formatCurrency(stats.valorCasa)}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{stats.totalCasa} colab.</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Freela */}
+              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <div className="h-0.5 bg-orange-500" />
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                    <UserCheck className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Freela</div>
+                    <div className="text-[18px] font-black text-slate-800 leading-none truncate">{formatCurrency(stats.valorFreela)}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{stats.totalFreela} colab.</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custo médio / colaborador */}
+              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <div className="h-0.5 bg-violet-500" />
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Médio / Pessoa</div>
+                    <div className="text-[18px] font-black text-violet-600 leading-none truncate">{formatCurrency(stats.media)}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">por colaborador</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custo médio / dia */}
+              <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <div className="h-0.5 bg-teal-500" />
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
+                    <BarChart3 className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mb-0.5">Médio / Dia</div>
+                    <div className="text-[18px] font-black text-teal-600 leading-none truncate">{formatCurrency(stats.mediaPorDia)}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">por dia trabalhado</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* ── Filtros e Busca ── */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
