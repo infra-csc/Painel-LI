@@ -655,15 +655,15 @@ export default function Tickets() {
               { label: "Aguardando",   value: filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length, stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  Icon: Clock },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className={`h-1 w-full ${card.stripe}`} />
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
-                      <card.Icon className="w-4 h-4" />
-                    </div>
+                <div className={`h-0.5 w-full ${card.stripe}`} />
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg} ${card.iconTx}`}>
+                    <card.Icon className="w-4 h-4" />
                   </div>
-                  <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">{card.label}</p>
-                  <p className="text-[26px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
+                  <div>
+                    <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase leading-none mb-1">{card.label}</p>
+                    <p className="text-[22px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
+                  </div>
                 </div>
               </div>
             ))}
