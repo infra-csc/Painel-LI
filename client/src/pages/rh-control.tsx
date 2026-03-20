@@ -537,10 +537,13 @@ export default function RhControlPage() {
   const rhActionCount = rhReceivedCount + rhPlanPendingCount;
 
   const getTimelineStep = (item: PrestacaoItem): number => {
-    if (item.status === "planejamento_pendente") return 0;
-    if (item.status === "aguardando_prestacao") return 1;
-    if (item.status === "prestacao_recebida" || item.status === "devolvida_para_ajuste") return 2;
-    return 3;
+    // step = index of the CURRENT active step (steps before it are completed ✓)
+    // 0=Escalação, 1=Planejado, 2=Realizado, 3=Aprovação
+    if (item.status === "planejamento_pendente") return 1;   // Escalação ✓ → Planejado is current
+    if (item.status === "aguardando_prestacao") return 2;    // Escalação+Planejado ✓ → Realizado is current
+    if (item.status === "prestacao_recebida") return 3;      // Escalação+Planejado+Realizado ✓ → Aprovação is current
+    if (item.status === "devolvida_para_ajuste") return 2;   // Returned to Realizado (correction needed)
+    return 3; // concluded statuses use isConcluded=true → all steps marked ✓
   };
 
   const getStepDate = (item: PrestacaoItem, stepIndex: number): string | null => {
