@@ -786,27 +786,47 @@ export default function BudgetPlannedPage() {
       ) : (
           <>
             {/* ── Banner Total Planejado ── */}
-            <div className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="h-1 bg-[#0033CC]" />
-              <div className="px-5 py-4 bg-white flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Planejado</p>
-                  {selectedEvent?.startDate && (
-                    <p className="flex items-center gap-1 text-[11px] text-slate-400 mb-1.5">
-                      <Calendar className="w-3 h-3 shrink-0" />
-                      {formatEventDate(selectedEvent.startDate)}
-                    </p>
-                  )}
-                  <div className="text-[28px] font-black text-[#0033CC] leading-none">{formatCurrency(totalGeral)}</div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="text-[20px] font-black text-slate-700">{stats.total}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Colaboradores</span>
+            <div className="rounded-xl overflow-hidden shadow-sm flex" style={{border:'1px solid #0033CC22'}}>
+              {/* Esquerda — azul sólido */}
+              <div className="px-6 py-5 flex flex-col justify-center" style={{background:'#0033CC', minWidth:220}}>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.6)'}}>Total Planejado</p>
+                {selectedEvent?.startDate && (
+                  <p className="flex items-center gap-1 text-[11px] mb-2" style={{color:'rgba(255,255,255,0.7)'}}>
+                    <Calendar className="w-3 h-3 shrink-0" />
+                    {formatEventDate(selectedEvent.startDate)}
+                  </p>
+                )}
+                <div className="text-[30px] font-black text-white leading-none">{formatCurrency(totalGeral)}</div>
+              </div>
+              {/* Direita — stats */}
+              <div className="flex-1 bg-white px-6 py-4 flex items-center justify-end gap-8">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{background:'#EEF2FF'}}>
+                    <Users className="w-4 h-4" style={{color:'#0033CC'}} />
                   </div>
-                  <div className="flex flex-col items-center gap-0.5 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
-                    <span className="text-[20px] font-black text-emerald-600">{stats.enviados}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Enviados</span>
+                  <div>
+                    <div className="text-[22px] font-black text-slate-800 leading-none">{stats.total}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">Colaboradores</div>
+                  </div>
+                </div>
+                <div className="w-px h-10 bg-slate-100" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-50">
+                    <Send className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div>
+                    <div className="text-[22px] font-black text-emerald-600 leading-none">{stats.enviados}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mt-0.5">Enviados</div>
+                  </div>
+                </div>
+                <div className="w-px h-10 bg-slate-100" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-slate-50">
+                    <TrendingUp className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div>
+                    <div className="text-[22px] font-black text-slate-800 leading-none">{Math.round(stats.progressoEnvio)}%</div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">Progresso</div>
                   </div>
                 </div>
               </div>
