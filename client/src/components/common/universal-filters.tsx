@@ -98,7 +98,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               placeholder="ID, nome..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
+              className="w-full h-8 pl-8 pr-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all"
               data-testid="input-search-id"
             />
           </div>
@@ -157,10 +157,10 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
               onValueChange={(value) => onFiltersChange({ ...filters, status: value })}
               data-testid="filter-status"
             >
-              <SelectTrigger className="h-10 w-full border border-slate-200 rounded-xl bg-slate-50 px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
+              <SelectTrigger className="h-8 w-full border border-slate-200 rounded-lg bg-white px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
                 <SelectValue placeholder="Selecionar status" />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+              <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
                 {statusOptions.map((option) => (
                   <SelectItem
                     key={option.value}
@@ -185,10 +185,10 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             onValueChange={(value) => onFiltersChange({ ...filters, escalationStatus: value })}
             data-testid="filter-escalation"
           >
-            <SelectTrigger className="h-10 w-full border border-slate-200 rounded-xl bg-slate-50 px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
+            <SelectTrigger className="h-8 w-full border border-slate-200 rounded-lg bg-white px-3 text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:ring-2 focus:ring-blue-200 focus:border-blue-400">
               <SelectValue placeholder="Filtrar por escalação" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
+            <SelectContent className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[220px]">
               <SelectItem value="all" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Todos</SelectItem>
               <SelectItem value="pending" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Pendentes de Escalação</SelectItem>
               <SelectItem value="escalated" className="hover:bg-blue-50 hover:text-blue-700 cursor-pointer focus:bg-blue-50 focus:text-blue-700 data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:font-medium">Já Escalados</SelectItem>
@@ -208,7 +208,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
         {/* Ações direita: extras + Toggle + Limpar — alinhados pela base do input */}
         <div className="flex items-end gap-3 shrink-0 pb-0.5">
           {rightActions}
-          <label className="flex items-center gap-2 cursor-pointer select-none h-10">
+          <label className="flex items-center gap-2 cursor-pointer select-none h-8">
             <Switch
               id="show-deleted"
               checked={filters.showDeleted || false}
@@ -218,15 +218,15 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
             <span className="text-sm text-slate-500 whitespace-nowrap">Mostrar Excluídos</span>
           </label>
 
-          <Button
-            variant="outline"
+          <button
+            type="button"
             onClick={clearFilters}
-            className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-xl px-3 h-10 text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg px-3 h-8 text-sm font-medium transition-colors bg-white"
             data-testid="button-clear-filters"
           >
-            <X className="w-4 h-4" />
-            Limpar Filtros
-          </Button>
+            <X className="w-3.5 h-3.5" />
+            Limpar
+          </button>
         </div>
       </div>
     </div>

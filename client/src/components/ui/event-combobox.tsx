@@ -68,22 +68,21 @@ export default function EventCombobox({
         <button
           data-testid={testId}
           type="button"
-          className="w-full h-10 flex items-center gap-2 px-3 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-700 cursor-pointer hover:border-blue-300 hover:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="w-full h-8 flex items-center justify-between px-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
-          <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-          <span className="flex-1 text-left truncate font-medium text-slate-700">
+          <span className="flex-1 text-left truncate text-slate-700">
             {displayValue}
           </span>
           {value && value !== "all" ? (
             <button
               type="button"
               onClick={e => { e.stopPropagation(); onValueChange("all"); }}
-              className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+              className="text-slate-400 hover:text-slate-600 flex-shrink-0 ml-2"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-2" />
           )}
         </button>
       </PopoverTrigger>
