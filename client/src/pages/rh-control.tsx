@@ -1066,17 +1066,7 @@ export default function RhControlPage() {
                         </button>
                       );
                     }
-                    if (navTarget) {
-                      return (
-                        <button
-                          onClick={() => navigate(navTarget.path)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                        >
-                          {navTarget.label}
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      );
-                    }
+                    // nfStatus "pendente" or "aprovada" — navTarget block already renders "Ver detalhes"
                     return null;
                   })()}
                 </div>
