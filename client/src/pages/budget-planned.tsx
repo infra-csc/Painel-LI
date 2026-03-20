@@ -1214,7 +1214,7 @@ export default function BudgetPlannedPage() {
                             <div className="rounded-lg p-2.5 border border-indigo-100 bg-indigo-50/50">
                               <div className="flex items-center gap-1.5 mb-2">
                                 <div className="w-4 h-4 rounded-md bg-indigo-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
-                                <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Diárias</span>
+                                <span className="text-[9px] font-black text-indigo-700 uppercase tracking-wide">Diárias</span>
                               </div>
                               <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.subtotalDiarias)}</div>
                               <div className="mt-1.5 space-y-0.5">
@@ -1226,7 +1226,7 @@ export default function BudgetPlannedPage() {
                             <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
                               <div className="flex items-center gap-1.5 mb-2">
                                 <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
-                                <span className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Alimentação</span>
+                                <span className="text-[9px] font-black text-orange-700 uppercase tracking-wide">Alimentação</span>
                               </div>
                               <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</div>
                             </div>
@@ -1234,7 +1234,7 @@ export default function BudgetPlannedPage() {
                             <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
                               <div className="flex items-center gap-1.5 mb-2">
                                 <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
-                                <span className="text-[9px] font-black text-violet-700 uppercase tracking-widest">Mobilidade</span>
+                                <span className="text-[9px] font-black text-violet-700 uppercase tracking-wide">Mobilidade</span>
                               </div>
                               <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.mobilidade)}</div>
                               {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
