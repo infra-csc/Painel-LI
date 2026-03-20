@@ -1474,9 +1474,8 @@ export default function Accommodations() {
           />
           <FunctionMultiSelect
             functions={functions || []}
-            value={filters.functionId}
-            onChange={v => setFilters(prev => ({ ...prev, functionId: v }))}
-            className="h-8 text-xs rounded-lg"
+            selectedIds={filters.functionId}
+            onSelectedChange={v => setFilters(prev => ({ ...prev, functionId: v }))}
           />
           <CollaboratorCombobox
             collaborators={collaborators || []}
