@@ -1743,32 +1743,49 @@ export default function BudgetPlannedPage() {
       </Dialog>
 
       <Dialog open={!!notAttendedModal} onOpenChange={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-                <UserX className="w-4 h-4 text-gray-500" />
-              </div>
-              <span>Marcar como não participou</span>
-            </DialogTitle>
+        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Marcar como não participou</DialogTitle>
           </DialogHeader>
-          {notAttendedModal && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-700">
+
+          {/* Header azul */}
+          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
+                <UserX className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-white/60">Ausência</p>
+                <h2 className="text-[16px] font-bold text-white leading-tight">Marcar como não participou</h2>
+              </div>
+            </div>
+
+            {notAttendedModal && (
+              <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.18)'}}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0" style={{background:'rgba(255,255,255,0.15)'}}>
+                  {notAttendedModal.name.split(' ').map((n: string) => n[0]).slice(0,2).join('')}
+                </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{notAttendedModal.name}</p>
-                  <p className="text-[10px] text-gray-400">{notAttendedModal.functionName}</p>
+                  <p className="text-[13px] font-semibold text-white leading-tight">{notAttendedModal.name}</p>
+                  <p className="text-[11px] text-white/60">{notAttendedModal.functionName}</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                Este colaborador será excluído do cálculo financeiro do planejado. Os valores não serão contabilizados nos totais.
+            )}
+          </div>
+
+          {/* Corpo */}
+          {notAttendedModal && (
+            <div className="px-5 py-4 space-y-4 bg-white">
+              <p className="text-[13px] text-slate-500 leading-relaxed">
+                Este colaborador será <span className="font-semibold text-slate-700">excluído do cálculo financeiro</span> do planejado. Os valores não serão contabilizados nos totais.
               </p>
+
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Motivo <span className="text-gray-400 font-normal">(opcional)</span>
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                  Motivo <span className="text-slate-300 font-normal normal-case tracking-normal">(opcional)</span>
                 </label>
                 <Textarea
-                  className="mt-1.5 rounded-xl text-sm resize-none"
+                  className="mt-2 rounded-xl text-sm resize-none border-slate-200 focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10"
                   value={notAttendedReason}
                   onChange={e => setNotAttendedReason(e.target.value)}
                   placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
@@ -1776,12 +1793,18 @@ export default function BudgetPlannedPage() {
                   autoFocus
                 />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" className="rounded-xl" onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  variant="ghost"
+                  className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm"
+                  onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}
+                >
                   Cancelar
                 </Button>
                 <Button
-                  className="rounded-xl bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white shadow-sm"
+                  className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
+                  style={{background:'#0033CC', boxShadow:'0 4px 12px #0033CC40'}}
                   onClick={() => {
                     if (notAttendedModal.id) {
                       toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason });
@@ -1791,7 +1814,7 @@ export default function BudgetPlannedPage() {
                   }}
                   disabled={toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending}
                 >
-                  <UserX className="w-3.5 h-3.5 mr-1.5" />
+                  <UserX className="w-3.5 h-3.5" />
                   {(toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending) ? 'Confirmando...' : 'Confirmar'}
                 </Button>
               </div>
