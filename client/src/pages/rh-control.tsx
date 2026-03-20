@@ -1168,37 +1168,48 @@ export default function RhControlPage() {
 
       {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between gap-4 px-4 py-3.5 rounded-lg border-l-4 border-l-orange-400 border border-amber-100 bg-amber-50/70">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-slate-700">
-              <span className="font-bold text-orange-500">{rhActionCount}</span>
-              {" "}pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
-            </p>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden max-w-[200px]">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: "linear-gradient(to right, #ef4444, #f97316, #10b981)",
-                  }}
-                />
-              </div>
-              <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                {concludedCount} de {totalForProgress} concluído{concludedCount !== 1 ? 's' : ''}
-              </span>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="h-[3px]" style={{ background: '#f97316' }} />
+          <div className="flex items-center gap-5 px-5 py-4">
+            {/* Count badge */}
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl text-white" style={{ background: '#f97316' }}>
+              {rhActionCount}
             </div>
+
+            {/* Text + progress */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800">
+                {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
+              </p>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[240px]">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${progressPct}%`,
+                      background: "linear-gradient(to right, #f97316, #059669)",
+                    }}
+                  />
+                </div>
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  <span className="font-semibold text-slate-700">{concludedCount}</span> de {totalForProgress} concluído{concludedCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* CTA */}
+            <button
+              className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-colors shrink-0 shadow-sm"
+              style={{ background: '#f97316' }}
+              onClick={() => {
+                setFilterStatus("rh_action");
+                setShowConcluded(false);
+                setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+              }}
+            >
+              Ver pendências
+            </button>
           </div>
-          <button
-            className="text-xs font-semibold px-3 py-1.5 rounded-md border border-orange-300 text-orange-600 hover:bg-orange-50 transition-colors shrink-0"
-            onClick={() => {
-              setFilterStatus("rh_action");
-              setShowConcluded(false);
-              setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-            }}
-          >
-            Ver pendências
-          </button>
         </div>
       )}
 
