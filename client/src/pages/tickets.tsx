@@ -2,7 +2,9 @@ import { useState, useMemo } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plane, Save, Eye, FileText, ChevronDown, ChevronRight, MessageCircle, Edit, CheckCircle, Clock, Ticket as TicketIcon } from "lucide-react";
-import SimpleFilters from "@/components/common/simple-filters";
+import EventCombobox from "@/components/ui/event-combobox";
+import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
+import FunctionMultiSelect from "@/components/ui/function-multi-select";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import CommentsModal from "@/components/modals/comments-modal";
@@ -647,44 +649,34 @@ export default function Tickets() {
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl border border-slate-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(0,51,204,0.06)'}}>
-              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                <TicketIcon className="w-4.5 h-4.5 text-[#0033CC]" style={{width:18,height:18}} />
+            {[
+              { label: "Total Geral",  value: filteredTicketInclusions.length, stripe: "bg-slate-700",   iconBg: "bg-slate-100",  iconTx: "text-slate-600",  valTx: "#374151",  Icon: TicketIcon },
+              { label: "Compradas",    value: filteredTicketInclusions.filter(inc => getTicket(inc.id)).length,  stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", Icon: CheckCircle },
+              { label: "Aguardando",   value: filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length, stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  Icon: Clock },
+            ].map(card => (
+              <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className={`h-1 w-full ${card.stripe}`} />
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
+                      <card.Icon className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">{card.label}</p>
+                  <p className="text-[26px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none">Total Geral</p>
-                <h3 className="text-[22px] font-extrabold text-slate-900 leading-tight mt-0.5">{filteredTicketInclusions.length}</h3>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-green-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(34,197,94,0.08)'}}>
-              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-4.5 h-4.5 text-[#22C55E]" style={{width:18,height:18}} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-400 leading-none">Compradas</p>
-                <h3 className="text-[22px] font-extrabold text-[#16A34A] leading-tight mt-0.5">{filteredTicketInclusions.filter(inc => getTicket(inc.id)).length}</h3>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-orange-100 flex items-center gap-3 px-4 py-3" style={{boxShadow:'0 1px 8px rgba(249,115,22,0.08)'}}>
-              <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                <Clock className="w-4.5 h-4.5 text-[#F97316]" style={{width:18,height:18}} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 leading-none">Aguardando</p>
-                <h3 className="text-[22px] font-extrabold text-[#F97316] leading-tight mt-0.5">{filteredTicketInclusions.filter(inc => !getTicket(inc.id)).length}</h3>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Seção de Registro Rápido */}
           <div
-            className="bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
-            style={{borderLeft: '4px solid #F59E0B', height:48}}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors overflow-hidden"
             onClick={() => toggleSection('basic')}
           >
-            <div className="flex items-center gap-3 px-4 h-full">
-              <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
-                <FileText className="w-4 h-4 text-[#F59E0B]" />
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-amber-500" />
               </div>
               <div>
                 <p className="text-[13px] font-semibold text-slate-800">Aplicar em Lote</p>
@@ -692,9 +684,11 @@ export default function Tickets() {
               </div>
             </div>
             <div className="pr-4">
-              {expandedSections.basic
-                ? <ChevronDown className="w-4 h-4 text-amber-400" />
-                : <ChevronRight className="w-4 h-4 text-slate-300" />}
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${expandedSections.basic ? 'bg-amber-50 text-amber-500' : 'bg-slate-50 text-slate-400'}`}>
+                {expandedSections.basic
+                  ? <ChevronDown className="w-4 h-4" />
+                  : <ChevronRight className="w-4 h-4" />}
+              </div>
             </div>
           </div>
 
@@ -1369,47 +1363,94 @@ export default function Tickets() {
             </div>
           )}
 
-          <SimpleFilters
-            filters={filters}
-            onFiltersChange={setFilters}
-            extraItems={[
-              {
-                label: "Status da Passagem",
-                element: (
-                  <select
-                    value={filters.ticketStatus}
-                    onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
-                    className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
-                    data-testid="filter-ticket-status"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="pending">Pendentes</option>
-                    <option value="processed">Compradas</option>
-                  </select>
-                ),
-              },
-              {
-                label: "Status da Inclusão",
-                element: (
-                  <select
-                    value={filters.inclusionStatus}
-                    onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
-                    className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
-                    data-testid="filter-inclusion-status"
-                  >
-                    <option value="active">Ativas</option>
-                    <option value="all">Todas</option>
-                    <option value="cancelado">Canceladas</option>
-                  </select>
-                ),
-              },
-            ]}
-          />
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
-          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,51,204,0.06)'}}>
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h4 className="text-[15px] font-bold tracking-tight text-slate-900">Gestão de Passagens</h4>
-              <span className="text-[12px] text-slate-400 font-medium bg-slate-50 px-3 py-1 rounded-full border border-slate-100">{filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}</span>
+            {/* ── Barra de filtros ── */}
+            <div className="px-5 py-3 border-b border-gray-100 bg-[#FAFBFF] flex flex-wrap items-center gap-2.5">
+              {/* Buscar por ID */}
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar por número..."
+                  value={filters.searchId ?? ""}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
+                  className="h-8 pl-8 pr-3 w-36 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                  data-testid="input-search-id"
+                />
+              </div>
+
+              {/* Evento */}
+              <div className="w-44">
+                <EventCombobox
+                  events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
+                  value={filters.eventId}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value }))}
+                  placeholder="Evento"
+                  testId="filter-event"
+                />
+              </div>
+
+              {/* Funções */}
+              <div className="w-44">
+                <FunctionMultiSelect
+                  functions={functions}
+                  selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
+                  onSelectedChange={(selectedIds) => setFilters(prev => ({ ...prev, functionId: selectedIds }))}
+                  placeholder="Funções"
+                  testId="filter-function"
+                />
+              </div>
+
+              {/* Colaborador */}
+              <div className="w-44">
+                <CollaboratorCombobox
+                  collaborators={collaborators}
+                  value={filters.collaboratorId}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, collaboratorId: value }))}
+                  placeholder="Colaborador"
+                  testId="filter-collaborator"
+                />
+              </div>
+
+              {/* Status Passagem */}
+              <select
+                value={filters.ticketStatus}
+                onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
+                className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                data-testid="filter-ticket-status"
+              >
+                <option value="all">Todos os status</option>
+                <option value="pending">Pendentes</option>
+                <option value="processed">Compradas</option>
+              </select>
+
+              {/* Status Inclusão */}
+              <select
+                value={filters.inclusionStatus}
+                onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
+                className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                data-testid="filter-inclusion-status"
+              >
+                <option value="active">Inclusões ativas</option>
+                <option value="all">Todas</option>
+                <option value="cancelado">Canceladas</option>
+              </select>
+
+              <div className="flex-1" />
+
+              {/* Contagem + Limpar */}
+              <span className="text-[11px] text-slate-400 font-medium bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+                {filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", ticketStatus: "all", inclusionStatus: "active" })}
+                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors"
+                data-testid="button-clear-filters"
+              >
+                <span className="material-symbols-outlined" style={{fontSize:13}}>close</span>
+                Limpar
+              </button>
             </div>
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
@@ -1730,9 +1771,12 @@ export default function Tickets() {
 
                 <div className="space-y-6 px-6 py-5">
                   {/* Informações Gerais */}
-                  <div style={{background:'#F8FAFC',borderRadius:12,border:'1px solid #E2E8F0',padding:16}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:'#1E293B',marginBottom:12}}>Informações Gerais</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-100 px-4 py-2.5 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Informações Gerais</span>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-4">
                       <div>
                         <label style={{display:'block',fontSize:11,textTransform:'uppercase',color:'#94A3B8',letterSpacing:'0.05em',marginBottom:4}}>Colaborador</label>
                         <p style={{fontSize:15,fontWeight:600,color:'#1E293B'}}>{getCollaboratorName(selectedInclusion.collaboratorId || undefined)}</p>
@@ -1765,14 +1809,13 @@ export default function Tickets() {
                   </div>
 
                   {/* Sugestões de Viagem - SEMPRE VISÍVEL */}
-                  <div style={{border:'1px solid #E2E8F0',borderRadius:12,background:'#F8FAFC',padding:16}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:'#1E293B',marginBottom:12,display:'flex',alignItems:'center',gap:6}}>
-                      <svg className="w-4 h-4" fill="none" stroke="#3B5BDB" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                      </svg>
-                      Sugestões de Viagem
-                      <span style={{fontSize:11,color:'#94A3B8',fontWeight:400}}>(vindas da inclusão de equipe)</span>
-                    </h3>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2.5 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Sugestões de Viagem</span>
+                      <span className="text-[10px] text-indigo-400 font-normal">(da inclusão de equipe)</span>
+                    </div>
+                    <div className="p-4">
                     {(() => {
                       const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
                       const notInformed = (v: string) => v === 'N/A' || v === 'Não definido' || v === 'Não informado';
@@ -1810,6 +1853,7 @@ export default function Tickets() {
                         </div>
                       );
                     })()}
+                    </div>
                   </div>
 
                   {(() => {
@@ -1818,13 +1862,14 @@ export default function Tickets() {
                     
                     return ticket && editingTicketId !== selectedInclusion.id ? (
                       /* Passagem já processada */
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         {/* Cabeçalho da Passagem Comprada */}
-                        <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border-l-4 border-green-500">
-                          <h3 className="font-medium mb-4 text-green-800 dark:text-green-200 flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            ✅ Passagem Comprada
-                          </h3>
+                        <div className="border border-slate-200 rounded-xl overflow-hidden">
+                          <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-2.5 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Passagem Comprada</span>
+                          </div>
+                          <div className="p-4">
                           
                           {/* Informações Gerais da Compra */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -2026,6 +2071,7 @@ export default function Tickets() {
                                 Editar Passagem
                               </Button>
                             )}
+                          </div>
                           </div>
                         </div>
                       </div>
