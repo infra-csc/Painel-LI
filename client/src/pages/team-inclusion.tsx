@@ -260,7 +260,7 @@ export default function TeamInclusion() {
                 )}
               />
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-4 bg-gray-50/50 -mx-6 px-6 py-4 -mb-6 rounded-b-lg">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 mt-2">
                 <button
                   type="button"
                   onClick={() => setShowEventModal(false)}

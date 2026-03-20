@@ -80,7 +80,7 @@ export default function UniversalFilters({ filters, onFiltersChange, hideStatusF
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-6">
+    <div className="bg-[#FAFBFF] rounded-xl border border-slate-200 shadow-sm px-5 py-4 mb-6">
       {/* Linha 1: Busca + Evento + Funções + Colaborador + [Status] + Escalação */}
       <div
         className="grid gap-3 items-end"

@@ -1020,7 +1020,7 @@ export default function GridTeamInclusionForm() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <Form {...form}>
           <div className="space-y-4">
             {/* Seleção de Evento */}
@@ -1096,6 +1096,7 @@ export default function GridTeamInclusionForm() {
                     <FormControl>
                       <Input
                         type="date"
+                        className="h-9"
                         {...field}
                         data-testid="input-grid-start-date"
                       />
@@ -1114,6 +1115,7 @@ export default function GridTeamInclusionForm() {
                     <FormControl>
                       <Input
                         type="date"
+                        className="h-9"
                         {...field}
                         data-testid="input-grid-end-date"
                       />
@@ -1138,51 +1140,51 @@ export default function GridTeamInclusionForm() {
 
             {/* Grade de Escalação */}
             {showGrid && (
-              <div className="space-y-4 border-t border-slate-100 mt-6 pt-6">
+              <div className="space-y-3 border-t border-slate-100 mt-6 pt-6">
                 {/* Header com controles */}
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-semibold text-slate-700">Grade de Inclusões</h3>
+                <div className="flex justify-between items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <Button
+                    <span className="text-[13px] font-semibold text-slate-700">Grade de Inclusões</span>
+                    {functionRows.length > 0 && (
+                      <span className="text-[11px] text-slate-400">({functionRows.length} {functionRows.length === 1 ? 'função' : 'funções'})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
                       type="button"
                       onClick={() => setShowHelp(!showHelp)}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2 border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 rounded-lg px-3 py-2 text-sm font-medium transition-colors bg-white"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
                     >
-                      <HelpCircle className="w-4 h-4" />
+                      <HelpCircle className="w-3.5 h-3.5" />
                       Ajuda
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       type="button"
                       onClick={() => setShowPasteModal(true)}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 rounded-lg px-3 py-2 text-sm font-medium transition-colors bg-white"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 hover:border-green-200 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors bg-white"
                     >
-                      <Upload className="w-4 h-4 text-green-500" />
-                      Colar do Excel
-                    </Button>
+                      <Upload className="w-3.5 h-3.5 text-green-500" />
+                      Colar Excel
+                    </button>
                     {selectedRows.size > 0 && (
-                      <Button
+                      <button
                         type="button"
                         onClick={deleteSelectedRows}
-                        variant="destructive"
-                        size="sm"
-                        className="flex items-center gap-2"
+                        className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg transition-colors bg-white"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                         Excluir ({selectedRows.size})
-                      </Button>
+                      </button>
                     )}
-                    <Button
+                    <button
                       type="button"
                       onClick={openFunctionSelect}
-                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all"
+                      className="h-8 px-3 flex items-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-all"
+                      style={{ background: "#0033CC", boxShadow: "0 2px 6px #0033CC40" }}
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-3.5 h-3.5" />
                       Adicionar Função
-                    </Button>
+                    </button>
                   </div>
                 </div>
 

@@ -530,22 +530,12 @@ export default function TeamInclusionTable() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0"
-              style={{ boxShadow: "0 4px 12px #0033CC40" }}
-            >
-              <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                format_list_bulleted
-              </span>
-            </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-slate-900 leading-tight">Lista de Inclusões</h3>
-              {filteredAndSortedInclusions.length > 0 && (
-                <p className="text-xs text-slate-400 mt-0.5">{filteredAndSortedInclusions.length} {filteredAndSortedInclusions.length === 1 ? "registro" : "registros"}</p>
-              )}
-            </div>
+        <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-slate-700">Inclusões de Equipe</span>
+            {filteredAndSortedInclusions.length > 0 && (
+              <span className="text-xs text-slate-400">({filteredAndSortedInclusions.length})</span>
+            )}
           </div>
         </div>
         
@@ -767,8 +757,14 @@ export default function TeamInclusionTable() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
 
             {/* Header */}
-            <div className="bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6">
-              <h2 className="text-lg font-bold text-slate-800">Editar Inclusão #{editingInclusion.inclusionNumber}</h2>
+            <div className="-mx-6 -mt-6 px-6 py-4 rounded-t-2xl mb-6 flex items-center gap-3" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+              <div className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0" style={{ boxShadow: "0 4px 12px #0033CC40" }}>
+                <Edit className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-slate-900 leading-tight">Editar Inclusão</h2>
+                <p className="text-xs text-slate-400 mt-0.5">#{editingInclusion.inclusionNumber}</p>
+              </div>
             </div>
 
             <form onSubmit={(e) => {
@@ -1005,7 +1001,8 @@ export default function TeamInclusionTable() {
                 <button
                   type="submit"
                   disabled={updateTeamInclusionMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-2.5 text-sm font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50"
+                  className="text-white rounded-lg px-6 py-2.5 text-sm font-semibold transition-all disabled:opacity-50"
+                  style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
                 >
                   {updateTeamInclusionMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
