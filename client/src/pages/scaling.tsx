@@ -1215,13 +1215,6 @@ export default function Scaling() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            <tr>
-                              <td colSpan={5} className="bg-orange-50/60 px-6 py-1.5">
-                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-orange-400">
-                                  <Clock className="w-3 h-3 shrink-0" /> Sem Passagem · {withoutTicket.length} {withoutTicket.length === 1 ? 'registro' : 'registros'}
-                                </div>
-                              </td>
-                            </tr>
                             {withoutTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
@@ -1351,13 +1344,6 @@ export default function Scaling() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            <tr>
-                              <td colSpan={5} className="bg-green-50/60 px-6 py-1.5">
-                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-green-600">
-                                  <Plane className="w-3 h-3 shrink-0" /> Com Passagem · {withTicket.length} {withTicket.length === 1 ? 'registro' : 'registros'}
-                                </div>
-                              </td>
-                            </tr>
                             {withTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
