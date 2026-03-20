@@ -586,7 +586,7 @@ export default function RhControlPage() {
     "Equipe definida e confirmada para o evento",
     "Valores planejados pelo RH",
     "Valores realizados preenchidos pelo responsável da função",
-    "Análise final do RH para liberação de pagamento",
+    "Análise do comparativo pelo RH para liberação de pagamento",
     "Nota fiscal enviada pelo colaborador e aprovada pelo RH",
   ];
 
@@ -613,7 +613,7 @@ export default function RhControlPage() {
       : nfEligible ? "Aguardando envio da nota fiscal"
       : "Disponível após aprovação do comparativo";
 
-    const mainSteps = ["Escalação", "Planejado", "Realizado", "Aprovação"];
+    const mainSteps = ["Escalação", "Planejado", "Realizado", "Comparativo"];
 
     return (
       <TooltipProvider delayDuration={200}>
