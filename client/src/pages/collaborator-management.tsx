@@ -9,13 +9,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   Check, X, Eye, UserPlus, Upload, FileText, Edit, Users,
   ChevronLeft, ChevronRight, Search, UserCheck, AlertCircle,
-  Briefcase, Home, LayoutList
+  Briefcase, Home, LayoutList, Loader2
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CollaboratorModal from "@/components/modals/collaborator-modal";
 import BulkUploadModal from "@/components/modals/bulk-upload-modal";
 import type { Collaborator } from "@shared/schema";
+
+const BLUE = "#0033CC";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -48,16 +50,16 @@ function toTitleCase(str: string) {
 const PAGE_SIZE = 25;
 
 const STATUS_CFG: Record<string, { label: string; dotCls: string; badgeCls: string }> = {
-  pendente:  { label: "Pendente",  dotCls: "bg-amber-500",   badgeCls: "bg-amber-100 text-amber-800" },
-  aprovado:  { label: "Aprovado",  dotCls: "bg-emerald-500", badgeCls: "bg-emerald-100 text-emerald-800" },
-  rejeitado: { label: "Rejeitado", dotCls: "bg-red-500",     badgeCls: "bg-red-100 text-red-800" },
-  inativo:   { label: "Inativo",   dotCls: "bg-slate-400",   badgeCls: "bg-slate-100 text-slate-600" },
+  pendente:  { label: "Pendente",  dotCls: "bg-amber-400",   badgeCls: "bg-amber-50 text-amber-700 border border-amber-200" },
+  aprovado:  { label: "Aprovado",  dotCls: "bg-emerald-500", badgeCls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  rejeitado: { label: "Rejeitado", dotCls: "bg-red-500",     badgeCls: "bg-red-50 text-red-700 border border-red-200" },
+  inativo:   { label: "Inativo",   dotCls: "bg-slate-400",   badgeCls: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
 
 const TYPE_CFG: Record<string, { label: string; cls: string }> = {
-  freela: { label: "Freela", cls: "bg-blue-50 text-blue-700" },
-  casa:   { label: "Casa",   cls: "bg-slate-100 text-slate-700" },
-  local:  { label: "Local",  cls: "bg-violet-50 text-violet-700" },
+  freela: { label: "Freela", cls: "bg-blue-50 text-blue-600 border border-blue-200" },
+  casa:   { label: "Casa",   cls: "bg-slate-50 text-slate-600 border border-slate-200" },
+  local:  { label: "Local",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
 };
 
 function formatDocument(doc: string, type: string) {
@@ -72,10 +74,20 @@ function formatDate(dateStr: string) {
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.pendente;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${cfg.badgeCls}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cfg.badgeCls}`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dotCls}`} />
-      {cfg.label.toUpperCase()}
+      {cfg.label}
     </span>
+  );
+}
+
+// ─── Detail row helper ─────────────────────────────────────────────────────
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-sm text-slate-700 font-medium">{value}</p>
+    </div>
   );
 }
 
@@ -106,12 +118,12 @@ export default function CollaboratorManagement() {
       return (await apiRequest("PATCH", `/api/collaborators/${id}`, payload)).json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Status atualizado" });
+      toast({ title: "Status atualizado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["/api/collaborators"] });
       setShowDetailsModal(false); setShowApprovalModal(false);
       setApprovalNotes(""); setEditCpf(""); setEditRg("");
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao atualizar colaborador", variant: "destructive" }),
+    onError: () => toast({ title: "Erro ao atualizar colaborador", variant: "destructive" }),
   });
 
   const filtered = useMemo(() => {
@@ -154,11 +166,19 @@ export default function CollaboratorManagement() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="h-16 bg-white rounded-3xl border border-slate-200 animate-pulse" />
-        <div className="h-24 bg-white rounded-3xl border border-slate-200 animate-pulse" />
-        <div className="bg-white rounded-3xl border border-slate-200 p-8 animate-pulse space-y-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-14 bg-slate-50 rounded-xl" />)}
+      <div className="space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[10px] bg-slate-200 animate-pulse" />
+          <div className="space-y-1.5">
+            <div className="h-5 w-48 bg-slate-200 rounded animate-pulse" />
+            <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 animate-pulse" />)}
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-8 animate-pulse space-y-4">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-50 rounded-xl" />)}
         </div>
       </div>
     );
@@ -166,146 +186,165 @@ export default function CollaboratorManagement() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="space-y-5">
 
         {/* ── Page Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-[#0033CC]">Cadastros</p>
-            <h1 className="text-[28px] font-bold tracking-tight text-slate-900 leading-tight">Gerenciamento de Colaboradores</h1>
-            <p className="text-sm text-slate-500">Administre prestadores, motoristas e colaboradores internos.</p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
+              style={{ background: BLUE, boxShadow: `0 4px 14px ${BLUE}50` }}
+            >
+              <span className="material-symbols-outlined text-white" style={{ fontSize: 20, fontVariationSettings: "'FILL' 1" }}>group</span>
+            </div>
+            <div>
+              <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Colaboradores</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Gerencie prestadores, motoristas e colaboradores internos</p>
+            </div>
+            {totalCount > 0 && (
+              <div className="ml-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100">
+                <span className="text-xs font-semibold text-blue-600">{totalCount} cadastros</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setBulkUploadModal(true)}
-              className="h-10 px-4 flex items-center gap-2 text-sm font-medium text-slate-600 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors bg-white"
+              className="h-9 px-3.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-colors bg-white"
             >
-              <Upload className="w-4 h-4" /> Importar
+              <Upload className="w-3.5 h-3.5" /> Importar
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="h-12 px-6 bg-[#0033CC] text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-xl shadow-blue-900/20 hover:scale-[0.98] active:scale-95 transition-transform"
+              className="h-9 px-4 flex items-center gap-1.5 text-white text-xs font-semibold rounded-lg transition-all"
+              style={{ background: BLUE, boxShadow: `0 2px 8px ${BLUE}35` }}
             >
-              <UserPlus className="w-4 h-4" /> Novo Colaborador
+              <UserPlus className="w-3.5 h-3.5" /> Novo Colaborador
             </button>
           </div>
         </div>
 
-        {/* ── Bloco 1: Filtros ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex flex-wrap items-end gap-5">
-            {/* Buscar */}
-            <div className="flex flex-col gap-1.5 flex-[2] min-w-[200px]">
-              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Buscar</label>
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Nome ou documento..."
-                  value={filters.search}
-                  onChange={e => setFilter("search", e.target.value)}
-                  className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-                />
-                {filters.search && (
-                  <button onClick={() => setFilter("search", "")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-            {/* Status */}
-            <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Status</label>
-              <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
-                <SelectTrigger className="h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
-                  <SelectValue placeholder="Todos os Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="aprovado">Aprovado</SelectItem>
-                  <SelectItem value="rejeitado">Rejeitado</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Tipo de Vínculo */}
-            <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-              <label className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Tipo de Vínculo</label>
-              <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
-                <SelectTrigger className="h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
-                  <SelectValue placeholder="Todos os Tipos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Tipos</SelectItem>
-                  <SelectItem value="casa">Casa</SelectItem>
-                  <SelectItem value="freela">Freela</SelectItem>
-                  <SelectItem value="local">Local</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Limpar */}
-            {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="h-11 px-4 flex items-center gap-2 text-sm font-medium text-slate-500 border border-slate-200 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
-              >
-                <X className="w-3.5 h-3.5" /> Limpar
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Bloco 2: Cards de métricas ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* ── Stat cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { label: "Total Geral",   value: totalCount,    color: "#374151", stripe: "bg-gray-700",    icon: <LayoutList  className="w-5 h-5" />,  iconBg: "bg-gray-100",   iconText: "text-gray-700"   },
-            { label: "Total Ativos",  value: approvedCount, color: "#3B82F6", stripe: "bg-blue-500",    icon: <UserCheck   className="w-5 h-5" />,  iconBg: "bg-blue-50",    iconText: "text-blue-500"   },
-            { label: "Pendentes",     value: pendingCount,  color: "#F97316", stripe: "bg-orange-500",  icon: <AlertCircle className="w-5 h-5" />,  iconBg: "bg-orange-50",  iconText: "text-orange-500" },
-            { label: "Freelancers",   value: freelaCount,   color: "#8B5CF6", stripe: "bg-violet-500",  icon: <Briefcase   className="w-5 h-5" />,  iconBg: "bg-violet-50",  iconText: "text-violet-500" },
-            { label: "Casa",          value: casaCount,     color: "#22C55E", stripe: "bg-green-500",   icon: <Home        className="w-5 h-5" />,  iconBg: "bg-green-50",   iconText: "text-green-600"  },
+            { label: "Total",      value: totalCount,    stripe: "bg-slate-700",   icon: "people",       iconBg: "bg-slate-100", iconTx: "text-slate-600", valTx: "#374151" },
+            { label: "Aprovados",  value: approvedCount, stripe: "bg-emerald-500", icon: "verified_user", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669" },
+            { label: "Pendentes",  value: pendingCount,  stripe: "bg-amber-400",   icon: "pending",      iconBg: "bg-amber-50",  iconTx: "text-amber-500", valTx: "#D97706" },
+            { label: "Freelancers", value: freelaCount,  stripe: "bg-blue-500",    icon: "badge",        iconBg: "bg-blue-50",   iconTx: "text-blue-500",  valTx: "#3B82F6" },
+            { label: "Casa",       value: casaCount,     stripe: "bg-violet-500",  icon: "home",         iconBg: "bg-violet-50", iconTx: "text-violet-600", valTx: "#7C3AED" },
           ].map(card => (
-            <div key={card.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className={`h-1.5 w-full ${card.stripe}`} />
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${card.iconBg} ${card.iconText}`}>
-                    {card.icon}
+            <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className={`h-1 w-full ${card.stripe}`} />
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconTx}`}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: "'FILL' 1" }}>{card.icon}</span>
                   </div>
                 </div>
-                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-                  {card.label}
-                </p>
-                <p className="text-[28px] font-bold leading-none" style={{ color: card.color }}>
-                  {card.value}
-                </p>
+                <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-0.5">{card.label}</p>
+                <p className="text-[26px] font-bold leading-none" style={{ color: card.valTx }}>{card.value}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* ── Table ── */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* ── Main card ── */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+          {/* Filter bar */}
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2.5 bg-[#FAFBFF]">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nome ou documento..."
+                value={filters.search}
+                onChange={e => setFilter("search", e.target.value)}
+                className="w-full h-8 pl-9 pr-8 bg-white border border-gray-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+              />
+              {filters.search && (
+                <button onClick={() => setFilter("search", "")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Status filter */}
+            <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
+              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="aprovado">Aprovado</SelectItem>
+                <SelectItem value="rejeitado">Rejeitado</SelectItem>
+                <SelectItem value="inativo">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Type filter */}
+            <Select value={filters.type} onValueChange={v => setFilter("type", v)}>
+              <SelectTrigger className="h-8 w-[145px] text-xs border-gray-200 rounded-lg bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todos os Tipos</SelectItem>
+                <SelectItem value="casa">Casa</SelectItem>
+                <SelectItem value="freela">Freela</SelectItem>
+                <SelectItem value="local">Local</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-dashed border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors"
+              >
+                <X className="w-3 h-3" /> Limpar
+              </button>
+            )}
+
+            {hasFilters && (
+              <span className="text-[11px] text-slate-400 ml-1">
+                {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* Table */}
           {filtered.length === 0 ? (
             <div className="py-20 text-center">
-              <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-sm font-semibold text-slate-500">Nenhum colaborador encontrado</p>
-              <p className="text-xs text-slate-400 mt-1">Tente ajustar os filtros ou cadastre um novo colaborador.</p>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-600">Nenhum colaborador encontrado</p>
+                  <p className="text-xs text-slate-400 mt-1">Tente ajustar os filtros ou cadastre um novo colaborador.</p>
+                </div>
+                {hasFilters && (
+                  <button onClick={clearFilters} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-200">
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Nome</th>
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Cidade</th>
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-bold tracking-widest text-slate-400 uppercase text-right">Ações</th>
+                  <tr style={{ borderBottom: "2px solid #E2E8F0", background: "#F8FAFC" }}>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Colaborador</th>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Documento</th>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Tipo</th>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Cidade</th>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Status</th>
+                    <th className="px-5 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-gray-50">
                   {paginated.map(c => {
                     const isPending = c.status === "pendente";
                     const typeCfg = TYPE_CFG[c.type] ?? TYPE_CFG.local;
@@ -315,23 +354,23 @@ export default function CollaboratorManagement() {
                     return (
                       <tr
                         key={c.id}
-                        className={`transition-colors ${isPending ? "hover:bg-amber-50/40" : "hover:bg-slate-50/50"}`}
+                        className={`group transition-colors ${isPending ? "hover:bg-amber-50/30" : "hover:bg-blue-50/30"}`}
                       >
-                        {/* Nome */}
-                        <td className="px-6 py-4">
+                        {/* Colaborador */}
+                        <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bgCls} ${textCls}`}>
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bgCls} ${textCls}`}>
                               {initials(c.fullName)}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-slate-900 leading-tight">{displayName}</p>
+                              <p className="text-sm font-semibold text-slate-800 leading-tight">{displayName}</p>
                               {c.phone && <p className="text-[11px] text-slate-400 mt-0.5">{c.phone}</p>}
                             </div>
                           </div>
                         </td>
 
                         {/* Documento */}
-                        <td className="px-6 py-4">
+                        <td className="px-5 py-3.5">
                           <div className="font-mono text-[11px] text-slate-500 space-y-0.5">
                             <div>{formatDocument(c.officialDocument, c.documentType)}</div>
                             {c.secondaryDocument && <div className="text-slate-400">RG {c.secondaryDocument}</div>}
@@ -339,45 +378,37 @@ export default function CollaboratorManagement() {
                         </td>
 
                         {/* Tipo */}
-                        <td className="px-6 py-4">
-                          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${typeCfg.cls}`}>
-                            {typeCfg.label.toUpperCase()}
+                        <td className="px-5 py-3.5">
+                          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeCfg.cls}`}>
+                            {typeCfg.label}
                           </span>
                         </td>
 
                         {/* Cidade */}
-                        <td className="px-6 py-4 text-sm text-slate-500">{c.city || "—"}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-500">{c.city || "—"}</td>
 
                         {/* Status */}
-                        <td className="px-6 py-4">
+                        <td className="px-5 py-3.5">
                           <StatusBadge status={c.status} />
                         </td>
 
                         {/* Ações */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {isPending && (
                               <>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => handleApprove(c)}
-                                      disabled={updateMutation.isPending}
-                                      className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
-                                    >
-                                      <Check className="w-4 h-4" />
+                                    <button onClick={() => handleApprove(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-emerald-500 hover:bg-emerald-50 disabled:opacity-40 transition-colors">
+                                      <Check className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Aprovar</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => handleReject(c)}
-                                      disabled={updateMutation.isPending}
-                                      className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                                    >
-                                      <X className="w-4 h-4" />
+                                    <button onClick={() => handleReject(c)} disabled={updateMutation.isPending} className="w-7 h-7 rounded-md flex items-center justify-center text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors">
+                                      <X className="w-3.5 h-3.5" />
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent>Rejeitar</TooltipContent>
@@ -386,22 +417,16 @@ export default function CollaboratorManagement() {
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleView(c)}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-[#0033CC] transition-colors"
-                                >
-                                  <Eye className="w-4 h-4" />
+                                <button onClick={() => handleView(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                  <Eye className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>Ver detalhes</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleEdit(c)}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-[#0033CC] transition-colors"
-                                >
-                                  <Edit className="w-4 h-4" />
+                                <button onClick={() => handleEdit(c)} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                                  <Edit className="w-3.5 h-3.5" />
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>Editar</TooltipContent>
@@ -416,49 +441,48 @@ export default function CollaboratorManagement() {
             </div>
           )}
 
-          {/* ── Pagination Footer ── */}
+          {/* Pagination Footer */}
           {filtered.length > 0 && (
-            <div className="px-6 py-4 bg-slate-50/30 border-t border-slate-200 flex items-center justify-between">
-              <p className="text-xs text-slate-400 font-medium">
+            <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+              <p className="text-[11px] text-slate-400 font-medium">
                 Mostrando{" "}
                 <span className="text-slate-600 font-semibold">{Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)}</span>
                 {" "}de{" "}
                 <span className="text-slate-600 font-semibold">{filtered.length}</span> colaboradores
               </p>
               {totalPages > 1 && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                       const p = i + 1;
                       return (
                         <button
                           key={p}
                           onClick={() => setPage(p)}
-                          className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-colors ${
-                            page === p
-                              ? "bg-[#0033CC] text-white"
-                              : "text-slate-500 hover:bg-slate-100"
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                            page === p ? "text-white" : "text-slate-500 hover:bg-slate-100"
                           }`}
+                          style={page === p ? { background: BLUE } : undefined}
                         >
                           {p}
                         </button>
                       );
                     })}
-                    {totalPages > 5 && <span className="px-1 text-slate-400">…</span>}
+                    {totalPages > 5 && <span className="px-1 text-slate-400 text-xs">…</span>}
                   </div>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
@@ -469,59 +493,53 @@ export default function CollaboratorManagement() {
         {/* ── Details Modal ── */}
         <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
           <DialogContent className="max-w-xl rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                {selectedCollaborator && (() => {
-                  const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
-                  return (
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bg} ${tx}`}>
-                      {initials(selectedCollaborator.fullName)}
-                    </div>
-                  );
-                })()}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Detalhes do Colaborador</h3>
-                  {selectedCollaborator && <p className="text-[11px] text-slate-400 mt-0.5">{toTitleCase(selectedCollaborator.fullName)}</p>}
-                </div>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              {selectedCollaborator && (() => {
+                const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
+                return (
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${bg} ${tx}`}>
+                    {initials(selectedCollaborator.fullName)}
+                  </div>
+                );
+              })()}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-800">Detalhes do Colaborador</h3>
+                {selectedCollaborator && (
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{toTitleCase(selectedCollaborator.fullName)}</p>
+                )}
               </div>
+              {selectedCollaborator && (
+                <StatusBadge status={selectedCollaborator.status} />
+              )}
               <button onClick={() => setShowDetailsModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
+
             {selectedCollaborator && (
-              <div className="px-6 py-5 space-y-5">
+              <div className="px-5 py-5 space-y-5">
                 <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: "Nome Completo", value: toTitleCase(selectedCollaborator.fullName) },
-                    { label: "Tipo", value: toTitleCase(selectedCollaborator.type) },
-                    { label: "Data de Nascimento", value: selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—" },
-                    { label: "Cidade", value: selectedCollaborator.city || "—" },
-                    { label: "Telefone", value: selectedCollaborator.phone || "—" },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{f.label}</p>
-                      <p className="text-sm text-slate-700">{f.value}</p>
-                    </div>
-                  ))}
-                  <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Status</p>
-                    <StatusBadge status={selectedCollaborator.status} />
-                  </div>
+                  <DetailRow label="Nome Completo" value={toTitleCase(selectedCollaborator.fullName)} />
+                  <DetailRow label="Tipo de Vínculo" value={toTitleCase(selectedCollaborator.type)} />
+                  <DetailRow label="Data de Nascimento" value={selectedCollaborator.birthDate ? formatDate(selectedCollaborator.birthDate) : "—"} />
+                  <DetailRow label="Cidade" value={selectedCollaborator.city || "—"} />
+                  <DetailRow label="Telefone" value={selectedCollaborator.phone || "—"} />
                 </div>
 
                 <div className="border-t border-gray-100 pt-4">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Documentos</p>
-                  <div className="font-mono text-xs space-y-1">
-                    <div><span className="text-slate-400">CPF </span><span className="text-slate-700">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documentos</p>
+                  <div className="font-mono text-xs space-y-1 bg-slate-50 rounded-lg px-3 py-2.5 border border-gray-100">
+                    <div><span className="text-slate-400">CPF </span><span className="text-slate-700 font-medium">{formatDocument(selectedCollaborator.officialDocument, selectedCollaborator.documentType)}</span></div>
                     {selectedCollaborator.secondaryDocument && (
-                      <div><span className="text-slate-400">RG </span><span className="text-slate-700">{selectedCollaborator.secondaryDocument}</span></div>
+                      <div><span className="text-slate-400">RG  </span><span className="text-slate-700 font-medium">{selectedCollaborator.secondaryDocument}</span></div>
                     )}
                   </div>
                 </div>
 
                 {selectedCollaborator.documentAttachmentId && (
                   <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Documento Anexado</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documento Anexado</p>
                     <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-50 border border-gray-200">
                       <FileText className="w-4 h-4 text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -540,17 +558,17 @@ export default function CollaboratorManagement() {
 
                 {selectedCollaborator.approvalNotes && (
                   <div className="border-t border-gray-100 pt-4">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Observações</p>
-                    <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{selectedCollaborator.approvalNotes}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observações</p>
+                    <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 border border-gray-100">{selectedCollaborator.approvalNotes}</p>
                   </div>
                 )}
 
                 {selectedCollaborator.status === "pendente" && (
                   <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                    <button onClick={() => { setShowDetailsModal(false); handleReject(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
                       <X className="w-3.5 h-3.5" /> Rejeitar
                     </button>
-                    <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors">
+                    <button onClick={() => { setShowDetailsModal(false); handleApprove(selectedCollaborator); }} className="flex items-center gap-1.5 h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm shadow-emerald-200">
                       <Check className="w-3.5 h-3.5" /> Aprovar
                     </button>
                   </div>
@@ -563,21 +581,35 @@ export default function CollaboratorManagement() {
         {/* ── Approval Modal ── */}
         <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
           <DialogContent className="max-w-md rounded-2xl p-0 gap-0 border-0 shadow-2xl overflow-hidden [&>button:last-child]:hidden">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+              <div
+                className="w-9 h-9 rounded-[9px] flex items-center justify-center shrink-0"
+                style={{
+                  background: approvalAction === "approve" ? "#059669" : "#DC2626",
+                  boxShadow: approvalAction === "approve" ? "0 4px 12px #05966940" : "0 4px 12px #DC262640",
+                }}
+              >
+                {approvalAction === "approve"
+                  ? <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                  : <X className="w-4 h-4 text-white" strokeWidth={3} />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-800">
                   {approvalAction === "approve" ? "Aprovar Colaborador" : "Rejeitar Colaborador"}
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  {approvalAction === "approve" ? "Revise os documentos antes de aprovar" : "Informe o motivo da rejeição"}
+                  {approvalAction === "approve" ? "Revise os dados antes de confirmar" : "Informe o motivo da rejeição"}
                 </p>
               </div>
               <button onClick={() => setShowApprovalModal(false)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
+
             {selectedCollaborator && (
-              <div className="px-6 py-5 space-y-4">
+              <div className="px-5 py-5 space-y-4">
                 {(() => {
                   const [bg, tx] = avatarClasses(selectedCollaborator.fullName);
                   return (
@@ -595,14 +627,14 @@ export default function CollaboratorManagement() {
 
                 {approvalAction === "approve" && (
                   <div className="space-y-3">
-                    <p className="text-xs font-semibold text-slate-600">Documentos</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Documentos</p>
                     <div>
-                      <label className="text-xs font-medium text-slate-600 block mb-1">CPF <span className="text-red-400">*</span></label>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">CPF <span className="text-red-400 normal-case tracking-normal">*</span></label>
                       <input value={editCpf} onChange={e => setEditCpf(e.target.value)} placeholder="000.000.000-00"
                         className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-slate-600 block mb-1">RG <span className="text-slate-400 font-normal">(opcional)</span></label>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">RG <span className="text-slate-400 font-normal normal-case tracking-normal">(opcional)</span></label>
                       <input value={editRg} onChange={e => setEditRg(e.target.value)} placeholder="00.000.000-0"
                         className="w-full h-9 px-3 font-mono text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                     </div>
@@ -610,28 +642,32 @@ export default function CollaboratorManagement() {
                 )}
 
                 <div>
-                  <label className="text-xs font-medium text-slate-600 block mb-1">
-                    Observações <span className="text-slate-400 font-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
+                    Observações <span className="text-slate-400 font-normal normal-case tracking-normal">{approvalAction === "approve" ? "(opcional)" : "(recomendado)"}</span>
                   </label>
                   <Textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
                     placeholder={approvalAction === "approve" ? "Comentários sobre a aprovação..." : "Motivo da rejeição..."}
                     rows={3} className="text-sm border-gray-200 rounded-lg resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                 </div>
 
-                <div className="flex gap-2 justify-end pt-1">
+                <div className="flex gap-2 pt-1">
                   <button onClick={() => setShowApprovalModal(false)} disabled={updateMutation.isPending}
-                    className="px-4 py-2 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                    className="flex-1 h-9 text-xs font-medium text-slate-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                     Cancelar
                   </button>
                   <button onClick={handleConfirm} disabled={updateMutation.isPending}
-                    className={`flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white rounded-lg transition-colors ${approvalAction === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}`}>
-                    {updateMutation.isPending ? (
-                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : approvalAction === "approve" ? (
-                      <><Check className="w-3 h-3" strokeWidth={3} /> Confirmar Aprovação</>
-                    ) : (
-                      <><X className="w-3 h-3" strokeWidth={3} /> Confirmar Rejeição</>
-                    )}
+                    className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-lg transition-colors shadow-sm disabled:opacity-60"
+                    style={{
+                      background: approvalAction === "approve" ? "#059669" : "#DC2626",
+                      boxShadow: approvalAction === "approve" ? "0 2px 8px #05966940" : "0 2px 8px #DC262640",
+                    }}
+                  >
+                    {updateMutation.isPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : approvalAction === "approve"
+                        ? <><Check className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Aprovação</>
+                        : <><X className="w-3.5 h-3.5" strokeWidth={3} /> Confirmar Rejeição</>
+                    }
                   </button>
                 </div>
               </div>
