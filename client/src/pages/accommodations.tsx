@@ -7,7 +7,9 @@ import { z } from "zod";
 import { Hotel, Save, Eye, ChevronDown, ChevronRight, MessageCircle, Edit, Calendar, Clock } from "lucide-react";
 import StatusBadge from "@/components/common/status-badge";
 import { type SortConfig, type SortField } from "@/components/common/sortable-header";
-import SimpleFilters from "@/components/common/simple-filters";
+import EventCombobox from "@/components/ui/event-combobox";
+import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
+import FunctionMultiSelect from "@/components/ui/function-multi-select";
 import CommentsModal from "@/components/modals/comments-modal";
 import AttachmentUpload from "@/components/ui/attachment-upload";
 import { Button } from "@/components/ui/button";
@@ -1093,92 +1095,86 @@ export default function Accommodations() {
     <>
       <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="w-14 h-14 bg-[#0033CC] rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-900/20">
-          <Hotel className="w-7 h-7 text-white" />
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-[10px] bg-[#0033CC] flex items-center justify-center shrink-0" style={{boxShadow:'0 4px 14px #0033CC50'}}>
+          <Hotel className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Compra de Hospedagem</h1>
-          <p className="text-sm text-slate-500">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
+          <h1 className="text-[18px] font-bold tracking-tight text-slate-900">Compra de Hospedagem</h1>
+          <p className="text-xs text-slate-400">Gerencie as reservas de hospedagem para os colaboradores escalados.</p>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-5">
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Hospedagens</p>
-            <h3 className="text-4xl font-black text-slate-900">{totalCount}</h3>
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Total", value: totalCount,    stripe: "bg-slate-700",   iconBg: "bg-slate-100",  iconTx: "text-slate-600",  valTx: "#374151",  icon: "hotel" },
+          { label: "Compradas",  value: purchasedCount, stripe: "bg-emerald-500", iconBg: "bg-emerald-50", iconTx: "text-emerald-600", valTx: "#059669", icon: "check_circle" },
+          { label: "Pendentes",  value: pendingCount,   stripe: "bg-amber-400",   iconBg: "bg-amber-50",   iconTx: "text-amber-500",  valTx: "#D97706",  icon: "pending" },
+        ].map(card => (
+          <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className={`h-0.5 w-full ${card.stripe}`} />
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg} ${card.iconTx}`}>
+                <span className="material-symbols-outlined" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>{card.icon}</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase leading-none mb-1">{card.label}</p>
+                <p className="text-[22px] font-bold leading-none" style={{color: card.valTx}}>{card.value}</p>
+              </div>
+            </div>
           </div>
-          <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0033CC]">
-            <span className="material-symbols-outlined" style={{fontSize:28}}>hotel</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Compradas</p>
-            <h3 className="text-4xl font-black text-[#22C55E]">{purchasedCount}</h3>
-          </div>
-          <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-[#22C55E]">
-            <span className="material-symbols-outlined" style={{fontSize:28,fontVariationSettings:"'FILL' 1"}}>check_circle</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Pendentes</p>
-            <h3 className="text-4xl font-black text-[#F97316]">{pendingCount}</h3>
-          </div>
-          <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-[#F97316]">
-            <span className="material-symbols-outlined" style={{fontSize:28,fontVariationSettings:"'FILL' 1"}}>pending</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Aplicar em Lote — discrete card (same as Passagens) */}
+      {/* Aplicar em Lote — discrete card */}
       <div
-        className="bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition-colors overflow-hidden"
-        style={{borderLeft: '4px solid #F59E0B'}}
+        className="bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors overflow-hidden"
         onClick={() => toggleSection('basic')}
         data-testid="button-toggle-quick-register"
       >
-        <div className="flex items-center gap-4 px-5 py-4">
-          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
-            <Hotel className="w-5 h-5 text-[#F59E0B]" />
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+            <Hotel className="w-4 h-4 text-amber-500" />
           </div>
           <div>
             <p className="text-sm font-bold text-slate-800">Aplicar em Lote</p>
             <p className="text-xs text-slate-400 font-medium">Aplicar mesmos dados a múltiplas hospedagens</p>
           </div>
         </div>
-        <div className="pr-5">
-          {expandedSections.basic
-            ? <ChevronDown className="w-5 h-5 text-amber-400" />
-            : <ChevronRight className="w-5 h-5 text-slate-300" />}
+        <div className="pr-4">
+          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+            {expandedSections.basic
+              ? <ChevronDown className="w-4 h-4 text-amber-500" />
+              : <ChevronRight className="w-4 h-4 text-slate-400" />}
+          </div>
         </div>
       </div>
 
       {/* Quick Register Form Panel */}
       {expandedSections.basic && (
-        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           {/* Cabeçalho */}
-          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between gap-6">
+          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-6">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-bold text-slate-900">Aplicar em Lote</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Insira os dados comuns para múltiplas hospedagens simultaneamente.</p>
+              <h3 className="text-[13px] font-semibold text-slate-900">Aplicar em Lote</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">Insira os dados comuns para múltiplas hospedagens simultaneamente.</p>
             </div>
           </div>
 
           {/* Grid principal: 8 cols + 4 cols */}
-          <div className="grid grid-cols-12 gap-4 p-5">
+          <div className="grid grid-cols-12 gap-3 p-3">
 
             {/* Coluna esquerda (8 cols) */}
-            <div className="col-span-12 lg:col-span-8 space-y-3.5">
+            <div className="col-span-12 lg:col-span-8 space-y-2">
 
               {/* Card: Dados do Hotel */}
-              <section className="rounded-2xl overflow-hidden border border-blue-100">
-                <div className="flex items-center gap-2 px-5 py-2.5 bg-[#0033CC]">
-                  <span className="material-symbols-outlined text-white" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>hotel</span>
-                  <h4 className="text-[11px] font-black uppercase tracking-widest text-white/90">Dados do Hotel</h4>
+              <section className="rounded-xl overflow-hidden border border-slate-200">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                  <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                    <Hotel className="w-3 h-3 text-white" />
+                  </div>
+                  <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Dados do Hotel</h4>
                 </div>
                 <div className="p-4 bg-white grid grid-cols-3 gap-x-4 gap-y-3">
                   <div className="space-y-1.5">
@@ -1239,11 +1235,13 @@ export default function Accommodations() {
               </section>
 
               {/* Cards de data: Check-in | Check-out */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {/* Check-in */}
-                <section className="rounded-2xl overflow-hidden border border-blue-100">
-                  <div className="flex items-center gap-2 px-5 py-2.5 bg-[#EEF2FF]">
-                    <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>login</span>
+                <section className="rounded-xl overflow-hidden border border-slate-200">
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-[#EEF2FF] border-b border-blue-100">
+                    <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                      <Calendar className="w-3 h-3 text-white" />
+                    </div>
                     <h4 className="text-[11px] font-black uppercase tracking-widest text-[#0033CC]">Check-in</h4>
                   </div>
                   <div className="p-4 bg-white grid grid-cols-2 gap-3">
@@ -1271,9 +1269,11 @@ export default function Accommodations() {
                 </section>
 
                 {/* Check-out */}
-                <section className="rounded-2xl overflow-hidden border border-orange-100">
-                  <div className="flex items-center gap-2 px-5 py-2.5 bg-[#FFF7ED]">
-                    <span className="material-symbols-outlined text-[#F97316]" style={{fontSize:16,fontVariationSettings:"'FILL' 1"}}>logout</span>
+                <section className="rounded-xl overflow-hidden border border-slate-200">
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-[#FFF7ED] border-b border-orange-100">
+                    <div className="w-5 h-5 rounded-md bg-[#F97316] flex items-center justify-center shrink-0">
+                      <Clock className="w-3 h-3 text-white" />
+                    </div>
                     <h4 className="text-[11px] font-black uppercase tracking-widest text-[#F97316]">Check-out</h4>
                   </div>
                   <div className="p-4 bg-white grid grid-cols-2 gap-3">
@@ -1306,18 +1306,22 @@ export default function Accommodations() {
             <div className="col-span-12 lg:col-span-4 space-y-3">
 
               {/* Anexos */}
-              <section className="rounded-2xl border border-slate-100 p-4 bg-white">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-[#0033CC]" style={{fontSize:16}}>attachment</span>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos</h4>
+              <section className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                  <div className="w-5 h-5 rounded-md bg-[#0033CC] flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-white" style={{fontSize:12}}>attachment</span>
+                  </div>
+                  <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Anexos</h4>
                 </div>
-                <AttachmentUpload
-                  attachmentIds={accommodationData["quick"]?.attachmentIds || []}
-                  onAttachmentsChange={(attachmentIds) =>
-                    handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
-                  }
-                  disabled={!canEditScreen(user, 'accommodations')}
-                />
+                <div className="p-3">
+                  <AttachmentUpload
+                    attachmentIds={accommodationData["quick"]?.attachmentIds || []}
+                    onAttachmentsChange={(attachmentIds) =>
+                      handleAccommodationDataChange("quick", "attachmentIds", attachmentIds)
+                    }
+                    disabled={!canEditScreen(user, 'accommodations')}
+                  />
+                </div>
               </section>
 
               {/* Status da operação */}
@@ -1342,10 +1346,12 @@ export default function Accommodations() {
                   s === 'done' ? 'text-slate-700' : s === 'partial' ? 'text-yellow-700' : 'text-slate-400';
 
                 return (
-                  <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                      <span className="material-symbols-outlined text-slate-400" style={{fontSize:14}}>checklist</span>
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status da Operação</h4>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="w-5 h-5 rounded-md bg-slate-500 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-white" style={{fontSize:12}}>checklist</span>
+                      </div>
+                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Status da Operação</h4>
                     </div>
                     <ul className="p-3 space-y-2.5 bg-white">
                       <li className="flex items-center gap-2.5">
@@ -1456,43 +1462,70 @@ export default function Accommodations() {
         </div>
       )}
 
-      {/* Filter Bar */}
-      <SimpleFilters
-        filters={filters}
-        onFiltersChange={(updated) => setFilters(prev => ({ ...prev, ...updated }))}
-        extraItems={[
-          {
-            label: "Status da Hospedagem",
-            element: (
-              <select
-                value={filters.accommodationStatus}
-                onChange={e => setFilters(prev => ({ ...prev, accommodationStatus: e.target.value }))}
-                className="border border-slate-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 px-3 py-2 w-full"
-                data-testid="filter-status"
-              >
-                <option value="all">Todos</option>
-                <option value="pending">Pendentes</option>
-                <option value="processed">Compradas</option>
-              </select>
-            ),
-          },
-        ]}
-      />
-
       {/* Main Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Filter bar inline */}
+        <div className="bg-[#FAFBFF] border-b border-gray-100 px-5 py-3 flex flex-wrap items-center gap-2.5">
+          <EventCombobox
+            events={events || []}
+            value={filters.eventId}
+            onChange={v => setFilters(prev => ({ ...prev, eventId: v }))}
+            className="h-8 text-xs rounded-lg"
+          />
+          <FunctionMultiSelect
+            functions={functions || []}
+            value={filters.functionId}
+            onChange={v => setFilters(prev => ({ ...prev, functionId: v }))}
+            className="h-8 text-xs rounded-lg"
+          />
+          <CollaboratorCombobox
+            collaborators={collaborators || []}
+            value={filters.collaboratorId}
+            onChange={v => setFilters(prev => ({ ...prev, collaboratorId: v }))}
+            className="h-8 text-xs rounded-lg"
+          />
+          <select
+            value={filters.accommodationStatus}
+            onChange={e => setFilters(prev => ({ ...prev, accommodationStatus: e.target.value }))}
+            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            data-testid="filter-status"
+          >
+            <option value="all">Todos os status</option>
+            <option value="pending">Pendentes</option>
+            <option value="processed">Compradas</option>
+          </select>
+          <select
+            value={filters.inclusionStatus}
+            onChange={e => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
+            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+          >
+            <option value="active">Inclusões ativas</option>
+            <option value="all">Todas</option>
+          </select>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[11px] text-slate-400 font-medium">{filteredData.length} registros</span>
+            {(filters.eventId !== "all" || filters.functionId.length > 0 || filters.collaboratorId !== "all" || filters.accommodationStatus !== "all") && (
+              <button
+                onClick={() => setFilters(prev => ({ ...prev, eventId:"all", functionId:[], collaboratorId:"all", accommodationStatus:"all" }))}
+                className="flex items-center gap-1 h-7 px-2.5 rounded-lg border border-slate-200 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                × Limpar
+              </button>
+            )}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-200">
-                <th style={{padding:'16px 12px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:64}}>ID</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Evento</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Colaborador / Função</th>
-                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:110}}>Check-in</th>
-                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:110}}>Check-out</th>
-                <th style={{padding:'16px 16px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',width:180}}>Hotel</th>
-                <th style={{padding:'16px 24px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase'}}>Status</th>
-                <th style={{padding:'16px 8px',fontSize:11,fontWeight:700,letterSpacing:'0.08em',color:'#888',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
+            <thead style={{background:"#F8FAFC",borderBottom:"2px solid #E2E8F0"}}>
+              <tr>
+                <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:64}}>ID</th>
+                <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Evento</th>
+                <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Colaborador / Função</th>
+                <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:110}}>Check-in</th>
+                <th style={{padding:'12px 12px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:110}}>Check-out</th>
+                <th style={{padding:'12px 14px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',width:180}}>Hotel</th>
+                <th style={{padding:'12px 16px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase'}}>Status</th>
+                <th style={{padding:'12px 8px',fontSize:10,fontWeight:700,letterSpacing:'0.12em',color:'#94A3B8',textTransform:'uppercase',textAlign:'center',width:72}}>Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1504,11 +1537,10 @@ export default function Accommodations() {
                   const hasAccommodation = !!accommodation;
                   const isCanceled = inclusion.status === 'cancelado';
                   const isPostPurchaseRow = ['hospedagem_comprada', 'hospedagem_passagem_comprada'].includes(inclusion.status);
-                  const rowBg = '#fff';
-
                   const displayName = toTitleCase(collaborator?.fullName);
                   const colNameInitials = (displayName || '??').split(' ').slice(0,2).map((n:string) => n[0]).join('').toUpperCase();
                   const borderColor = isCanceled ? '#E2E8F0' : hasAccommodation ? '#22C55E' : '#F97316';
+                  const rowBase = idx % 2 === 1 ? '#F8FAFC80' : '#ffffff';
 
                   return (
                     <tr
@@ -1518,23 +1550,24 @@ export default function Accommodations() {
                       style={{
                         borderLeft: `3px solid ${borderColor}`,
                         opacity: isCanceled ? 0.6 : 1,
+                        backgroundColor: rowBase,
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#F8FAFC'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#EEF2FF33'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBase; }}
                     >
                       {/* ID */}
-                      <td style={{padding:'18px 12px',width:64}}>
+                      <td style={{padding:'12px 12px',width:64}}>
                         <span style={{display:'inline-block',background:'#EEF2FF',color:'#3B4FE4',fontSize:13,fontWeight:600,borderRadius:6,padding:'4px 8px',whiteSpace:'nowrap'}}>
                           #{inclusion.inclusionNumber || 'N/A'}
                         </span>
                       </td>
                       {/* Evento */}
-                      <td style={{padding:'18px 16px',maxWidth:180}}
+                      <td style={{padding:'12px 16px',maxWidth:180}}
                           data-testid={`accommodation-event-${inclusion.inclusionNumber}`}>
                         <p style={{fontSize:14,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:172}}>{event?.name || '—'}</p>
                       </td>
                       {/* Colaborador / Função */}
-                      <td style={{padding:'18px 24px'}}
+                      <td style={{padding:'12px 16px'}}
                           data-testid={`accommodation-collaborator-${inclusion.inclusionNumber}`}>
                         <div style={{display:'flex',alignItems:'center',gap:12}}>
                           <div style={{width:36,height:36,borderRadius:'50%',background:'#E8EFFE',color:'#3B4FE4',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
@@ -1547,7 +1580,7 @@ export default function Accommodations() {
                         </div>
                       </td>
                       {/* Check-in */}
-                      <td style={{padding:'18px 16px',width:110}}
+                      <td style={{padding:'12px 12px',width:110}}
                           data-testid={`accommodation-checkin-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkInDate ? (
                           <div>
@@ -1560,7 +1593,7 @@ export default function Accommodations() {
                         ) : <span style={{color:'#CBD5E1'}}>—</span>}
                       </td>
                       {/* Check-out */}
-                      <td style={{padding:'18px 16px',width:110}}
+                      <td style={{padding:'12px 12px',width:110}}
                           data-testid={`accommodation-checkout-${inclusion.inclusionNumber}`}>
                         {accommodation?.checkOutDate ? (
                           <div>
@@ -1573,7 +1606,7 @@ export default function Accommodations() {
                         ) : <span style={{color:'#CBD5E1'}}>—</span>}
                       </td>
                       {/* Hotel */}
-                      <td style={{padding:'18px 16px',width:180}}
+                      <td style={{padding:'12px 14px',width:180}}
                           data-testid={`accommodation-hotel-${inclusion.inclusionNumber}`}>
                         {accommodation?.hotelName ? (
                           <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
@@ -1588,17 +1621,23 @@ export default function Accommodations() {
                         ) : <span style={{color:'#CBD5E1',fontSize:13,fontStyle:'italic'}}>Não informado</span>}
                       </td>
                       {/* Status */}
-                      <td style={{padding:'18px 24px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
+                      <td style={{padding:'12px 16px'}} data-testid={`accommodation-status-${inclusion.inclusionNumber}`}>
                         {isCanceled ? (
-                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#F1F5F9',color:'#64748B',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>CANCELADO</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#F1F5F9',color:'#94A3B8',fontSize:10,fontWeight:700,letterSpacing:'0.06em'}}>Cancelado</span>
                         ) : hasAccommodation ? (
-                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#DCFCE7',color:'#16A34A',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>✓ COMPRADA</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#DCFCE7',color:'#15803D',fontSize:10,fontWeight:700,letterSpacing:'0.06em'}}>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:'#22C55E',flexShrink:0}} />
+                            Comprada
+                          </span>
                         ) : (
-                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 12px',borderRadius:9999,background:'#FEF3C7',color:'#D97706',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase'}}>⏱ PENDENTE</span>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:6,background:'#FEF9C3',color:'#B45309',fontSize:10,fontWeight:700,letterSpacing:'0.06em'}}>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:'#FBBF24',flexShrink:0}} />
+                            Pendente
+                          </span>
                         )}
                       </td>
                       {/* Ações — ícone-apenas, largura 72px centrado */}
-                      <td style={{padding:'18px 8px',textAlign:'center',width:72}}>
+                      <td style={{padding:'12px 8px',textAlign:'center',width:72}}>
                         {!isCanceled && (
                           hasAccommodation ? (
                             <button
