@@ -1241,7 +1241,7 @@ export default function BudgetPlannedPage() {
                                 <div className="text-[9px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(budget.mobilidadeIda)} · Volta: {formatCurrency(budget.mobilidadeVolta)}</div>
                               )}
                               {budget.ajudaCusto > 0 && (
-                                <div className="text-[9px] text-amber-600 tabular-nums mt-0.5">+{formatCurrency(budget.ajudaCusto)} ajuda</div>
+                                <div className="text-[9px] text-amber-600 tabular-nums mt-0.5">+{formatCurrency(budget.ajudaCusto)} aj. custo</div>
                               )}
                             </div>
                           </div>
