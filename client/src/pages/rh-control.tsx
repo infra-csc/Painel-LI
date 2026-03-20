@@ -447,72 +447,72 @@ export default function RhControlPage() {
       shortLabel: "Planejamento",
       description: "Escalação confirmada — RH precisa criar o planejamento de valores",
       icon: ClipboardList,
-      color: "text-amber-700 dark:text-amber-300",
-      bg: "bg-amber-50 dark:bg-amber-950/30",
-      border: "border-amber-200 dark:border-amber-800",
+      color: "text-amber-700",
+      bg: "bg-amber-50",
+      border: "border-amber-200",
       iconColor: "text-amber-500",
       badgeCls: "bg-amber-100 text-amber-700 border-amber-200",
-      cardBorder: "border-amber-200 dark:border-amber-800",
+      cardBorder: "border-amber-200",
     },
     aguardando_prestacao: {
       label: "Aguardando realizado",
       shortLabel: "Realizado",
       description: "Planejado criado — aguardando o responsável da função preencher o realizado",
       icon: Clock,
-      color: "text-slate-700 dark:text-slate-300",
-      bg: "bg-slate-50 dark:bg-slate-900/40",
-      border: "border-slate-200 dark:border-slate-700",
+      color: "text-slate-600",
+      bg: "bg-slate-50",
+      border: "border-slate-200",
       iconColor: "text-slate-400",
       badgeCls: "bg-slate-100 text-slate-600 border-slate-200",
-      cardBorder: "border-gray-200 dark:border-gray-700",
+      cardBorder: "border-gray-200",
     },
     prestacao_recebida: {
       label: "Análise pendente",
       shortLabel: "Comparativo",
       description: "Realizado recebido — RH precisa analisar o comparativo para aprovar ou recusar",
       icon: Send,
-      color: "text-blue-700 dark:text-blue-300",
-      bg: "bg-blue-50 dark:bg-blue-950/30",
-      border: "border-blue-200 dark:border-blue-800",
+      color: "text-blue-700",
+      bg: "bg-blue-50",
+      border: "border-blue-200",
       iconColor: "text-blue-500",
       badgeCls: "bg-blue-100 text-blue-700 border-blue-200",
-      cardBorder: "border-blue-200 dark:border-blue-800 shadow-sm shadow-blue-100/50",
+      cardBorder: "border-blue-200 shadow-sm shadow-blue-100/50",
     },
     devolvida_para_ajuste: {
       label: "Devolvida para ajuste",
       shortLabel: "Devolvida",
       description: "O RH devolveu o realizado — aguardando o responsável da função corrigir e reenviar",
       icon: RotateCcw,
-      color: "text-orange-700 dark:text-orange-300",
-      bg: "bg-orange-50 dark:bg-orange-950/30",
-      border: "border-orange-200 dark:border-orange-800",
+      color: "text-orange-700",
+      bg: "bg-orange-50",
+      border: "border-orange-200",
       iconColor: "text-orange-500",
       badgeCls: "bg-orange-100 text-orange-700 border-orange-200",
-      cardBorder: "border-orange-200 dark:border-orange-800",
+      cardBorder: "border-orange-200",
     },
     aprovada_faturamento: {
       label: "Aprovada para faturamento",
       shortLabel: "Aprovada",
       description: "O RH aprovou — pronta para faturamento",
       icon: CheckCircle,
-      color: "text-emerald-700 dark:text-emerald-300",
-      bg: "bg-emerald-50 dark:bg-emerald-950/30",
-      border: "border-emerald-200 dark:border-emerald-800",
+      color: "text-emerald-700",
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
       iconColor: "text-emerald-500",
       badgeCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      cardBorder: "border-emerald-200 dark:border-emerald-800",
+      cardBorder: "border-emerald-200",
     },
     recusada: {
       label: "Recusada",
       shortLabel: "Recusada",
       description: "O RH recusou — não será faturada",
       icon: Ban,
-      color: "text-red-700 dark:text-red-300",
-      bg: "bg-red-50 dark:bg-red-950/30",
-      border: "border-red-200 dark:border-red-800",
+      color: "text-red-700",
+      bg: "bg-red-50",
+      border: "border-red-200",
       iconColor: "text-red-500",
       badgeCls: "bg-red-100 text-red-700 border-red-200",
-      cardBorder: "border-red-200 dark:border-red-800",
+      cardBorder: "border-red-200",
     },
     all: {
       label: "Todos", shortLabel: "Todos", description: "",
@@ -623,30 +623,30 @@ export default function RhControlPage() {
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
             const connectorColor = i === 3
-              ? nfEligible ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'
-              : isCompleted ? 'bg-blue-300 dark:bg-blue-700' : 'bg-gray-200 dark:bg-gray-700';
+              ? nfEligible ? 'bg-emerald-300' : 'bg-gray-200'
+              : isCompleted ? 'bg-blue-300' : 'bg-gray-200';
             return (
               <div key={label} className="flex items-start flex-1 min-w-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                       <div className="relative flex items-center justify-center">
-                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 animate-ping opacity-60" />}
+                        {isCurrent && <span className="absolute w-7 h-7 rounded-full bg-blue-100 animate-ping opacity-60" />}
                         <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                          isCompleted ? 'bg-blue-600 shadow-sm shadow-blue-200 dark:shadow-blue-900'
-                          : isCurrent ? 'bg-white dark:bg-gray-800 border-2 border-blue-500'
-                          : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                          isCompleted ? 'bg-blue-600 shadow-sm shadow-blue-200'
+                          : isCurrent ? 'bg-white border-2 border-blue-500'
+                          : 'bg-gray-100 border border-gray-200'
                         }`}>
                           {isCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                           {isCurrent && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                         </div>
                       </div>
                       <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                        isCompleted || isCurrent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-300 dark:text-slate-600'
+                        isCompleted || isCurrent ? 'text-blue-600' : 'text-slate-300'
                       }`}>{label}</span>
                       {(isCompleted || isCurrent) && dateStr
                         ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{dateStr}</span>
-                        : isFuture ? <span className="text-[9px] text-slate-300 dark:text-slate-600 italic">Pendente</span>
+                        : isFuture ? <span className="text-[9px] text-slate-300 italic">Pendente</span>
                         : null}
                       {(isCompleted || isCurrent) && responsibleName
                         ? <span className="text-[9px] text-slate-400 whitespace-nowrap mt-0.5 max-w-[56px] truncate">{responsibleName}</span>
@@ -669,13 +669,13 @@ export default function RhControlPage() {
             <TooltipTrigger asChild>
               <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                 <div className="relative flex items-center justify-center">
-                  {nfEnviada && <span className="absolute w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 animate-ping opacity-60" />}
+                  {nfEnviada && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
                   <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                     nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
                     : nfRecusada ? 'bg-red-500'
-                    : nfEnviada ? 'bg-white dark:bg-gray-800 border-2 border-amber-400'
-                    : nfDevolvida ? 'bg-white dark:bg-gray-800 border-2 border-orange-400'
-                    : 'bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600'
+                    : nfEnviada ? 'bg-white border-2 border-amber-400'
+                    : nfDevolvida ? 'bg-white border-2 border-orange-400'
+                    : 'bg-gray-200 border border-gray-300'
                   }`}>
                     {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                     {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
@@ -684,15 +684,15 @@ export default function RhControlPage() {
                   </div>
                 </div>
                 <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                  nfCompleted ? 'text-emerald-600 dark:text-emerald-400'
-                  : nfEnviada ? 'text-amber-600 dark:text-amber-400'
-                  : nfDevolvida ? 'text-orange-600 dark:text-orange-400'
-                  : nfRecusada ? 'text-red-600 dark:text-red-400'
-                  : 'text-slate-400 dark:text-slate-500'
+                  nfCompleted ? 'text-emerald-600'
+                  : nfEnviada ? 'text-amber-600'
+                  : nfDevolvida ? 'text-orange-600'
+                  : nfRecusada ? 'text-red-600'
+                  : 'text-slate-400'
                 }`}>Nota Fiscal</span>
                 {nfDateStr
                   ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
-                  : <span className="text-[9px] text-slate-400 dark:text-slate-500 italic">{nfEligible ? "Pendente" : "—"}</span>}
+                  : <span className="text-[9px] text-slate-400 italic">{nfEligible ? "Pendente" : "—"}</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
@@ -738,10 +738,10 @@ export default function RhControlPage() {
       return { border: "border-l-4 border-l-red-400", bg: "" };
     }
     const days = getDiffDays(item.lastActivityDate);
-    if (days > 30) return { border: "border-l-4 border-l-red-500", bg: "bg-red-50/20 dark:bg-red-950/10" };
-    if (days > 7)  return { border: "border-l-4 border-l-amber-400", bg: "bg-amber-50/20 dark:bg-amber-950/10" };
+    if (days > 30) return { border: "border-l-4 border-l-red-500", bg: "bg-red-50/20" };
+    if (days > 7)  return { border: "border-l-4 border-l-amber-400", bg: "bg-amber-50/20" };
     if (days > 0)  return { border: "border-l-4 border-l-sky-400", bg: "" };
-    return { border: "border-l-4 border-l-gray-200 dark:border-l-gray-700", bg: "" };
+    return { border: "border-l-4 border-l-gray-200", bg: "" };
   };
 
   const renderPrestacaoCard = (item: PrestacaoItem) => {
@@ -760,7 +760,7 @@ export default function RhControlPage() {
     return (
       <div
         key={item.id}
-        className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow transition-shadow"
+        className="rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow transition-shadow"
       >
         {/* Card row */}
         <div
@@ -775,7 +775,7 @@ export default function RhControlPage() {
           {/* Name + meta */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{colName}</span>
+              <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
               {isResubmitted && (
                 <span className="text-[9px] text-slate-400 font-medium">· Reenviado</span>
               )}
@@ -804,7 +804,8 @@ export default function RhControlPage() {
           <div className="flex items-center gap-2 shrink-0">
             {needsRhAction && navTarget && (
               <button
-                className="text-[11px] font-semibold h-7 px-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
+                style={{ background: item.status === "prestacao_recebida" ? "#059669" : "#0033CC" }}
                 onClick={(e) => { e.stopPropagation(); navigate(navTarget.path); }}
               >
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
@@ -850,7 +851,8 @@ export default function RhControlPage() {
                             setNfApproving(false);
                           }
                         }}
-                        className="text-[11px] font-semibold h-7 px-2.5 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition-colors"
+                        className="text-[11px] font-semibold h-7 px-2.5 rounded-md disabled:opacity-50 text-white transition-colors"
+                        style={{ background: '#059669' }}
                       >
                         {nfApproving ? "..." : "Confirmar"}
                       </button>
@@ -863,7 +865,8 @@ export default function RhControlPage() {
                 }
                 return (
                   <button
-                    className="text-[11px] font-semibold h-7 px-3 rounded-md bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
+                    style={{ background: '#6d28d9' }}
                     onClick={(e) => { e.stopPropagation(); setApprovingInvoiceId(nfInvCard?.id || null); setNfApprovalDate(""); }}
                   >
                     Aprovar NF
@@ -881,10 +884,10 @@ export default function RhControlPage() {
 
         {/* Expanded body */}
         {isExpanded && (
-          <div className="border-t border-gray-100 dark:border-gray-700 px-4 pb-4 pt-4 space-y-4">
+          <div className="border-t border-gray-100 px-4 pb-4 pt-4 space-y-4">
 
             {/* Stepper */}
-            <div className="rounded-lg bg-slate-50 dark:bg-gray-900/30 px-3 py-3">
+            <div className="rounded-lg bg-slate-50 px-3 py-3">
               {renderTimeline(item)}
             </div>
 
@@ -907,7 +910,7 @@ export default function RhControlPage() {
               return (
                 <div className="space-y-3">
                   {/* Diff strip */}
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-900/30 px-4 py-2.5 flex items-center justify-between">
+                  <div className="rounded-lg bg-slate-50 px-4 py-2.5 flex items-center justify-between">
                     <span className="text-[11px] text-slate-400 font-medium">Diferença apurada</span>
                     <div className="text-right">
                       <span className={`text-sm font-bold tabular-nums ${
@@ -924,47 +927,47 @@ export default function RhControlPage() {
                   </div>
 
                   {/* Two panels */}
-                  <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
                     {/* Planejado */}
                     <div className="p-3">
-                      <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Planejado</p>
-                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-2">{fmt(item.planned.totalValue)}</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#0033CC' }}>Planejado</p>
+                      <p className="text-base font-bold tabular-nums text-slate-800 mb-2">{fmt(item.planned.totalValue)}</p>
                       <div className="space-y-1 text-[10px]">
                         <div className="flex justify-between">
                           <span className="text-slate-400">Diárias</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span>
+                          <span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Alimentação</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span>
+                          <span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Mobilidade</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.planned.mobility + item.planned.transport)}</span>
+                          <span className="tabular-nums text-slate-600">{fmt(item.planned.mobility + item.planned.transport)}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Realizado */}
                     <div className="p-3">
-                      <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Realizado</p>
-                      <p className="text-base font-bold tabular-nums text-slate-800 dark:text-slate-200 mb-2">{fmt(item.actual!.totalValue)}</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#6d28d9' }}>Realizado</p>
+                      <p className="text-base font-bold tabular-nums text-slate-800 mb-2">{fmt(item.actual!.totalValue)}</p>
                       <div className="space-y-1 text-[10px]">
                         <div className="flex justify-between">
                           <span className="text-slate-400">Diárias</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span>
+                          <span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Alimentação</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span>
+                          <span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400">Mobilidade</span>
-                          <span className="tabular-nums text-slate-600 dark:text-slate-300">{fmt(item.actual!.mobility + item.actual!.transport)}</span>
+                          <span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span>
                         </div>
                       </div>
                       {item.actual!.changeReason && (
-                        <p className="text-[9px] text-slate-400 italic mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <p className="text-[9px] text-slate-400 italic mt-2 pt-2 border-t border-gray-100">
                           {item.actual!.changeReason}
                         </p>
                       )}
@@ -976,9 +979,9 @@ export default function RhControlPage() {
 
             {/* RH comment */}
             {item.actual?.rhComment && (
-              <div className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-700">
+              <div className="px-3 py-2.5 rounded-lg bg-slate-50 border border-gray-200">
                 <p className="text-[10px] font-semibold text-slate-400 mb-1">Comentário do RH</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{item.actual.rhComment}</p>
+                <p className="text-xs text-slate-600">{item.actual.rhComment}</p>
                 {item.actual.rhActionAt && (
                   <p className="text-[10px] text-slate-400 mt-1">
                     {formatDateTime(item.actual.rhActionAt)} — {getUserName(item.actual.rhActionBy)}
@@ -988,19 +991,22 @@ export default function RhControlPage() {
             )}
 
             {/* Action button */}
-            {navTarget && (
-              <button
-                onClick={() => navigate(navTarget.path)}
-                className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  item.status === "prestacao_recebida" || item.status === "planejamento_pendente"
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "border border-gray-200 dark:border-gray-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700"
-                }`}
-              >
-                {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {navTarget && (() => {
+              const isPrimary = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
+              const bg = item.status === "prestacao_recebida" ? "#059669" : "#0033CC";
+              return (
+                <button
+                  onClick={() => navigate(navTarget.path)}
+                  className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    isPrimary ? "text-white" : "border border-gray-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                  style={isPrimary ? { background: bg } : undefined}
+                >
+                  {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              );
+            })()}
 
             {/* NF action button — only when approved for billing */}
             {item.status === "aprovada_faturamento" && item.actual && (() => {
@@ -1010,7 +1016,8 @@ export default function RhControlPage() {
                 return (
                   <button
                     onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white transition-colors"
+                    style={{ background: '#6d28d9' }}
                   >
                     <FileText className="w-3.5 h-3.5" />
                     Aprovar nota fiscal
@@ -1022,7 +1029,7 @@ export default function RhControlPage() {
                 return (
                   <button
                     onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     Nota devolvida — ver notas fiscais
@@ -1032,7 +1039,7 @@ export default function RhControlPage() {
               }
               if (nfStatus === "pendente") {
                 return (
-                  <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-slate-400 border border-dashed border-gray-200 dark:border-gray-700">
+                  <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-slate-400 border border-dashed border-gray-200">
                     <FileText className="w-3.5 h-3.5" />
                     Aguardando envio da nota fiscal
                   </div>
@@ -1059,11 +1066,16 @@ export default function RhControlPage() {
     <div className="space-y-5 max-w-5xl mx-auto pb-24">
 
       {/* ── Page header ── */}
-      <div className="flex items-center gap-3">
-        <Shield className="w-5 h-5 text-slate-400" />
-        <div>
-          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Controle de Prestações de Contas</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação → Nota Fiscal</p>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="h-[3px]" style={{ background: '#059669' }} />
+        <div className="flex items-center gap-4 px-6 py-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#059669' }}>
+            <Shield className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-800">Controle de Prestações de Contas</h1>
+            <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação → Nota Fiscal</p>
+          </div>
         </div>
       </div>
 
@@ -1080,13 +1092,8 @@ export default function RhControlPage() {
         const colTotal = colReal + colNfDev + colNfPend;
 
         const emAndamento = (statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada;
-
         const recusada = statusCounts.recusada || 0;
 
-        const cardBase = "relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 overflow-hidden flex flex-col";
-        const strip = "absolute top-0 left-0 right-0 h-1 rounded-t-xl";
-        const bigNum = "text-4xl font-bold tabular-nums mt-1 mb-2";
-        const sub = "flex flex-wrap gap-x-1 gap-y-0.5 text-[11px] text-slate-400 leading-relaxed";
         const dot = <span className="text-slate-300 select-none"> ·</span>;
         const metric = (label: string, val: number, accentCls: string, last = false) => (
           <span key={label} className="whitespace-nowrap">
@@ -1095,89 +1102,67 @@ export default function RhControlPage() {
           </span>
         );
 
+        const MetricCard = ({
+          stripColor, icon: Icon, iconColor, title, value, children,
+        }: {
+          stripColor: string; icon: any; iconColor: string; title: string; value: number; children: any;
+        }) => (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
+            <div className="h-[3px]" style={{ background: stripColor }} />
+            <div className="p-5 flex flex-col flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Icon className="w-4 h-4" style={{ color: iconColor }} />
+                <span className="text-xs font-semibold text-slate-600">{title}</span>
+              </div>
+              <div className="text-4xl font-bold tabular-nums mt-1 mb-2" style={{ color: iconColor }}>
+                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : value}
+              </div>
+              <div className="flex flex-wrap gap-x-1 gap-y-0.5 text-[11px] text-slate-400 leading-relaxed">
+                {children}
+              </div>
+            </div>
+          </div>
+        );
+
         return (
           <div className="grid grid-cols-4 gap-4">
-            {/* Card 1 — Aguardando RH */}
-            <div className={cardBase}>
-              <div className={`${strip} bg-red-500`} />
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Aguardando RH</span>
-              </div>
-              <div className={`${bigNum} text-red-600 dark:text-red-400`}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : rhTotal}
-              </div>
-              <div className={sub}>
-                {metric("Planejamento", rhPlan, "font-medium text-red-500")}
-                {metric("Comparativo", rhComp, "font-medium text-red-500")}
-                {metric("Nota Fiscal", rhNf, "font-medium text-red-500", true)}
-              </div>
-            </div>
+            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal}>
+              {metric("Planejamento", rhPlan, "font-medium text-red-500")}
+              {metric("Comparativo", rhComp, "font-medium text-red-500")}
+              {metric("Nota Fiscal", rhNf, "font-medium text-red-500", true)}
+            </MetricCard>
 
-            {/* Card 2 — Aguardando Colaborador */}
-            <div className={cardBase}>
-              <div className={`${strip} bg-blue-500`} />
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Aguardando Colaborador</span>
-              </div>
-              <div className={`${bigNum} text-blue-600 dark:text-blue-400`}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : colTotal}
-              </div>
-              <div className={sub}>
-                {metric("Realizado", colReal, "font-medium text-blue-500")}
-                {metric("NF devolvida", colNfDev, "font-medium text-blue-500")}
-                {metric("Ag. NF", colNfPend, "font-medium text-blue-500", true)}
-              </div>
-            </div>
+            <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}>
+              {metric("Realizado", colReal, "font-medium" )}
+              {metric("NF devolvida", colNfDev, "font-medium")}
+              {metric("Ag. NF", colNfPend, "font-medium", true)}
+            </MetricCard>
 
-            {/* Card 3 — Em andamento */}
-            <div className={cardBase}>
-              <div className={`${strip} bg-amber-400`} />
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Em andamento</span>
-              </div>
-              <div className={`${bigNum} text-amber-600 dark:text-amber-400`}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : emAndamento}
-              </div>
-              <div className={sub}>
-                {metric("Ag. realização", statusCounts.aguardando_prestacao || 0, "font-medium text-amber-600")}
-                {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600", true)}
-              </div>
-            </div>
+            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={emAndamento}>
+              {metric("Ag. realização", statusCounts.aguardando_prestacao || 0, "font-medium text-amber-600")}
+              {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600", true)}
+            </MetricCard>
 
-            {/* Card 4 — Concluídos */}
-            <div className={cardBase}>
-              <div className={`${strip} bg-emerald-500`} />
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Concluídos</span>
-              </div>
-              <div className={`${bigNum} text-emerald-600 dark:text-emerald-400`}>
-                {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : concludedCount}
-              </div>
-              <div className={sub}>
-                <span className="whitespace-nowrap">de {totalForProgress} total</span>
-                {recusada > 0 && (
-                  <span className="whitespace-nowrap text-red-400">{dot}{recusada} recusado{recusada !== 1 ? "s" : ""}</span>
-                )}
-              </div>
-            </div>
+            <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
+              <span className="whitespace-nowrap">de {totalForProgress} total</span>
+              {recusada > 0 && (
+                <span className="whitespace-nowrap text-red-400">{dot}{recusada} recusado{recusada !== 1 ? "s" : ""}</span>
+              )}
+            </MetricCard>
           </div>
         );
       })()}
 
       {/* ── Pending action banner ── */}
       {!isLoading && rhActionCount > 0 && !isRhFilterActive && (
-        <div className="flex items-center justify-between gap-4 px-4 py-3.5 rounded-lg border-l-4 border-l-orange-400 border border-amber-100 dark:border-amber-900 bg-amber-50/70 dark:bg-amber-950/20">
+        <div className="flex items-center justify-between gap-4 px-4 py-3.5 rounded-lg border-l-4 border-l-orange-400 border border-amber-100 bg-amber-50/70">
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-slate-700 dark:text-slate-300">
+            <p className="text-sm text-slate-700">
               <span className="font-bold text-orange-500">{rhActionCount}</span>
               {" "}pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
             </p>
             <div className="flex items-center gap-3 mt-2">
-              <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden max-w-[200px]">
+              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden max-w-[200px]">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
@@ -1192,7 +1177,7 @@ export default function RhControlPage() {
             </div>
           </div>
           <button
-            className="text-xs font-semibold px-3 py-1.5 rounded-md border border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30 transition-colors shrink-0"
+            className="text-xs font-semibold px-3 py-1.5 rounded-md border border-orange-300 text-orange-600 hover:bg-orange-50 transition-colors shrink-0"
             onClick={() => {
               setFilterStatus("rh_action");
               setShowConcluded(false);
@@ -1213,17 +1198,17 @@ export default function RhControlPage() {
               placeholder="Buscar por colaborador..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="h-8 pl-9 text-xs border-gray-200 dark:border-gray-700"
+              className="h-8 pl-9 text-xs border-gray-200"
             />
           </div>
 
           <button
             className={`h-8 px-3 text-xs rounded-md border flex items-center gap-1.5 transition-colors ${
-              showConcluded ? 'border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-gray-700 text-slate-500 hover:border-gray-300 bg-white dark:bg-gray-800'
+              showConcluded ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-200 text-slate-500 hover:border-gray-300 bg-white'
             }`}
             onClick={() => setShowConcluded(!showConcluded)}
           >
-            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}>
+            <div className={`w-7 h-4 rounded-full relative flex items-center transition-all ${showConcluded ? 'bg-blue-600' : 'bg-gray-200'}`}>
               <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform ${showConcluded ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
             </div>
             Concluídos
@@ -1301,7 +1286,7 @@ export default function RhControlPage() {
       </div>
 
       {isRhFilterActive && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-xs text-slate-500">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
           Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
           <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => setFilterStatus("all")}>Limpar</button>
@@ -1312,7 +1297,7 @@ export default function RhControlPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-lg border border-gray-200 bg-white dark:bg-gray-800 px-4 py-3 animate-pulse flex items-center gap-3">
+            <div key={i} className="rounded-lg border border-gray-200 bg-white px-4 py-3 animate-pulse flex items-center gap-3">
               <div className="w-8 h-8 bg-gray-200 rounded-full shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3 bg-gray-200 rounded w-32" />
@@ -1322,7 +1307,7 @@ export default function RhControlPage() {
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div id="rh-listing" className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
+        <div id="rh-listing" className="rounded-xl border border-dashed border-gray-200 bg-white p-12 text-center">
           <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
           <p className="text-sm font-medium text-slate-500">Nenhum item encontrado</p>
           <p className="text-xs text-slate-400 mt-1">
@@ -1343,7 +1328,7 @@ export default function RhControlPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Por evento</span>
+              <span className="text-xs font-medium text-slate-600">Por evento</span>
               <span className="text-[10px] text-slate-400">
                 {eventGroups.length} evento{eventGroups.length !== 1 ? 's' : ''} · {filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'}
               </span>
@@ -1359,15 +1344,15 @@ export default function RhControlPage() {
             const isOpen = expandedEvents.has(group.event.id);
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             return (
-              <div key={group.event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+              <div key={group.event.id} className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-750 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{group.event.name}</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate">{group.event.name}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         {group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}
                         {group.actionNeeded > 0 && (
@@ -1402,7 +1387,7 @@ export default function RhControlPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1.5 bg-slate-50/50 dark:bg-gray-900/20">
+                  <div className="border-t border-gray-100 px-3 py-2 space-y-1.5 bg-slate-50/50">
                     {group.items.map(item => renderPrestacaoCard(item))}
                   </div>
                 )}
