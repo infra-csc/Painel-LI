@@ -488,10 +488,9 @@ export default function Events() {
       </div>
 
       <EventModal
-        isOpen={isModalOpen}
+        open={isModalOpen}
         onClose={closeModal}
         event={editingEvent}
-        onSuccess={invalidate}
       />
       <ConfirmModal
         isOpen={confirmState.open}
