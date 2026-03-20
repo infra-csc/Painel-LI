@@ -953,7 +953,7 @@ export default function Tickets() {
                                       value={ticketData["quick"]?.departureAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "departureAirport", e.target.value)}
                                       className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:44,fontSize:10,fontWeight:700}}
+                                      style={{width:56,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-departure-airport"
                                     />
                                   </div>
@@ -971,7 +971,7 @@ export default function Tickets() {
                                       value={ticketData["quick"]?.destinationAirport || ""}
                                       onChange={(e) => handleTicketDataChange("quick", "destinationAirport", e.target.value)}
                                       className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                      style={{width:44,fontSize:10,fontWeight:700}}
+                                      style={{width:56,fontSize:10,fontWeight:700}}
                                       data-testid="input-quick-destination-airport"
                                     />
                                   </div>
@@ -1130,7 +1130,7 @@ export default function Tickets() {
                                         value={ticketData["quick"]?.returnOriginAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnOriginAirport", e.target.value)}
                                         className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:44,fontSize:10,fontWeight:700}}
+                                        style={{width:56,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-origin-airport"
                                       />
                                     </div>
@@ -1148,7 +1148,7 @@ export default function Tickets() {
                                         value={ticketData["quick"]?.returnDestinationAirport || ""}
                                         onChange={(e) => handleTicketDataChange("quick", "returnDestinationAirport", e.target.value)}
                                         className="h-[34px] bg-slate-50 border-slate-200 rounded-lg text-[10px] font-bold uppercase text-center"
-                                        style={{width:44,fontSize:10,fontWeight:700}}
+                                        style={{width:56,fontSize:10,fontWeight:700}}
                                         data-testid="input-quick-return-destination-airport"
                                       />
                                     </div>
