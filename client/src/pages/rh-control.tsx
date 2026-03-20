@@ -1074,16 +1074,19 @@ export default function RhControlPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-slate-800">Controle de Prestações de Contas</h1>
-            <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-500">
-              <span>Escalação</span>
-              <span className="text-slate-300">→</span>
-              <span>Planejado</span>
-              <span className="text-slate-300">→</span>
-              <span>Realizado</span>
-              <span className="text-slate-300">→</span>
-              <span>Aprovação</span>
-              <span className="text-slate-300">→</span>
-              <span style={{ color: '#6d28d9' }}>Nota Fiscal</span>
+            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+              {[
+                { label: "Escalação", color: "#64748b" },
+                { label: "Planejado", color: "#0033CC" },
+                { label: "Realizado", color: "#6d28d9" },
+                { label: "Aprovação", color: "#059669" },
+                { label: "Nota Fiscal", color: "#6d28d9" },
+              ].map((step, i, arr) => (
+                <span key={step.label} className="flex items-center gap-1">
+                  <span className="text-xs font-semibold" style={{ color: step.color }}>{step.label}</span>
+                  {i < arr.length - 1 && <span className="text-slate-300 text-xs">→</span>}
+                </span>
+              ))}
             </div>
           </div>
         </div>
