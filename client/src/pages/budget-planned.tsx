@@ -829,63 +829,21 @@ export default function BudgetPlannedPage() {
                     <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Progresso</div>
                   </div>
                 </div>
+                {stats.total > 0 && (
+                  <>
+                    <div className="w-px h-9" style={{background:'#0033CC20'}} />
+                    <div className="flex-1">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Envio</div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{background:'#0033CC20'}}>
+                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{width:`${stats.progressoEnvio}%`}} />
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-1">{stats.enviados} de {stats.total} enviados</div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* ── Stepper de etapas ── */}
-            {(() => {
-              const currentStep = 1;
-              const steps = [
-                { label: "Escalação", desc: "Inclusões confirmadas" },
-                { label: "Planejamento RH", desc: "Valores previstos" },
-                { label: "Prestação", desc: "Resp. preenche realizado" },
-                { label: "Aprovação RH", desc: "Análise e aprovação" },
-              ];
-              return (
-                <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
-                  <div className="flex items-center">
-                    {steps.map((step, i) => {
-                      const isDone = i < currentStep;
-                      const isActive = i === currentStep;
-                      const isLast = i === steps.length - 1;
-                      return (
-                        <div key={i} className="flex items-center flex-1">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <div
-                              className={`rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                                isDone ? 'w-8 h-8 bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' :
-                                isActive ? 'w-9 h-9 bg-indigo-600 text-white ring-4 ring-indigo-100 dark:ring-indigo-900/40' :
-                                'w-8 h-8 bg-gray-50 dark:bg-gray-700 text-gray-300'
-                              }`}
-                              style={isActive ? { boxShadow: "0 0 0 4px rgba(99,102,241,0.2)" } : undefined}
-                            >
-                              {isDone ? (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (i + 1)}
-                            </div>
-                            <div className="text-center">
-                              <div className={`text-[11px] font-semibold leading-tight ${
-                                isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                                isActive ? 'text-indigo-700 dark:text-indigo-300' :
-                                'text-gray-400'
-                              }`}>{step.label}</div>
-                              <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
-                            </div>
-                          </div>
-                          {!isLast && (
-                            <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                              isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100 dark:bg-gray-700'
-                            }`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ── Cards de métricas ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
