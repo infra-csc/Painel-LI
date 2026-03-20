@@ -884,10 +884,10 @@ export default function RhControlPage() {
 
         {/* Expanded body */}
         {isExpanded && (
-          <div className="border-t border-gray-100 px-4 pb-4 pt-4 space-y-4">
+          <div className="border-t border-slate-100 bg-slate-50/30 px-4 pb-4 pt-3 space-y-3">
 
             {/* Stepper */}
-            <div className="rounded-lg bg-slate-50 px-3 py-3">
+            <div className="rounded-lg bg-white border border-slate-100 px-4 py-3 shadow-sm">
               {renderTimeline(item)}
             </div>
 
@@ -990,63 +990,95 @@ export default function RhControlPage() {
               </div>
             )}
 
-            {/* Action button */}
-            {navTarget && (() => {
-              const isPrimary = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
-              const bg = item.status === "prestacao_recebida" ? "#059669" : "#0033CC";
-              return (
-                <button
-                  onClick={() => navigate(navTarget.path)}
-                  className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    isPrimary ? "text-white" : "border border-gray-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                  style={isPrimary ? { background: bg } : undefined}
-                >
-                  {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              );
-            })()}
+            {/* Action footer */}
+            {(navTarget || (item.status === "aprovada_faturamento" && item.actual)) && (
+              <div className="flex items-center justify-between pt-1">
+                {/* NF status info */}
+                {item.status === "aprovada_faturamento" && item.actual && (() => {
+                  const nfInv = getInvoiceForActual(item.actual!.id);
+                  const nfStatus = nfInv?.status || "pendente";
+                  if (nfStatus === "pendente") {
+                    return (
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <FileText className="w-3.5 h-3.5" />
+                        Aguardando envio da nota fiscal
+                      </span>
+                    );
+                  }
+                  if (nfStatus === "devolvida") {
+                    return (
+                      <span className="flex items-center gap-1.5 text-[11px] text-orange-500 font-medium">
+                        <FileText className="w-3.5 h-3.5" />
+                        Nota devolvida
+                      </span>
+                    );
+                  }
+                  return <span />;
+                })()}
+                {!(item.status === "aprovada_faturamento" && item.actual) && <span />}
 
-            {/* NF action button — only when approved for billing */}
-            {item.status === "aprovada_faturamento" && item.actual && (() => {
-              const nfInv = getInvoiceForActual(item.actual!.id);
-              const nfStatus = nfInv?.status || "pendente";
-              if (nfStatus === "enviada") {
-                return (
-                  <button
-                    onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-white transition-colors"
-                    style={{ background: '#6d28d9' }}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Aprovar nota fiscal
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                );
-              }
-              if (nfStatus === "devolvida") {
-                return (
-                  <button
-                    onClick={() => navigate(`/invoices?event=${item.event.id}`)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Nota devolvida — ver notas fiscais
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                );
-              }
-              if (nfStatus === "pendente") {
-                return (
-                  <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-slate-400 border border-dashed border-gray-200">
-                    <FileText className="w-3.5 h-3.5" />
-                    Aguardando envio da nota fiscal
-                  </div>
-                );
-              }
-              return null;
-            })()}
+                {/* Primary / secondary nav button */}
+                <div className="flex items-center gap-2 ml-auto">
+                  {navTarget && (() => {
+                    const isPrimary = item.status === "prestacao_recebida" || item.status === "planejamento_pendente";
+                    const bg = item.status === "prestacao_recebida" ? "#059669" : "#0033CC";
+                    return (
+                      <button
+                        onClick={() => navigate(navTarget.path)}
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          isPrimary ? "text-white shadow-sm" : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                        style={isPrimary ? { background: bg } : undefined}
+                      >
+                        {item.status === "prestacao_recebida" ? "Analisar comparativo" : navTarget.label}
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    );
+                  })()}
+
+                  {item.status === "aprovada_faturamento" && item.actual && (() => {
+                    const nfInv = getInvoiceForActual(item.actual!.id);
+                    const nfStatus = nfInv?.status || "pendente";
+                    if (nfStatus === "enviada") {
+                      return (
+                        <button
+                          onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
+                          style={{ background: '#6d28d9' }}
+                        >
+                          <FileText className="w-3 h-3" />
+                          Aprovar nota fiscal
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      );
+                    }
+                    if (nfStatus === "devolvida") {
+                      return (
+                        <button
+                          onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors"
+                        >
+                          Ver notas fiscais
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      );
+                    }
+                    if (navTarget) {
+                      return (
+                        <button
+                          onClick={() => navigate(navTarget.path)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          {navTarget.label}
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
