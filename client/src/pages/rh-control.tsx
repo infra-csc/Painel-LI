@@ -760,43 +760,43 @@ export default function RhControlPage() {
     return (
       <div
         key={item.id}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow transition-shadow"
+        className={`rounded-lg bg-white border border-slate-100 overflow-hidden hover:shadow-sm transition-shadow ${borderStyle.border} ${borderStyle.bg}`}
       >
         {/* Card row */}
         <div
-          className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+          className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
           onClick={() => toggleExpand(item.id)}
         >
           {/* Avatar */}
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ${avatarColorRh(colName)}`}>
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${avatarColorRh(colName)}`}>
             {initialsRh(colName)}
           </div>
 
           {/* Name + meta */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
-              {isResubmitted && (
-                <span className="text-[9px] text-slate-400 font-medium">· Reenviado</span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">
-              {item.event.name} · {getFunctionName(item.functionId)}
-              {item.planned?.collaboratorType && (
-                <span className="ml-1 text-slate-300">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
-              )}
-            </p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${config.badgeCls}`}>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
                 {config.shortLabel}
               </span>
+              {isResubmitted && (
+                <span className="text-[9px] bg-violet-50 text-violet-600 border border-violet-200 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <p className="text-xs text-slate-500 truncate">
+                {getFunctionName(item.functionId)}
+                {item.planned?.collaboratorType && (
+                  <span className="ml-1 text-slate-400">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
+                )}
+              </p>
               {days > 30 ? (
-                <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5">
+                <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
                   <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
                 </span>
-              ) : (
-                <span className="text-[10px] text-slate-400">{timeInStatus(item.lastActivityDate)}</span>
-              )}
+              ) : days > 0 ? (
+                <span className="text-[10px] text-slate-400 shrink-0">{timeInStatus(item.lastActivityDate)}</span>
+              ) : null}
             </div>
           </div>
 
@@ -1368,33 +1368,42 @@ export default function RhControlPage() {
             const isOpen = expandedEvents.has(group.event.id);
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             return (
-              <div key={group.event.id} className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
+              <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
+                {/* Group header accent stripe based on urgency */}
+                <div className="h-[3px]" style={{
+                  background: group.actionNeeded > 0
+                    ? (Object.keys(statuses).some(s => getDiffDays(group.items.find(i => i.status === s)?.lastActivityDate) > 30)
+                      ? '#ef4444' : '#f97316')
+                    : '#e2e8f0'
+                }} />
                 <button
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/60 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
                     <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{group.event.name}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}
+                      <p className="text-sm font-bold text-slate-800 truncate">{group.event.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-slate-400">{group.items.length} ite{group.items.length === 1 ? 'm' : 'ns'}</span>
                         {group.actionNeeded > 0 && (
-                          <span className="ml-1.5 text-amber-600 font-semibold">{group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
+                            {group.actionNeeded} pendente{group.actionNeeded !== 1 ? 's' : ''}
+                          </span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
                   <TooltipProvider delayDuration={300}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {statuses.prestacao_recebida ? <span className="w-2 h-2 rounded-full bg-blue-400" /> : null}
-                          {statuses.planejamento_pendente ? <span className="w-2 h-2 rounded-full bg-amber-400" /> : null}
-                          {statuses.devolvida_para_ajuste ? <span className="w-2 h-2 rounded-full bg-orange-400" /> : null}
-                          {statuses.aguardando_prestacao ? <span className="w-2 h-2 rounded-full bg-slate-300" /> : null}
-                          {statuses.aprovada_faturamento ? <span className="w-2 h-2 rounded-full bg-emerald-400" /> : null}
-                          {statuses.recusada ? <span className="w-2 h-2 rounded-full bg-red-400" /> : null}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {statuses.prestacao_recebida ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comp.</span> : null}
+                          {statuses.planejamento_pendente ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} plan.</span> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} dev.</span> : null}
+                          {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} ag.</span> : null}
+                          {statuses.aprovada_faturamento ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{statuses.aprovada_faturamento} apr.</span> : null}
+                          {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} rec.</span> : null}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="left" className="text-[11px] space-y-1 p-2.5">
@@ -1411,7 +1420,7 @@ export default function RhControlPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 px-3 py-2 space-y-1.5 bg-slate-50/50">
+                  <div className="border-t border-slate-100 px-3 py-2 space-y-1.5 bg-slate-50/40">
                     {group.items.map(item => renderPrestacaoCard(item))}
                   </div>
                 )}
