@@ -189,15 +189,13 @@ export default function Sidebar() {
 
                           {/* Icon */}
                           <span style={{
-                            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                            width: 24, height: 24, flexShrink: 0,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            background: isActive ? "#DBEAFE" : tab.iconBg,
-                            transition: "background 0.15s",
                           }}>
                             <MI
                               name={tab.icon}
                               filled={true}
-                              style={{ color: isActive ? BLUE : tab.iconColor, fontSize: 17 }}
+                              style={{ color: isActive ? BLUE : tab.iconColor, fontSize: 18 }}
                             />
                           </span>
 
