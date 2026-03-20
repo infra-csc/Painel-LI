@@ -1036,7 +1036,7 @@ export default function Scaling() {
             data-testid="button-export-excel"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            Exportar para Excel
+            Exportar
           </Button>
         }
       >
@@ -1060,13 +1060,68 @@ export default function Scaling() {
         </div>
       </UniversalFilters>
 
+      {/* Stats summary bar */}
+      {scalingInclusions.length > 0 && (() => {
+        const totalCount = scalingInclusions.length;
+        const escaladosCount = scalingInclusions.filter(i => isEscalated(i)).length;
+        const pendentesCount = scalingInclusions.filter(i => !isEscalated(i) && i.status !== 'cancelado').length;
+        const canceladosCount = scalingInclusions.filter(i => i.status === 'cancelado').length;
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
+              <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                <Users className="w-3.5 h-3.5 text-slate-500" />
+              </div>
+              <div>
+                <div className="text-[18px] font-black text-slate-800 leading-none">{totalCount}</div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Total</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 shadow-sm">
+              <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
+                <Check className="w-3.5 h-3.5 text-green-600" />
+              </div>
+              <div>
+                <div className="text-[18px] font-black text-green-700 leading-none">{escaladosCount}</div>
+                <div className="text-[10px] font-bold text-green-500 uppercase tracking-wide mt-0.5">Escalados</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 shadow-sm">
+              <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
+                <Clock className="w-3.5 h-3.5 text-orange-500" />
+              </div>
+              <div>
+                <div className="text-[18px] font-black text-orange-600 leading-none">{pendentesCount}</div>
+                <div className="text-[10px] font-bold text-orange-400 uppercase tracking-wide mt-0.5">Pendentes</div>
+              </div>
+            </div>
+            {canceladosCount > 0 && (
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
+                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <X className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div>
+                  <div className="text-[18px] font-black text-slate-500 leading-none">{canceladosCount}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Cancelados</div>
+                </div>
+              </div>
+            )}
+            <div className="ml-auto text-[11px] text-slate-400 font-medium">
+              {filters.eventId !== 'all' || filters.functionId.length > 0 || filters.collaboratorId !== 'all' ? 'Filtrado' : 'Todos os eventos'}
+            </div>
+          </div>
+        );
+      })()}
+
           {scalingInclusions.length === 0 ? (
-            <div className="p-12 text-center">
-              <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
+            <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                <Users className="w-7 h-7 text-slate-300" />
+              </div>
+              <h3 className="text-[15px] font-bold text-slate-600 mb-1">
                 Nenhuma escalação encontrada
               </h3>
-              <p className="text-muted-foreground">
+              <p className="text-[13px] text-slate-400">
                 Não há registros de escalação para exibir com os filtros atuais.
               </p>
             </div>
@@ -1173,27 +1228,27 @@ export default function Scaling() {
                             <col style={{width: "150px"}} />
                             <col style={{width: "220px"}} />
                           </colgroup>
-                          <thead className="bg-slate-50 border-b border-slate-200">
+                          <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
                             <tr>
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
-                                Escalação
+                              <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                                Status
                               </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             <tr>
-                              <td colSpan={5} className="bg-orange-50 border-y border-orange-100 px-6 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-orange-400">
-                                ✈ Sem Passagem ({withoutTicket.length})
+                              <td colSpan={5} className="bg-orange-50/60 px-6 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-orange-400 flex items-center gap-1.5">
+                                <Clock className="w-3 h-3" /> Sem Passagem · {withoutTicket.length} {withoutTicket.length === 1 ? 'registro' : 'registros'}
                               </td>
                             </tr>
-                            {withoutTicket.map((inclusion) => (
+                            {withoutTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/30 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -1243,32 +1298,31 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="flex flex-col gap-1.5">
+                                  <div className="flex flex-row flex-wrap gap-1.5">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        ✈️ Passagem Comprada
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                        ✈️
                                       </span>
                                     )}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
-                                          🏨 Hospedagem
-                                          {accommodationInfo.hasAttachments && <span>📎</span>}
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨{accommodationInfo.hasAttachments && ' 📎'}
                                         </span>
                                       );
                                     })()}
@@ -1286,13 +1340,15 @@ export default function Scaling() {
                 {/* Aba: Escalações COM passagem */}
                 <TabsContent value="with-ticket" className="mt-0">
                   {withTicket.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-foreground mb-2">
+                    <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center mt-4">
+                      <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mx-auto mb-3">
+                        <Plane className="w-6 h-6 text-green-300" />
+                      </div>
+                      <h3 className="text-[14px] font-bold text-slate-500 mb-1">
                         Nenhuma escalação com passagem
                       </h3>
-                      <p className="text-muted-foreground">
-                        Não há registros de escalações que necessitam de passagens.
+                      <p className="text-[12px] text-slate-400">
+                        Não há escalações que necessitam de passagens nos filtros atuais.
                       </p>
                     </div>
                   ) : (
@@ -1306,27 +1362,27 @@ export default function Scaling() {
                             <col style={{width: "150px"}} />
                             <col style={{width: "220px"}} />
                           </colgroup>
-                          <thead className="bg-slate-50 border-b border-slate-200">
+                          <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
                             <tr>
                               <SortableHeader field="id" sortConfig={sortConfig} onSort={handleSort}>ID</SortableHeader>
                               <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Função / Evento</SortableHeader>
                               <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
                               <SortableHeader field="period" className="whitespace-nowrap" sortConfig={sortConfig} onSort={handleSort}>Período / Diárias</SortableHeader>
-                              <th className="w-[220px] min-w-[220px] px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
-                                Escalação
+                              <th className="w-[220px] min-w-[220px] px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                                Status
                               </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             <tr>
-                              <td colSpan={5} className="bg-green-50 border-y border-green-100 px-6 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-green-500">
-                                ✈ Com Passagem ({withTicket.length})
+                              <td colSpan={5} className="bg-green-50/60 px-6 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-green-600 flex items-center gap-1.5">
+                                <Plane className="w-3 h-3" /> Com Passagem · {withTicket.length} {withTicket.length === 1 ? 'registro' : 'registros'}
                               </td>
                             </tr>
-                            {withTicket.map((inclusion) => (
+                            {withTicket.map((inclusion, rowIdx) => (
                               <tr
                                 key={inclusion.id}
-                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`}
+                                className={`transition-colors cursor-pointer ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'} hover:bg-blue-50/30 ${inclusion.status === 'cancelado' ? 'opacity-50' : ''}`}
                                 onClick={() => handleRowClick(inclusion)}
                               >
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -1376,32 +1432,31 @@ export default function Scaling() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="flex flex-col gap-1.5">
+                                  <div className="flex flex-row flex-wrap gap-1.5">
                                     {inclusion.status === "cancelado" ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
                                       </span>
                                     ) : isEscalated(inclusion) ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 text-[11px] font-bold">
                                         <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        ✈️ Passagem Comprada
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                        ✈️
                                       </span>
                                     )}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
-                                          🏨 Hospedagem
-                                          {accommodationInfo.hasAttachments && <span>📎</span>}
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨{accommodationInfo.hasAttachments && ' 📎'}
                                         </span>
                                       );
                                     })()}
