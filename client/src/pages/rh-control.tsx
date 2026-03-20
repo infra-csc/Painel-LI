@@ -805,7 +805,7 @@ export default function RhControlPage() {
 
           {/* Action button + chevron */}
           <div className="flex items-center gap-2 shrink-0">
-            {needsRhAction && navTarget && (
+            {needsRhAction && navTarget && !isExpanded && (
               <button
                 className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
                 style={{ background: item.status === "prestacao_recebida" ? "#059669" : "#0033CC" }}
