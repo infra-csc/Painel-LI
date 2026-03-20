@@ -789,7 +789,7 @@ export default function BudgetPlannedPage() {
             <div className="rounded-xl overflow-hidden shadow-sm flex" style={{border:'1px solid #0033CC30'}}>
               {/* Esquerda — azul sólido */}
               <div className="px-6 py-4 flex flex-col justify-center gap-0.5" style={{background:'linear-gradient(135deg, #0033CC 0%, #0044FF 100%)', minWidth:240}}>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/80">Total Planejado</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white">Total Planejado</p>
                 {selectedEvent?.startDate && (
                   <p className="flex items-center gap-1 text-[11px] text-white/70">
                     <Calendar className="w-3 h-3 shrink-0" />
@@ -829,18 +829,6 @@ export default function BudgetPlannedPage() {
                     <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Progresso</div>
                   </div>
                 </div>
-                {stats.total > 0 && (
-                  <>
-                    <div className="w-px h-9" style={{background:'#0033CC20'}} />
-                    <div className="flex-1">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Envio</div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{background:'#0033CC20'}}>
-                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{width:`${stats.progressoEnvio}%`}} />
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-1">{stats.enviados} de {stats.total} enviados</div>
-                    </div>
-                  </>
-                )}
               </div>
             </div>
 
