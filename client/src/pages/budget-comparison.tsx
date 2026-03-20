@@ -348,11 +348,12 @@ export default function BudgetComparisonPage() {
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
   const isReadOnly = false;
 
-  const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, rows }: {
+  const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, stripColor, rows }: {
     title: string;
     icon: any;
     iconColor: string;
     bgColor: string;
+    stripColor: string;
     rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
   }) => {
     const currencyRows = rows.filter(r => !r.isQuantity);
@@ -363,16 +364,20 @@ export default function BudgetComparisonPage() {
     const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
 
     return (
-      <div className={`rounded-xl border overflow-hidden ${hasAnyDiff ? 'border-amber-200/60' : 'border-gray-100 dark:border-gray-700'}`}>
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
+        <div className={`h-[3px] ${stripColor}`} />
         {/* Category header */}
         <div className={`flex items-center justify-between px-3 py-2 ${bgColor}`}>
-          <div className="flex items-center gap-1.5">
-            <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
-            <span className={`text-[10px] font-bold tracking-wide ${iconColor}`}>{title}</span>
+          <div className="flex items-center gap-2">
+            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${stripColor}`}>
+              <Icon className="w-3 h-3 text-white" />
+            </div>
+            <span className={`text-[10px] font-black uppercase tracking-wide ${iconColor}`}>{title}</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-black tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
             {hasAnyDiff && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-full">
+              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
                 <AlertTriangle className="w-2.5 h-2.5" /> Divergência
               </span>
             )}
@@ -380,28 +385,28 @@ export default function BudgetComparisonPage() {
         </div>
 
         {/* Column headers */}
-        <div className="grid grid-cols-4 gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-100 dark:border-gray-700">
-          <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider"></span>
+        <div className="grid grid-cols-4 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
+          <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider"></span>
           <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
           <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-          <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider text-right">Diferença</span>
+          <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
         </div>
 
         {/* Rows */}
-        <div className="divide-y divide-gray-50 dark:divide-gray-800">
+        <div className="divide-y divide-slate-50">
           {rows.map((row, i) => {
             const diff = row.actual - row.planned;
             const isDiff = diff !== 0;
             return (
-              <div key={i} className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center ${i % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
-                <span className="text-gray-600 dark:text-gray-300 font-medium">{row.label}</span>
-                <span className="text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums font-semibold ${isDiff ? 'text-violet-700 dark:text-violet-300' : 'text-violet-500 dark:text-violet-400'}`}>
+              <div key={i} className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center ${i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}>
+                <span className="text-slate-600 font-medium">{row.label}</span>
+                <span className="text-right tabular-nums text-blue-600">{fmtVal(row.planned, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums font-semibold ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
                   {fmtVal(row.actual, row.isQuantity)}
                 </span>
                 <div className="text-right">
                   {diff === 0 ? (
-                    <span className="text-gray-300 dark:text-gray-600 tabular-nums">—</span>
+                    <span className="text-slate-300 tabular-nums">—</span>
                   ) : (
                     <span className={`tabular-nums font-bold text-[10px] ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
@@ -415,13 +420,13 @@ export default function BudgetComparisonPage() {
 
         {/* Subtotal */}
         {currencyRows.length > 0 && (
-          <div className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-gray-100 dark:border-gray-700 font-bold ${subtotalDiff > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : subtotalDiff < 0 ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}>
-            <span className="text-gray-500 dark:text-gray-400 uppercase text-[9px] tracking-wider">Subtotal</span>
-            <span className="text-right tabular-nums text-blue-700 dark:text-blue-300">{fmt(subtotalPlanned)}</span>
-            <span className={`text-right tabular-nums ${subtotalDiff !== 0 ? 'text-violet-700 dark:text-violet-300' : 'text-violet-600'}`}>{fmt(subtotalActual)}</span>
+          <div className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-slate-100 font-bold ${subtotalDiff > 0 ? 'bg-red-50/50' : subtotalDiff < 0 ? 'bg-emerald-50/50' : 'bg-slate-50'}`}>
+            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Subtotal</span>
+            <span className="text-right tabular-nums text-blue-700">{fmt(subtotalPlanned)}</span>
+            <span className={`text-right tabular-nums ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
             <div className="text-right">
               {subtotalDiff === 0 ? (
-                <span className="text-gray-300 tabular-nums">—</span>
+                <span className="text-slate-300 tabular-nums">—</span>
               ) : (
                 <span className={`tabular-nums text-[10px] ${subtotalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                   {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
@@ -439,12 +444,12 @@ export default function BudgetComparisonPage() {
       {/* ── Page header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200 dark:shadow-emerald-900/40">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{background: '#059669'}}>
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black text-gray-900 dark:text-gray-100 whitespace-nowrap">Comparativo Planejado × Realizado</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Análise e aprovação do RH para faturamento</p>
+            <h1 className="text-lg font-black text-slate-900 whitespace-nowrap">Comparativo Planejado × Realizado</h1>
+            <p className="text-xs text-slate-400 mt-0.5">Análise e aprovação do RH para faturamento</p>
           </div>
         </div>
         <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
@@ -452,12 +457,12 @@ export default function BudgetComparisonPage() {
 
       {/* ── No event selected ── */}
       {!selectedEventId && (
-        <div className="rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-800 bg-gradient-to-b from-emerald-50/60 to-teal-50/30 dark:from-emerald-950/20 dark:to-teal-950/10 p-16 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mx-auto mb-5 shadow-xl shadow-emerald-200 dark:shadow-emerald-900/40">
-            <BarChart3 className="w-10 h-10 text-white" />
+        <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{background: '#059669'}}>
+            <BarChart3 className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-xl font-black text-emerald-900 dark:text-emerald-100 mb-2">Selecione um evento</h2>
-          <p className="text-emerald-600/70 dark:text-emerald-400/70 text-sm max-w-md mx-auto mb-6">
+          <h2 className="text-xl font-black text-slate-800 mb-2">Selecione um evento</h2>
+          <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
             Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
           </p>
           <div className="flex justify-center">
@@ -473,13 +478,13 @@ export default function BudgetComparisonPage() {
             const currentStep = 3;
             const steps = [
               { label: "Escalação", desc: "Inclusões confirmadas" },
-              { label: "Planejamento (RH)", desc: "Valores previstos definidos" },
+              { label: "Planejamento RH", desc: "Valores previstos" },
               { label: "Prestação de contas", desc: "Resp. preenche o realizado" },
-              { label: "Aprovação (RH)", desc: "Análise e aprovação final" },
-              { label: "Nota Fiscal", desc: "Envio e aprovação da nota" },
+              { label: "Aprovação RH", desc: "Análise e aprovação final" },
+              { label: "Nota Fiscal", desc: "Envio da nota" },
             ];
             return (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-4">
+              <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4">
                 <div className="flex items-center justify-between">
                   {steps.map((step, i) => {
                     const isDone = i < currentStep;
@@ -490,29 +495,23 @@ export default function BudgetComparisonPage() {
                         <div className="flex items-center gap-2">
                           <div className="relative flex-shrink-0">
                             {isActive && (
-                              <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-30 animate-ping" />
+                              <div className="absolute inset-0 rounded-full opacity-30 animate-ping" style={{background:'#059669'}} />
                             )}
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold relative ${
-                              isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/30' :
-                              isActive ? 'bg-emerald-600 text-white ring-2 ring-emerald-200 dark:ring-emerald-700 shadow-lg shadow-emerald-300 dark:shadow-emerald-900/40' :
-                              'bg-gray-100 dark:bg-gray-700 text-gray-400'
-                            }`}>
-                              {isDone ? <Check className="w-4 h-4" /> : (i + 1)}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold relative`}
+                              style={{
+                                background: isDone ? '#059669' : isActive ? '#059669' : '#F1F5F9',
+                                color: (isDone || isActive) ? '#fff' : '#94A3B8',
+                              }}>
+                              {isDone ? <Check className="w-3.5 h-3.5" /> : (i + 1)}
                             </div>
                           </div>
                           <div className="min-w-0">
-                            <div className={`text-[11px] font-semibold leading-tight ${
-                              isDone ? 'text-emerald-600 dark:text-emerald-400' :
-                              isActive ? 'text-emerald-700 dark:text-emerald-300' :
-                              'text-gray-400'
-                            }`}>{step.label}</div>
-                            <div className="text-[9px] text-gray-400 leading-tight mt-0.5">{step.desc}</div>
+                            <div className="text-[11px] font-semibold leading-tight" style={{color: (isDone || isActive) ? '#059669' : '#94A3B8'}}>{step.label}</div>
+                            <div className="text-[9px] text-slate-400 leading-tight mt-0.5">{step.desc}</div>
                           </div>
                         </div>
                         {!isLast && (
-                          <div className={`flex-1 h-[2px] mx-3 rounded-full ${
-                            isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100 dark:bg-gray-700'
-                          }`} />
+                          <div className={`flex-1 h-[2px] mx-3 rounded-full`} style={{background: isDone ? '#059669' : '#E2E8F0'}} />
                         )}
                       </div>
                     );
@@ -531,11 +530,11 @@ export default function BudgetComparisonPage() {
             const returnedCount = budgetActual.filter(a => a.rhStatus === 'devolvido').length;
             const pendingCount = budgetActual.filter(a => !a.sentForReview && a.rhStatus === 'pendente').length;
             const chips = [
-              sentCount > 0 && { icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', iconColor: 'text-blue-500', numColor: 'text-blue-700 dark:text-blue-400', textColor: 'text-blue-600/70' },
-              approvedCount > 0 && { icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', iconColor: 'text-emerald-500', numColor: 'text-emerald-700 dark:text-emerald-400', textColor: 'text-emerald-600/70' },
-              rejectedCount > 0 && { icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-800', iconColor: 'text-red-500', numColor: 'text-red-700 dark:text-red-400', textColor: 'text-red-600/70' },
-              returnedCount > 0 && { icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', iconColor: 'text-orange-500', numColor: 'text-orange-700 dark:text-orange-400', textColor: 'text-orange-600/70' },
-              pendingCount > 0 && { icon: Clock, count: pendingCount, label: `pendente${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', iconColor: 'text-amber-500', numColor: 'text-amber-700 dark:text-amber-400', textColor: 'text-amber-600/70' },
+              sentCount > 0 && { icon: Send, count: sentCount, label: `para análise`, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', numColor: 'text-blue-700', textColor: 'text-blue-500/70' },
+              approvedCount > 0 && { icon: CheckCircle, count: approvedCount, label: `aprovado${approvedCount !== 1 ? 's' : ''}`, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', numColor: 'text-emerald-700', textColor: 'text-emerald-600/70' },
+              rejectedCount > 0 && { icon: XCircle, count: rejectedCount, label: `recusado${rejectedCount !== 1 ? 's' : ''}`, bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-500', numColor: 'text-red-700', textColor: 'text-red-600/70' },
+              returnedCount > 0 && { icon: RotateCcw, count: returnedCount, label: `devolvido${returnedCount !== 1 ? 's' : ''}`, bg: 'bg-orange-50', border: 'border-orange-200', iconColor: 'text-orange-500', numColor: 'text-orange-700', textColor: 'text-orange-600/70' },
+              pendingCount > 0 && { icon: Clock, count: pendingCount, label: `pendente${pendingCount !== 1 ? 's' : ''}`, bg: 'bg-amber-50', border: 'border-amber-200', iconColor: 'text-amber-500', numColor: 'text-amber-700', textColor: 'text-amber-600/70' },
             ].filter(Boolean) as Array<{ icon: any; count: number; label: string; bg: string; border: string; iconColor: string; numColor: string; textColor: string }>;
             return (
               <div className="flex items-center gap-2 flex-wrap">
@@ -546,9 +545,9 @@ export default function BudgetComparisonPage() {
                     <span className={`text-[10px] ${chip.textColor}`}>{chip.label}</span>
                   </div>
                 ))}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 dark:bg-slate-800/40 dark:border-slate-700">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
                   <ListChecks className="w-3 h-3 text-slate-400" />
-                  <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{totalActualItems}</span>
+                  <span className="text-sm font-bold text-slate-600">{totalActualItems}</span>
                   <span className="text-[10px] text-slate-400">total</span>
                 </div>
               </div>
@@ -556,82 +555,85 @@ export default function BudgetComparisonPage() {
           })()}
 
           {/* ── 3 Metric cards ── */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             {/* Planejado */}
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50/60 dark:from-blue-950/30 dark:to-indigo-950/20 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase text-blue-400 font-bold tracking-widest">Total Planejado</p>
-                <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                  <DollarSign className="w-3.5 h-3.5 text-blue-500" />
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="h-[3px]" style={{background:'#0033CC'}} />
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] uppercase text-blue-600 font-black tracking-widest">Total Planejado</p>
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                  </div>
                 </div>
+                <p className="text-2xl font-black text-blue-700 tabular-nums">{fmt(totals.totalPlanned)}</p>
+                <p className="text-[10px] text-slate-400 mt-1">Orçamento aprovado para o evento</p>
               </div>
-              <p className="text-2xl font-black text-blue-700 dark:text-blue-300 tabular-nums">{fmt(totals.totalPlanned)}</p>
-              <p className="text-[10px] text-blue-400/70 mt-1">Orçamento aprovado para o evento</p>
             </div>
 
             {/* Realizado */}
-            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50/60 dark:from-violet-950/30 dark:to-purple-950/20 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] uppercase text-violet-400 font-bold tracking-widest">Total Realizado</p>
-                <div className="w-7 h-7 rounded-xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
-                  <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="h-[3px]" style={{background:'#6d28d9'}} />
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] uppercase text-violet-600 font-black tracking-widest">Total Realizado</p>
+                  <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <BarChart3 className="w-3.5 h-3.5 text-violet-600" />
+                  </div>
                 </div>
+                <p className="text-2xl font-black text-violet-700 tabular-nums">{fmt(totals.totalActual)}</p>
+                <p className="text-[10px] text-slate-400 mt-1">Valores prestados e enviados</p>
               </div>
-              <p className="text-2xl font-black text-violet-700 dark:text-violet-300 tabular-nums">{fmt(totals.totalActual)}</p>
-              <p className="text-[10px] text-violet-400/70 mt-1">Valores prestados e enviados</p>
             </div>
 
             {/* Diferença */}
-            <div className={`rounded-2xl border p-4 ${
-              totals.difference === 0 ? 'border-gray-200 bg-gray-50 dark:bg-gray-800/60' :
-              totals.difference < 0 ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50/60 dark:from-emerald-950/30 dark:to-teal-950/20' :
-              'border-red-200 bg-gradient-to-br from-red-50 to-rose-50/60 dark:from-red-950/30 dark:to-rose-950/20'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className={`text-[10px] uppercase font-bold tracking-widest ${totals.difference === 0 ? 'text-gray-400' : totals.difference < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  Diferença
-                </p>
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${totals.difference === 0 ? 'bg-gray-100 dark:bg-gray-700' : totals.difference < 0 ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-red-100 dark:bg-red-900/40'}`}>
-                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-gray-400" /> :
-                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> :
-                   <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className={`h-[3px] ${totals.difference === 0 ? 'bg-slate-200' : totals.difference < 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className={`text-[10px] uppercase font-black tracking-widest ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    Diferença
+                  </p>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${totals.difference === 0 ? 'bg-slate-50' : totals.difference < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                    {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-slate-400" /> :
+                     totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> :
+                     <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                  </div>
                 </div>
-              </div>
-              <p className={`text-2xl font-black tabular-nums ${totals.difference === 0 ? 'text-gray-500' : totals.difference < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                <p className={`text-[10px] ${totals.difference === 0 ? 'text-gray-400' : totals.difference < 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia em relação ao previsto' : 'Acima do planejado'}
+                <p className={`text-2xl font-black tabular-nums ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
                 </p>
-                {totals.totalPlanned > 0 && totals.difference !== 0 && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                    totals.difference < 0
-                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
-                  }`}>
-                    {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <p className={`text-[10px] ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do planejado'}
+                  </p>
+                  {totals.totalPlanned > 0 && totals.difference !== 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      totals.difference < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* ── Info banner ── */}
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-xl">
-            <Info className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-            <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/60 border border-emerald-200/60 rounded-xl">
+            <Info className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+            <span className="text-[11px] text-emerald-700">
               Valores referentes apenas às prestações enviadas para revisão pelo responsável de função
             </span>
           </div>
 
           {/* ── RH comment banner ── */}
           {rhComment && (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3.5 flex items-start gap-2.5">
-              <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex items-start gap-2.5">
+              <MessageSquare className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
               <div>
-                <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Comentário do RH</span>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{rhComment}</p>
+                <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Comentário do RH</span>
+                <p className="text-sm text-slate-700 mt-0.5">{rhComment}</p>
               </div>
             </div>
           )}
@@ -641,8 +643,8 @@ export default function BudgetComparisonPage() {
             <div className="mb-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-gray-800 dark:text-gray-200">Detalhamento por Prestação</h2>
-                  <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{sortedData.length}</span>
+                  <h2 className="text-sm font-black text-slate-800">Detalhamento por Prestação</h2>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sortedData.length}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Button
@@ -707,12 +709,12 @@ export default function BudgetComparisonPage() {
 
             {/* Cards */}
             {sortedData.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
-                  <BarChart3 className="w-6 h-6 text-gray-300 dark:text-gray-500" />
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                  <BarChart3 className="w-6 h-6 text-slate-300" />
                 </div>
-                <p className="font-semibold text-gray-500 dark:text-gray-400">Nenhuma prestação enviada para revisão</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
+                <p className="font-semibold text-slate-500">Nenhuma prestação enviada para revisão</p>
+                <p className="text-sm text-slate-400 mt-1">As prestações aparecerão aqui após serem preenchidas e enviadas no Orçamento Realizado.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -738,9 +740,9 @@ export default function BudgetComparisonPage() {
                   const isResubmitted = a.resubmitted;
 
                   const statusStyles: Record<string, { bg: string; border: string; text: string; icon: any; label: string; cardBg: string; cardBorder: string }> = {
-                    aprovado: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle, label: 'Aprovado', cardBg: 'bg-emerald-50/40 dark:bg-emerald-950/20', cardBorder: 'border-emerald-200 dark:border-emerald-700' },
-                    rejeitado: { bg: 'bg-red-100 dark:bg-red-900/30', border: 'border-red-200 dark:border-red-700', text: 'text-red-700 dark:text-red-400', icon: XCircle, label: 'Recusado', cardBg: 'bg-red-50/40 dark:bg-red-950/20', cardBorder: 'border-red-200 dark:border-red-700' },
-                    devolvido: { bg: 'bg-orange-100 dark:bg-orange-900/30', border: 'border-orange-200 dark:border-orange-700', text: 'text-orange-700 dark:text-orange-400', icon: RotateCcw, label: 'Devolvido', cardBg: 'bg-orange-50/40 dark:bg-orange-950/20', cardBorder: 'border-orange-200 dark:border-orange-700' },
+                    aprovado: { bg: 'bg-emerald-100', border: 'border-emerald-200', text: 'text-emerald-700', icon: CheckCircle, label: 'Aprovado', cardBg: 'bg-emerald-50/40', cardBorder: 'border-emerald-200' },
+                    rejeitado: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700', icon: XCircle, label: 'Recusado', cardBg: 'bg-red-50/40', cardBorder: 'border-red-200' },
+                    devolvido: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700', icon: RotateCcw, label: 'Devolvido', cardBg: 'bg-orange-50/40', cardBorder: 'border-orange-200' },
                   };
                   const decidedStyle = statusStyles[itemRhStatus];
 
@@ -753,17 +755,22 @@ export default function BudgetComparisonPage() {
                     <div
                       key={idx}
                       data-card-id={cardKey}
-                      className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
-                        isNotAttended ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-300 dark:border-gray-600 border-dashed opacity-75' :
-                        highlightCardId === cardKey ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30' :
+                      className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                        isNotAttended ? 'bg-slate-50 border-slate-300 border-dashed opacity-75' :
+                        highlightCardId === cardKey ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-100' :
                         isDecided ? `${decidedStyle.cardBg} ${decidedStyle.cardBorder}` :
-                        selectedItems.has(idx) ? 'bg-white dark:bg-gray-800 border-emerald-400 ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 shadow-md shadow-emerald-100/60' :
-                        'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        selectedItems.has(idx) ? 'bg-white border-emerald-400 ring-1 ring-emerald-300/60 shadow-md shadow-emerald-100/60' :
+                        'bg-white border-slate-200 hover:border-slate-300'
                       }`}
                     >
+                      {/* Status stripe on top */}
+                      {isDecided && (
+                        <div className={`h-[2.5px] ${itemRhStatus === 'aprovado' ? 'bg-emerald-400' : itemRhStatus === 'rejeitado' ? 'bg-red-400' : 'bg-orange-400'}`} />
+                      )}
+
                       {/* Card header row — collapsible */}
                       <div
-                        className="flex items-center justify-between px-4 py-3.5 cursor-pointer group"
+                        className="flex items-center justify-between px-4 py-3 cursor-pointer"
                         onClick={() => toggleExpand(idx)}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -776,69 +783,69 @@ export default function BudgetComparisonPage() {
                                 setSelectedItems(next);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="shrink-0 border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                              className="shrink-0 border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
                             />
                           )}
 
                           {/* Avatar */}
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black flex-shrink-0 shadow-sm ${avatarColor(colName)}`}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-[11px] font-black flex-shrink-0 ${avatarColor(colName)}`}>
                             {initials(colName)}
                           </div>
 
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{colName}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-bold text-slate-800 truncate">{colName}</span>
                               {row.isSplit && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-700 text-[9px] font-semibold text-purple-700 dark:text-purple-300">
-                                  <GitFork className="w-2.5 h-2.5" /> Escalação dividida
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 border border-purple-200 text-[9px] font-semibold text-purple-700 shrink-0">
+                                  <GitFork className="w-2.5 h-2.5" /> Dividida
                                 </span>
                               )}
                               {isDecided && decidedStyle && (
-                                <span className={`flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${decidedStyle.bg} ${decidedStyle.border} border ${decidedStyle.text}`}>
+                                <span className={`flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${decidedStyle.bg} ${decidedStyle.border} border ${decidedStyle.text} shrink-0`}>
                                   <decidedStyle.icon className="w-2.5 h-2.5" /> {decidedStyle.label}
                                 </span>
                               )}
                               {isResubmitted && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 border border-violet-200 dark:border-violet-800 text-[9px] font-semibold text-violet-700 dark:text-violet-400">
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-[9px] font-semibold text-violet-700 shrink-0">
                                   <RotateCcw className="w-2.5 h-2.5" /> Reenviado
                                 </span>
                               )}
                               {isNotAttended && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-[9px] font-semibold text-gray-500 dark:text-gray-400">
+                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[9px] font-semibold text-slate-500 shrink-0">
                                   <UserX className="w-2.5 h-2.5" /> Não participou
                                 </span>
                               )}
                             </div>
                             {/* Not-attended reason snippet */}
                             {isNotAttended && (row.planned as any)?.didNotAttendReason && (
-                              <p className="text-[10px] italic mt-0.5 text-gray-400 leading-snug max-w-xs truncate">
+                              <p className="text-[10px] italic mt-0.5 text-slate-400 leading-snug max-w-xs truncate">
                                 {(row.planned as any).didNotAttendReason}
                               </p>
                             )}
-                            {/* RH comment snippet — visible in collapsed view */}
+                            {/* RH comment snippet */}
                             {isDecided && a.rhComment && (itemRhStatus === 'rejeitado' || itemRhStatus === 'devolvido') && (
-                              <p className={`text-[10px] italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-red-500 dark:text-red-400' : 'text-orange-500 dark:text-orange-400'}`}>
+                              <p className={`text-[10px] italic mt-0.5 leading-snug max-w-xs truncate ${itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
                                 "{a.rhComment}"
                               </p>
                             )}
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] text-gray-400">{getFunctionName(row.functionId)}</span>
-                              <span className="text-gray-300 dark:text-gray-600">·</span>
-                              <span className={`text-[10px] font-semibold ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
+                            <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
+                              <span className="text-[10px] text-slate-400 truncate shrink min-w-0">{getFunctionName(row.functionId)}</span>
+                              <span className="text-slate-300 shrink-0">·</span>
+                              <span className={`text-[10px] font-semibold shrink-0 ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
                                 {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                               </span>
                               {row.isSplit && (
                                 <>
-                                  <span className="text-gray-300 dark:text-gray-600">·</span>
-                                  <span className="text-[10px] text-purple-500 font-medium">
+                                  <span className="text-slate-300 shrink-0">·</span>
+                                  <span className="text-[10px] text-purple-500 font-medium truncate shrink min-w-0">
                                     {[a, ...row.splitChildren].map(c => getCollaboratorName(c.collaboratorId)).join(' + ')}
                                   </span>
                                 </>
                               )}
                               {hasDiff && !hasJustification && !row.isSplit && (
                                 <>
-                                  <span className="text-gray-300 dark:text-gray-600">·</span>
-                                  <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-medium">
+                                  <span className="text-slate-300 shrink-0">·</span>
+                                  <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-medium shrink-0">
                                     <AlertTriangle className="w-2.5 h-2.5" /> Sem justificativa
                                   </span>
                                 </>
@@ -847,73 +854,73 @@ export default function BudgetComparisonPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="grid grid-cols-3 gap-x-5 text-right">
-                            <div>
-                              <span className="text-[9px] uppercase text-blue-400 tracking-wider block font-semibold">Planejado</span>
-                              <span className="text-xs tabular-nums text-blue-600 dark:text-blue-400 font-bold">{fmt(plannedTotal)}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {/* Mini values strip */}
+                          <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                            <div className="px-3 py-1.5 text-center">
+                              <span className="text-[9px] uppercase text-blue-400 tracking-wider block font-black leading-tight">Plan.</span>
+                              <span className="text-xs tabular-nums text-blue-600 font-black">{fmt(plannedTotal)}</span>
                             </div>
-                            <div>
-                              <span className="text-[9px] uppercase text-violet-400 tracking-wider block font-semibold">Realizado</span>
-                              <span className="text-xs tabular-nums text-violet-600 dark:text-violet-400 font-bold">{fmt(actualTotal)}</span>
+                            <div className="px-3 py-1.5 text-center bg-violet-50/40">
+                              <span className="text-[9px] uppercase text-violet-400 tracking-wider block font-black leading-tight">Real.</span>
+                              <span className="text-xs tabular-nums text-violet-600 font-black">{fmt(actualTotal)}</span>
                             </div>
-                            <div>
-                              <span className="text-[9px] uppercase text-gray-400 tracking-wider block font-semibold">Diferença</span>
+                            <div className={`px-3 py-1.5 text-center ${hasDiff ? (diff > 0 ? 'bg-red-50/60' : 'bg-emerald-50/60') : ''}`}>
+                              <span className="text-[9px] uppercase text-slate-400 tracking-wider block font-black leading-tight">Dif.</span>
                               {hasDiff ? (
-                                <span className={`text-xs tabular-nums font-black ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                <span className={`text-xs tabular-nums font-black ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                   {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-300 tabular-nums">—</span>
+                                <span className="text-xs text-slate-300 tabular-nums font-black">—</span>
                               )}
                             </div>
                           </div>
-                          <div className={`w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                          <div className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                           </div>
                         </div>
                       </div>
 
                       {/* Expanded body */}
                       {isExpanded && (
-                        <div className="border-t-2 border-emerald-100 dark:border-emerald-900/60 bg-gray-50/60 dark:bg-gray-900/40">
+                        <div className="border-t border-slate-100 bg-slate-50">
                           <div className="p-4 space-y-3">
 
                             {/* ── Not attended notice ── */}
                             {isNotAttended && (
-                              <div className="flex items-start gap-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                                <UserX className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                              <div className="flex items-start gap-2.5 bg-slate-100 rounded-xl px-4 py-3 border border-slate-200">
+                                <UserX className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Colaborador não participou do evento</p>
-                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
-                                  {(row.planned as any)?.didNotAttendReason && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 italic">Motivo: {(row.planned as any).didNotAttendReason}</p>}
+                                  <p className="text-sm font-semibold text-slate-600">Colaborador não participou do evento</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Os valores do Realizado e a Diferença são excluídos dos totais. O Planejado permanece para referência.</p>
+                                  {(row.planned as any)?.didNotAttendReason && <p className="text-[11px] text-slate-500 mt-1 italic">Motivo: {(row.planned as any).didNotAttendReason}</p>}
                                 </div>
                               </div>
                             )}
 
                             {/* ── Split group sub-rows ── */}
                             {row.isSplit && (
-                              <div className="rounded-xl border border-purple-200 dark:border-purple-700 overflow-hidden">
-                                {/* Header */}
-                                <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-50/80 dark:bg-purple-950/30">
-                                  <GitFork className="w-3.5 h-3.5 text-purple-500" />
-                                  <span className="text-[10px] font-bold tracking-wide text-purple-600 dark:text-purple-300">
+                              <div className="rounded-xl border border-purple-200 overflow-hidden">
+                                <div className="h-[3px] bg-purple-500" />
+                                <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-50/80 border-b border-purple-100">
+                                  <div className="w-4 h-4 rounded bg-purple-500 flex items-center justify-center">
+                                    <GitFork className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-wide text-purple-700">
                                     Detalhamento por Colaborador
                                   </span>
                                 </div>
-                                {/* Column headers */}
-                                <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-gray-50/80 dark:bg-gray-900/60 border-b border-gray-100 dark:border-gray-700">
-                                  <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider col-span-2">Colaborador</span>
-                                  <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. (prop.)</span>
+                                <div className="grid grid-cols-6 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
+                                  <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider col-span-2">Colaborador</span>
+                                  <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Plan. prop.</span>
                                   <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
-                                  <span className="text-[9px] uppercase text-gray-400 font-semibold tracking-wider text-right">Diferença</span>
-                                  <span className="text-[9px] uppercase text-gray-300 font-semibold tracking-wider text-center"></span>
+                                  <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
+                                  <span className="text-[9px] uppercase text-slate-300 font-semibold tracking-wider text-center"></span>
                                 </div>
-                                {/* One row per collaborator */}
                                 {[a, ...row.splitChildren].map((colItem, ci) => {
                                   const isParent = ci === 0;
                                   const colItemName = getCollaboratorName(colItem.collaboratorId);
-                                  // Collect all days from the entire split group for context (must be before proportionalPlanned call)
                                   const allGroupDays = [...(a.workedDays as string[] || []), ...row.splitChildren.flatMap(c => (c.workedDays as string[] || []))].sort();
                                   const colProp = p ? proportionalPlanned(p, colItem, allGroupDays) : null;
                                   const colPlanned = colProp?.totalValue || 0;
@@ -921,42 +928,41 @@ export default function BudgetComparisonPage() {
                                   const colDiff = colActual - colPlanned;
                                   const colDays = getWorkedDayCount(colItem);
                                   return (
-                                    <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] ${ci % 2 === 1 ? 'bg-gray-50/40 dark:bg-gray-800/30' : ''}`}>
+                                    <div key={ci} className={`grid grid-cols-6 gap-2 px-3 py-2.5 items-center text-[11px] border-b border-slate-50 ${ci % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                                       <div className="col-span-2 flex items-center gap-2 min-w-0">
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 shadow-sm ${avatarColor(colItemName)}`}>
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 ${avatarColor(colItemName)}`}>
                                           {initials(colItemName)}
                                         </div>
                                         <div className="min-w-0">
-                                          <p className="font-semibold text-gray-700 dark:text-gray-200 truncate text-[11px]">{colItemName}</p>
+                                          <p className="font-semibold text-slate-700 truncate text-[11px]">{colItemName}</p>
                                           <div className="flex items-center gap-1">
-                                            <span className={`text-[9px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                                            <span className={`text-[9px] font-bold px-1 py-0 rounded-full ${isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
                                               {isParent ? 'Titular' : 'Divisão'}
                                             </span>
                                             {colDays > 0 && (
-                                              <span className="text-[9px] text-gray-400">{colDays}d</span>
+                                              <span className="text-[9px] text-slate-400">{colDays}d</span>
                                             )}
                                           </div>
                                         </div>
                                       </div>
-                                      <span className="text-right tabular-nums text-blue-600 dark:text-blue-400 font-medium">{fmt(colPlanned)}</span>
-                                      <span className="text-right tabular-nums text-violet-600 dark:text-violet-400 font-semibold">{fmt(colActual)}</span>
+                                      <span className="text-right tabular-nums text-blue-600 font-medium">{fmt(colPlanned)}</span>
+                                      <span className="text-right tabular-nums text-violet-600 font-semibold">{fmt(colActual)}</span>
                                       <div className="text-right">
                                         {colDiff === 0 ? (
-                                          <span className="text-gray-300 dark:text-gray-600 tabular-nums">—</span>
+                                          <span className="text-slate-300 tabular-nums">—</span>
                                         ) : (
                                           <span className={`tabular-nums font-bold text-[10px] ${colDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                             {colDiff > 0 ? '+' : '−'}{fmt(Math.abs(colDiff))}
                                           </span>
                                         )}
                                       </div>
-                                      {/* Ver detalhes button */}
                                       <div className="flex justify-center">
                                         <button
                                           onClick={e => {
                                             e.stopPropagation();
                                             setSplitDetail({ actual: colItem, planned: p, propPlanned: colProp, isParent, allGroupDays });
                                           }}
-                                          className="w-6 h-6 rounded-md flex items-center justify-center bg-gray-100 hover:bg-purple-100 dark:bg-gray-700 dark:hover:bg-purple-900/40 text-gray-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
+                                          className="w-6 h-6 rounded-md flex items-center justify-center bg-slate-100 hover:bg-purple-100 text-slate-400 hover:text-purple-600 transition-colors"
                                           title="Ver detalhes completos"
                                         >
                                           <ClipboardList className="w-3.5 h-3.5" />
@@ -965,14 +971,13 @@ export default function BudgetComparisonPage() {
                                     </div>
                                   );
                                 })}
-                                {/* Group totals row */}
-                                <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-gray-100 dark:border-gray-700 font-bold ${diff > 0 ? 'bg-red-50/40 dark:bg-red-950/10' : diff < 0 ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}>
-                                  <span className="text-gray-500 dark:text-gray-400 uppercase text-[9px] tracking-wider col-span-2">Total do Grupo</span>
-                                  <span className="text-right tabular-nums text-blue-700 dark:text-blue-300">{fmt(plannedTotal)}</span>
-                                  <span className="text-right tabular-nums text-violet-700 dark:text-violet-300">{fmt(actualTotal)}</span>
+                                <div className={`grid grid-cols-6 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-slate-100 font-bold ${diff > 0 ? 'bg-red-50/40' : diff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`}>
+                                  <span className="text-slate-500 uppercase text-[9px] tracking-wider col-span-2">Total do Grupo</span>
+                                  <span className="text-right tabular-nums text-blue-700">{fmt(plannedTotal)}</span>
+                                  <span className="text-right tabular-nums text-violet-700">{fmt(actualTotal)}</span>
                                   <div className="text-right col-span-2">
                                     {diff === 0 ? (
-                                      <span className="text-gray-300 tabular-nums">—</span>
+                                      <span className="text-slate-300 tabular-nums">—</span>
                                     ) : (
                                       <span className={`tabular-nums text-[10px] ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                         {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
@@ -983,13 +988,14 @@ export default function BudgetComparisonPage() {
                               </div>
                             )}
 
-                            {/* ── Detail blocks (only for non-split, or parent portion of split) ── */}
+                            {/* ── Detail blocks (only for non-split) ── */}
                             {!row.isSplit && <>
                             <CategoryBlock
                               title="Diárias"
                               icon={Calendar}
-                              iconColor="text-blue-600 dark:text-blue-400"
-                              bgColor="bg-blue-50/60 dark:bg-blue-950/20"
+                              iconColor="text-indigo-700"
+                              bgColor="bg-indigo-50/60"
+                              stripColor="bg-indigo-500"
                               rows={[
                                 { label: "Qtd. Diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, isQuantity: true },
                                 { label: "Valor Unitário", planned: p?.dailyValue || 0, actual: a.dailyValue },
@@ -1000,8 +1006,9 @@ export default function BudgetComparisonPage() {
                             <CategoryBlock
                               title="Alimentação"
                               icon={Utensils}
-                              iconColor="text-orange-600 dark:text-orange-400"
-                              bgColor="bg-orange-50/60 dark:bg-orange-950/20"
+                              iconColor="text-orange-700"
+                              bgColor="bg-orange-50/60"
+                              stripColor="bg-orange-400"
                               rows={[
                                 { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
                                 { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
@@ -1013,8 +1020,9 @@ export default function BudgetComparisonPage() {
                             <CategoryBlock
                               title="Mobilidade"
                               icon={Car}
-                              iconColor="text-violet-600 dark:text-violet-400"
-                              bgColor="bg-violet-50/60 dark:bg-violet-950/20"
+                              iconColor="text-violet-700"
+                              bgColor="bg-violet-50/60"
+                              stripColor="bg-violet-500"
                               rows={[
                                 { label: "Mobilidade", planned: p?.mobility || 0, actual: a.mobility },
                                 { label: "Translado", planned: p?.transport || 0, actual: a.transport },
@@ -1022,26 +1030,22 @@ export default function BudgetComparisonPage() {
                             />
                             </>}
 
-                            {/* Expanded card footer — 3 columns with emerald border */}
-                            <div className={`rounded-xl border-2 p-4 ${
-                              diff > 0 ? 'border-red-200 bg-gradient-to-r from-red-50/60 to-rose-50/40 dark:from-red-950/20 dark:to-rose-950/10'
-                              : diff < 0 ? 'border-emerald-200 bg-gradient-to-r from-emerald-50/60 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10'
-                              : 'border-gray-200 bg-gray-50/60 dark:bg-gray-800/40'
-                            }`}>
-                              <div className="grid grid-cols-3 gap-4 text-center">
-                                <div>
-                                  <span className="text-[9px] uppercase text-blue-400 font-bold tracking-widest block mb-1">Total Planejado</span>
-                                  <span className="text-xl font-black text-blue-700 dark:text-blue-300 tabular-nums">{fmt(plannedTotal)}</span>
+                            {/* Expanded card footer — totals */}
+                            <div className={`rounded-xl border overflow-hidden ${diff > 0 ? 'border-red-200' : diff < 0 ? 'border-emerald-200' : 'border-slate-200'}`}>
+                              <div className="grid grid-cols-3 divide-x divide-slate-100">
+                                <div className="px-4 py-3 text-center bg-blue-50/40">
+                                  <span className="text-[9px] uppercase text-blue-500 font-black tracking-widest block mb-1">Total Planejado</span>
+                                  <span className="text-lg font-black text-blue-700 tabular-nums">{fmt(plannedTotal)}</span>
                                 </div>
-                                <div>
-                                  <span className="text-[9px] uppercase text-violet-400 font-bold tracking-widest block mb-1">Total Realizado</span>
-                                  <span className="text-xl font-black text-violet-700 dark:text-violet-300 tabular-nums">{fmt(actualTotal)}</span>
+                                <div className="px-4 py-3 text-center bg-violet-50/40">
+                                  <span className="text-[9px] uppercase text-violet-500 font-black tracking-widest block mb-1">Total Realizado</span>
+                                  <span className="text-lg font-black text-violet-700 tabular-nums">{fmt(actualTotal)}</span>
                                 </div>
-                                <div>
-                                  <span className={`text-[9px] uppercase font-bold tracking-widest block mb-1 ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
+                                <div className={`px-4 py-3 text-center ${diff > 0 ? 'bg-red-50/60' : diff < 0 ? 'bg-emerald-50/60' : 'bg-slate-50'}`}>
+                                  <span className={`text-[9px] uppercase font-black tracking-widest block mb-1 ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
                                     Diferença
                                   </span>
-                                  <span className={`text-xl font-black tabular-nums ${diff > 0 ? 'text-red-600' : diff < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                  <span className={`text-lg font-black tabular-nums ${diff > 0 ? 'text-red-700' : diff < 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
                                     {diff > 0 ? '+' : diff < 0 ? '−' : ''}{fmt(Math.abs(diff))}
                                   </span>
                                   {hasDiff && plannedTotal > 0 && (
@@ -1055,11 +1059,11 @@ export default function BudgetComparisonPage() {
 
                             {/* Justification */}
                             {a.changeReason && (
-                              <div className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-start gap-2">
-                                <MessageSquare className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                              <div className="p-3 rounded-xl bg-white border border-slate-100 flex items-start gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Justificativa do Responsável</span>
-                                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{a.changeReason}</p>
+                                  <span className="text-[9px] uppercase text-slate-400 font-bold tracking-wider">Justificativa do Responsável</span>
+                                  <p className="text-xs text-slate-600 mt-0.5">{a.changeReason}</p>
                                 </div>
                               </div>
                             )}
@@ -1067,16 +1071,16 @@ export default function BudgetComparisonPage() {
                             {/* RH comment per item */}
                             {a.rhComment && (
                               <div className={`p-3 rounded-xl border flex items-start gap-2 ${
-                                itemRhStatus === 'aprovado' ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800' :
-                                itemRhStatus === 'rejeitado' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' :
-                                'bg-orange-50/60 dark:bg-orange-950/20 border-orange-100 dark:border-orange-800'
+                                itemRhStatus === 'aprovado' ? 'bg-emerald-50/60 border-emerald-100' :
+                                itemRhStatus === 'rejeitado' ? 'bg-red-50/60 border-red-100' :
+                                'bg-orange-50/60 border-orange-100'
                               }`}>
                                 <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`} />
                                 <div>
                                   <span className={`text-[9px] uppercase font-bold tracking-wider ${itemRhStatus === 'aprovado' ? 'text-emerald-500' : itemRhStatus === 'rejeitado' ? 'text-red-500' : 'text-orange-500'}`}>
                                     Comentário do RH
                                   </span>
-                                  <p className={`text-xs mt-0.5 ${itemRhStatus === 'aprovado' ? 'text-emerald-700 dark:text-emerald-300' : itemRhStatus === 'rejeitado' ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                                  <p className={`text-xs mt-0.5 ${itemRhStatus === 'aprovado' ? 'text-emerald-700' : itemRhStatus === 'rejeitado' ? 'text-red-700' : 'text-orange-700'}`}>
                                     {a.rhComment}
                                   </p>
                                 </div>
@@ -1084,11 +1088,11 @@ export default function BudgetComparisonPage() {
                             )}
 
                             {rhComment && !a.rhComment && (
-                              <div className="p-3 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-800 flex items-start gap-2">
+                              <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-100 flex items-start gap-2">
                                 <MessageSquare className="w-3.5 h-3.5 text-orange-500 mt-0.5 flex-shrink-0" />
                                 <div>
                                   <span className="text-[9px] uppercase text-orange-500 font-bold tracking-wider">Comentário do RH (geral)</span>
-                                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-0.5">{rhComment}</p>
+                                  <p className="text-xs text-orange-700 mt-0.5">{rhComment}</p>
                                 </div>
                               </div>
                             )}
@@ -1106,24 +1110,24 @@ export default function BudgetComparisonPage() {
 
       {/* ── Fixed RH Decision footer ── */}
       {comparison && !isReadOnly && comparisonData.length > 0 && sortedData.some(r => (r.actual.rhStatus || 'pendente') === 'pendente') && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-3 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)]">
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)]">
           <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-black text-gray-800 dark:text-gray-100">Decisão do RH</h3>
-              <p className={`text-xs mt-0.5 transition-colors ${selectedItems.size > 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-gray-400'}`}>
+              <h3 className="text-sm font-black text-slate-800">Decisão do RH</h3>
+              <p className={`text-xs mt-0.5 transition-colors ${selectedItems.size > 0 ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
                 {selectedItems.size > 0
                   ? <>{selectedItems.size} selecionado{selectedItems.size !== 1 ? 's' : ''} para ação</>
                   : <>Selecione os itens pendentes acima para tomar uma decisão</>
                 }
               </p>
             </div>
-            <div className="flex gap-2.5">
+            <div className="flex gap-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      className={`text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-50'}`}
+                      className="text-red-600 border-red-200 hover:bg-red-50 h-9 text-sm px-4 rounded-xl"
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1140,7 +1144,7 @@ export default function BudgetComparisonPage() {
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
-                      className={`text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-10 text-sm px-4 rounded-xl transition-all ${selectedItems.size > 0 ? '' : 'opacity-50'}`}
+                      className="text-amber-600 border-amber-200 hover:bg-amber-50 h-9 text-sm px-4 rounded-xl"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1156,7 +1160,8 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className={`h-10 text-sm px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-200 dark:shadow-emerald-900/30 text-white transition-all ${selectedItems.size > 0 ? 'animate-none' : 'opacity-40'}`}
+                      className="h-9 text-sm px-5 rounded-xl text-white shadow-md"
+                      style={{background: '#059669'}}
                       onClick={() => setActionModal({ type: 'approve' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1201,15 +1206,15 @@ export default function BudgetComparisonPage() {
             const SubRow = ({ label, planned, actual, rowIndex }: { label: string; planned: number; actual: number; rowIndex: number }) => {
               const d = actual - planned;
               return (
-                <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/70 dark:bg-gray-800/40'}`}>
+                <div className={`grid grid-cols-4 gap-4 px-4 py-2 items-center ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}`}>
                   <div className="flex items-center gap-1.5 pl-3">
-                    <span className="text-gray-300 dark:text-gray-600 text-[10px] select-none">└</span>
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{label}</span>
+                    <span className="text-slate-300 text-[10px] select-none">└</span>
+                    <span className="text-[10px] text-slate-400">{label}</span>
                   </div>
-                  <span className="text-right tabular-nums text-[11px] text-blue-500 dark:text-blue-400">{fmt(planned)}</span>
-                  <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600 dark:text-violet-300' : 'text-violet-400 dark:text-violet-500'}`}>{fmt(actual)}</span>
+                  <span className="text-right tabular-nums text-[11px] text-blue-500">{fmt(planned)}</span>
+                  <span className={`text-right tabular-nums text-[11px] ${d !== 0 ? 'text-violet-600' : 'text-violet-400'}`}>{fmt(actual)}</span>
                   <div className="text-right">
-                    {d === 0 ? <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span> : (
+                    {d === 0 ? <span className="text-slate-300 text-[10px]">—</span> : (
                       <span className={`text-[10px] font-semibold ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                         {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
                       </span>
@@ -1226,28 +1231,25 @@ export default function BudgetComparisonPage() {
             }) => {
               const d = subtotalAct - subtotalPlan;
               return (
-                <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-700">
-                  {/* Section title — icon + name only */}
-                  <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 dark:border-black/10 ${headerBg}`}>
+                <div className="rounded-xl overflow-hidden border border-slate-100">
+                  <div className={`flex items-center gap-1.5 px-4 py-2 border-b border-white/40 ${headerBg}`}>
                     <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
                     <span className={`text-[10px] font-bold tracking-wide ${titleColor}`}>{title}</span>
                   </div>
-                  {/* Subtotal row — aligned to the 4-column grid */}
                   <div className={`grid grid-cols-4 gap-4 px-4 py-2 ${headerBg}`}>
                     <span className={`text-[10px] font-semibold ${titleColor} opacity-70`}>Total</span>
-                    <span className="text-right tabular-nums text-[11px] text-blue-600 dark:text-blue-400 font-semibold">{fmt(subtotalPlan)}</span>
-                    <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700 dark:text-violet-300' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
+                    <span className="text-right tabular-nums text-[11px] text-blue-600 font-semibold">{fmt(subtotalPlan)}</span>
+                    <span className={`text-right tabular-nums text-[11px] font-semibold ${d !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalAct)}</span>
                     <div className="text-right">
                       {d === 0
-                        ? <span className="text-gray-300 dark:text-gray-600 text-[10px]">—</span>
+                        ? <span className="text-slate-300 text-[10px]">—</span>
                         : <span className={`text-[11px] font-bold tabular-nums ${d > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                             {d > 0 ? '+' : '−'}{fmt(Math.abs(d))}
                           </span>
                       }
                     </div>
                   </div>
-                  {/* Sub-rows */}
-                  <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                  <div className="divide-y divide-slate-50">
                     {children}
                   </div>
                 </div>
@@ -1332,10 +1334,9 @@ export default function BudgetComparisonPage() {
                 </div>
 
                 {/* ── Table body ── */}
-                <div className="px-5 py-4 space-y-3 bg-white dark:bg-gray-900 max-h-[50vh] overflow-y-auto">
-                  {/* Column header row */}
-                  <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-gray-100 dark:border-gray-700">
-                    <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Item</span>
+                <div className="px-5 py-4 space-y-3 bg-white max-h-[50vh] overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-4 px-4 pb-2 border-b-2 border-slate-100">
+                    <span className="text-[9px] uppercase text-slate-400 font-bold tracking-wider">Item</span>
                     <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
                     <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
                     <span className="text-[9px] uppercase text-gray-400 font-bold tracking-wider text-right">Diferença</span>
@@ -1345,9 +1346,9 @@ export default function BudgetComparisonPage() {
                   <SectionBlock
                     title="Diárias"
                     icon={Calendar}
-                    headerBg="bg-blue-50/80 dark:bg-blue-950/30"
-                    iconColor="text-blue-600 dark:text-blue-400"
-                    titleColor="text-blue-700 dark:text-blue-300"
+                    headerBg="bg-blue-50/80"
+                    iconColor="text-blue-600"
+                    titleColor="text-blue-700"
                     subtotalPlan={dailyPlan}
                     subtotalAct={dailyAct}
                   >
@@ -1365,9 +1366,9 @@ export default function BudgetComparisonPage() {
                   <SectionBlock
                     title="Alimentação"
                     icon={Utensils}
-                    headerBg="bg-orange-50/80 dark:bg-orange-950/30"
-                    iconColor="text-orange-600 dark:text-orange-400"
-                    titleColor="text-orange-700 dark:text-orange-300"
+                    headerBg="bg-orange-50/80"
+                    iconColor="text-orange-600"
+                    titleColor="text-orange-700"
                     subtotalPlan={mealPlan}
                     subtotalAct={mealAct}
                   >
@@ -1381,9 +1382,9 @@ export default function BudgetComparisonPage() {
                   <SectionBlock
                     title="Mobilidade"
                     icon={Car}
-                    headerBg="bg-violet-50/80 dark:bg-violet-950/30"
-                    iconColor="text-violet-600 dark:text-violet-400"
-                    titleColor="text-violet-700 dark:text-violet-300"
+                    headerBg="bg-violet-50/80"
+                    iconColor="text-violet-600"
+                    titleColor="text-violet-700"
                     subtotalPlan={mobPlan}
                     subtotalAct={mobAct}
                   >
@@ -1404,16 +1405,16 @@ export default function BudgetComparisonPage() {
 
                   {/* Total row */}
                   <div className={`grid grid-cols-4 gap-4 px-4 py-3.5 rounded-xl border-2 font-semibold ${
-                    totalDiff > 0 ? 'bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-800'
-                    : totalDiff < 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800'
-                    : 'bg-gray-50 dark:bg-gray-800/60 border-gray-100 dark:border-gray-700'
+                    totalDiff > 0 ? 'bg-red-50 border-red-100'
+                    : totalDiff < 0 ? 'bg-emerald-50 border-emerald-100'
+                    : 'bg-slate-50 border-slate-100'
                   }`}>
-                    <span className="text-[12px] font-black uppercase tracking-wide text-gray-700 dark:text-gray-200">TOTAL</span>
-                    <span className="text-right tabular-nums text-blue-700 dark:text-blue-300 text-[13px] font-black">{fmt(totalPlan)}</span>
-                    <span className="text-right tabular-nums text-violet-700 dark:text-violet-300 text-[13px] font-black">{fmt(totalAct)}</span>
+                    <span className="text-[12px] font-black uppercase tracking-wide text-slate-700">TOTAL</span>
+                    <span className="text-right tabular-nums text-blue-700 text-[13px] font-black">{fmt(totalPlan)}</span>
+                    <span className="text-right tabular-nums text-violet-700 text-[13px] font-black">{fmt(totalAct)}</span>
                     <div className="text-right">
                       {totalDiff === 0
-                        ? <span className="text-gray-300 dark:text-gray-600 tabular-nums text-[13px] font-black">—</span>
+                        ? <span className="text-slate-300 tabular-nums text-[13px] font-black">—</span>
                         : <span className={`tabular-nums text-[13px] font-black ${totalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                             {totalDiff > 0 ? '+' : '−'}{fmt(Math.abs(totalDiff))}
                           </span>
@@ -1423,17 +1424,16 @@ export default function BudgetComparisonPage() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="px-5 pb-5 pt-1 bg-white dark:bg-gray-900 space-y-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="px-5 pb-5 pt-3 bg-white space-y-3 border-t border-slate-100">
                   {((!sd.isParent && totalGroupDays > 0) || (sd.isParent && totalGroupDays > 0 && myDayCount < totalGroupDays)) && (
                     <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border ${sd.isParent
-                      ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-800'
-                      : 'bg-purple-50 dark:bg-purple-950/20 border-purple-100 dark:border-purple-800'}`}>
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-purple-100 dark:bg-purple-900/40'}`}>
+                      ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'}`}>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${sd.isParent ? 'bg-blue-100' : 'bg-purple-100'}`}>
                         <GitFork className={`w-3 h-3 ${sd.isParent ? 'text-blue-500' : 'text-purple-500'}`} />
                       </div>
-                      <span className={`text-[11px] font-medium ${sd.isParent ? 'text-blue-700 dark:text-blue-300' : 'text-purple-700 dark:text-purple-300'}`}>
+                      <span className={`text-[11px] font-medium ${sd.isParent ? 'text-blue-700' : 'text-purple-700'}`}>
                         {sd.isParent ? 'Titular cobriu' : 'Este colaborador cobriu'} <strong>{myDayCount}</strong> de <strong>{totalGroupDays}</strong> dias da vaga original
-                        {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-[10px] px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300'}`}>
+                        {totalGroupDays > 0 && <span className={`ml-1.5 font-bold text-[10px] px-1.5 py-0.5 rounded-full ${sd.isParent ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
                           {Math.round(myDayCount / totalGroupDays * 100)}%
                         </span>}
                       </span>
@@ -1442,7 +1442,8 @@ export default function BudgetComparisonPage() {
                   <div className="flex justify-end">
                     <Button
                       onClick={() => setSplitDetail(null)}
-                      className="h-9 px-6 text-sm rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-md shadow-violet-200 dark:shadow-violet-900/30"
+                      className="h-9 px-6 text-sm rounded-xl text-white"
+                      style={{background: '#6d28d9'}}
                     >
                       Fechar
                     </Button>
@@ -1460,24 +1461,23 @@ export default function BudgetComparisonPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               {actionModal?.type === 'approve' && (
-                <><div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar para Faturamento</>
+                <><div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0"><CheckCircle className="w-4 h-4 text-emerald-600" /></div> Aprovar para Faturamento</>
               )}
               {actionModal?.type === 'reject' && (
-                <><div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-red-600" /></div> <span className="text-red-700 dark:text-red-400">Recusar prestação</span></>
+                <><div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><XCircle className="w-4 h-4 text-red-600" /></div> <span className="text-red-700">Recusar prestação</span></>
               )}
               {actionModal?.type === 'return' && (
-                <><div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-amber-600" /></div> <span className="text-amber-700 dark:text-amber-400">Devolver para correção</span></>
+                <><div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0"><RotateCcw className="w-4 h-4 text-amber-600" /></div> <span className="text-amber-700">Devolver para correção</span></>
               )}
             </DialogTitle>
-            {/* Subtitle: collaborator names */}
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 pl-1 leading-relaxed">
+            <p className="text-[11px] text-slate-500 mt-1 pl-1 leading-relaxed">
               {Array.from(selectedItems).map(idx => sortedData[idx]).filter(Boolean).map(row => getCollaboratorName(row!.collaboratorId).split(' ')[0]).join(', ')}
             </p>
           </DialogHeader>
           <div className="space-y-4">
             {/* Collaborator chips */}
-            <div className={`rounded-xl p-3 border ${actionModal?.type === 'reject' ? 'bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-800' : actionModal?.type === 'return' ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-800' : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-700'}`}>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-2">
+            <div className={`rounded-xl p-3 border ${actionModal?.type === 'reject' ? 'bg-red-50/60 border-red-100' : actionModal?.type === 'return' ? 'bg-amber-50/60 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">
                 {selectedItems.size} colaborador{selectedItems.size !== 1 ? 'es' : ''} afetado{selectedItems.size !== 1 ? 's' : ''}
               </p>
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
@@ -1496,8 +1496,8 @@ export default function BudgetComparisonPage() {
 
             {/* Comment field */}
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Comentário <span className="text-gray-400 font-normal">(opcional)</span>
+              <label className="text-sm font-medium text-slate-700">
+                Comentário <span className="text-slate-400 font-normal">(opcional)</span>
               </label>
               <Textarea
                 className="mt-1.5 rounded-xl text-sm resize-none"
@@ -1528,7 +1528,7 @@ export default function BudgetComparisonPage() {
                   onCheckedChange={v => setApplyCommentToAll(!!v)}
                   className="border-gray-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
                 />
-                <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">
+                <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">
                   Aplicar o mesmo comentário para todos os {selectedItems.size} colaboradores
                 </span>
               </label>
