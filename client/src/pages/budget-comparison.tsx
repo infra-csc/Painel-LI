@@ -1121,17 +1121,17 @@ export default function BudgetComparisonPage() {
                 }
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              {/* Secondary actions */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="outline"
-                      className="text-red-600 border-red-200 hover:bg-red-50 h-9 text-sm px-4 rounded-xl"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
-                      <XCircle className="w-4 h-4 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" /> Recusar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
@@ -1143,12 +1143,11 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="outline"
-                      className="text-amber-600 border-amber-200 hover:bg-amber-50 h-9 text-sm px-4 rounded-xl"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
-                      <RotateCcw className="w-4 h-4 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                      <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Devolver{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
@@ -1156,16 +1155,20 @@ export default function BudgetComparisonPage() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {/* Divider */}
+              <div className="w-px h-6 bg-slate-200 mx-1" />
+              {/* Primary approve action */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-5 rounded-xl text-white shadow-md"
+                      className="h-9 text-sm px-5 rounded-xl text-white font-bold shadow-md disabled:opacity-40"
                       style={{background: '#059669'}}
                       onClick={() => setActionModal({ type: 'approve' })}
                       disabled={selectedItems.size === 0}
                     >
-                      <CheckCircle className="w-4 h-4 mr-1.5" /> Aprovar{selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}
+                      <CheckCircle className="w-4 h-4 mr-1.5" />
+                      {selectedItems.size > 0 ? `Aprovar (${selectedItems.size})` : 'Aprovar'}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
