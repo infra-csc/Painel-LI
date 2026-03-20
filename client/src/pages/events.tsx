@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, Search } from "lucide-react";
+import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, Search, LayoutList, CalendarClock, CalendarCheck, CalendarX } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import ConfirmModal from "@/components/common/confirm-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
@@ -24,10 +24,10 @@ function getEventStatus(event: Event): string {
 function formatPeriod(s: string, e: string) {
   try {
     const d1 = new Date(s), d2 = new Date(e);
-    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yyyy");
+    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yy");
     const sameMonth = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-    if (sameMonth) return `${format(d1, "dd")}–${format(d2, "dd/MM/yyyy")}`;
-    return `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yyyy")}`;
+    if (sameMonth) return `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}`;
+    return `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
   } catch { return `${s} – ${e}`; }
 }
 
@@ -225,23 +225,34 @@ export default function Events() {
 
         {/* ── Stat cards ── */}
         {!isLoading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-            {[
-              { label: "Total",        value: stats.total,       icon: "calendar_month",     color: "#0033CC", bg: "#EEF2FF" },
-              { label: "Planejados",   value: stats.planejado,   icon: "schedule",            color: "#7C3AED", bg: "#F5F3FF" },
-              { label: "Em andamento", value: stats.emAndamento, icon: "play_circle",         color: "#F97316", bg: "#FFF7ED" },
-              { label: "Concluídos",   value: stats.concluido,   icon: "check_circle",        color: "#22C55E", bg: "#F0FDF4" },
-            ].map(c => (
-              <div key={c.label} style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 9, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 19, color: c.color, fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {([
+              { label: "Total de Eventos", value: stats.total,       icon: LayoutList,    color: "#3B82F6" },
+              { label: "Planejados",       value: stats.planejado,   icon: CalendarClock, color: "#8B5CF6" },
+              { label: "Em andamento",     value: stats.emAndamento, icon: CalendarCheck, color: "#F97316" },
+              { label: "Concluídos",       value: stats.concluido,   icon: CalendarX,     color: "#22C55E" },
+            ] as { label: string; value: number; icon: React.ElementType; color: string }[]).map(c => {
+              const Icon = c.icon;
+              return (
+                <div key={c.label}
+                  className="bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5"
+                  style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)" }}
+                  onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.10), 0 8px 24px rgba(0,0,0,0.07)")}
+                  onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)")}
+                >
+                  <div className="h-1 w-full" style={{ background: c.color }} />
+                  <div className="flex items-center gap-4 px-5 py-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${c.color}18` }}>
+                      <Icon style={{ width: 22, height: 22, color: c.color }} />
+                    </div>
+                    <div>
+                      <p className="uppercase text-[11px] font-semibold tracking-widest mb-1" style={{ color: "#6B7280" }}>{c.label}</p>
+                      <p className="tabular-nums font-bold leading-none" style={{ fontSize: 28, color: c.color }}>{c.value}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>{c.label}</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: c.color, margin: 0, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -399,7 +410,7 @@ export default function Events() {
                             display: "inline-flex", alignItems: "center", gap: 5,
                             padding: "3px 9px", borderRadius: 20,
                             background: sc.bg, color: sc.text,
-                            fontSize: 11, fontWeight: 600,
+                            fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
                           }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
                             {sc.label}
