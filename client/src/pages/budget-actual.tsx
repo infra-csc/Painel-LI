@@ -809,7 +809,7 @@ export default function BudgetActualPage() {
               </div>
               <div className="flex items-center gap-2">
                 {planned && Math.abs(diff) > 1 && <span className={`text-xs font-semibold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
-                <span className="text-[16px] font-black tabular-nums" style={{color:'#0033CC'}}>{formatCurrency(cardItem.totalValue)}</span>
+                <span className="text-[16px] font-black tabular-nums text-violet-700">{formatCurrency(cardItem.totalValue)}</span>
               </div>
             </div>
           );
@@ -824,7 +824,7 @@ export default function BudgetActualPage() {
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center" style={{background:'#0033CC', boxShadow:'0 4px 14px #0033CC50'}}>
+          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center" style={{background:'#6d28d9', boxShadow:'0 4px 14px #6d28d950'}}>
             <ClipboardCheck className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -931,38 +931,29 @@ export default function BudgetActualPage() {
           })()}
 
           {/* ── Banner Total Realizado ── */}
-          <div className="rounded-2xl overflow-hidden flex shadow-md" style={{boxShadow:'0 4px 20px #0033CC18'}}>
-            {/* Esquerda — total azul sólido */}
-            <div className="px-6 py-5 flex flex-col justify-center min-w-[220px]" style={{background:'linear-gradient(135deg, #0033CC 0%, #0044FF 100%)'}}>
+          <div className="rounded-2xl overflow-hidden flex shadow-md" style={{boxShadow:'0 4px 20px #7c3aed18'}}>
+            {/* Esquerda — total violeta sólido */}
+            <div className="px-6 py-5 flex flex-col justify-center min-w-[220px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
               <p className="text-[10px] font-black uppercase tracking-widest text-white/70 mb-1">Total Realizado</p>
               <div className="text-[30px] font-black text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
               <div className="text-[11px] text-white/60 mt-1.5 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</div>
             </div>
-            {/* Direita — stats em fundo azul muito claro */}
-            <div className="flex-1 px-5 py-4 flex flex-col justify-between" style={{background:'#F0F4FF'}}>
-              <div className="flex items-start gap-4">
+            {/* Direita — stats em fundo violeta muito claro */}
+            <div className="flex-1 px-5 py-4 flex flex-col justify-center" style={{background:'#F5F3FF'}}>
+              <div className="flex items-start gap-6">
                 {/* Prestações */}
-                <div className="flex-1">
+                <div>
                   <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Prestações</div>
-                  <div className="text-[20px] font-black leading-none" style={{color:'#0033CC'}}>{prestacaoCount}</div>
+                  <div className="text-[24px] font-black leading-none text-violet-700">{prestacaoCount}</div>
                 </div>
-                {/* Casa */}
-                <div className="flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Casa</div>
-                  <div className="text-[20px] font-black text-slate-700 leading-none">{formatCurrency(totalCasa)}</div>
-                </div>
-                {/* Freela */}
-                <div className="flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Freela</div>
-                  <div className="text-[20px] font-black text-slate-700 leading-none">{formatCurrency(totalFreela)}</div>
-                </div>
-                {/* Diferença */}
-                <div className="flex-1">
+                <div className="w-px self-stretch bg-violet-100" />
+                {/* vs Planejado */}
+                <div>
                   <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">vs Planejado</div>
-                  <div className={`text-[18px] font-black leading-none flex items-center gap-1 ${totalDifference === 0 ? 'text-slate-500' : totalDifference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  <div className={`text-[20px] font-black leading-none flex items-center gap-1.5 ${totalDifference === 0 ? 'text-slate-400' : totalDifference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                     {totalDifference < 0 && <TrendingDown className="w-4 h-4" />}
                     {totalDifference > 0 && <TrendingUp className="w-4 h-4" />}
-                    {totalDifference === 0 ? '=' : (totalDifference < 0 ? '-' : '+')+formatCurrency(Math.abs(totalDifference))}
+                    {totalDifference === 0 ? 'No planejado' : (totalDifference < 0 ? '-' : '+')+formatCurrency(Math.abs(totalDifference))}
                   </div>
                 </div>
               </div>
@@ -1123,18 +1114,18 @@ export default function BudgetActualPage() {
       )}
 
       {selectedEventId && filteredItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 z-40" style={{boxShadow:'0 -4px 20px #0033CC10'}}>
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 z-40" style={{boxShadow:'0 -4px 20px #6d28d910'}}>
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-[9px] uppercase tracking-widest font-black" style={{color:'#0033CC80'}}>Total Realizado</div>
-                <div className="text-[18px] font-black tabular-nums leading-tight" style={{color:'#0033CC'}}>{formatCurrency(totalRealizado)}</div>
+                <div className="text-[9px] uppercase tracking-widest font-black text-violet-400">Total Realizado</div>
+                <div className="text-[18px] font-black tabular-nums leading-tight text-violet-700">{formatCurrency(totalRealizado)}</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div className="text-[11px] text-slate-400">
                 {prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}
                 {selectedCards.size > 0 && (
-                  <span className="ml-2 font-semibold" style={{color:'#0033CC'}}>· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
+                  <span className="ml-2 font-semibold text-violet-600">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
                 )}
               </div>
             </div>
