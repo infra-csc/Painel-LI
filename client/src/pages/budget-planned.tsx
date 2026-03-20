@@ -1329,45 +1329,42 @@ export default function BudgetPlannedPage() {
             return (
             <>
               {/* ── Header ── */}
-              <div className="px-6 pt-5 pb-4 border-b border-slate-100 bg-white">
-                <div className="flex items-start gap-4">
-                  {/* Avatar azul */}
-                  <div className="w-11 h-11 rounded-[10px] flex items-center justify-center text-white font-black text-base shrink-0" style={{background:'#0033CC', boxShadow:'0 4px 12px #0033CC40'}}>
+              <div className="px-6 pt-5 pb-5 relative" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
+                {/* botão restaurar */}
+                <button
+                  onClick={restoreDefaults}
+                  className="absolute top-4 right-10 flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white/90 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Restaurar
+                </button>
+
+                <div className="flex items-center gap-4">
+                  {/* Avatar branco */}
+                  <div className="w-12 h-12 rounded-[12px] flex items-center justify-center font-black text-[17px] shrink-0" style={{background:'rgba(255,255,255,0.15)', color:'#fff', border:'1.5px solid rgba(255,255,255,0.25)'}}>
                     {modalInitials}
                   </div>
-
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-[17px] font-bold text-slate-800 leading-tight">{editingBudgetInfo.name}</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">{editingBudgetInfo.functionName}</p>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        editingBudgetInfo.type === 'Casa' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
-                      }`}>
+                    <h2 className="text-[18px] font-bold text-white leading-tight">{editingBudgetInfo.name}</h2>
+                    <p className="text-[12px] text-white/70 mt-0.5">{editingBudgetInfo.functionName}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                      <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md" style={{background:'rgba(255,255,255,0.15)', color:'#fff'}}>
                         {editingBudgetInfo.type}
                       </span>
-                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <span className="flex items-center gap-1 text-[11px] text-white/70">
                         <Calendar className="w-3 h-3" />
                         {editingBudgetInfo.period}
                       </span>
-                      <span className="flex items-center gap-1 text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">
+                      <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md" style={{background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
                         <Briefcase className="w-3 h-3" />
-                        {editingBudgetInfo.weekdays} dias úteis
+                        {editingBudgetInfo.weekdays}d úteis
                       </span>
-                      <span className="flex items-center gap-1 text-[11px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md">
+                      <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md" style={{background:'rgba(255,200,0,0.2)', color:'rgba(255,220,80,1)'}}>
                         <Sun className="w-3 h-3" />
-                        {editingBudgetInfo.weekends} fins de semana
+                        {editingBudgetInfo.weekends} fds
                       </span>
                     </div>
                   </div>
-
-                  <Button
-                    variant="ghost" size="sm"
-                    className="text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 h-8 px-2.5 gap-1.5 shrink-0 mr-6 rounded-lg"
-                    onClick={restoreDefaults}
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    Restaurar
-                  </Button>
                 </div>
               </div>
 
@@ -1580,14 +1577,22 @@ export default function BudgetPlannedPage() {
               </div>
 
               {/* ── Footer ── */}
-              <div className="px-5 py-4 border-t border-slate-100 bg-white">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Total */}
-                  <div className="rounded-xl px-4 py-3 min-w-[190px]" style={{background:'#EEF2FF', border:'1px solid #0033CC20'}}>
-                    <div className="text-[9px] uppercase font-black tracking-widest mb-0.5" style={{color:'#0033CC99'}}>Total Planejado</div>
-                    <div className="text-[22px] font-black leading-none transition-all" style={{color:'#0033CC'}}>{formatCurrency(modalTotal)}</div>
-                    <div className="text-[9px] text-slate-400 mt-1 leading-tight">
-                      Diárias {formatCurrency(totalDiarias)} · Alim. {formatCurrency(totalAlimentacao)} · Mob. {formatCurrency(editingBudget.mobilidade)}
+              <div className="border-t border-slate-100 bg-white">
+                {/* Faixa de total */}
+                <div className="px-5 py-3 flex items-center justify-between" style={{background:'#EEF2FF'}}>
+                  <div>
+                    <div className="text-[9px] uppercase font-black tracking-widest" style={{color:'#0033CC80'}}>Total Planejado</div>
+                    <div className="text-[24px] font-black leading-none mt-0.5 transition-all" style={{color:'#0033CC'}}>{formatCurrency(modalTotal)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[9px] text-slate-400 leading-tight">
+                      Diárias <span className="font-semibold text-slate-600">{formatCurrency(totalDiarias)}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400 mt-0.5 leading-tight">
+                      Alimentação <span className="font-semibold text-slate-600">{formatCurrency(totalAlimentacao)}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400 mt-0.5 leading-tight">
+                      Mobilidade <span className="font-semibold text-slate-600">{formatCurrency(editingBudget.mobilidade)}</span>
                     </div>
                     {hasChanges && (
                       <div className={`text-[10px] font-bold mt-1 ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
@@ -1595,25 +1600,25 @@ export default function BudgetPlannedPage() {
                       </div>
                     )}
                   </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      className="h-10 px-4 text-slate-500 hover:text-slate-700 rounded-xl"
-                      onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      onClick={saveEdit}
-                      disabled={!hasChanges}
-                      className="h-10 px-5 text-white font-semibold rounded-xl gap-2 transition-all shadow-md"
-                      style={{background:'#0033CC', boxShadow:'0 4px 12px #0033CC40'}}
-                    >
-                      <CheckCheck className="w-4 h-4" />
-                      {hasChanges ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
-                    </Button>
-                  </div>
+                </div>
+                {/* Botões */}
+                <div className="px-5 py-3 flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm"
+                    onClick={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={saveEdit}
+                    disabled={!hasChanges}
+                    className="h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm"
+                    style={{background:'#0033CC', boxShadow: hasChanges ? '0 4px 12px #0033CC40' : 'none'}}
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                    {hasChanges ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
+                  </Button>
                 </div>
               </div>
             </>
