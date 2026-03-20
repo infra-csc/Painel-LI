@@ -1677,16 +1677,18 @@ export default function Tickets() {
                         {/* Status */}
                         <td className={`px-4 py-3 cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {inclusion.status === 'cancelado' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold tracking-wide rounded-md">
                               Cancelado
                             </span>
                           ) : ticket ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase rounded-full" style={{background:'#DCFCE7',color:'#16A34A'}}>
-                              <CheckCircle className="w-3 h-3" /> Comprada
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md" style={{background:'#DCFCE7',color:'#15803D'}}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                              Comprada
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase rounded-full" style={{background:'#FEF3C7',color:'#D97706'}}>
-                              <Clock className="w-3 h-3" /> Pendente
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-wide rounded-md" style={{background:'#FEF9C3',color:'#B45309'}}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                              Pendente
                             </span>
                           )}
                         </td>
