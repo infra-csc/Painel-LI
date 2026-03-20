@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { canView, canEdit } from "@/lib/permissions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Calendar, MapPin } from "lucide-react";
+import { Plus, Calendar, MapPin, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -106,20 +106,38 @@ export default function TeamInclusion() {
 
   return (
     <>
-      {/* Botão para criar evento - apenas para usuários com permissão de edição */}
-      {canEdit(user as any, 'team_inclusion') && (
-        <div className="mb-6">
-          <Button 
+      {/* Page Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-[10px] bg-[#0033CC] flex items-center justify-center shrink-0"
+            style={{ boxShadow: "0 4px 14px #0033CC50" }}
+          >
+            <span
+              className="material-symbols-outlined text-white text-xl"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              group_add
+            </span>
+          </div>
+          <div>
+            <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Inclusão de Equipe</h1>
+            <p className="text-xs text-slate-400 mt-0.5">Monte a grade de funções e gerencie as inclusões do evento</p>
+          </div>
+        </div>
+        {canEdit(user as any, 'team_inclusion') && (
+          <button
             onClick={() => setShowEventModal(true)}
-            className="gap-2"
+            className="h-9 px-4 flex items-center gap-1.5 text-sm font-semibold text-white rounded-lg transition-all"
+            style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
             data-testid="button-create-event"
           >
-            <PlusCircle className="h-4 w-4" />
-            Criar Novo Evento
-          </Button>
-        </div>
-      )}
-      
+            <Plus className="h-4 w-4" />
+            Novo Evento
+          </button>
+        )}
+      </div>
+
       <div className="space-y-6">
         <GridTeamInclusionForm />
         <TeamInclusionTable />
@@ -129,23 +147,31 @@ export default function TeamInclusion() {
       <Dialog open={showEventModal} onOpenChange={setShowEventModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Criar Novo Evento
-            </DialogTitle>
+            <div className="flex items-center gap-3 mb-1">
+              <div
+                className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0"
+                style={{ boxShadow: "0 4px 12px #0033CC40" }}
+              >
+                <Calendar className="w-4 h-4 text-white" />
+              </div>
+              <DialogTitle className="text-[16px] font-bold text-slate-900">
+                Criar Novo Evento
+              </DialogTitle>
+            </div>
           </DialogHeader>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-1">
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome do Evento</FormLabel>
+                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nome do Evento <span className="text-red-400">*</span></FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="Ex: Festival de Inverno 2024" 
+                        className="h-9"
                         {...field}
                         data-testid="input-event-name"
                       />
@@ -160,13 +186,11 @@ export default function TeamInclusion() {
                 name="location"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" />
-                      Cidade
-                    </FormLabel>
+                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Cidade <span className="text-red-400">*</span></FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="Ex: São Paulo - SP" 
+                        placeholder="Ex: São Paulo - SP"
+                        className="h-9"
                         {...field}
                         data-testid="input-event-city"
                       />
@@ -182,10 +206,11 @@ export default function TeamInclusion() {
                   name="startDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Data de Início</FormLabel>
+                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Início <span className="text-red-400">*</span></FormLabel>
                       <FormControl>
                         <Input 
                           type="date" 
+                          className="h-9"
                           {...field}
                           data-testid="input-event-start-date"
                         />
@@ -200,10 +225,11 @@ export default function TeamInclusion() {
                   name="endDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Data de Fim</FormLabel>
+                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Fim <span className="text-red-400">*</span></FormLabel>
                       <FormControl>
                         <Input 
                           type="date" 
+                          className="h-9"
                           {...field}
                           data-testid="input-event-end-date"
                         />
@@ -219,10 +245,12 @@ export default function TeamInclusion() {
                 name="observations"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observações (Opcional)</FormLabel>
+                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Observações <span className="text-slate-300 normal-case font-normal">(opcional)</span></FormLabel>
                     <FormControl>
                       <Textarea 
                         placeholder="Informações adicionais sobre o evento..."
+                        className="resize-none"
+                        rows={3}
                         {...field}
                         data-testid="textarea-event-observations"
                       />
@@ -232,22 +260,28 @@ export default function TeamInclusion() {
                 )}
               />
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-4 bg-gray-50/50 -mx-6 px-6 py-4 -mb-6 rounded-b-lg">
+                <button
                   type="button"
-                  variant="outline"
                   onClick={() => setShowEventModal(false)}
+                  className="h-9 px-4 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-gray-100 transition-colors bg-white"
                   data-testid="button-cancel-event"
                 >
                   Cancelar
-                </Button>
-                <Button
+                </button>
+                <button
                   type="submit"
                   disabled={createEventMutation.isPending}
+                  className="h-9 px-5 text-sm font-semibold text-white rounded-lg flex items-center gap-2 transition-all disabled:opacity-60"
+                  style={{ background: "#0033CC", boxShadow: "0 2px 8px #0033CC40" }}
                   data-testid="button-save-event"
                 >
-                  {createEventMutation.isPending ? "Criando..." : "Criar Evento"}
-                </Button>
+                  {createEventMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</>
+                  ) : (
+                    <><Calendar className="w-4 h-4" /> Criar Evento</>
+                  )}
+                </button>
               </div>
             </form>
           </Form>

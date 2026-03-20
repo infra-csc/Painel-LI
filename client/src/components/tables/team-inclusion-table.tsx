@@ -529,17 +529,29 @@ export default function TeamInclusionTable() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-800">Lista de Inclusões de Equipe</h3>
-          {filteredAndSortedInclusions.length > 0 && (
-            <span className="text-xs text-slate-400 font-normal">{filteredAndSortedInclusions.length} {filteredAndSortedInclusions.length === 1 ? "registro" : "registros"}</span>
-          )}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0"
+              style={{ boxShadow: "0 4px 12px #0033CC40" }}
+            >
+              <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                format_list_bulleted
+              </span>
+            </div>
+            <div>
+              <h3 className="text-[15px] font-bold text-slate-900 leading-tight">Lista de Inclusões</h3>
+              {filteredAndSortedInclusions.length > 0 && (
+                <p className="text-xs text-slate-400 mt-0.5">{filteredAndSortedInclusions.length} {filteredAndSortedInclusions.length === 1 ? "registro" : "registros"}</p>
+              )}
+            </div>
+          </div>
         </div>
         
         <div>
           <table className="table-fixed w-full">
-            <thead className="bg-slate-50">
+            <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
               <tr>
                 <th className="w-[40px] px-2 py-3">
                   <Checkbox

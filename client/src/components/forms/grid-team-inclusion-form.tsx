@@ -1003,15 +1003,22 @@ export default function GridTeamInclusionForm() {
   };
 
   return (
-    <Card className="border-gray-200 shadow-sm rounded-xl overflow-hidden">
-      <CardHeader className="bg-slate-50/60 border-b border-gray-100 px-6 py-4">
-        <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
-          <Grid3x3 className="w-4 h-4 text-blue-600" />
-          Escalação por Grade
-        </CardTitle>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Configure as diárias por função e data. Números consecutivos iguais se tornam um registro único.
-        </p>
+    <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="border-b border-slate-100 px-6 py-4" style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center shrink-0"
+            style={{ boxShadow: "0 4px 12px #0033CC40" }}
+          >
+            <Grid3x3 className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-[15px] font-bold text-slate-900">Escalação por Grade</CardTitle>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Configure as diárias por função e data. Números consecutivos iguais se tornam um registro único.
+            </p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -1022,7 +1029,7 @@ export default function GridTeamInclusionForm() {
               name="eventId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Evento *</FormLabel>
+                  <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Evento <span className="text-red-400">*</span></FormLabel>
                   <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -1085,7 +1092,7 @@ export default function GridTeamInclusionForm() {
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Data Inicial *</FormLabel>
+                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Data Inicial <span className="text-red-400">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
@@ -1103,7 +1110,7 @@ export default function GridTeamInclusionForm() {
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Data Final *</FormLabel>
+                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Data Final <span className="text-red-400">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="date"
