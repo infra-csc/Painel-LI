@@ -115,12 +115,11 @@ export default function Sidebar() {
           width: 248,
           fontFamily: "'Inter', sans-serif",
           background: "#FAFBFF",
-          borderRight: "1px solid #E8ECF8",
         }}
       >
 
         {/* ── Logo ── */}
-        <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid #E8ECF8", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "16px 16px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 8, overflow: "hidden",
@@ -221,13 +220,13 @@ export default function Sidebar() {
         </nav>
 
         {/* ── Footer ── */}
-        <div style={{ padding: "12px 10px", borderTop: "1px solid #E8ECF8", background: "#F5F7FF" }}>
+        <div style={{ padding: "12px 10px", background: "#F5F7FF" }}>
 
           {/* User card */}
           <div style={{
             display: "flex", alignItems: "center", gap: 9,
             padding: "8px 10px", borderRadius: 8, marginBottom: 8,
-            background: "white", border: "1px solid #E8ECF8",
+            background: "white",
           }}>
             <div style={{
               width: 32, height: 32, borderRadius: 8, background: BLUE,
