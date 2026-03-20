@@ -1437,65 +1437,69 @@ export default function GridTeamInclusionForm() {
                 </div>
 
                 {/* Botão para adicionar função */}
-                <Button
+                <button
                   type="button"
                   onClick={openFunctionSelect}
-                  variant="outline"
-                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 rounded-xl w-full py-3 transition-colors bg-transparent hover:bg-transparent"
                   disabled={dates.length === 0}
+                  className="border-2 border-dashed border-slate-200 text-slate-400 hover:border-[#0033CC]/40 hover:text-[#0033CC] hover:bg-blue-50/30 rounded-xl w-full py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Função
-                </Button>
+                  <Plus className="w-4 h-4" />
+                  Adicionar Função à Grade
+                </button>
 
                 {/* Preview dos resultados */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
-                  <Label className="text-sm font-semibold mb-3 block text-blue-700">
-                    Registros que serão criados ({processGrid().length}):
-                  </Label>
-                  <div className="overflow-visible h-auto">
-                    {processGrid().length === 0 ? (
-                      <p className="text-slate-400 italic text-sm">Nenhum registro configurado.</p>
-                    ) : (
-                      processGrid().map((range, index) => {
-                        const functionRow = functionRows.find(r => r.functionId === range.functionId);
-                        const functionName = functionRow?.functionName || 
-                                           functions?.find(f => f.id === range.functionId)?.name ||
-                                           functions?.find(f => f.id === range.functionId.split('-')[0])?.name || 
-                                           'Função não encontrada';
-                        
-                        return (
-                          <div key={index} className={`flex justify-between py-1.5 ${index < processGrid().length - 1 ? 'border-b border-blue-100' : ''}`}>
-                            <span className="text-blue-600 text-sm">
-                              {functionName} - {formatDiarias(range.dailyRate)}
-                            </span>
-                            <span className="text-blue-400 text-xs font-medium">
-                              {formatDateForDisplay(range.startDate)} a {formatDateForDisplay(range.endDate)}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+                {(() => {
+                  const records = processGrid();
+                  return (
+                    <div className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Prévia dos registros</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${records.length > 0 ? 'bg-[#0033CC]/10 text-[#0033CC]' : 'bg-slate-100 text-slate-400'}`}>
+                          {records.length} {records.length === 1 ? 'registro' : 'registros'}
+                        </span>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto">
+                        {records.length === 0 ? (
+                          <p className="text-slate-400 text-sm text-center py-4 italic">Nenhum registro configurado ainda.</p>
+                        ) : (
+                          records.map((range, index) => {
+                            const functionRow = functionRows.find(r => r.functionId === range.functionId);
+                            const functionName = functionRow?.functionName ||
+                              functions?.find(f => f.id === range.functionId)?.name ||
+                              functions?.find(f => f.id === range.functionId.split('-')[0])?.name ||
+                              'Função não encontrada';
+                            return (
+                              <div key={index} className={`flex items-center justify-between px-4 py-2 text-sm ${index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#0033CC]/40 shrink-0" />
+                                  <span className="font-medium text-slate-700">{functionName}</span>
+                                  <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">{formatDiarias(range.dailyRate)}</span>
+                                </div>
+                                <span className="text-xs text-slate-400 font-medium shrink-0">
+                                  {formatDateForDisplay(range.startDate)} → {formatDateForDisplay(range.endDate)}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Botões de ação */}
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Botão para salvar rascunho */}
-                    <Button
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <button
                       type="button"
                       onClick={saveDraft}
-                      variant="outline"
-                      className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors bg-white"
                       data-testid="button-save-draft"
                     >
-                      <Save className="w-4 h-4 mr-2" />
+                      <Save className="w-3.5 h-3.5" />
                       Salvar Rascunho
-                    </Button>
-                    
-                    {/* Botão para carregar rascunho */}
-                    <Button
+                    </button>
+                    <button
                       type="button"
                       onClick={() => {
                         const loaded = loadDraft();
@@ -1507,26 +1511,25 @@ export default function GridTeamInclusionForm() {
                           });
                         }
                       }}
-                      variant="outline"
-                      className="border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+                      className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors bg-white"
                       data-testid="button-load-draft"
                     >
-                      <Upload className="w-4 h-4 mr-2" />
+                      <Download className="w-3.5 h-3.5" />
                       Carregar Rascunho
-                    </Button>
+                    </button>
                   </div>
-                  
-                  {/* Botão para criar escalações */}
-                  <Button
+
+                  <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={isProcessing}
-                    className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all rounded-lg font-medium text-white"
+                    disabled={isProcessing || processGrid().length === 0}
+                    className="w-full h-11 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
+                    style={{ background: "#0033CC", boxShadow: "0 3px 12px #0033CC40" }}
                     data-testid="button-save-grid"
                   >
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="w-4 h-4" />
                     {isProcessing ? "Criando Escalações..." : `Criar ${processGrid().length} Escalação(ões)`}
-                  </Button>
+                  </button>
                 </div>
               </div>
             )}
