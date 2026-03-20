@@ -1060,33 +1060,6 @@ export default function Scaling() {
         </div>
       </UniversalFilters>
 
-      {/* Stats summary bar */}
-      {scalingInclusions.length > 0 && (() => {
-        const totalCount = scalingInclusions.length;
-        const pendentesCount = scalingInclusions.filter(i => !isEscalated(i) && i.status !== 'cancelado').length;
-        return (
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
-              <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                <Users className="w-3.5 h-3.5 text-slate-500" />
-              </div>
-              <div>
-                <div className="text-[18px] font-black text-slate-800 leading-none">{totalCount}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Total</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 shadow-sm">
-              <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
-                <Clock className="w-3.5 h-3.5 text-orange-500" />
-              </div>
-              <div>
-                <div className="text-[18px] font-black text-orange-600 leading-none">{pendentesCount}</div>
-                <div className="text-[10px] font-bold text-orange-400 uppercase tracking-wide mt-0.5">Pendentes</div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
           {scalingInclusions.length === 0 ? (
             <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
