@@ -1,113 +1,83 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import {
-  Plus, Edit, Trash2, Search, X,
-  ChevronUp, ChevronDown, ChevronsUpDown,
-  CalendarCheck, CalendarClock, CalendarX, LayoutList, Users, RotateCcw
-} from "lucide-react";
+import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, Search } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import ConfirmModal from "@/components/common/confirm-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
 import { format } from "date-fns";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 function getEventStatus(event: Event): string {
   if (event.status === "excluído") return "excluído";
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end = new Date(event.endDate); end.setHours(0, 0, 0, 0);
+  const end   = new Date(event.endDate);   end.setHours(0, 0, 0, 0);
   const start = new Date(event.startDate); start.setHours(0, 0, 0, 0);
-  if (end < today) return "concluído";
+  if (end < today)   return "concluído";
   if (start <= today) return "em andamento";
   return event.status;
 }
 
-function formatPeriod(startStr: string, endStr: string): string {
+function formatPeriod(s: string, e: string) {
   try {
-    const s = new Date(startStr);
-    const e = new Date(endStr);
-    if (s.toDateString() === e.toDateString()) return format(s, "dd/MM/yyyy");
-    const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
-    if (sameMonth) return `${format(s, "dd")}–${format(e, "dd/MM/yyyy")}`;
-    return `${format(s, "dd/MM")} – ${format(e, "dd/MM/yyyy")}`;
-  } catch { return `${startStr} – ${endStr}`; }
+    const d1 = new Date(s), d2 = new Date(e);
+    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yyyy");
+    const sameMonth = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+    if (sameMonth) return `${format(d1, "dd")}–${format(d2, "dd/MM/yyyy")}`;
+    return `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yyyy")}`;
+  } catch { return `${s} – ${e}`; }
 }
 
-const STATUS_CONFIG: Record<string, { label: string; badgeCls: string }> = {
-  planejado:      { label: "Planejado",    badgeCls: "bg-blue-50 text-blue-600 ring-1 ring-blue-200" },
-  "em andamento": { label: "Em andamento", badgeCls: "bg-amber-50 text-amber-600 ring-1 ring-amber-200" },
-  concluído:      { label: "Concluído",    badgeCls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
-  excluído:       { label: "Excluído",     badgeCls: "bg-gray-100 text-gray-400 ring-1 ring-gray-200" },
+const STATUS: Record<string, { label: string; dot: string; bg: string; text: string }> = {
+  planejado:      { label: "Planejado",    dot: "#3B82F6", bg: "#EFF6FF", text: "#1D4ED8" },
+  "em andamento": { label: "Em andamento", dot: "#F97316", bg: "#FFF7ED", text: "#C2410C" },
+  concluído:      { label: "Concluído",    dot: "#22C55E", bg: "#F0FDF4", text: "#15803D" },
+  excluído:       { label: "Excluído",     dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B" },
 };
 
 type SortKey = "eventNumber" | "name" | "period" | "status";
 type SortDir = "asc" | "desc";
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown className="w-3 h-3 opacity-25 ml-1 inline" />;
+function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ChevronsUpDown size={11} className="ml-1 inline opacity-30" />;
   return sortDir === "asc"
-    ? <ChevronUp className="w-3 h-3 ml-1 inline text-blue-600" />
-    : <ChevronDown className="w-3 h-3 ml-1 inline text-blue-600" />;
+    ? <ChevronUp size={11} className="ml-1 inline text-[#0033CC]" />
+    : <ChevronDown size={11} className="ml-1 inline text-[#0033CC]" />;
 }
 
-// ─── StatCard ────────────────────────────────────────────────────────────────
-interface StatCardProps {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  color: string;
-}
-function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
-  return (
-    <div
-      className="bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5"
-      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)" }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.10), 0 8px 24px rgba(0,0,0,0.07)")}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)")}
-    >
-      {/* Faixa de cor no topo */}
-      <div className="h-1 w-full" style={{ background: color }} />
-      {/* Conteúdo */}
-      <div className="flex items-center gap-4 px-5 py-4">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}18` }}>
-          <Icon style={{ width: 22, height: 22, color }} />
-        </div>
-        <div>
-          <p className="uppercase text-[11px] font-semibold tracking-widest mb-1" style={{ color: "#6B7280" }}>{label}</p>
-          <p className="tabular-nums font-bold leading-none" style={{ fontSize: 28, color }}>{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-// ─── Component ───────────────────────────────────────────────────────────────
+const sel: React.CSSProperties = {
+  height: 34, fontSize: 12, padding: "0 8px",
+  border: "1px solid #E2E8F0", borderRadius: 7,
+  background: "white", color: "#374151",
+  fontFamily: "inherit", cursor: "pointer", outline: "none",
+};
+
+// ─── component ────────────────────────────────────────────────────────────────
+
 export default function Events() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("default");
-  const [monthFilter, setMonthFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("eventNumber");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [defaultSortActive, setDefaultSortActive] = useState(true);
+  const [isModalOpen,   setIsModalOpen]   = useState(false);
+  const [editingEvent,  setEditingEvent]  = useState<Event | null>(null);
+  const [search,        setSearch]        = useState("");
+  const [statusFilter,  setStatusFilter]  = useState("default");
+  const [monthFilter,   setMonthFilter]   = useState("all");
+  const [yearFilter,    setYearFilter]    = useState("all");
+  const [sortKey,       setSortKey]       = useState<SortKey>("eventNumber");
+  const [sortDir,       setSortDir]       = useState<SortDir>("desc");
+  const [defaultSort,   setDefaultSort]   = useState(true);
   const [confirmState, setConfirmState] = useState<{
-    open: boolean; title: string; message: string; confirmLabel: string; variant?: "delete" | "cancel" | "confirm"; onConfirm: () => void;
-  }>({ open: false, title: '', message: '', confirmLabel: '', variant: 'delete', onConfirm: () => {} });
+    open: boolean; title: string; message: string; confirmLabel: string; variant?: "delete"|"cancel"|"confirm"; onConfirm: () => void;
+  }>({ open: false, title: "", message: "", confirmLabel: "", variant: "delete", onConfirm: () => {} });
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events?includeDeleted=true"],
-  });
-  const { data: inclusions } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
+  const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events?includeDeleted=true"] });
+  const { data: inclusions }        = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
   const escalacoesByEvent = useMemo(() => {
     if (!inclusions) return {} as Record<string, number>;
@@ -120,10 +90,7 @@ export default function Events() {
   const availableYears = useMemo(() => {
     if (!events) return [];
     const years = new Set<number>();
-    events.forEach(e => {
-      years.add(new Date(e.startDate).getFullYear());
-      years.add(new Date(e.endDate).getFullYear());
-    });
+    events.forEach(e => { years.add(new Date(e.startDate).getFullYear()); years.add(new Date(e.endDate).getFullYear()); });
     return Array.from(years).sort((a, b) => b - a);
   }, [events]);
 
@@ -139,59 +106,43 @@ export default function Events() {
   }, [events]);
 
   const handleSort = (key: SortKey) => {
-    setDefaultSortActive(false);
+    setDefaultSort(false);
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  const handleStatusFilterChange = (val: string) => {
+  const handleStatusChange = (val: string) => {
     setStatusFilter(val);
-    if (val === "default") {
-      setSortKey("eventNumber");
-      setSortDir("desc");
-      setDefaultSortActive(true);
-    }
+    if (val === "default") { setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true); }
   };
 
-  const filteredAndSortedEvents = useMemo(() => {
+  const filteredAndSorted = useMemo(() => {
     if (!events) return [];
     let list = [...events];
-    if (searchTerm.trim()) {
-      const t = searchTerm.toLowerCase();
+    if (search.trim()) {
+      const t = search.toLowerCase();
       list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
     }
-    if (statusFilter === "default") list = list.filter(e => getEventStatus(e) === "planejado" || getEventStatus(e) === "em andamento");
+    if (statusFilter === "default") list = list.filter(e => ["planejado","em andamento"].includes(getEventStatus(e)));
     else if (statusFilter === "active") list = list.filter(e => e.status !== "excluído");
     else if (statusFilter !== "all") list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (dateFilter) {
-      const selected = new Date(dateFilter); selected.setHours(0,0,0,0);
-      list = list.filter(e => {
-        const es = new Date(e.startDate); es.setHours(0,0,0,0);
-        const ee = new Date(e.endDate);   ee.setHours(0,0,0,0);
-        return selected >= es && selected <= ee;
-      });
-    }
     if (monthFilter !== "all" || yearFilter !== "all") {
       list = list.filter(e => {
-        const es = new Date(e.startDate);
-        const ee = new Date(e.endDate);
-        const cur = new Date(es.getFullYear(), es.getMonth(), 1);
-        const endMonth = new Date(ee.getFullYear(), ee.getMonth(), 1);
-        while (cur <= endMonth) {
-          const mMatch = monthFilter === "all" || cur.getMonth() + 1 === Number(monthFilter);
-          const yMatch = yearFilter === "all" || cur.getFullYear() === Number(yearFilter);
-          if (mMatch && yMatch) return true;
+        const cur = new Date(new Date(e.startDate).getFullYear(), new Date(e.startDate).getMonth(), 1);
+        const endM = new Date(new Date(e.endDate).getFullYear(), new Date(e.endDate).getMonth(), 1);
+        while (cur <= endM) {
+          const mOk = monthFilter === "all" || cur.getMonth() + 1 === Number(monthFilter);
+          const yOk = yearFilter === "all" || cur.getFullYear() === Number(yearFilter);
+          if (mOk && yOk) return true;
           cur.setMonth(cur.getMonth() + 1);
         }
         return false;
       });
     }
-    if (defaultSortActive && statusFilter === "default") {
-      const statusPriority = (e: Event) => getEventStatus(e) === "em andamento" || e.status === "em andamento" ? 0 : 1;
+    if (defaultSort && statusFilter === "default") {
       list.sort((a, b) => {
-        const p = statusPriority(a) - statusPriority(b);
-        if (p !== 0) return p;
-        return b.eventNumber - a.eventNumber;
+        const p = (getEventStatus(a) === "em andamento" ? 0 : 1) - (getEventStatus(b) === "em andamento" ? 0 : 1);
+        return p !== 0 ? p : b.eventNumber - a.eventNumber;
       });
     } else {
       list.sort((a, b) => {
@@ -204,320 +155,316 @@ export default function Events() {
       });
     }
     return list;
-  }, [events, searchTerm, statusFilter, dateFilter, monthFilter, yearFilter, sortKey, sortDir, defaultSortActive]);
+  }, [events, search, statusFilter, monthFilter, yearFilter, sortKey, sortDir, defaultSort]);
 
-  const invalidateEvents = async () => {
+  const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
     await queryClient.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
-  const deleteEventMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
-    onSuccess: async () => {
-      await invalidateEvents();
-      toast({ title: "Sucesso", description: "Evento marcado como excluído com sucesso!" });
-    },
-    onError: () => toast({ title: "Erro", description: "Erro ao marcar evento como excluído.", variant: "destructive" }),
+    onSuccess: async () => { await invalidate(); toast({ title: "Sucesso", description: "Evento marcado como excluído." }); },
+    onError: () => toast({ title: "Erro", description: "Erro ao excluir evento.", variant: "destructive" }),
   });
-
-  const restoreEventMutation = useMutation({
+  const restoreMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
-    onSuccess: async () => {
-      await invalidateEvents();
-      toast({ title: "Sucesso", description: "Evento restaurado com sucesso!" });
-    },
+    onSuccess: async () => { await invalidate(); toast({ title: "Sucesso", description: "Evento restaurado." }); },
     onError: () => toast({ title: "Erro", description: "Erro ao restaurar evento.", variant: "destructive" }),
   });
 
-  const handleOpenModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
-  const handleCloseModal = () => { setIsModalOpen(false); setEditingEvent(null); };
-  const handleDelete = (event: Event) => {
-    setConfirmState({
-      open: true,
-      title: 'Marcar como excluído?',
-      message: `O evento "${event.name}" será marcado como excluído, mas continuará visível na lista.`,
-      confirmLabel: 'Marcar como excluído',
-      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); deleteEventMutation.mutate(event); },
-    });
-  };
-  const handleRestore = (event: Event) => {
-    setConfirmState({
-      open: true,
-      title: 'Restaurar evento?',
-      message: `O evento "${event.name}" será restaurado e voltará ao status "Planejado".`,
-      confirmLabel: 'Restaurar',
-      variant: 'confirm',
-      onConfirm: () => { setConfirmState(prev => ({ ...prev, open: false })); restoreEventMutation.mutate(event); },
-    });
-  };
+  const openModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
+  const closeModal = () => { setIsModalOpen(false); setEditingEvent(null); };
+
+  const confirmDelete = (event: Event) => setConfirmState({
+    open: true, title: "Excluir evento?",
+    message: `O evento "${event.name}" será marcado como excluído.`,
+    confirmLabel: "Excluir", variant: "delete",
+    onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); deleteMutation.mutate(event); },
+  });
+  const confirmRestore = (event: Event) => setConfirmState({
+    open: true, title: "Restaurar evento?",
+    message: `O evento "${event.name}" voltará ao status "Planejado".`,
+    confirmLabel: "Restaurar", variant: "confirm",
+    onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); restoreMutation.mutate(event); },
+  });
 
   const clearFilters = () => {
-    setSearchTerm(""); setStatusFilter("default"); setDateFilter(""); setMonthFilter("all"); setYearFilter("all");
-    setSortKey("eventNumber"); setSortDir("desc"); setDefaultSortActive(true);
+    setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all");
+    setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true);
   };
-  const hasActiveFilters = !!(searchTerm || statusFilter !== "default" || dateFilter || monthFilter !== "all" || yearFilter !== "all");
+  const hasFilters = !!(search || statusFilter !== "default" || monthFilter !== "all" || yearFilter !== "all");
 
   return (
     <TooltipProvider>
-      <div className="space-y-8">
+      <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* ── Page header ── */}
-        <div className="flex justify-between items-end">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#0033CC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "white", fontVariationSettings: "'FILL' 1" }}>event</span>
+          </div>
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Gerenciamento de Eventos</h2>
-            <p className="text-slate-500 mt-1 font-medium">Controle e acompanhamento de cronogramas logísticos.</p>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.2 }}>Eventos</h1>
+            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>Controle e acompanhamento de cronogramas logísticos</p>
           </div>
           <button
-            onClick={() => handleOpenModal()}
+            onClick={() => openModal()}
             data-testid="button-add-event"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white text-sm transition-all hover:shadow-xl active:scale-95"
-            style={{ background: "#0033CC" }}
+            style={{
+              marginLeft: "auto", height: 36, padding: "0 16px",
+              borderRadius: 8, background: "#0033CC", color: "white",
+              border: "none", cursor: "pointer", fontFamily: "inherit",
+              fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 7,
+            }}
           >
-            <Plus className="w-4 h-4" />
+            <Plus size={15} strokeWidth={2.5} />
             Novo Evento
           </button>
         </div>
 
         {/* ── Stat cards ── */}
         {!isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <StatCard label="Total de Eventos" value={stats.total}       icon={LayoutList}    color="#3B82F6" />
-            <StatCard label="Planejados"        value={stats.planejado}   icon={CalendarClock} color="#8B5CF6" />
-            <StatCard label="Em andamento"      value={stats.emAndamento} icon={CalendarCheck} color="#F97316" />
-            <StatCard label="Concluídos"        value={stats.concluido}   icon={CalendarX}     color="#22C55E" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+            {[
+              { label: "Total",        value: stats.total,       icon: "calendar_month",     color: "#0033CC", bg: "#EEF2FF" },
+              { label: "Planejados",   value: stats.planejado,   icon: "schedule",            color: "#7C3AED", bg: "#F5F3FF" },
+              { label: "Em andamento", value: stats.emAndamento, icon: "play_circle",         color: "#F97316", bg: "#FFF7ED" },
+              { label: "Concluídos",   value: stats.concluido,   icon: "check_circle",        color: "#22C55E", bg: "#F0FDF4" },
+            ].map(c => (
+              <div key={c.label} style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 9, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 19, color: c.color, fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>{c.label}</p>
+                  <p style={{ fontSize: 24, fontWeight: 700, color: c.color, margin: 0, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* ── Filters card ── */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+        {/* ── Filter bar ── */}
+        <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", padding: "12px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 
             {/* Search */}
-            <div className="lg:col-span-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Busca</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Nome do evento ou cidade..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  data-testid="input-search-event"
-                  className="pl-10 h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10"
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+            <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
+              <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#CBD5E1" }} />
+              <input
+                placeholder="Buscar por nome ou cidade..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                data-testid="input-search-event"
+                style={{ ...sel, paddingLeft: 28, paddingRight: search ? 28 : 8, width: "100%", flex: "none" }}
+              />
+              {search && (
+                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", display: "flex" }}>
+                  <X size={12} />
+                </button>
+              )}
             </div>
 
             {/* Status */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Status</label>
-              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10" data-testid="select-status-filter">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
-                  <SelectItem value="default">Planejado + Em andamento</SelectItem>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="planejado">Planejado</SelectItem>
-                  <SelectItem value="em andamento">Em andamento</SelectItem>
-                  <SelectItem value="concluído">Concluído</SelectItem>
-                  <SelectItem value="excluído">Excluído</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <select value={statusFilter} onChange={e => handleStatusChange(e.target.value)} style={sel} data-testid="select-status-filter">
+              <option value="default">Planejado + Em andamento</option>
+              <option value="all">Todos os status</option>
+              <option value="active">Ativos</option>
+              <option value="planejado">Planejado</option>
+              <option value="em andamento">Em andamento</option>
+              <option value="concluído">Concluído</option>
+              <option value="excluído">Excluído</option>
+            </select>
 
             {/* Month */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mês</label>
-              <Select value={monthFilter} onValueChange={setMonthFilter}>
-                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10">
-                  <SelectValue placeholder="Mês" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
-                  <SelectItem value="all">Todos os meses</SelectItem>
-                  {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
-                    <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={sel}>
+              <option value="all">Todos os meses</option>
+              {MONTHS.map((m, i) => <option key={i + 1} value={String(i + 1)}>{m}</option>)}
+            </select>
 
             {/* Year */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Ano</label>
-              <Select value={yearFilter} onValueChange={setYearFilter}>
-                <SelectTrigger className="h-11 bg-slate-50 border-none rounded-xl text-sm focus:ring-4 focus:ring-blue-500/10">
-                  <SelectValue placeholder="Ano" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg">
-                  <SelectItem value="all">Todos</SelectItem>
-                  {availableYears.map(y => (
-                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={sel}>
+              <option value="all">Todos os anos</option>
+              {availableYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+            </select>
 
             {/* Clear */}
-            <div className="flex gap-2">
-              <button
-                onClick={clearFilters}
-                data-testid="button-clear-filters"
-                className="flex-1 h-11 bg-slate-100 text-slate-600 px-4 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
-              >
+            {hasFilters && (
+              <button onClick={clearFilters} data-testid="button-clear-filters"
+                style={{ ...sel, display: "flex", alignItems: "center", gap: 5, paddingLeft: 10, paddingRight: 10, color: "#64748B", cursor: "pointer" }}>
+                <X size={11} />
                 Limpar
               </button>
-            </div>
+            )}
+
+            {/* Count */}
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#94A3B8", whiteSpace: "nowrap" }}>
+              {filteredAndSorted.length} evento{filteredAndSorted.length !== 1 ? "s" : ""}
+            </span>
           </div>
         </div>
 
-        {/* ── Table card ── */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+        {/* ── Table ── */}
+        <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", overflow: "hidden" }}>
           {isLoading ? (
-            <div className="text-center py-16 text-slate-400 text-sm">Carregando eventos...</div>
+            <div style={{ textAlign: "center", padding: "48px 0", color: "#CBD5E1", fontSize: 13 }}>Carregando eventos...</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th
-                      onClick={() => handleSort("eventNumber")}
-                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600 w-16"
-                    >
-                      ID <SortIcon col="eventNumber" sortKey={sortKey} sortDir={sortDir} />
-                    </th>
-                    <th
-                      onClick={() => handleSort("name")}
-                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600"
-                    >
-                      Nome do Evento <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-                    </th>
-                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                      Localização
-                    </th>
-                    <th
-                      onClick={() => handleSort("period")}
-                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600 whitespace-nowrap"
-                    >
-                      Período <SortIcon col="period" sortKey={sortKey} sortDir={sortDir} />
-                    </th>
-                    <th
-                      onClick={() => handleSort("status")}
-                      className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none hover:text-slate-600"
-                    >
-                      Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
-                    </th>
-                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center justify-center gap-1 cursor-default">
-                            <Users className="w-3.5 h-3.5" /> Escal.
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>Escalações ativas no evento</TooltipContent>
-                      </Tooltip>
-                    </th>
-                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">
-                      Ações
-                    </th>
+                  <tr style={{ background: "#FAFBFF", borderBottom: "1px solid #F1F5F9" }}>
+                    {([
+                      { key: "eventNumber", label: "Nº",             w: 60,  center: true },
+                      { key: "name",        label: "Evento",         w: null },
+                      { key: null,          label: "Localização",    w: 160 },
+                      { key: "period",      label: "Período",        w: 140 },
+                      { key: "status",      label: "Status",         w: 130 },
+                      { key: null,          label: "Escal.",         w: 70,  center: true, tooltip: "Escalações ativas" },
+                      { key: null,          label: "Ações",          w: 80,  right: true },
+                    ] as { key: SortKey | null; label: string; w: number | null; center?: boolean; right?: boolean; tooltip?: string }[]).map((col, i) => (
+                      <th key={i}
+                        onClick={() => col.key && handleSort(col.key)}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: 10, fontWeight: 700, color: "#94A3B8",
+                          textTransform: "uppercase", letterSpacing: "0.07em",
+                          textAlign: col.center ? "center" : col.right ? "right" : "left",
+                          cursor: col.key ? "pointer" : "default",
+                          userSelect: "none",
+                          width: col.w ?? undefined,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {col.tooltip
+                          ? <Tooltip><TooltipTrigger asChild><span>{col.label} {col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</span></TooltipTrigger><TooltipContent>{col.tooltip}</TooltipContent></Tooltip>
+                          : <>{col.label} {col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</>
+                        }
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredAndSortedEvents.map(event => {
-                    const displayStatus = getEventStatus(event);
-                    const statusCfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["planejado"];
-                    const isDeleted = displayStatus === "excluído";
-                    const isOngoing = displayStatus === "em andamento";
+                <tbody>
+                  {filteredAndSorted.map((event, idx) => {
+                    const ds = getEventStatus(event);
+                    const sc = STATUS[ds] ?? STATUS["planejado"];
+                    const isDeleted  = ds === "excluído";
+                    const isOngoing  = ds === "em andamento";
                     const escalacoes = escalacoesByEvent[event.id] ?? 0;
-
                     return (
-                      <tr
-                        key={event.id}
-                        className={`hover:bg-slate-50/30 transition-colors group ${isDeleted ? "opacity-60" : ""}`}
+                      <tr key={event.id}
+                        style={{
+                          borderTop: idx > 0 ? "1px solid #F8FAFC" : "none",
+                          background: "white",
+                          opacity: isDeleted ? 0.55 : 1,
+                          transition: "background 0.1s",
+                        }}
+                        className="group hover:bg-slate-50/60"
                       >
-                        <td className="px-6 py-5 text-sm font-bold text-slate-400 tabular-nums">
-                          {event.eventNumber}
+                        {/* Nº */}
+                        <td style={{ padding: "11px 14px", textAlign: "center" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", fontVariantNumeric: "tabular-nums" }}>
+                            #{event.eventNumber}
+                          </span>
                         </td>
-                        <td className="px-6 py-5 text-sm font-bold text-slate-900">
-                          <span className="flex items-center gap-2">
+
+                        {/* Nome */}
+                        <td style={{ padding: "11px 14px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             {isOngoing && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F97316", flexShrink: 0, animation: "pulse 2s infinite" }} />
                             )}
-                            {event.name}
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{event.name}</span>
+                          </div>
+                        </td>
+
+                        {/* Localização */}
+                        <td style={{ padding: "11px 14px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                            <span style={{ fontSize: 12, color: "#64748B" }}>{event.location}</span>
+                          </div>
+                        </td>
+
+                        {/* Período */}
+                        <td style={{ padding: "11px 14px" }}>
+                          <span style={{ fontSize: 12, color: "#64748B", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                            {formatPeriod(event.startDate, event.endDate)}
                           </span>
                         </td>
-                        <td className="px-6 py-5 text-sm font-medium text-slate-500">{event.location}</td>
-                        <td className="px-6 py-5 text-sm font-medium text-slate-500 whitespace-nowrap tabular-nums">
-                          {formatPeriod(event.startDate, event.endDate)}
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${statusCfg.badgeCls}`}>
-                            {statusCfg.label}
+
+                        {/* Status badge */}
+                        <td style={{ padding: "11px 14px" }}>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "3px 9px", borderRadius: 20,
+                            background: sc.bg, color: sc.text,
+                            fontSize: 11, fontWeight: 600,
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
+                            {sc.label}
                           </span>
                         </td>
-                        <td className="px-6 py-5 text-sm font-bold text-center">
+
+                        {/* Escalações */}
+                        <td style={{ padding: "11px 14px", textAlign: "center" }}>
                           {escalacoes > 0
-                            ? <span className="text-slate-900">{escalacoes}</span>
-                            : <span className="text-slate-300">—</span>}
+                            ? <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{escalacoes}</span>
+                            : <span style={{ fontSize: 12, color: "#E2E8F0" }}>—</span>}
                         </td>
-                        <td className="px-6 py-5 text-right space-x-1">
-                          {isDeleted ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleRestore(event)}
-                                  data-testid={`button-restore-event-${event.id}`}
-                                  className="p-2 text-slate-400 hover:text-green-600 transition-colors"
-                                >
-                                  <RotateCcw className="w-4 h-4" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>Restaurar evento</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <>
+
+                        {/* Ações */}
+                        <td style={{ padding: "11px 14px", textAlign: "right" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                            {isDeleted ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <button
-                                    onClick={() => handleOpenModal(event)}
-                                    data-testid={`button-edit-event-${event.id}`}
-                                    className="p-2 text-slate-400 hover:text-[#0033CC] transition-colors"
-                                  >
-                                    <Edit className="w-4 h-4" />
+                                  <button onClick={() => confirmRestore(event)} data-testid={`button-restore-event-${event.id}`}
+                                    style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+                                    className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors">
+                                    <RotateCcw size={14} />
                                   </button>
                                 </TooltipTrigger>
-                                <TooltipContent>Editar evento</TooltipContent>
+                                <TooltipContent>Restaurar</TooltipContent>
                               </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    onClick={() => handleDelete(event)}
-                                    data-testid={`button-delete-event-${event.id}`}
-                                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent>Excluir evento</TooltipContent>
-                              </Tooltip>
-                            </>
-                          )}
+                            ) : (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button onClick={() => openModal(event)} data-testid={`button-edit-event-${event.id}`}
+                                      style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+                                      className="hover:bg-blue-50 hover:!text-[#0033CC] transition-colors">
+                                      <Edit size={13} />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Editar</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button onClick={() => confirmDelete(event)} data-testid={`button-delete-event-${event.id}`}
+                                      style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+                                      className="hover:bg-red-50 hover:!text-red-500 transition-colors">
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Excluir</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
-                  {filteredAndSortedEvents.length === 0 && (
+                  {filteredAndSorted.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-16 text-slate-400 text-sm">
-                        {statusFilter === "default" && !searchTerm && monthFilter === "all" && yearFilter === "all" && !dateFilter
-                          ? "Nenhum evento planejado ou em andamento. Selecione \"Todos os status\" para ver eventos concluídos."
-                          : hasActiveFilters
-                            ? "Nenhum evento encontrado com os filtros aplicados."
-                            : "Nenhum evento cadastrado. Clique em 'Novo Evento' para criar o primeiro."}
+                      <td colSpan={7} style={{ textAlign: "center", padding: "48px 0" }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#E2E8F0", display: "block", marginBottom: 8 }}>event_busy</span>
+                        <p style={{ fontSize: 13, color: "#CBD5E1", margin: 0 }}>
+                          {statusFilter === "default" && !search && monthFilter === "all" && yearFilter === "all"
+                            ? 'Nenhum evento planejado ou em andamento.'
+                            : 'Nenhum evento encontrado com os filtros aplicados.'}
+                        </p>
                       </td>
                     </tr>
                   )}
@@ -525,27 +472,24 @@ export default function Events() {
               </table>
             </div>
           )}
-          {/* Footer count */}
-          {!isLoading && filteredAndSortedEvents.length > 0 && (
-            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Mostrando {filteredAndSortedEvents.length} {filteredAndSortedEvents.length === 1 ? "evento" : "eventos"}
-              </p>
-            </div>
-          )}
         </div>
+
       </div>
 
-      <EventModal open={isModalOpen} onClose={handleCloseModal} event={editingEvent} />
-
+      <EventModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        event={editingEvent}
+        onSuccess={invalidate}
+      />
       <ConfirmModal
-        open={confirmState.open}
-        variant={confirmState.variant ?? "delete"}
+        isOpen={confirmState.open}
+        onClose={() => setConfirmState(p => ({ ...p, open: false }))}
         title={confirmState.title}
         message={confirmState.message}
         confirmLabel={confirmState.confirmLabel}
+        variant={confirmState.variant}
         onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState(prev => ({ ...prev, open: false }))}
       />
     </TooltipProvider>
   );
