@@ -1063,9 +1063,7 @@ export default function Scaling() {
       {/* Stats summary bar */}
       {scalingInclusions.length > 0 && (() => {
         const totalCount = scalingInclusions.length;
-        const escaladosCount = scalingInclusions.filter(i => isEscalated(i)).length;
         const pendentesCount = scalingInclusions.filter(i => !isEscalated(i) && i.status !== 'cancelado').length;
-        const canceladosCount = scalingInclusions.filter(i => i.status === 'cancelado').length;
         return (
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
@@ -1077,15 +1075,6 @@ export default function Scaling() {
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Total</div>
               </div>
             </div>
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 shadow-sm">
-              <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
-                <Check className="w-3.5 h-3.5 text-green-600" />
-              </div>
-              <div>
-                <div className="text-[18px] font-black text-green-700 leading-none">{escaladosCount}</div>
-                <div className="text-[10px] font-bold text-green-500 uppercase tracking-wide mt-0.5">Escalados</div>
-              </div>
-            </div>
             <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 shadow-sm">
               <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
                 <Clock className="w-3.5 h-3.5 text-orange-500" />
@@ -1094,20 +1083,6 @@ export default function Scaling() {
                 <div className="text-[18px] font-black text-orange-600 leading-none">{pendentesCount}</div>
                 <div className="text-[10px] font-bold text-orange-400 uppercase tracking-wide mt-0.5">Pendentes</div>
               </div>
-            </div>
-            {canceladosCount > 0 && (
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
-                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <X className="w-3.5 h-3.5 text-slate-400" />
-                </div>
-                <div>
-                  <div className="text-[18px] font-black text-slate-500 leading-none">{canceladosCount}</div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">Cancelados</div>
-                </div>
-              </div>
-            )}
-            <div className="ml-auto text-[11px] text-slate-400 font-medium">
-              {filters.eventId !== 'all' || filters.functionId.length > 0 || filters.collaboratorId !== 'all' ? 'Filtrado' : 'Todos os eventos'}
             </div>
           </div>
         );
@@ -1313,16 +1288,16 @@ export default function Scaling() {
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        ✈️
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                        <Plane className="w-3 h-3" />Passagem comprada
                                       </span>
                                     )}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
-                                          🏨{accommodationInfo.hasAttachments && ' 📎'}
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨 Hospedagem{accommodationInfo.hasAttachments && ' 📎'}
                                         </span>
                                       );
                                     })()}
@@ -1447,16 +1422,16 @@ export default function Scaling() {
                                       </span>
                                     )}
                                     {getTicket(inclusion.id) && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
-                                        ✈️
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
+                                        <Plane className="w-3 h-3" />Passagem comprada
                                       </span>
                                     )}
                                     {(() => {
                                       const accommodation = getAccommodation(inclusion.id);
                                       const accommodationInfo = formatAccommodationInfo(accommodation);
                                       return accommodationInfo && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
-                                          🏨{accommodationInfo.hasAttachments && ' 📎'}
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 text-[11px] font-bold">
+                                          🏨 Hospedagem{accommodationInfo.hasAttachments && ' 📎'}
                                         </span>
                                       );
                                     })()}
