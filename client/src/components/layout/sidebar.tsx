@@ -42,23 +42,23 @@ const ORANGE70 = "#e04400";
 const BLUE70 = "#1a4db5";
 
 const allTabs = [
-  { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: "person_add",            iconColor: BLUE,      permission: "canAccessScreen0"       as const },
-  { id: "events",            path: "/events",            label: "Eventos",               icon: "event",                iconColor: ORANGE,    permission: "canAccessAdminUsers"    as const },
-  { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month",       iconColor: BLUE70,    permission: "canAccessCalendar"      as const },
-  { id: "functions",         path: "/functions",         label: "Funções",               icon: "work",                 iconColor: ORANGE70,  permission: "canAccessScreen0"       as const },
-  { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge",                iconColor: BLUE70,    permission: "canAccessCollaborators" as const },
-  { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",            iconColor: ORANGE70,  permission: "canAccessScreen1"       as const },
-  { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",       iconColor: BLUE70,    permission: "canAccessScreen2"       as const },
-  { id: "tickets",           path: "/tickets",           label: "Passagem",              icon: "confirmation_number",  iconColor: ORANGE70,  permission: "canAccessScreen3"       as const },
-  { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                  iconColor: BLUE70,    permission: "canAccessScreen3"       as const },
-  { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",      iconColor: ORANGE70,  permission: "canAccessScreen0"       as const },
-  { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet", iconColor: BLUE70,  permission: "canAccessScreen0"       as const },
-  { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",          iconColor: ORANGE70,  permission: "canAccessScreen5"       as const },
-  { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: "groups",               iconColor: BLUE70,    permission: "canAccessScreen5"       as const },
-  { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: "receipt_long",         iconColor: ORANGE70,  permission: "canAccessScreen0"       as const },
-  { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest",     iconColor: BLUE70,    permission: "canAccessAdminUsers"    as const },
-  { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: "manage_search",        iconColor: BLUE70,    permission: "canAccessScreen6"       as const },
-  { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts",      iconColor: BLUE70,    permission: "canAccessAdminUsers"    as const },
+  { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: "person_add",              iconColor: BLUE,      iconBg: "#DBEAFE", permission: "canAccessScreen0"       as const },
+  { id: "events",            path: "/events",            label: "Eventos",               icon: "event",                   iconColor: ORANGE,    iconBg: "#FFE4D9", permission: "canAccessAdminUsers"    as const },
+  { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month",          iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessCalendar"      as const },
+  { id: "functions",         path: "/functions",         label: "Funções",               icon: "work",                    iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen0"       as const },
+  { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge",                   iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessCollaborators" as const },
+  { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",               iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen1"       as const },
+  { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",          iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen2"       as const },
+  { id: "tickets",           path: "/tickets",           label: "Passagem",              icon: "confirmation_number",     iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen3"       as const },
+  { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                     iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen3"       as const },
+  { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",         iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen0"       as const },
+  { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet",  iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen0"       as const },
+  { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",             iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen5"       as const },
+  { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: "groups",                  iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen5"       as const },
+  { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: "receipt_long",            iconColor: ORANGE70,  iconBg: "#FFE8DF", permission: "canAccessScreen0"       as const },
+  { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest",        iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessAdminUsers"    as const },
+  { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: "manage_search",           iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessScreen6"       as const },
+  { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts",         iconColor: BLUE70,    iconBg: "#EEF2FF", permission: "canAccessAdminUsers"    as const },
 ];
 
 const menuGroups = [
@@ -192,12 +192,12 @@ export default function Sidebar() {
                           <span style={{
                             width: 28, height: 28, borderRadius: 6, flexShrink: 0,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            background: isActive ? "#DBEAFE" : "transparent",
+                            background: isActive ? "#DBEAFE" : tab.iconBg,
                             transition: "background 0.15s",
                           }}>
                             <MI
                               name={tab.icon}
-                              filled={isActive}
+                              filled={true}
                               style={{ color: isActive ? BLUE : tab.iconColor, fontSize: 17 }}
                             />
                           </span>
