@@ -1187,7 +1187,7 @@ export default function RhControlPage() {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${progressPct}%`,
-                      background: "linear-gradient(to right, #f97316, #059669)",
+                      background: "#f97316",
                     }}
                   />
                 </div>
