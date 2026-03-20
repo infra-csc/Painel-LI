@@ -878,8 +878,10 @@ export default function Accommodations() {
       const matchesCollaborator = filters.collaboratorId === "all" || inclusion.collaboratorId === filters.collaboratorId;
       
       const _q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
-      const matchesSearchId = filters.searchId === "" || 
-        String(inclusion.inclusionNumber ?? '').toLowerCase().includes(_q);
+      const _colName = (collaborators?.find(c => c.id === inclusion.collaboratorId)?.fullName ?? '').toLowerCase();
+      const matchesSearchId = filters.searchId === "" ||
+        String(inclusion.inclusionNumber ?? '').toLowerCase().includes(_q) ||
+        _colName.includes(_q);
 
       const accommodation = accommodationMap.get(inclusion.id);
       const accommodationStatus = accommodation ? "processed" : "pending";
@@ -1471,10 +1473,10 @@ export default function Accommodations() {
             <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
             <input
               type="text"
-              placeholder="Buscar por número..."
+              placeholder="Nome ou número..."
               value={filters.searchId ?? ""}
               onChange={e => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
-              className="h-8 pl-8 pr-3 w-36 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+              className="h-8 pl-8 pr-3 w-44 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
               data-testid="input-search-id"
             />
           </div>

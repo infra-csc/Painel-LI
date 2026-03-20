@@ -300,8 +300,10 @@ export default function Tickets() {
       if (filters.collaboratorId !== "all" && inclusion.collaboratorId !== filters.collaboratorId) return false;
       if (filters.searchId) {
         const q = filters.searchId.replace(/#/g, '').trim().toLowerCase();
+        const colName = (collaborators?.find(c => c.id === inclusion.collaboratorId)?.fullName ?? '').toLowerCase();
         if (!(String(inclusion.inclusionNumber ?? '').toLowerCase().includes(q) ||
-          inclusion.id.toLowerCase().includes(q))) return false;
+          inclusion.id.toLowerCase().includes(q) ||
+          colName.includes(q))) return false;
       }
       
       // Filter by inclusion status - by default, hide cancelled inclusions
@@ -1385,10 +1387,10 @@ export default function Tickets() {
                 <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
                 <input
                   type="text"
-                  placeholder="Buscar por número..."
+                  placeholder="Nome ou número..."
                   value={filters.searchId ?? ""}
                   onChange={(e) => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
-                  className="h-8 pl-8 pr-3 w-36 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                  className="h-8 pl-8 pr-3 w-44 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
                   data-testid="input-search-id"
                 />
               </div>
