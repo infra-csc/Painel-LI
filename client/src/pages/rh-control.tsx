@@ -1369,13 +1369,6 @@ export default function RhControlPage() {
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             return (
               <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
-                {/* Group header accent stripe based on urgency */}
-                <div className="h-[3px]" style={{
-                  background: group.actionNeeded > 0
-                    ? (Object.keys(statuses).some(s => getDiffDays(group.items.find(i => i.status === s)?.lastActivityDate) > 30)
-                      ? '#ef4444' : '#f97316')
-                    : '#e2e8f0'
-                }} />
                 <button
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/60 transition-colors"
                   onClick={() => toggleEventExpand(group.event.id)}
