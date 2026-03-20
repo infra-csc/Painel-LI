@@ -1465,53 +1465,91 @@ export default function Accommodations() {
       {/* Main Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Filter bar inline */}
-        <div className="bg-[#FAFBFF] border-b border-gray-100 px-5 py-3 flex flex-wrap items-center gap-2.5">
-          <EventCombobox
-            events={events || []}
-            value={filters.eventId}
-            onChange={v => setFilters(prev => ({ ...prev, eventId: v }))}
-            className="h-8 text-xs rounded-lg"
-          />
-          <FunctionMultiSelect
-            functions={functions || []}
-            selectedIds={filters.functionId}
-            onSelectedChange={v => setFilters(prev => ({ ...prev, functionId: v }))}
-          />
-          <CollaboratorCombobox
-            collaborators={collaborators || []}
-            value={filters.collaboratorId}
-            onChange={v => setFilters(prev => ({ ...prev, collaboratorId: v }))}
-            className="h-8 text-xs rounded-lg"
-          />
+        <div className="px-5 py-3 border-b border-gray-100 bg-[#FAFBFF] flex flex-wrap items-center gap-2.5">
+          {/* Buscar por ID */}
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
+            <input
+              type="text"
+              placeholder="Buscar por número..."
+              value={filters.searchId ?? ""}
+              onChange={e => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
+              className="h-8 pl-8 pr-3 w-36 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+              data-testid="input-search-id"
+            />
+          </div>
+
+          {/* Evento */}
+          <div className="w-44">
+            <EventCombobox
+              events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
+              value={filters.eventId}
+              onValueChange={v => setFilters(prev => ({ ...prev, eventId: v }))}
+              placeholder="Evento"
+              testId="filter-event"
+            />
+          </div>
+
+          {/* Funções */}
+          <div className="w-44">
+            <FunctionMultiSelect
+              functions={functions}
+              selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
+              onSelectedChange={v => setFilters(prev => ({ ...prev, functionId: v }))}
+              placeholder="Funções"
+              testId="filter-function"
+            />
+          </div>
+
+          {/* Colaborador */}
+          <div className="w-44">
+            <CollaboratorCombobox
+              collaborators={collaborators}
+              value={filters.collaboratorId}
+              onValueChange={v => setFilters(prev => ({ ...prev, collaboratorId: v }))}
+              placeholder="Colaborador"
+              testId="filter-collaborator"
+            />
+          </div>
+
+          {/* Status Hospedagem */}
           <select
             value={filters.accommodationStatus}
             onChange={e => setFilters(prev => ({ ...prev, accommodationStatus: e.target.value }))}
-            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
             data-testid="filter-status"
           >
             <option value="all">Todos os status</option>
             <option value="pending">Pendentes</option>
             <option value="processed">Compradas</option>
           </select>
+
+          {/* Status Inclusão */}
           <select
             value={filters.inclusionStatus}
             onChange={e => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
-            className="h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+            data-testid="filter-inclusion-status"
           >
             <option value="active">Inclusões ativas</option>
             <option value="all">Todas</option>
+            <option value="cancelado">Canceladas</option>
           </select>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-[11px] text-slate-400 font-medium">{filteredData.length} registros</span>
-            {(filters.eventId !== "all" || filters.functionId.length > 0 || filters.collaboratorId !== "all" || filters.accommodationStatus !== "all") && (
-              <button
-                onClick={() => setFilters(prev => ({ ...prev, eventId:"all", functionId:[], collaboratorId:"all", accommodationStatus:"all" }))}
-                className="flex items-center gap-1 h-7 px-2.5 rounded-lg border border-slate-200 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition-colors"
-              >
-                × Limpar
-              </button>
-            )}
-          </div>
+
+          <div className="flex-1" />
+
+          {/* Contagem + Limpar */}
+          <span className="text-[11px] text-slate-400 font-medium bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+            {filteredData.length} registro{filteredData.length !== 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", accommodationStatus: "all", inclusionStatus: "active" })}
+            className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors"
+            data-testid="button-clear-filters"
+          >
+            <span className="material-symbols-outlined" style={{fontSize:13}}>close</span>
+            Limpar
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
