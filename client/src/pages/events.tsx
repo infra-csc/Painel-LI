@@ -6,37 +6,20 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown,
   RotateCcw, Search, LayoutList, CalendarClock, CalendarCheck, CalendarX,
-  CalendarDays, List, ChevronLeft, ChevronRight,
+  CalendarDays, AlignJustify, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import EventModal from "@/components/modals/event-modal";
 import ConfirmModal from "@/components/common/confirm-modal";
 import type { Event, TeamInclusion } from "@shared/schema";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek,
-  endOfWeek, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths,
-  addWeeks, subWeeks, parseISO, startOfDay, endOfDay } from "date-fns";
+import {
+  format, startOfMonth, endOfMonth, eachDayOfInterval,
+  startOfWeek, endOfWeek, isSameMonth, isSameDay, isWithinInterval,
+  addMonths, subMonths, addWeeks, subWeeks, parseISO, startOfDay, endOfDay,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function getEventStatus(event: Event): string {
-  if (event.status === "excluído") return "excluído";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end   = new Date(event.endDate);   end.setHours(0, 0, 0, 0);
-  const start = new Date(event.startDate); start.setHours(0, 0, 0, 0);
-  if (end < today)    return "concluído";
-  if (start <= today) return "em andamento";
-  return event.status;
-}
-
-function formatPeriod(s: string, e: string) {
-  try {
-    const d1 = new Date(s), d2 = new Date(e);
-    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yy");
-    const sameMonth = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-    if (sameMonth) return `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}`;
-    return `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
-  } catch { return `${s} – ${e}`; }
-}
+// ─── constants ────────────────────────────────────────────────────────────────
+const BLUE = "#0033CC";
 
 const STATUS: Record<string, { label: string; dot: string; bg: string; text: string; bar: string }> = {
   planejado:      { label: "Planejado",    dot: "#3B82F6", bg: "#EFF6FF", text: "#1D4ED8", bar: "#3B82F6" },
@@ -45,134 +28,159 @@ const STATUS: Record<string, { label: string; dot: string; bg: string; text: str
   excluído:       { label: "Excluído",     dot: "#94A3B8", bg: "#F8FAFC", text: "#64748B", bar: "#CBD5E1" },
 };
 
-type SortKey = "eventNumber" | "name" | "period" | "status";
-type SortDir = "asc" | "desc";
-type ViewMode = "list" | "calendar" | "week";
+const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const WEEK_SHORT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
-function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown size={11} className="ml-1 inline opacity-30" />;
-  return sortDir === "asc"
-    ? <ChevronUp size={11} className="ml-1 inline text-[#0033CC]" />
-    : <ChevronDown size={11} className="ml-1 inline text-[#0033CC]" />;
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function getEventStatus(ev: Event): string {
+  if (ev.status === "excluído") return "excluído";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end   = new Date(ev.endDate);   end.setHours(0, 0, 0, 0);
+  const start = new Date(ev.startDate); start.setHours(0, 0, 0, 0);
+  if (end < today)    return "concluído";
+  if (start <= today) return "em andamento";
+  return ev.status;
 }
 
-const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const WEEK_DAYS_SHORT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+function formatPeriod(s: string, e: string) {
+  try {
+    const d1 = new Date(s), d2 = new Date(e);
+    if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM/yy");
+    const sm = d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+    return sm ? `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}` : `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
+  } catch { return `${s} – ${e}`; }
+}
 
-const sel: React.CSSProperties = {
-  height: 34, fontSize: 12, padding: "0 8px",
-  border: "1px solid #E2E8F0", borderRadius: 7,
-  background: "white", color: "#374151",
-  fontFamily: "inherit", cursor: "pointer", outline: "none",
-};
+function eventsOnDay(events: Event[], day: Date) {
+  return events.filter(ev => {
+    try {
+      return isWithinInterval(day, { start: startOfDay(parseISO(ev.startDate)), end: endOfDay(parseISO(ev.endDate)) });
+    } catch { return false; }
+  });
+}
 
-// ─── Event chip (used in calendar/week) ───────────────────────────────────────
-function EventChip({ event, onClick }: { event: Event; onClick: () => void }) {
-  const ds = getEventStatus(event);
+type SortKey  = "eventNumber" | "name" | "period" | "status";
+type SortDir  = "asc" | "desc";
+type ViewMode = "table" | "list" | "week" | "calendar";
+
+// ─── StatusBadge ──────────────────────────────────────────────────────────────
+function StatusBadge({ ds }: { ds: string }) {
   const sc = STATUS[ds] ?? STATUS["planejado"];
   return (
-    <button
-      onClick={onClick}
-      title={`${event.name} · ${event.location}`}
-      style={{
-        width: "100%", textAlign: "left", padding: "2px 6px",
-        borderRadius: 4, background: sc.bg, border: `1px solid ${sc.bar}30`,
-        borderLeft: `3px solid ${sc.bar}`,
-        fontSize: 10, fontWeight: 600, color: sc.text,
-        cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap",
-        textOverflow: "ellipsis", fontFamily: "inherit", display: "block",
-      }}
-    >
-      {event.name}
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "3px 9px", borderRadius: 20,
+      background: sc.bg, color: sc.text,
+      fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
+      {sc.label}
+    </span>
+  );
+}
+
+// ─── SortBtn ──────────────────────────────────────────────────────────────────
+function SortBtn({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ChevronsUpDown size={10} className="ml-1 inline opacity-20" />;
+  return sortDir === "asc"
+    ? <ChevronUp   size={10} className="ml-1 inline" style={{ color: BLUE }} />
+    : <ChevronDown size={10} className="ml-1 inline" style={{ color: BLUE }} />;
+}
+
+// ─── NavBtn ───────────────────────────────────────────────────────────────────
+function NavBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} style={{
+      width: 30, height: 30, borderRadius: 7, border: "1px solid #E2E8F0",
+      background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+      color: "#64748B", transition: "all 0.15s",
+    }} className="hover:border-[#0033CC] hover:text-[#0033CC] hover:bg-blue-50 transition-all">
+      {children}
     </button>
   );
 }
 
-// ─── Calendar Month View ───────────────────────────────────────────────────────
+// ─── EventChip ────────────────────────────────────────────────────────────────
+function EventChip({ ev, onClick }: { ev: Event; onClick: () => void }) {
+  const ds = getEventStatus(ev);
+  const sc = STATUS[ds] ?? STATUS["planejado"];
+  return (
+    <button onClick={onClick} title={`${ev.name} · ${ev.location}`} style={{
+      width: "100%", textAlign: "left", padding: "3px 7px",
+      borderRadius: 5, background: sc.bg,
+      borderLeft: `3px solid ${sc.bar}`,
+      fontSize: 10, fontWeight: 600, color: sc.text,
+      cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+      fontFamily: "inherit", display: "block", lineHeight: "16px",
+    }}>{ev.name}</button>
+  );
+}
+
+// ─── CalendarView ─────────────────────────────────────────────────────────────
 function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
-  events: Event[];
-  onEdit: (e: Event) => void;
-  currentDate: Date;
-  setCurrentDate: (d: Date) => void;
+  events: Event[]; onEdit: (e: Event) => void; currentDate: Date; setCurrentDate: (d: Date) => void;
 }) {
   const monthStart = startOfMonth(currentDate);
-  const monthEnd   = endOfMonth(currentDate);
   const calStart   = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const calEnd     = endOfWeek(monthEnd,   { weekStartsOn: 0 });
+  const calEnd     = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
   const days       = eachDayOfInterval({ start: calStart, end: calEnd });
-
-  const eventsOnDay = (day: Date) =>
-    events.filter(ev => {
-      try {
-        const s = startOfDay(parseISO(ev.startDate));
-        const e = endOfDay(parseISO(ev.endDate));
-        return isWithinInterval(day, { start: s, end: e });
-      } catch { return false; }
-    });
-
-  const today = new Date();
+  const today      = new Date();
 
   return (
-    <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", overflow: "hidden" }}>
+    <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
       {/* Nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid #F1F5F9" }}>
-        <button onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-          style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
-          <ChevronLeft size={15} />
-        </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", flex: 1, textAlign: "center", textTransform: "capitalize" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #F1F5F9", background: "#FAFBFF" }}>
+        <NavBtn onClick={() => setCurrentDate(subMonths(currentDate, 1))}><ChevronLeft size={14} /></NavBtn>
+        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700, color: "#0F172A", textTransform: "capitalize" }}>
           {format(currentDate, "MMMM yyyy", { locale: ptBR })}
         </span>
-        <button onClick={() => setCurrentDate(new Date())}
-          style={{ height: 28, padding: "0 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit" }}>
-          Hoje
-        </button>
-        <button onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-          style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
-          <ChevronRight size={15} />
-        </button>
+        <button onClick={() => setCurrentDate(new Date())} style={{
+          height: 28, padding: "0 12px", borderRadius: 6, border: "1px solid #E2E8F0",
+          background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit",
+        }} className="hover:border-[#0033CC] hover:text-[#0033CC] transition-colors">Hoje</button>
+        <NavBtn onClick={() => setCurrentDate(addMonths(currentDate, 1))}><ChevronRight size={14} /></NavBtn>
       </div>
 
-      {/* Day headers */}
+      {/* Weekday headers */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #F1F5F9" }}>
-        {WEEK_DAYS_SHORT.map(d => (
-          <div key={d} style={{ padding: "8px 0", textAlign: "center", fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{d}</div>
+        {WEEK_SHORT.map((d, i) => (
+          <div key={d} style={{
+            padding: "8px 0", textAlign: "center",
+            fontSize: 10, fontWeight: 700, color: i === 0 ? "#F87171" : "#94A3B8",
+            textTransform: "uppercase", letterSpacing: "0.07em",
+          }}>{d}</div>
         ))}
       </div>
 
       {/* Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {days.map((day, i) => {
-          const inMonth = isSameMonth(day, currentDate);
-          const isToday = isSameDay(day, today);
-          const dayEvents = eventsOnDay(day);
-          const MAX_VISIBLE = 2;
+          const inMonth  = isSameMonth(day, currentDate);
+          const isToday  = isSameDay(day, today);
+          const isSun    = day.getDay() === 0;
+          const chips    = eventsOnDay(events, day);
+          const MAX      = 2;
           return (
             <div key={i} style={{
-              minHeight: 80, padding: "6px 4px",
+              minHeight: 88, padding: "6px 5px",
               borderRight: (i + 1) % 7 !== 0 ? "1px solid #F8FAFC" : "none",
               borderBottom: i < days.length - 7 ? "1px solid #F8FAFC" : "none",
-              background: isToday ? "#EEF2FF" : "white",
-              opacity: inMonth ? 1 : 0.35,
+              background: isToday ? "#F0F4FF" : "white",
+              opacity: inMonth ? 1 : 0.3,
             }}>
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
                 <span style={{
-                  width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11, fontWeight: isToday ? 700 : 500,
-                  color: isToday ? "white" : inMonth ? "#374151" : "#CBD5E1",
-                  background: isToday ? "#0033CC" : "transparent",
-                }}>
-                  {format(day, "d")}
-                </span>
+                  width: 22, height: 22, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: isToday ? 700 : 400,
+                  color: isToday ? "white" : isSun && inMonth ? "#F87171" : inMonth ? "#374151" : "#CBD5E1",
+                  background: isToday ? BLUE : "transparent",
+                }}>{format(day, "d")}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {dayEvents.slice(0, MAX_VISIBLE).map(ev => (
-                  <EventChip key={ev.id} event={ev} onClick={() => onEdit(ev)} />
-                ))}
-                {dayEvents.length > MAX_VISIBLE && (
-                  <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600, paddingLeft: 4 }}>
-                    +{dayEvents.length - MAX_VISIBLE} mais
-                  </span>
+                {chips.slice(0, MAX).map(ev => <EventChip key={ev.id} ev={ev} onClick={() => onEdit(ev)} />)}
+                {chips.length > MAX && (
+                  <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600, paddingLeft: 5 }}>+{chips.length - MAX} mais</span>
                 )}
               </div>
             </div>
@@ -183,90 +191,61 @@ function CalendarView({ events, onEdit, currentDate, setCurrentDate }: {
   );
 }
 
-// ─── Week View ─────────────────────────────────────────────────────────────────
+// ─── WeekView ─────────────────────────────────────────────────────────────────
 function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
-  events: Event[];
-  onEdit: (e: Event) => void;
-  currentDate: Date;
-  setCurrentDate: (d: Date) => void;
+  events: Event[]; onEdit: (e: Event) => void; currentDate: Date; setCurrentDate: (d: Date) => void;
 }) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const weekEnd   = endOfWeek(currentDate,   { weekStartsOn: 0 });
   const days      = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const today     = new Date();
 
-  const eventsOnDay = (day: Date) =>
-    events.filter(ev => {
-      try {
-        const s = startOfDay(parseISO(ev.startDate));
-        const e = endOfDay(parseISO(ev.endDate));
-        return isWithinInterval(day, { start: s, end: e });
-      } catch { return false; }
-    });
-
-  const weekLabel = (() => {
-    if (weekStart.getMonth() === weekEnd.getMonth())
-      return `${format(weekStart, "d")}–${format(weekEnd, "d 'de' MMMM yyyy", { locale: ptBR })}`;
-    return `${format(weekStart, "d MMM", { locale: ptBR })} – ${format(weekEnd, "d MMM yyyy", { locale: ptBR })}`;
-  })();
+  const rangeLabel = weekStart.getMonth() === weekEnd.getMonth()
+    ? `${format(weekStart, "d")}–${format(weekEnd, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
+    : `${format(weekStart, "d MMM", { locale: ptBR })} – ${format(weekEnd, "d MMM yyyy", { locale: ptBR })}`;
 
   return (
-    <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", overflow: "hidden" }}>
+    <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
       {/* Nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid #F1F5F9" }}>
-        <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))}
-          style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
-          <ChevronLeft size={15} />
-        </button>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", flex: 1, textAlign: "center", textTransform: "capitalize" }}>{weekLabel}</span>
-        <button onClick={() => setCurrentDate(new Date())}
-          style={{ height: 28, padding: "0 10px", borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit" }}>
-          Hoje
-        </button>
-        <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))}
-          style={{ width: 30, height: 30, borderRadius: 6, border: "1px solid #E2E8F0", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748B" }}>
-          <ChevronRight size={15} />
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #F1F5F9", background: "#FAFBFF" }}>
+        <NavBtn onClick={() => setCurrentDate(subWeeks(currentDate, 1))}><ChevronLeft size={14} /></NavBtn>
+        <span style={{ flex: 1, textAlign: "center", fontSize: 13, fontWeight: 700, color: "#0F172A", textTransform: "capitalize" }}>{rangeLabel}</span>
+        <button onClick={() => setCurrentDate(new Date())} style={{
+          height: 28, padding: "0 12px", borderRadius: 6, border: "1px solid #E2E8F0",
+          background: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#64748B", fontFamily: "inherit",
+        }} className="hover:border-[#0033CC] hover:text-[#0033CC] transition-colors">Hoje</button>
+        <NavBtn onClick={() => setCurrentDate(addWeeks(currentDate, 1))}><ChevronRight size={14} /></NavBtn>
       </div>
 
       {/* Columns */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {days.map((day, i) => {
-          const isToday    = isSameDay(day, today);
-          const dayEvents  = eventsOnDay(day);
+          const isToday = isSameDay(day, today);
+          const isSun   = i === 0;
+          const chips   = eventsOnDay(events, day);
           return (
-            <div key={i} style={{
-              borderRight: i < 6 ? "1px solid #F1F5F9" : "none",
-              minHeight: 160,
-            }}>
-              {/* Header */}
+            <div key={i} style={{ borderRight: i < 6 ? "1px solid #F1F5F9" : "none", minHeight: 160 }}>
+              {/* Column header */}
               <div style={{
-                padding: "10px 8px 8px",
-                textAlign: "center",
+                padding: "10px 6px", textAlign: "center",
                 borderBottom: "1px solid #F1F5F9",
-                background: isToday ? "#EEF2FF" : "#FAFBFF",
+                background: isToday ? "#F0F4FF" : "#FAFBFF",
               }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? "#0033CC" : "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-                  {WEEK_DAYS_SHORT[i]}
+                <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? BLUE : isSun ? "#F87171" : "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
+                  {WEEK_SHORT[i]}
                 </div>
                 <div style={{
-                  width: 28, height: 28, borderRadius: "50%", margin: "0 auto",
+                  width: 30, height: 30, borderRadius: "50%", margin: "0 auto",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isToday ? "#0033CC" : "transparent",
-                  fontSize: 13, fontWeight: 700,
-                  color: isToday ? "white" : "#374151",
-                }}>
-                  {format(day, "d")}
-                </div>
+                  background: isToday ? BLUE : "transparent",
+                  fontSize: 14, fontWeight: 700,
+                  color: isToday ? "white" : isSun ? "#F87171" : "#374151",
+                }}>{format(day, "d")}</div>
               </div>
-              {/* Events */}
-              <div style={{ padding: "8px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
-                {dayEvents.length === 0 && (
-                  <div style={{ height: 40 }} />
-                )}
-                {dayEvents.map(ev => (
-                  <EventChip key={ev.id} event={ev} onClick={() => onEdit(ev)} />
-                ))}
+              {/* Chips */}
+              <div style={{ padding: "8px 5px", display: "flex", flexDirection: "column", gap: 3 }}>
+                {chips.length === 0 && <div style={{ height: 32 }} />}
+                {chips.map(ev => <EventChip key={ev.id} ev={ev} onClick={() => onEdit(ev)} />)}
               </div>
             </div>
           );
@@ -276,98 +255,84 @@ function WeekView({ events, onEdit, currentDate, setCurrentDate }: {
   );
 }
 
-// ─── List / Card View ──────────────────────────────────────────────────────────
-function ListView({ events, onEdit, onDelete, onRestore, escalacoesByEvent }: {
-  events: Event[];
-  onEdit: (e: Event) => void;
-  onDelete: (e: Event) => void;
-  onRestore: (e: Event) => void;
-  escalacoesByEvent: Record<string, number>;
+// ─── ActionBtns ───────────────────────────────────────────────────────────────
+function ActionBtns({ event, onEdit, onDelete, onRestore }: {
+  event: Event; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void;
 }) {
-  if (events.length === 0) {
-    return (
-      <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", textAlign: "center", padding: "56px 0" }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 36, color: "#E2E8F0", display: "block", marginBottom: 10 }}>event_busy</span>
-        <p style={{ fontSize: 13, color: "#CBD5E1", margin: 0 }}>Nenhum evento encontrado.</p>
-      </div>
-    );
-  }
+  const ds = getEventStatus(event);
+  if (ds === "excluído") return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button onClick={() => onRestore(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+          className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors"><RotateCcw size={13} /></button>
+      </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
+    </Tooltip>
+  );
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {events.map(event => {
-        const ds  = getEventStatus(event);
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button onClick={() => onEdit(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+            className="hover:bg-blue-50 hover:!text-[#0033CC] transition-colors"><Edit size={13} /></button>
+        </TooltipTrigger><TooltipContent>Editar</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button onClick={() => onDelete(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
+            className="hover:bg-red-50 hover:!text-red-500 transition-colors"><Trash2 size={13} /></button>
+        </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
+      </Tooltip>
+    </>
+  );
+}
+
+// ─── ListView ─────────────────────────────────────────────────────────────────
+function ListView({ events, onEdit, onDelete, onRestore, escalacoes }: {
+  events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void;
+  onRestore: (e: Event) => void; escalacoes: Record<string, number>;
+}) {
+  if (events.length === 0) return <EmptyState />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {events.map(ev => {
+        const ds  = getEventStatus(ev);
         const sc  = STATUS[ds] ?? STATUS["planejado"];
-        const esc = escalacoesByEvent[event.id] ?? 0;
-        const isDeleted  = ds === "excluído";
-        const isOngoing  = ds === "em andamento";
+        const esc = escalacoes[ev.id] ?? 0;
         return (
-          <div key={event.id} style={{
-            background: "white", borderRadius: 10, border: "1px solid #F1F5F9",
-            overflow: "hidden", display: "flex", alignItems: "stretch",
-            opacity: isDeleted ? 0.6 : 1,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-          }}>
-            {/* Color bar */}
+          <div key={ev.id} style={{
+            background: "white", borderRadius: 10, overflow: "hidden",
+            display: "flex", alignItems: "stretch",
+            opacity: ds === "excluído" ? 0.6 : 1,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.03)",
+            transition: "box-shadow 0.2s, transform 0.15s",
+          }} className="group hover:shadow-md hover:-translate-y-px">
             <div style={{ width: 4, background: sc.bar, flexShrink: 0 }} />
-            <div style={{ flex: 1, padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-              {/* Number */}
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#CBD5E1", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>#{event.eventNumber}</span>
-              {/* Info */}
+            <div style={{ flex: 1, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#D1D5DB", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>#{ev.eventNumber}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {isOngoing && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F97316", flexShrink: 0 }} className="animate-pulse" />}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.name}</span>
+                  {ds === "em andamento" && <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#F97316", flexShrink: 0 }} />}
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 3 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748B" }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 12, color: "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                    {event.location}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 2 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#94A3B8" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 12, fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                    {ev.location}
                   </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748B" }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 12, color: "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-                    {formatPeriod(event.startDate, event.endDate)}
+                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#94A3B8" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 12, fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+                    {formatPeriod(ev.startDate, ev.endDate)}
                   </span>
                   {esc > 0 && (
-                    <span style={{ fontSize: 11, color: "#64748B" }}>
-                      <span style={{ fontWeight: 700, color: "#374151" }}>{esc}</span> escal.
+                    <span style={{ fontSize: 11, color: "#94A3B8" }}>
+                      <b style={{ color: "#374151" }}>{esc}</b> escal.
                     </span>
                   )}
                 </div>
               </div>
-              {/* Status */}
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
-                padding: "3px 9px", borderRadius: 20, background: sc.bg, color: sc.text,
-                fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot }} />
-                {sc.label}
-              </span>
-              {/* Actions */}
-              <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                {isDeleted ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button onClick={() => onRestore(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                        className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors"><RotateCcw size={13} /></button>
-                    </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button onClick={() => onEdit(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                          className="hover:bg-blue-50 hover:!text-[#0033CC] transition-colors"><Edit size={13} /></button>
-                      </TooltipTrigger><TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button onClick={() => onDelete(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                          className="hover:bg-red-50 hover:!text-red-500 transition-colors"><Trash2 size={13} /></button>
-                      </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
+              <StatusBadge ds={ds} />
+              <div style={{ display: "flex", gap: 1, flexShrink: 0 }}>
+                <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} />
               </div>
             </div>
           </div>
@@ -377,127 +342,86 @@ function ListView({ events, onEdit, onDelete, onRestore, escalacoesByEvent }: {
   );
 }
 
-// ─── Table View ────────────────────────────────────────────────────────────────
-function TableView({ events, onEdit, onDelete, onRestore, escalacoesByEvent, sortKey, sortDir, handleSort }: {
-  events: Event[];
-  onEdit: (e: Event) => void;
-  onDelete: (e: Event) => void;
-  onRestore: (e: Event) => void;
-  escalacoesByEvent: Record<string, number>;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  handleSort: (k: SortKey) => void;
+// ─── TableView ────────────────────────────────────────────────────────────────
+function TableView({ events, onEdit, onDelete, onRestore, escalacoes, sortKey, sortDir, handleSort }: {
+  events: Event[]; onEdit: (e: Event) => void; onDelete: (e: Event) => void; onRestore: (e: Event) => void;
+  escalacoes: Record<string, number>; sortKey: SortKey; sortDir: SortDir; handleSort: (k: SortKey) => void;
 }) {
   return (
-    <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", overflow: "hidden" }}>
+    <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#FAFBFF", borderBottom: "1px solid #F1F5F9" }}>
+            <tr style={{ background: "#FAFBFF", borderBottom: "2px solid #F1F5F9" }}>
               {([
                 { key: "eventNumber", label: "Nº",          w: 60,  center: true },
                 { key: "name",        label: "Evento",       w: null },
-                { key: null,          label: "Localização",  w: 160 },
+                { key: null,          label: "Localização",  w: 170 },
                 { key: "period",      label: "Período",      w: 140 },
-                { key: "status",      label: "Status",       w: 130 },
-                { key: null,          label: "Escal.",       w: 70,  center: true, tooltip: "Escalações ativas" },
-                { key: null,          label: "Ações",        w: 80,  right: true },
-              ] as { key: SortKey | null; label: string; w: number | null; center?: boolean; right?: boolean; tooltip?: string }[]).map((col, i) => (
-                <th key={i}
-                  onClick={() => col.key && handleSort(col.key)}
-                  style={{
-                    padding: "10px 14px", fontSize: 10, fontWeight: 700, color: "#94A3B8",
-                    textTransform: "uppercase", letterSpacing: "0.07em",
-                    textAlign: col.center ? "center" : col.right ? "right" : "left",
-                    cursor: col.key ? "pointer" : "default",
-                    userSelect: "none", width: col.w ?? undefined, whiteSpace: "nowrap",
-                  }}>
-                  {col.tooltip
-                    ? <Tooltip><TooltipTrigger asChild><span>{col.label} {col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</span></TooltipTrigger><TooltipContent>{col.tooltip}</TooltipContent></Tooltip>
-                    : <>{col.label} {col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</>}
+                { key: "status",      label: "Status",       w: 135 },
+                { key: null,          label: "Escal.",       w: 65,  center: true, tip: "Escalações ativas" },
+                { key: null,          label: "",             w: 75,  right: true },
+              ] as any[]).map((col, i) => (
+                <th key={i} onClick={() => col.key && handleSort(col.key)} style={{
+                  padding: "10px 14px", fontSize: 10, fontWeight: 700, color: "#94A3B8",
+                  textTransform: "uppercase", letterSpacing: "0.08em",
+                  textAlign: col.center ? "center" : col.right ? "right" : "left",
+                  cursor: col.key ? "pointer" : "default", userSelect: "none",
+                  width: col.w ?? undefined, whiteSpace: "nowrap",
+                }}>
+                  {col.tip
+                    ? <Tooltip><TooltipTrigger><span>{col.label} {col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</span></TooltipTrigger><TooltipContent>{col.tip}</TooltipContent></Tooltip>
+                    : <>{col.label}{col.key && <SortBtn col={col.key} sortKey={sortKey} sortDir={sortDir} />}</>}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {events.map((event, idx) => {
-              const ds = getEventStatus(event);
-              const sc = STATUS[ds] ?? STATUS["planejado"];
-              const isDeleted = ds === "excluído";
-              const isOngoing = ds === "em andamento";
-              const escalacoes = escalacoesByEvent[event.id] ?? 0;
+            {events.map((ev, idx) => {
+              const ds  = getEventStatus(ev);
+              const sc  = STATUS[ds] ?? STATUS["planejado"];
+              const esc = escalacoes[ev.id] ?? 0;
               return (
-                <tr key={event.id}
-                  style={{ borderTop: idx > 0 ? "1px solid #F8FAFC" : "none", background: "white", opacity: isDeleted ? 0.55 : 1, transition: "background 0.1s" }}
-                  className="group hover:bg-slate-50/60">
-                  <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", fontVariantNumeric: "tabular-nums" }}>#{event.eventNumber}</span>
+                <tr key={ev.id} style={{
+                  borderTop: idx > 0 ? "1px solid #F8FAFC" : "none",
+                  opacity: ds === "excluído" ? 0.5 : 1, transition: "background 0.1s",
+                }} className="group hover:bg-slate-50/70">
+                  <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#D1D5DB", fontVariantNumeric: "tabular-nums" }}>#{ev.eventNumber}</span>
                   </td>
-                  <td style={{ padding: "11px 14px" }}>
+                  <td style={{ padding: "12px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {isOngoing && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F97316", flexShrink: 0, animation: "pulse 2s infinite" }} />}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{event.name}</span>
+                      {ds === "em andamento" && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#F97316", flexShrink: 0, animation: "pulse 2s infinite" }} />}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{ev.name}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "11px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#64748B" }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 13, color: "#CBD5E1", fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                      <span style={{ fontSize: 12, color: "#64748B" }}>{event.location}</span>
-                    </div>
+                      {ev.location}
+                    </span>
                   </td>
-                  <td style={{ padding: "11px 14px" }}>
+                  <td style={{ padding: "12px 14px" }}>
                     <span style={{ fontSize: 12, color: "#64748B", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {formatPeriod(event.startDate, event.endDate)}
+                      {formatPeriod(ev.startDate, ev.endDate)}
                     </span>
                   </td>
-                  <td style={{ padding: "11px 14px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: sc.bg, color: sc.text, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: sc.dot, flexShrink: 0 }} />
-                      {sc.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                    {escalacoes > 0
-                      ? <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{escalacoes}</span>
+                  <td style={{ padding: "12px 14px" }}><StatusBadge ds={ds} /></td>
+                  <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                    {esc > 0
+                      ? <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{esc}</span>
                       : <span style={{ fontSize: 12, color: "#E2E8F0" }}>—</span>}
                   </td>
-                  <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                      {isDeleted ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button onClick={() => onRestore(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                              className="hover:bg-emerald-50 hover:!text-emerald-600 transition-colors"><RotateCcw size={14} /></button>
-                          </TooltipTrigger><TooltipContent>Restaurar</TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button onClick={() => onEdit(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                                className="hover:bg-blue-50 hover:!text-[#0033CC] transition-colors"><Edit size={13} /></button>
-                            </TooltipTrigger><TooltipContent>Editar</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button onClick={() => onDelete(event)} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94A3B8" }}
-                                className="hover:bg-red-50 hover:!text-red-500 transition-colors"><Trash2 size={13} /></button>
-                            </TooltipTrigger><TooltipContent>Excluir</TooltipContent>
-                          </Tooltip>
-                        </>
-                      )}
+                  <td style={{ padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                      <ActionBtns event={ev} onEdit={onEdit} onDelete={onDelete} onRestore={onRestore} />
                     </div>
                   </td>
                 </tr>
               );
             })}
             {events.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: "48px 0" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#E2E8F0", display: "block", marginBottom: 8 }}>event_busy</span>
-                  <p style={{ fontSize: 13, color: "#CBD5E1", margin: 0 }}>Nenhum evento encontrado.</p>
-                </td>
-              </tr>
+              <tr><td colSpan={7}><EmptyState /></td></tr>
             )}
           </tbody>
         </table>
@@ -506,7 +430,16 @@ function TableView({ events, onEdit, onDelete, onRestore, escalacoesByEvent, sor
   );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+function EmptyState() {
+  return (
+    <div style={{ textAlign: "center", padding: "52px 0" }}>
+      <span className="material-symbols-outlined" style={{ fontSize: 36, color: "#E2E8F0", display: "block", marginBottom: 10 }}>event_busy</span>
+      <p style={{ fontSize: 13, color: "#CBD5E1", margin: 0 }}>Nenhum evento encontrado.</p>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Events() {
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -520,21 +453,18 @@ export default function Events() {
   const [viewMode,     setViewMode]     = useState<ViewMode>("table");
   const [calDate,      setCalDate]      = useState(new Date());
   const [confirmState, setConfirmState] = useState<{
-    open: boolean; title: string; message: string; confirmLabel: string; variant?: "delete"|"cancel"|"confirm"; onConfirm: () => void;
+    open: boolean; title: string; message: string; confirmLabel: string;
+    variant?: "delete"|"cancel"|"confirm"; onConfirm: () => void;
   }>({ open: false, title: "", message: "", confirmLabel: "", variant: "delete", onConfirm: () => {} });
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-
+  const qc = useQueryClient();
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ["/api/events?includeDeleted=true"] });
   const { data: inclusions }        = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
-  const escalacoesByEvent = useMemo(() => {
+  const escalacoes = useMemo(() => {
     const map: Record<string, number> = {};
-    (inclusions ?? []).forEach(inc => {
-      if (!inc.eventId) return;
-      map[inc.eventId] = (map[inc.eventId] ?? 0) + 1;
-    });
+    (inclusions ?? []).forEach(i => { if (i.eventId) map[i.eventId] = (map[i.eventId] ?? 0) + 1; });
     return map;
   }, [inclusions]);
 
@@ -550,16 +480,9 @@ export default function Events() {
 
   const availableYears = useMemo(() => {
     const yrs = new Set<number>();
-    (events ?? []).forEach(e => {
-      try { yrs.add(new Date(e.startDate).getFullYear()); } catch {}
-    });
+    (events ?? []).forEach(e => { try { yrs.add(new Date(e.startDate).getFullYear()); } catch {} });
     return Array.from(yrs).sort((a, b) => b - a);
   }, [events]);
-
-  const handleStatusChange = (v: string) => {
-    setStatusFilter(v);
-    if (v === "default") { setDefaultSort(true); setSortKey("eventNumber"); setSortDir("desc"); }
-  };
 
   const handleSort = (col: SortKey) => {
     setDefaultSort(false);
@@ -572,26 +495,16 @@ export default function Events() {
     let list = [...events];
     const t = search.toLowerCase().trim();
     if (t) list = list.filter(e => e.name.toLowerCase().includes(t) || e.location.toLowerCase().includes(t));
-    if (statusFilter === "default") list = list.filter(e => ["planejado","em andamento"].includes(getEventStatus(e)));
-    else if (statusFilter === "active") list = list.filter(e => e.status !== "excluído");
-    else if (statusFilter !== "all")   list = list.filter(e => getEventStatus(e) === statusFilter);
-    if (monthFilter !== "all") {
-      list = list.filter(e => {
-        try { return new Date(e.startDate).getMonth() + 1 === Number(monthFilter); } catch { return false; }
-      });
-    }
-    if (yearFilter !== "all") {
-      list = list.filter(e => {
-        try { return new Date(e.startDate).getFullYear() === Number(yearFilter); } catch { return false; }
-      });
-    }
+    if (statusFilter === "default")      list = list.filter(e => ["planejado","em andamento"].includes(getEventStatus(e)));
+    else if (statusFilter === "active")  list = list.filter(e => e.status !== "excluído");
+    else if (statusFilter !== "all")     list = list.filter(e => getEventStatus(e) === statusFilter);
+    if (monthFilter !== "all") list = list.filter(e => { try { return new Date(e.startDate).getMonth() + 1 === Number(monthFilter); } catch { return false; } });
+    if (yearFilter  !== "all") list = list.filter(e => { try { return new Date(e.startDate).getFullYear() === Number(yearFilter); } catch { return false; } });
     if (defaultSort) {
-      const order = ["em andamento", "planejado", "concluído", "excluído"];
+      const order = ["em andamento","planejado","concluído","excluído"];
       list.sort((a, b) => {
-        const sa = getEventStatus(a), sb = getEventStatus(b);
-        const d = order.indexOf(sa) - order.indexOf(sb);
-        if (d !== 0) return d;
-        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+        const d = order.indexOf(getEventStatus(a)) - order.indexOf(getEventStatus(b));
+        return d !== 0 ? d : new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
       });
     } else {
       list.sort((a, b) => {
@@ -609,94 +522,89 @@ export default function Events() {
   }, [events, search, statusFilter, monthFilter, yearFilter, sortKey, sortDir, defaultSort]);
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-    await queryClient.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
+    await qc.invalidateQueries({ queryKey: ["/api/events"] });
+    await qc.invalidateQueries({ queryKey: ["/api/events?includeDeleted=true"] });
   };
 
   const deleteMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "excluído" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento marcado como excluído." }); },
-    onError: () => toast({ title: "Erro ao excluir evento.", variant: "destructive" }),
+    onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
   });
   const restoreMutation = useMutation({
     mutationFn: async (ev: Event) => (await apiRequest("PUT", `/api/events/${ev.id}`, { status: "planejado" })).json(),
     onSuccess: async () => { await invalidate(); toast({ title: "Evento restaurado." }); },
-    onError: () => toast({ title: "Erro ao restaurar evento.", variant: "destructive" }),
+    onError: () => toast({ title: "Erro ao restaurar.", variant: "destructive" }),
   });
 
-  const openModal = (event?: Event) => { setEditingEvent(event ?? null); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setEditingEvent(null); };
+  const openModal    = (ev?: Event) => { setEditingEvent(ev ?? null); setIsModalOpen(true); };
+  const closeModal   = () => { setIsModalOpen(false); setEditingEvent(null); };
 
-  const confirmDelete = (event: Event) => setConfirmState({
-    open: true, title: "Excluir evento?",
-    message: `O evento "${event.name}" será marcado como excluído.`,
-    confirmLabel: "Excluir", variant: "delete",
-    onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); deleteMutation.mutate(event); },
-  });
-  const confirmRestore = (event: Event) => setConfirmState({
-    open: true, title: "Restaurar evento?",
-    message: `O evento "${event.name}" voltará ao status "Planejado".`,
-    confirmLabel: "Restaurar", variant: "confirm",
-    onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); restoreMutation.mutate(event); },
-  });
+  const confirmDelete  = (ev: Event) => setConfirmState({ open: true, title: "Excluir evento?", message: `"${ev.name}" será marcado como excluído.`, confirmLabel: "Excluir", variant: "delete", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); deleteMutation.mutate(ev); } });
+  const confirmRestore = (ev: Event) => setConfirmState({ open: true, title: "Restaurar evento?", message: `"${ev.name}" voltará ao status Planejado.`, confirmLabel: "Restaurar", variant: "confirm", onConfirm: () => { setConfirmState(p => ({ ...p, open: false })); restoreMutation.mutate(ev); } });
 
-  const clearFilters = () => {
-    setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all");
-    setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true);
-  };
   const hasFilters = !!(search || statusFilter !== "default" || monthFilter !== "all" || yearFilter !== "all");
+  const clearFilters = () => { setSearch(""); setStatusFilter("default"); setMonthFilter("all"); setYearFilter("all"); setSortKey("eventNumber"); setSortDir("desc"); setDefaultSort(true); };
 
-  const VIEWS: { key: ViewMode; icon: React.ElementType; label: string }[] = [
-    { key: "table",    icon: LayoutList,   label: "Tabela" },
-    { key: "list",     icon: List,         label: "Lista" },
-    { key: "week",     icon: CalendarDays, label: "Semana" },
-    { key: "calendar", icon: CalendarDays, label: "Mês" },
+  const VIEWS = [
+    { key: "table"    as ViewMode, icon: <AlignJustify size={14} />,   title: "Tabela"  },
+    { key: "list"     as ViewMode, icon: <LayoutList size={14} />,     title: "Lista"   },
+    { key: "week"     as ViewMode, icon: <CalendarDays size={14} />,   title: "Semana"  },
+    { key: "calendar" as ViewMode, icon: (
+        <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+      ), title: "Mês" },
   ];
+
+  const activeEvents = (events ?? []).filter(e => e.status !== "excluído");
 
   return (
     <TooltipProvider>
-      <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20, minHeight: "100%" }}>
 
-        {/* ── Page header ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#0033CC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "white", fontVariationSettings: "'FILL' 1" }}>event</span>
+        {/* ── Header ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: BLUE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(0,51,204,0.25)" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: "white", fontVariationSettings: "'FILL' 1" }}>event</span>
           </div>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.2 }}>Eventos</h1>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", margin: 0, lineHeight: 1.2, letterSpacing: "-0.3px" }}>Eventos</h1>
             <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>Controle e acompanhamento de cronogramas logísticos</p>
           </div>
-          <button onClick={() => openModal()} data-testid="button-add-event"
-            style={{ marginLeft: "auto", height: 36, padding: "0 16px", borderRadius: 8, background: "#0033CC", color: "white", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-            <Plus size={15} strokeWidth={2.5} />
-            Novo Evento
+          <button onClick={() => openModal()} data-testid="button-add-event" style={{
+            marginLeft: "auto", height: 36, padding: "0 16px", borderRadius: 8,
+            background: BLUE, color: "white", border: "none", cursor: "pointer",
+            fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 7,
+            boxShadow: "0 4px 12px rgba(0,51,204,0.25)",
+          }}>
+            <Plus size={15} strokeWidth={2.5} /> Novo Evento
           </button>
         </div>
 
         {/* ── Stat cards ── */}
         {!isLoading && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {([
-              { label: "Total de Eventos", value: stats.total,       icon: LayoutList,    color: "#3B82F6" },
-              { label: "Planejados",       value: stats.planejado,   icon: CalendarClock, color: "#8B5CF6" },
-              { label: "Em andamento",     value: stats.emAndamento, icon: CalendarCheck, color: "#F97316" },
-              { label: "Concluídos",       value: stats.concluido,   icon: CalendarX,     color: "#22C55E" },
+              { label: "Total",        value: stats.total,       icon: LayoutList,    color: "#3B82F6" },
+              { label: "Planejados",   value: stats.planejado,   icon: CalendarClock, color: "#8B5CF6" },
+              { label: "Em andamento", value: stats.emAndamento, icon: CalendarCheck, color: "#F97316" },
+              { label: "Concluídos",   value: stats.concluido,   icon: CalendarX,     color: "#22C55E" },
             ] as { label: string; value: number; icon: React.ElementType; color: string }[]).map(c => {
               const Icon = c.icon;
               return (
-                <div key={c.label}
-                  className="bg-white rounded-2xl overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5"
-                  style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)" }}
-                  onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.10), 0 8px 24px rgba(0,0,0,0.07)")}
-                  onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)")}>
-                  <div className="h-1 w-full" style={{ background: c.color }} />
-                  <div className="flex items-center gap-4 px-5 py-4">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${c.color}18` }}>
-                      <Icon style={{ width: 22, height: 22, color: c.color }} />
+                <div key={c.label} style={{
+                  background: "white", borderRadius: 12, overflow: "hidden",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
+                  transition: "transform 0.2s, box-shadow 0.2s",
+                }} className="hover:-translate-y-0.5 hover:shadow-md cursor-default">
+                  <div style={{ height: 3, background: c.color }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px" }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `${c.color}15`, flexShrink: 0 }}>
+                      <Icon style={{ width: 20, height: 20, color: c.color }} />
                     </div>
                     <div>
-                      <p className="uppercase text-[11px] font-semibold tracking-widest mb-1" style={{ color: "#6B7280" }}>{c.label}</p>
-                      <p className="tabular-nums font-bold leading-none" style={{ fontSize: 28, color: c.color }}>{c.value}</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 3px" }}>{c.label}</p>
+                      <p style={{ fontSize: 26, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.value}</p>
                     </div>
                   </div>
                 </div>
@@ -705,86 +613,68 @@ export default function Events() {
           </div>
         )}
 
-        {/* ── Filter + View toggle bar ── */}
-        <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", padding: "10px 14px" }}>
+        {/* ── Filter + view bar ── */}
+        <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", padding: "10px 12px", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 
             {/* Search */}
-            <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
-              <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#CBD5E1" }} />
-              <input placeholder="Buscar por nome ou cidade..." value={search} onChange={e => setSearch(e.target.value)}
+            <div style={{ position: "relative", flex: "1 1 180px", minWidth: 150 }}>
+              <Search size={12} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#CBD5E1" }} />
+              <input placeholder="Buscar evento ou cidade..." value={search} onChange={e => setSearch(e.target.value)}
                 data-testid="input-search-event"
-                style={{ ...sel, paddingLeft: 28, paddingRight: search ? 28 : 8, width: "100%", flex: "none" }} />
+                style={{ height: 32, fontSize: 12, paddingLeft: 28, paddingRight: search ? 28 : 8, border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#374151", fontFamily: "inherit", cursor: "text", outline: "none", width: "100%", boxSizing: "border-box" }} />
               {search && (
-                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", display: "flex" }}>
-                  <X size={12} />
-                </button>
+                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#CBD5E1", display: "flex" }}><X size={11} /></button>
               )}
             </div>
 
-            {/* Status */}
-            <select value={statusFilter} onChange={e => handleStatusChange(e.target.value)} style={sel} data-testid="select-status-filter">
-              <option value="default">Planejado + Em andamento</option>
-              <option value="all">Todos os status</option>
-              <option value="active">Ativos</option>
-              <option value="planejado">Planejado</option>
-              <option value="em andamento">Em andamento</option>
-              <option value="concluído">Concluído</option>
-              <option value="excluído">Excluído</option>
-            </select>
+            {/* Selects */}
+            {([
+              { val: statusFilter, set: (v: string) => { setStatusFilter(v); if (v === "default") { setDefaultSort(true); setSortKey("eventNumber"); setSortDir("desc"); } },
+                opts: [["default","Planejado + Em andamento"],["all","Todos os status"],["active","Ativos"],["planejado","Planejado"],["em andamento","Em andamento"],["concluído","Concluído"],["excluído","Excluído"]],
+                test: "select-status-filter" },
+              { val: monthFilter, set: setMonthFilter,
+                opts: [["all","Todos os meses"], ...MONTHS.map((m,i) => [String(i+1), m])],
+                test: undefined },
+              { val: yearFilter, set: setYearFilter,
+                opts: [["all","Todos os anos"], ...availableYears.map(y => [String(y), String(y)])],
+                test: undefined },
+            ] as any[]).map((s, i) => (
+              <select key={i} value={s.val} onChange={e => s.set(e.target.value)} data-testid={s.test}
+                style={{ height: 32, fontSize: 12, padding: "0 8px", border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#374151", fontFamily: "inherit", cursor: "pointer", outline: "none" }}>
+                {s.opts.map(([v, l]: [string, string]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            ))}
 
-            {/* Month */}
-            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={sel}>
-              <option value="all">Todos os meses</option>
-              {MONTHS.map((m, i) => <option key={i + 1} value={String(i + 1)}>{m}</option>)}
-            </select>
-
-            {/* Year */}
-            <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} style={sel}>
-              <option value="all">Todos os anos</option>
-              {availableYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
-            </select>
-
-            {/* Clear */}
             {hasFilters && (
               <button onClick={clearFilters} data-testid="button-clear-filters"
-                style={{ ...sel, display: "flex", alignItems: "center", gap: 5, paddingLeft: 10, paddingRight: 10, color: "#64748B", cursor: "pointer" }}>
+                style={{ height: 32, padding: "0 10px", border: "1px solid #E2E8F0", borderRadius: 7, background: "#FAFBFF", color: "#94A3B8", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
+                className="hover:border-red-200 hover:text-red-400 transition-colors">
                 <X size={11} /> Limpar
               </button>
             )}
 
-            {/* Count */}
-            <span style={{ fontSize: 11, color: "#94A3B8", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 11, color: "#CBD5E1", marginLeft: "auto", whiteSpace: "nowrap" }}>
               {filteredAndSorted.length} evento{filteredAndSorted.length !== 1 ? "s" : ""}
             </span>
 
-            {/* Divider */}
-            <div style={{ width: 1, height: 20, background: "#F1F5F9", margin: "0 4px" }} />
+            <div style={{ width: 1, height: 18, background: "#F1F5F9" }} />
 
             {/* View toggle */}
-            <div style={{ display: "flex", gap: 2, background: "#F8FAFC", borderRadius: 7, padding: 2, border: "1px solid #F1F5F9" }}>
-              {([
-                { key: "table",    icon: LayoutList,   title: "Tabela" },
-                { key: "list",     icon: List,         title: "Lista" },
-                { key: "week",     icon: CalendarDays, title: "Semana" },
-                { key: "calendar", icon: CalendarDays, title: "Mês" },
-              ] as { key: ViewMode; icon: React.ElementType; title: string }[]).map(v => {
-                const Icon = v.icon;
+            <div style={{ display: "flex", background: "#F1F5F9", borderRadius: 7, padding: 2, gap: 1 }}>
+              {VIEWS.map(v => {
                 const active = viewMode === v.key;
                 return (
                   <Tooltip key={v.key}>
                     <TooltipTrigger asChild>
-                      <button onClick={() => setViewMode(v.key)}
-                        style={{
-                          width: 28, height: 28, borderRadius: 5, border: "none", cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: active ? "white" : "transparent",
-                          color: active ? "#0033CC" : "#94A3B8",
-                          boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-                          transition: "all 0.15s",
-                        }}>
-                        <Icon size={14} />
-                      </button>
+                      <button onClick={() => setViewMode(v.key)} style={{
+                        width: 28, height: 28, borderRadius: 5, border: "none", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: active ? "white" : "transparent",
+                        color: active ? BLUE : "#94A3B8",
+                        boxShadow: active ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                        transition: "all 0.15s",
+                      }}>{v.icon}</button>
                     </TooltipTrigger>
                     <TooltipContent>{v.title}</TooltipContent>
                   </Tooltip>
@@ -796,31 +686,29 @@ export default function Events() {
 
         {/* ── Content ── */}
         {isLoading ? (
-          <div style={{ background: "white", borderRadius: 10, border: "1px solid #F1F5F9", textAlign: "center", padding: "56px 0", color: "#CBD5E1", fontSize: 13 }}>
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #F1F5F9", padding: "64px 0", textAlign: "center", color: "#CBD5E1", fontSize: 13 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 28, display: "block", marginBottom: 10, animation: "pulse 1.5s infinite" }}>sync</span>
             Carregando eventos...
           </div>
         ) : viewMode === "table" ? (
           <TableView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
-            escalacoesByEvent={escalacoesByEvent} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} />
+            escalacoes={escalacoes} sortKey={sortKey} sortDir={sortDir} handleSort={handleSort} />
         ) : viewMode === "list" ? (
           <ListView events={filteredAndSorted} onEdit={openModal} onDelete={confirmDelete} onRestore={confirmRestore}
-            escalacoesByEvent={escalacoesByEvent} />
+            escalacoes={escalacoes} />
         ) : viewMode === "calendar" ? (
-          <CalendarView events={events?.filter(e => e.status !== "excluído") ?? []} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
+          <CalendarView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
         ) : (
-          <WeekView events={events?.filter(e => e.status !== "excluído") ?? []} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
+          <WeekView events={activeEvents} onEdit={openModal} currentDate={calDate} setCurrentDate={setCalDate} />
         )}
-
       </div>
 
       <EventModal open={isModalOpen} onClose={closeModal} event={editingEvent} />
       <ConfirmModal
         isOpen={confirmState.open}
         onClose={() => setConfirmState(p => ({ ...p, open: false }))}
-        title={confirmState.title}
-        message={confirmState.message}
-        confirmLabel={confirmState.confirmLabel}
-        variant={confirmState.variant}
+        title={confirmState.title} message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel} variant={confirmState.variant}
         onConfirm={confirmState.onConfirm}
       />
     </TooltipProvider>
