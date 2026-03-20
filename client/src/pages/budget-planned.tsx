@@ -1122,11 +1122,11 @@ export default function BudgetPlannedPage() {
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">{getFunctionName(budget.inclusion.functionId)}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
-                              {isSent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">No Realizado</span>}
-                              {isNotAttended && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 flex items-center gap-0.5"><UserX className="w-2.5 h-2.5" />Não participou</span>}
+                            <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                              {isSent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 shrink-0 whitespace-nowrap">No Realizado</span>}
+                              {isNotAttended && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
                             {isNotAttended && planRecord?.didNotAttendReason && (
                               <p className="text-[10px] text-slate-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
