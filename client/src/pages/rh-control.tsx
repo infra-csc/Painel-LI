@@ -1074,7 +1074,17 @@ export default function RhControlPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-slate-800">Controle de Prestações de Contas</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Escalação → Planejado → Realizado → Aprovação → Nota Fiscal</p>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-slate-500">
+              <span>Escalação</span>
+              <span className="text-slate-300">→</span>
+              <span>Planejado</span>
+              <span className="text-slate-300">→</span>
+              <span>Realizado</span>
+              <span className="text-slate-300">→</span>
+              <span>Aprovação</span>
+              <span className="text-slate-300">→</span>
+              <span style={{ color: '#6d28d9' }}>Nota Fiscal</span>
+            </div>
           </div>
         </div>
       </div>
