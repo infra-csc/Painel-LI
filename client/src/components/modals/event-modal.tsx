@@ -40,7 +40,7 @@ const BLUE = "#0033CC";
 const lbl: React.CSSProperties = {
   fontSize: 11, fontWeight: 600, color: "#64748B",
   textTransform: "uppercase", letterSpacing: "0.06em",
-  marginBottom: 4, display: "block",
+  marginBottom: 3, display: "block",
 };
 
 const inp: React.CSSProperties = {
@@ -177,7 +177,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
           data-testid="modal-event"
         >
           {/* ── Header ── */}
-          <div style={{ padding: "18px 20px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          <div style={{ padding: "13px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: BLUE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: "white", fontVariationSettings: "'FILL' 1" }}>
                 {isEditing ? "edit_calendar" : "event_upcoming"}
@@ -199,10 +199,10 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
           </div>
 
           {/* ── Body ── */}
-          <div style={{ padding: "18px 20px", overflowY: "auto", flex: 1 }}>
+          <div style={{ padding: "12px 16px", overflowY: "auto", flex: 1 }}>
             <Form {...form}>
               <form id="event-form" onSubmit={form.handleSubmit(onSubmit)}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
                   {/* Nome */}
                   <FormField control={form.control} name="name" render={({ field }) => (
@@ -281,8 +281,8 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   )}
 
                   {/* ── Empresa pagadora ── */}
-                  <div style={{ background: "#F8FAFC", borderRadius: 10, border: "1px solid #F1F5F9", padding: "14px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ background: "#F8FAFC", borderRadius: 10, border: "1px solid #F1F5F9", padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#059669", fontVariationSettings: "'FILL' 1" }}>account_balance</span>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em" }}>Empresa Pagadora</span>
@@ -296,7 +296,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                       </button>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       {/* Nome empresa */}
                       <FormField control={form.control} name="paymentCompanyName" render={({ field }) => (
                         <div>
@@ -357,7 +357,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                         <span style={{ fontSize: 10, color: "#CBD5E1" }}>{obsLength}/500</span>
                       </div>
                       <FormControl>
-                        <Textarea rows={3} maxLength={500}
+                        <Textarea rows={2} maxLength={500}
                           placeholder="Detalhes adicionais, requisitos especiais..."
                           data-testid="textarea-event-observations"
                           className="text-[13px] resize-none rounded-lg border-slate-200 bg-white focus:border-[#0033CC] focus:ring-1 focus:ring-[#0033CC]/20"
@@ -375,7 +375,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
           </div>
 
           {/* ── Footer ── */}
-          <div style={{ padding: "12px 20px", borderTop: "1px solid #F1F5F9", background: "#FAFBFF", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
+          <div style={{ padding: "10px 16px", borderTop: "1px solid #F1F5F9", background: "#FAFBFF", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexShrink: 0 }}>
             <button type="button" onClick={handleClose} data-testid="button-cancel-event"
               style={{ height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "white", color: "#64748B", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
               Cancelar
