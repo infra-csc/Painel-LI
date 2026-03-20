@@ -932,35 +932,53 @@ export default function BudgetActualPage() {
 
           {/* ── Banner Total Realizado ── */}
           {(() => {
-            const nAprovadas = filteredItems.filter(i => i.rhStatus === 'aprovado').length;
-            const nRevisao   = filteredItems.filter(i => i.sentForReview && !['aprovado','devolvido','rejeitado'].includes(i.rhStatus || '')).length;
+            const nAprovadas  = filteredItems.filter(i => i.rhStatus === 'aprovado').length;
+            const nRevisao    = filteredItems.filter(i => i.sentForReview && !['aprovado','devolvido','rejeitado'].includes(i.rhStatus || '')).length;
             const nDevolvidas = filteredItems.filter(i => i.rhStatus === 'devolvido').length;
-            const nPendentes = filteredItems.filter(i => !i.sentForReview).length;
+            const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
             return (
-              <div className="rounded-2xl overflow-hidden flex shadow-md" style={{boxShadow:'0 4px 20px #7c3aed18'}}>
-                {/* Esquerda — total violeta sólido */}
-                <div className="px-6 py-5 flex flex-col justify-center min-w-[220px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white/70 mb-1">Total Realizado</p>
-                  <div className="text-[30px] font-black text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
-                  <div className="text-[11px] text-white/60 mt-1.5 tabular-nums">Planejado: {formatCurrency(totalPlanejado)}</div>
+              <div className="rounded-2xl overflow-hidden flex" style={{boxShadow:'0 4px 20px #7c3aed20'}}>
+                {/* Esquerda — violeta sólido */}
+                <div className="px-7 py-6 flex flex-col justify-center min-w-[240px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1.5">Total Realizado</p>
+                  <div className="text-[32px] font-black text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
+                  <div className={`text-[11px] mt-2 font-semibold flex items-center gap-1 ${totalDifference === 0 ? 'text-white/50' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
+                    {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
+                    {totalDifference === 0 ? `= planejado` : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
+                  </div>
                 </div>
-                {/* Direita — 4 stats */}
-                <div className="flex-1 px-6 py-4 flex items-center gap-0" style={{background:'#F5F3FF'}}>
-                  {[
-                    { label: 'Total', value: String(prestacaoCount), color: '#6d28d9' },
-                    { label: 'Pendentes', value: String(nPendentes), color: '#64748b' },
-                    { label: 'Em Revisão', value: String(nRevisao), color: '#2563eb' },
-                    { label: 'Aprovadas', value: String(nAprovadas), color: '#059669' },
-                    { label: 'Devolvidas', value: String(nDevolvidas), color: '#d97706' },
-                  ].map((s, i) => (
-                    <div key={s.label} className="flex-1 flex items-start gap-3">
-                      {i > 0 && <div className="w-px self-stretch bg-violet-100 mr-3" />}
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{s.label}</div>
-                        <div className="text-[22px] font-black leading-none" style={{color: s.color}}>{s.value}</div>
-                      </div>
+                {/* Direita — 3 stats + barra */}
+                <div className="flex-1 px-6 py-5 flex flex-col justify-between" style={{background:'#F5F3FF'}}>
+                  <div className="flex items-start gap-6">
+                    <div className="flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Prestações</div>
+                      <div className="text-[20px] font-black leading-none text-violet-700">{prestacaoCount}</div>
                     </div>
-                  ))}
+                    <div className="flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Em Revisão</div>
+                      <div className="text-[20px] font-black leading-none text-blue-600">{nRevisao}</div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Aprovadas</div>
+                      <div className="text-[20px] font-black leading-none text-emerald-600">{nAprovadas}</div>
+                    </div>
+                    {nDevolvidas > 0 && (
+                      <div className="flex-1">
+                        <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Devolvidas</div>
+                        <div className="text-[20px] font-black leading-none text-amber-600">{nDevolvidas}</div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Barra de aprovação */}
+                  {prestacaoCount > 0 && (
+                    <div className="mt-3">
+                      <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full transition-all" style={{width:`${pctAprovado}%`}} />
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-1">{nAprovadas} de {prestacaoCount} aprovadas</div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
