@@ -1488,7 +1488,7 @@ export default function Tickets() {
               <table className="w-full text-left border-collapse">
                 <thead style={{ background: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
                   <tr>
-                    <th className="px-4 py-4 w-10">
+                    <th className="px-4 py-3 w-10">
                       <input
                         type="checkbox"
                         checked={selectedTickets.length > 0}
@@ -1497,14 +1497,14 @@ export default function Tickets() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
-                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 w-[64px]">ID</th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 w-[64px]">ID</th>
                     <SortableHeader field="function" sortConfig={sortConfig} onSort={handleSort}>Evento / Função</SortableHeader>
                     <SortableHeader field="collaborator" sortConfig={sortConfig} onSort={handleSort}>Colaborador</SortableHeader>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Destino</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Destino</th>
                     <SortableHeader field="diarias" sortConfig={sortConfig} onSort={handleSort}>Datas e Horários</SortableHeader>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Voos Sugeridos</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
-                    <th className="py-4 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center w-[72px]">Ações</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Voos Sugeridos</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center">Status</th>
+                    <th className="py-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 text-center w-[72px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1513,14 +1513,9 @@ export default function Tickets() {
                     return (
                       <tr
                         key={inclusion.id}
-                        className={`transition-colors group border-b border-slate-100 last:border-0 hover:bg-blue-50/30 ${rowIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                        className={`transition-colors group border-b border-slate-100 last:border-0 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
                         style={{
                           opacity: inclusion.status === 'cancelado' ? 0.5 : 1,
-                          backgroundColor: inclusion.status === 'cancelado'
-                            ? '#FAFAFA'
-                            : ticket
-                            ? '#F0FDF4'
-                            : '#FFFBF5',
                           borderLeft: inclusion.status === 'cancelado'
                             ? '3px solid #E2E8F0'
                             : ticket
@@ -1528,18 +1523,15 @@ export default function Tickets() {
                             : '3px solid #F97316'
                         }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                            inclusion.status === 'cancelado' ? '#F1F5F9'
-                            : ticket ? '#DCFCE7' : '#FFF3E0';
+                          (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#EEF2FF33';
                         }}
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                            inclusion.status === 'cancelado' ? '#FAFAFA'
-                            : ticket ? '#F0FDF4' : '#FFFBF5';
+                            rowIdx % 2 === 1 ? '#F8FAFC80' : '#ffffff';
                         }}
                       >
                         {/* Checkbox — só para PENDENTES */}
-                        <td className="px-4 py-[18px] whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3 whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
                           {!ticket && inclusion.status !== 'cancelado' ? (
                             <input
                               type="checkbox"
@@ -1554,14 +1546,14 @@ export default function Tickets() {
                         </td>
 
                         {/* ID */}
-                        <td className={`px-3 py-[18px] w-[64px] ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-3 py-3 w-[64px] ${inclusion.status === 'cancelado' ? 'opacity-60' : 'cursor-pointer'}`} onClick={inclusion.status === 'cancelado' ? undefined : () => handleViewTicketDetails(inclusion)}>
                           <span style={{display:'inline-block',background:'#EEF2FF',color:'#3B4FE4',fontSize:13,fontWeight:600,borderRadius:6,padding:'4px 8px',whiteSpace:'nowrap'}}>
                             #{inclusion.inclusionNumber || 'N/A'}
                           </span>
                         </td>
 
                         {/* Evento / Função */}
-                        <td className={`px-4 py-[18px] cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)} style={{maxWidth:160}}>
+                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)} style={{maxWidth:160}}>
                           {(() => {
                             const eventName = getEventName(inclusion.eventId);
                             const notFound = eventName === 'Evento não encontrado';
@@ -1581,7 +1573,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Colaborador — avatar com iniciais */}
-                        <td className={`px-6 py-[18px] cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const rawName = getCollaboratorName(inclusion.collaboratorId || undefined);
                             const name = toTitleCase(rawName);
@@ -1596,7 +1588,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Destino — aeroportos quando comprada */}
-                        <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket && (ticket.departureAirport || ticket.destinationAirport) ? (
                             <div className="flex flex-col gap-0.5">
                               {/* Cidade em destaque */}
@@ -1627,7 +1619,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Datas e Horários */}
-                        <td className={`px-6 py-5 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-3 cursor-pointer whitespace-nowrap ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {ticket ? (
                             <div className="flex flex-col gap-1">
                               <span className="text-[10px] font-bold text-[#16A34A] tracking-wide mb-0.5">✓ Passagem confirmada</span>
@@ -1648,39 +1640,32 @@ export default function Tickets() {
                         </td>
 
                         {/* Voos Sugeridos */}
-                        <td className={`px-6 py-5 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const travelInfo = extractTravelInfoFromObservations(inclusion.observations || undefined, inclusion);
                             const idaVazia = travelInfo.ida === 'Não definido' || travelInfo.ida === 'Não informado';
                             const voltaVazia = travelInfo.retorno === 'Não definido' || travelInfo.retorno === 'Não informado';
                             if (idaVazia && voltaVazia) {
-                              return <span className="text-[11px] text-slate-300 italic">Não informado</span>;
+                              return <span className="text-[11px] text-slate-300 italic">—</span>;
                             }
                             return (
-                              <div
-                                className="flex flex-col gap-1 px-2.5 py-2 rounded-xl border border-amber-200 cursor-help"
-                                style={{background:'#FEFCE8', minWidth:'160px'}}
-                                title="Horário sugerido — ainda não confirmado"
-                              >
-                                <div className="flex items-center gap-1 mb-0.5">
-                                  <span className="material-symbols-outlined text-[#D97706]" style={{fontSize:11}}>schedule</span>
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-[#D97706]">Sugestão</span>
-                                </div>
+                              <div className="flex flex-col gap-0.5" title="Horário sugerido — ainda não confirmado">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-0.5">Sugestão</span>
                                 {!idaVazia && (
-                                  <div className="flex items-center gap-1 text-xs flex-nowrap">
-                                    <span className="material-symbols-outlined text-[#D97706] shrink-0" style={{fontSize:11}}>flight_takeoff</span>
-                                    <span className="font-semibold text-[#92400E] whitespace-nowrap">{formatSuggestionDate(travelInfo.ida)}</span>
+                                  <div className="flex items-center gap-1 text-[11px] flex-nowrap">
+                                    <span className="material-symbols-outlined text-amber-400 shrink-0" style={{fontSize:11}}>flight_takeoff</span>
+                                    <span className="font-semibold text-slate-700 whitespace-nowrap">{formatSuggestionDate(travelInfo.ida)}</span>
                                     {travelInfo.chegada !== 'Não definido' && travelInfo.chegada !== 'Não informado' && (
-                                      <span className="text-amber-500 whitespace-nowrap ml-1">{travelInfo.chegada}</span>
+                                      <span className="text-slate-400 whitespace-nowrap">{travelInfo.chegada}</span>
                                     )}
                                   </div>
                                 )}
                                 {!voltaVazia && (
-                                  <div className="flex items-center gap-1 text-xs flex-nowrap">
-                                    <span className="material-symbols-outlined text-[#D97706] shrink-0" style={{fontSize:11}}>flight_land</span>
-                                    <span className="font-semibold text-[#92400E] whitespace-nowrap">{formatSuggestionDate(travelInfo.retorno)}</span>
+                                  <div className="flex items-center gap-1 text-[11px] flex-nowrap">
+                                    <span className="material-symbols-outlined text-amber-400 shrink-0" style={{fontSize:11}}>flight_land</span>
+                                    <span className="font-semibold text-slate-700 whitespace-nowrap">{formatSuggestionDate(travelInfo.retorno)}</span>
                                     {travelInfo.horario !== 'Não definido' && travelInfo.horario !== 'Não informado' && (
-                                      <span className="text-amber-500 whitespace-nowrap ml-1">{travelInfo.horario}</span>
+                                      <span className="text-slate-400 whitespace-nowrap">{travelInfo.horario}</span>
                                     )}
                                   </div>
                                 )}
@@ -1690,7 +1675,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Status */}
-                        <td className={`px-6 py-[18px] cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
+                        <td className={`px-4 py-3 cursor-pointer text-center ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {inclusion.status === 'cancelado' ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 text-[11px] font-black uppercase rounded-full">
                               Cancelado
@@ -1707,7 +1692,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Ações — ícone-apenas, largura fixa 72px */}
-                        <td className="py-[18px] text-center whitespace-nowrap w-[72px]">
+                        <td className="py-3 text-center whitespace-nowrap w-[72px]">
                           {inclusion.status !== 'cancelado' && (
                             ticket ? (
                               <button
