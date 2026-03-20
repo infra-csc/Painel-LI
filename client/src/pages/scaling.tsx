@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { formatDiarias, fixEncoding, formatDateRange } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import StatusBadge from "@/components/common/status-badge";
-import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays } from "lucide-react";
+import { User, Eye, Save, FileSpreadsheet, Download, X, ExternalLink, Clock, Plane, Check, CalendarDays, Users, MessageSquare, History, ChevronDown, ChevronUp, FileText, Image as ImageIcon, File } from "lucide-react";
 import UniversalFilters from "@/components/common/universal-filters";
 import SortableHeader, { type SortConfig, type SortField } from "@/components/common/sortable-header";
 import CollaboratorCombobox from "@/components/ui/collaborator-combobox";
@@ -1048,7 +1048,7 @@ export default function Scaling() {
             value={filters.ticketStatus}
             onValueChange={(value) => setFilters({ ...filters, ticketStatus: value })}
           >
-            <SelectTrigger className="h-10 border border-slate-200 rounded-xl bg-white text-sm text-slate-700 focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
+            <SelectTrigger className="!h-9 py-0 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 [&>span]:text-slate-700 [&>span]:font-normal focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all" data-testid="select-ticket-status">
               <SelectValue placeholder="Status da passagem" />
             </SelectTrigger>
             <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px]">
@@ -1421,57 +1421,71 @@ export default function Scaling() {
 
       {/* Modal de Detalhes da Escalação */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
-          <DialogHeader className="bg-slate-50 -mx-6 -mt-6 px-6 py-4 rounded-t-2xl border-b border-slate-100 mb-6">
-            <DialogTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Eye className="w-5 h-5 text-blue-500" />
-              Detalhes da Escalação #{selectedInclusion?.inclusionNumber || 'N/A'}
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-0 gap-0">
+          <DialogHeader className="bg-white -mx-0 px-6 pt-6 pb-4 border-b border-slate-100 mb-0 sticky top-0 z-10">
+            <DialogTitle className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-[9px] bg-[#0033CC] flex items-center justify-center text-white shrink-0"
+                style={{ boxShadow: "0 4px 12px #0033CC40" }}
+              >
+                <Users className="w-4.5 h-4.5" style={{ width: 18, height: 18 }} />
+              </div>
+              <div>
+                <div className="text-[17px] font-bold text-slate-900 leading-tight">Detalhes da Escalação</div>
+                <div className="text-[12px] font-medium text-slate-400 mt-0.5">
+                  #{selectedInclusion?.inclusionNumber || 'N/A'} · {selectedInclusion ? getEventName(selectedInclusion.eventId) : ''}
+                </div>
+              </div>
             </DialogTitle>
           </DialogHeader>
           
           {selectedInclusion && (
-            <div className="space-y-6">
+            <div className="space-y-5 px-6 py-5">
               {/* Informações Básicas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 rounded-xl px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Evento</div>
-                  <div className="text-sm font-semibold text-blue-600">
-                    {getEventName(selectedInclusion.eventId)}
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-xl px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">ID</div>
-                  <div className="text-sm font-semibold text-slate-700 font-mono">
-                    #{selectedInclusion.inclusionNumber || 'N/A'}
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-xl px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Função</div>
-                  <div className="text-sm font-semibold text-slate-700">
-                    {getFunctionName(selectedInclusion.functionId)}
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-xl px-4 py-3">
-                  <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Status</div>
-                  {isEscalated(selectedInclusion) ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mt-0.5">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      Escalado
+              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Evento</div>
+                    <div className="text-[13px] font-semibold text-[#0033CC]">
+                      {getEventName(selectedInclusion.eventId)}
                     </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full mt-0.5">
-                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
-                      Pendente
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">ID</div>
+                    <div className="text-[13px] font-bold text-slate-700 font-mono">
+                      #{selectedInclusion.inclusionNumber || 'N/A'}
                     </div>
-                  )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Função</div>
+                    <div className="text-[13px] font-semibold text-slate-700">
+                      {getFunctionName(selectedInclusion.functionId)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-400 font-black mb-1">Status</div>
+                    {selectedInclusion.status === 'cancelado' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-500 text-[11px] font-bold rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Cancelado
+                      </span>
+                    ) : isEscalated(selectedInclusion) ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-[11px] font-bold rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Escalado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />Pendente
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Seleção de Colaborador */}
               <div>
-                <Label htmlFor="collaborator" className="text-sm font-medium">
-                  Colaborador *
-                </Label>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wide mb-1.5">
+                  Colaborador <span className="text-red-400">*</span>
+                </label>
                 {!canEditCollaborator(selectedInclusion) ? (
                   // Colaborador fixo quando não pode editar (passagem/hospedagem comprada ou sem permissão)
                   <div className="mt-2 border border-slate-200 rounded-xl bg-slate-50 px-3 py-2.5 w-full">
@@ -1531,66 +1545,71 @@ export default function Scaling() {
               </div>
 
               {/* Período de Trabalho com Calendário Visual */}
-              <div className="bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100 rounded-2xl p-4">
-                <h3 className="text-blue-700 font-bold mb-4 flex items-center gap-2">
-                  📅 Período de Trabalho
-                </h3>
-                
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data de Início</div>
-                    <div className="text-sm font-medium text-slate-700">
-                      {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Data de Fim</div>
-                    <div className="text-sm font-medium text-slate-700">
-                      {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
-                    </div>
-                  </div>
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                {/* Header */}
+                <div className="bg-[#0033CC]/5 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-[#0033CC]" />
+                  <span className="text-[11px] font-black text-[#0033CC] uppercase tracking-[0.12em]">Período de Trabalho</span>
                 </div>
-
-                {/* Calendário Visual Mini */}
-                {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
-                  const startDate = parseISO(selectedInclusion.scheduleStartDate);
-                  const endDate = parseISO(selectedInclusion.scheduleEndDate);
-                  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
-                  
-                  return (
-                    <div className="bg-white border border-blue-100 rounded-lg p-4">
-                      <div className="text-xs font-medium text-slate-400 mb-3">
-                        Dias do período ({allDays.length} {allDays.length === 1 ? 'dia' : 'dias'})
-                      </div>
-                      <div className="grid grid-cols-7 gap-2">
-                        {allDays.map((day, index) => {
-                          const isWorkDay = true;
-                          const dayFormatted = format(day, 'dd/MM', { locale: ptBR });
-                          const weekday = format(day, 'EEE', { locale: ptBR });
-                          
-                          return (
-                            <div 
-                              key={index}
-                              className="bg-white border border-blue-100 rounded-xl p-2 text-center shadow-sm min-w-[52px]"
-                            >
-                              <div className="text-xs text-slate-400 uppercase">
-                                {weekday}
-                              </div>
-                              <div className="text-lg font-bold text-slate-700">
-                                {format(day, 'dd', { locale: ptBR })}
-                              </div>
-                              {isWorkDay && (
-                                <div className="text-green-500 font-bold">
-                                  ✓
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                <div className="p-4">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">Início</div>
+                      <div className="text-[13px] font-semibold text-slate-700">
+                        {formatDateWithWeekday(selectedInclusion.scheduleStartDate)}
                       </div>
                     </div>
-                  );
-                })()}
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-1">Término</div>
+                      <div className="text-[13px] font-semibold text-slate-700">
+                        {formatDateWithWeekday(selectedInclusion.scheduleEndDate)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calendário Visual Mini */}
+                  {selectedInclusion.scheduleStartDate && selectedInclusion.scheduleEndDate && (() => {
+                    const startDate = parseISO(selectedInclusion.scheduleStartDate);
+                    const endDate = parseISO(selectedInclusion.scheduleEndDate);
+                    const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+                    const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+                    
+                    return (
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 mb-2">
+                          {allDays.length} {allDays.length === 1 ? 'dia' : 'dias'} no período
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allDays.map((day, index) => {
+                            const weekend = isWeekend(day);
+                            const weekday = format(day, 'EEE', { locale: ptBR });
+                            
+                            return (
+                              <div 
+                                key={index}
+                                className={`flex flex-col items-center justify-center rounded-xl border text-center px-2.5 py-2 min-w-[46px] ${
+                                  weekend
+                                    ? 'bg-orange-50 border-orange-200'
+                                    : 'bg-white border-slate-200'
+                                }`}
+                              >
+                                <div className={`text-[9px] uppercase font-bold ${weekend ? 'text-orange-400' : 'text-slate-400'}`}>
+                                  {weekday}
+                                </div>
+                                <div className={`text-[16px] font-bold leading-tight ${weekend ? 'text-orange-600' : 'text-slate-700'}`}>
+                                  {format(day, 'dd', { locale: ptBR })}
+                                </div>
+                                <div className={`text-[9px] ${weekend ? 'text-orange-300' : 'text-slate-300'}`}>
+                                  {format(day, 'MMM', { locale: ptBR })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
 
@@ -1704,59 +1723,48 @@ export default function Scaling() {
                     </>
                   )}
 
-                  {/* Datas de Viagem - título muda baseado no status da compra */}
+                  {/* Datas de Viagem Sugeridas - só se ainda não comprou a passagem */}
                   {!selectedTicket && (
-                    <details className="border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-700" open>
-                      <summary className="p-3 cursor-pointer font-medium text-sm text-blue-700 dark:text-blue-300 hover:bg-opacity-80 transition-colors">
-                        <span className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                          </svg>
-                          Datas da Viagem Sugeridas
-                          <span className="text-xs opacity-60">(vindas da inclusão de equipe)</span>
-                        </span>
-                      </summary>
-                      <div className="p-4 pt-2">
+                    <div className="border border-blue-200 rounded-xl overflow-hidden">
+                      <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center gap-2">
+                        <Plane className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-[11px] font-black text-blue-600 uppercase tracking-[0.12em]">Datas Sugeridas</span>
+                        <span className="text-[10px] text-blue-400 font-normal ml-1">· da inclusão de equipe</span>
+                      </div>
+                      <div className="p-4">
                         {(() => {
                           const travelInfo = extractTravelInfoFromObservations(selectedInclusion.observations || undefined, selectedInclusion);
                           return (
-                            <div className="space-y-3">
-                              {/* Viagem de IDA - Versão Compacta */}
-                              <div className="border rounded-md p-3 bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                  </svg>
-                                  <span className="text-xs font-medium">🛫 IDA</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* IDA */}
+                              <div className="bg-white border border-blue-100 rounded-xl p-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2 flex items-center gap-1">
+                                  🛫 IDA
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="space-y-2">
                                   <div>
-                                    <span className="text-muted-foreground">Data:</span>
-                                    <div className="font-medium">{formatSuggestionDate(travelInfo.ida)}</div>
+                                    <div className="text-[10px] text-slate-400">Data</div>
+                                    <div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.ida)}</div>
                                   </div>
                                   <div>
-                                    <span className="text-muted-foreground">Horário:</span>
-                                    <div className="font-medium">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : 'Não informado'}</div>
+                                    <div className="text-[10px] text-slate-400">Horário sugerido</div>
+                                    <div className="text-[12px] font-semibold text-slate-700">{travelInfo.chegada !== 'N/A' && travelInfo.chegada !== 'Não definido' ? travelInfo.chegada : '—'}</div>
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Viagem de VOLTA - Versão Compacta */}
-                              <div className="border rounded-md p-3 bg-blue-25 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <svg className="w-3 h-3 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                                  </svg>
-                                  <span className="text-xs font-medium">🛬 VOLTA</span>
+                              {/* VOLTA */}
+                              <div className="bg-white border border-blue-100 rounded-xl p-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-400 mb-2 flex items-center gap-1">
+                                  🛬 VOLTA
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="space-y-2">
                                   <div>
-                                    <span className="text-muted-foreground">Data:</span>
-                                    <div className="font-medium">{formatSuggestionDate(travelInfo.retorno)}</div>
+                                    <div className="text-[10px] text-slate-400">Data</div>
+                                    <div className="text-[12px] font-semibold text-slate-700">{formatSuggestionDate(travelInfo.retorno)}</div>
                                   </div>
                                   <div>
-                                    <span className="text-muted-foreground">Horário:</span>
-                                    <div className="font-medium">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : 'Não informado'}</div>
+                                    <div className="text-[10px] text-slate-400">Horário sugerido</div>
+                                    <div className="text-[12px] font-semibold text-slate-700">{travelInfo.horario !== 'N/A' && travelInfo.horario !== 'Não definido' ? travelInfo.horario : '—'}</div>
                                   </div>
                                 </div>
                               </div>
@@ -1764,7 +1772,7 @@ export default function Scaling() {
                           );
                         })()}
                       </div>
-                    </details>
+                    </div>
                   )}
                 </section>
               )}
@@ -1890,8 +1898,15 @@ export default function Scaling() {
               })()}
 
               {/* Seção de Comentários */}
-              <div className="border-t pt-4">
-                <h3 className="text-base font-semibold text-slate-800 mb-3">Comentários</h3>
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-slate-500" />
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Comentários</span>
+                  {comments && comments.length > 0 && (
+                    <span className="ml-auto bg-[#0033CC] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{comments.length}</span>
+                  )}
+                </div>
+                <div className="p-4">
                 
                 {/* Lista de comentários existentes */}
                 {comments && comments.length > 0 ? (
@@ -1922,35 +1937,40 @@ export default function Scaling() {
                 )}
 
                 {/* Formulário para adicionar novo comentário */}
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 pt-3">
                   <div className="flex space-x-3">
                     <Textarea 
                       rows={2}
                       placeholder="Adicionar comentário..."
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200 min-h-[80px]"
+                      className="flex-1 border border-slate-200 rounded-xl bg-white text-sm p-3 resize-none focus:ring-2 focus:ring-blue-200 min-h-[72px]"
                       data-testid="textarea-comment-inline"
                       disabled={!selectedInclusion || isReadOnly(selectedInclusion) || !canConfirmEscalation(selectedInclusion)}
                     />
                     <Button 
                       onClick={handleAddComment}
                       disabled={addCommentMutation.isPending || !newComment.trim() || !selectedInclusion || isReadOnly(selectedInclusion)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2 text-sm font-semibold shadow-sm transition-all"
+                      style={{ background: "#0033CC", boxShadow: "0 3px 10px #0033CC40" }}
+                      className="text-white rounded-xl px-5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
                       data-testid="button-add-comment-inline"
                     >
                       {addCommentMutation.isPending ? "Enviando..." : "Enviar"}
                     </Button>
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* Seção de Histórico de Alterações */}
               {inclusionLogs && inclusionLogs.length > 0 && (
-                <div className="border-t pt-4 mt-4">
-                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">
-                    Histórico de Alterações
-                  </h3>
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2">
+                    <History className="w-4 h-4 text-slate-400" />
+                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.12em]">Histórico de Alterações</span>
+                    <span className="ml-auto text-[10px] text-slate-400">{inclusionLogs.length} {inclusionLogs.length === 1 ? 'entrada' : 'entradas'}</span>
+                  </div>
+                  <div className="p-4">
                   
                   <div className="border-l-2 border-slate-100 ml-3 pl-4 space-y-4 max-h-80 overflow-y-auto">
                     {inclusionLogs
@@ -1989,6 +2009,7 @@ export default function Scaling() {
                           </div>
                         );
                       })}
+                  </div>
                   </div>
                 </div>
               )}
@@ -2035,9 +2056,10 @@ export default function Scaling() {
                           if (!canConfirmEscalation(selectedInclusion)) return true;
                           return false;
                         })()}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-2 text-sm font-semibold shadow-sm hover:shadow-md transition-all"
+                        style={{ background: "#0033CC", boxShadow: "0 4px 14px #0033CC50" }}
+                        className="flex items-center gap-2 text-white rounded-xl px-6 py-2 h-10 text-sm font-bold hover:opacity-90 transition-opacity"
                       >
-                        <Save className="w-4 h-4" />
+                        <Check className="w-4 h-4" />
                         {updateTeamInclusionMutation.isPending ? "Confirmando..." : "Confirmar Escalação"}
                       </Button>
                     )}
