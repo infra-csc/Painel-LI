@@ -758,9 +758,9 @@ export default function BudgetActualPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {/* Diárias */}
                   <div className="rounded-lg p-2.5 border border-blue-100 bg-blue-50/50">
-                    <div className="flex items-center gap-1.5 mb-2">
+                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
                       <div className="w-4 h-4 rounded-md bg-blue-500 flex items-center justify-center"><Calendar className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-blue-700 uppercase tracking-wide">Diárias</span>
+                      <span className="text-[9px] font-black text-blue-700 uppercase tracking-normal truncate">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
@@ -774,9 +774,9 @@ export default function BudgetActualPage() {
                   </div>
                   {/* Alimentação */}
                   <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
-                    <div className="flex items-center gap-1.5 mb-2">
+                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
                       <div className="w-4 h-4 rounded-md bg-orange-400 flex items-center justify-center"><Utensils className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-orange-700 uppercase tracking-wide">Alimentação</span>
+                      <span className="text-[9px] font-black text-orange-700 uppercase tracking-normal truncate">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
@@ -786,9 +786,9 @@ export default function BudgetActualPage() {
                   </div>
                   {/* Mobilidade */}
                   <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
-                    <div className="flex items-center gap-1.5 mb-2">
+                    <div className="flex items-center gap-1.5 mb-2 overflow-hidden">
                       <div className="w-4 h-4 rounded-md bg-violet-500 flex items-center justify-center"><Car className="w-2.5 h-2.5 text-white" /></div>
-                      <span className="text-[9px] font-black text-violet-700 uppercase tracking-wide">Mobilidade</span>
+                      <span className="text-[9px] font-black text-violet-700 uppercase tracking-normal truncate">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
@@ -1413,7 +1413,7 @@ export default function BudgetActualPage() {
                     <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/60 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/40">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Diárias</span>
+                        <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-normal truncate">Diárias</span>
                       </div>
                       <span className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
                     </div>
@@ -1531,7 +1531,7 @@ export default function BudgetActualPage() {
                     <div className="flex items-center justify-between px-4 py-2.5 bg-purple-50/60 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-900/40">
                       <div className="flex items-center gap-2">
                         <Car className="w-3.5 h-3.5 text-purple-500" />
-                        <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-normal truncate">Mobilidade</span>
                         <span className="text-[10px] text-purple-400 dark:text-purple-500">ida e volta</span>
                       </div>
                       <span className="text-sm font-bold text-purple-700 dark:text-purple-300 tabular-nums">{formatCurrency(modalMobility)}</span>
