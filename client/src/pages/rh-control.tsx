@@ -814,7 +814,7 @@ export default function RhControlPage() {
                 {item.status === "prestacao_recebida" ? "Analisar" : "Planejar"}
               </button>
             )}
-            {nfEligible && (() => {
+            {nfEligible && !isExpanded && (() => {
               if (nfStatus === "aprovada") {
                 const approvedDateStr = nfInvCard?.paymentDate
                   ? new Date(nfInvCard.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
