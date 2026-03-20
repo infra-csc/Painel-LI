@@ -737,7 +737,13 @@ export default function RhControlPage() {
 
   const getLeftBorderStyle = (item: PrestacaoItem): { border: string; bg: string } => {
     if (CONCLUDED_STATUSES.includes(item.status)) {
-      if (item.status === "aprovada_faturamento") return { border: "border-l-4 border-l-emerald-400", bg: "" };
+      if (item.status === "aprovada_faturamento") {
+        const nfInv = item.actual ? getInvoiceForActual(item.actual.id) : undefined;
+        const nfSt = nfInv?.status || "pendente";
+        // Only truly green when NF is fully approved — otherwise violet (flow still ongoing)
+        if (nfSt === "aprovada") return { border: "border-l-4 border-l-emerald-400", bg: "" };
+        return { border: "border-l-4 border-l-violet-400", bg: "" };
+      }
       return { border: "border-l-4 border-l-red-400", bg: "" };
     }
     const days = getDiffDays(item.lastActivityDate);
@@ -779,9 +785,19 @@ export default function RhControlPage() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
-                {config.shortLabel}
-              </span>
+              {item.status === "aprovada_faturamento" ? (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                  nfStatus === "aprovada"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-violet-50 text-violet-700 border-violet-200"
+                }`}>
+                  {nfStatus === "aprovada" ? "Concluído" : "Ag. Nota Fiscal"}
+                </span>
+              ) : (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
+                  {config.shortLabel}
+                </span>
+              )}
               {isResubmitted && (
                 <span className="text-[9px] bg-violet-50 text-violet-600 border border-violet-200 font-medium px-1.5 py-0.5 rounded-full">Reenviado</span>
               )}
