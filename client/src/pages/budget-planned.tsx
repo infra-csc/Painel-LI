@@ -1628,74 +1628,96 @@ export default function BudgetPlannedPage() {
 
       {/* Modal de Confirmação - Envio em Lote */}
       <Dialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Send className="w-5 h-5 text-green-600" />
-              Confirmar Envio
-            </DialogTitle>
+        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Confirmar Envio</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-gray-600 dark:text-gray-400">
-              Você está prestes a enviar <strong className="text-green-600">{selectedCards.size} itens</strong> para o Realizado.
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              Esta ação não pode ser desfeita. Os valores serão registrados como orçamento realizado.
-            </p>
+          {/* Header verde */}
+          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #059669 0%, #10b981 100%)'}}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
+                <Send className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Envio em lote</p>
+                <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">Confirmar Envio</h2>
+                <p className="text-[12px] text-white/70">{selectedCards.size} {selectedCards.size === 1 ? 'item selecionado' : 'itens selecionados'}</p>
+              </div>
+            </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmSendOpen(false)}>Cancelar</Button>
-            <Button 
-              onClick={() => {
-                sendSelectedToActualMutation.mutate();
-                setConfirmSendOpen(false);
-              }}
-              disabled={sendSelectedToActualMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              Confirmar Envio
-            </Button>
-          </DialogFooter>
+          {/* Corpo */}
+          <div className="px-5 py-4 space-y-3 bg-white">
+            <p className="text-[13px] text-slate-500 leading-relaxed">
+              Os orçamentos selecionados serão enviados para o <span className="font-semibold text-slate-700">Realizado</span>. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm" onClick={() => setConfirmSendOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => { sendSelectedToActualMutation.mutate(); setConfirmSendOpen(false); }}
+                disabled={sendSelectedToActualMutation.isPending}
+                className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
+                style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
+              >
+                <Send className="w-3.5 h-3.5" />
+                Confirmar Envio
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Modal de Confirmação - Envio Individual */}
       <Dialog open={!!confirmSendSingle} onOpenChange={() => setConfirmSendSingle(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Send className="w-5 h-5 text-green-600" />
-              Confirmar Envio
-            </DialogTitle>
+        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Confirmar Envio</DialogTitle>
           </DialogHeader>
+          {/* Header verde */}
+          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #059669 0%, #10b981 100%)'}}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
+                <Send className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Envio para realizado</p>
+                {confirmSendSingle && (
+                  <>
+                    <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</h2>
+                    <p className="text-[12px] text-white/70">{getFunctionName(confirmSendSingle.inclusion.functionId)}</p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Corpo */}
           {confirmSendSingle && (
-            <div className="py-4">
-              <p className="text-gray-600 dark:text-gray-400">
-                Enviar orçamento de <strong className="text-green-600">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</strong> para o Realizado?
+            <div className="px-5 py-4 space-y-3 bg-white">
+              <p className="text-[13px] text-slate-500 leading-relaxed">
+                O orçamento planejado será enviado para o <span className="font-semibold text-slate-700">Realizado</span>. Esta ação não pode ser desfeita.
               </p>
-              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span>Total:</span>
-                  <span className="font-bold text-green-600">{formatCurrency(confirmSendSingle.totalFinal)}</span>
-                </div>
+              {/* Total destaque */}
+              <div className="rounded-xl px-4 py-3 flex items-center justify-between" style={{background:'#F0FDF4', border:'1px solid #bbf7d0'}}>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Total Planejado</span>
+                <span className="text-[20px] font-black" style={{color:'#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm" onClick={() => setConfirmSendSingle(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => { sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0]); setConfirmSendSingle(null); }}
+                  disabled={sendToActualMutation.isPending}
+                  className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
+                  style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Confirmar Envio
+                </Button>
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmSendSingle(null)}>Cancelar</Button>
-            <Button 
-              onClick={() => {
-                if (confirmSendSingle) {
-                  sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0]);
-                  setConfirmSendSingle(null);
-                }
-              }}
-              disabled={sendToActualMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              Confirmar Envio
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
