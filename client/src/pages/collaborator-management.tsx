@@ -201,11 +201,6 @@ export default function CollaboratorManagement() {
               <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Colaboradores</h1>
               <p className="text-xs text-slate-400 mt-0.5">Gerencie prestadores, motoristas e colaboradores internos</p>
             </div>
-            {totalCount > 0 && (
-              <div className="ml-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100">
-                <span className="text-xs font-semibold text-blue-600">{totalCount} cadastros</span>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
