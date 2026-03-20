@@ -806,6 +806,13 @@ export default function GridTeamInclusionForm() {
     return `${day}/${month}`;
   };
 
+  const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const formatDateHeader = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-');
+    const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return { date: `${day}/${month}`, dayName: DAY_NAMES[d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
+  };
+
   const processGrid = (): ProcessedRange[] => {
     const ranges: ProcessedRange[] = [];
 
@@ -1128,15 +1135,16 @@ export default function GridTeamInclusionForm() {
 
 
             {/* Botão para gerar grade */}
-            <Button
+            <button
               type="button"
               onClick={generateGrid}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all rounded-lg"
+              className="w-full h-10 flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-lg transition-all hover:opacity-90 hover:-translate-y-0.5 hover:shadow-lg"
+              style={{ background: "#0033CC", boxShadow: "0 3px 10px #0033CC40" }}
               data-testid="button-generate-grid"
             >
-              <Calendar className="w-4 h-4 mr-2" />
+              <Calendar className="w-4 h-4" />
               Gerar Grade de Funções
-            </Button>
+            </button>
 
             {/* Grade de Escalação */}
             {showGrid && (
@@ -1241,7 +1249,7 @@ export default function GridTeamInclusionForm() {
                               aria-label="Selecionar todas"
                             />
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32">Função</th>
+                          <th className="px-3 py-2 text-left border-r border-slate-200 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-32 sticky left-10 bg-slate-50 z-10">Função</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-20">
                             <div className="flex items-center justify-center gap-1">
                               <Ticket className="w-3 h-3" />
@@ -1258,13 +1266,15 @@ export default function GridTeamInclusionForm() {
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Chegada Sugerido</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-24">Data Voo Retorno</th>
                           <th className="px-3 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold min-w-[120px]">Horário Partida Sugerido</th>
-                          {dates.map(date => (
-                            <th key={date} className="px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16 bg-blue-50/50">
-                              <div className="text-xs">
-                                {formatDateForDisplay(date)}
-                              </div>
-                            </th>
-                          ))}
+                          {dates.map(date => {
+                            const { date: d, dayName, isWeekend } = formatDateHeader(date);
+                            return (
+                              <th key={date} className={`px-2 py-2 text-center border-r border-slate-100 text-[11px] uppercase tracking-widest font-semibold w-16 ${isWeekend ? 'bg-orange-50/60 text-orange-400' : 'bg-blue-50/50 text-slate-400'}`}>
+                                <div className="leading-none font-bold">{d}</div>
+                                <div className="text-[9px] mt-0.5 opacity-70 normal-case tracking-normal">{dayName}</div>
+                              </th>
+                            );
+                          })}
                           <th className="px-2 py-2 text-center border-slate-100 text-[11px] uppercase tracking-widest text-slate-400 font-semibold w-16">Ações</th>
                         </tr>
                       </thead>
@@ -1290,7 +1300,7 @@ export default function GridTeamInclusionForm() {
                                 className="accent-blue-500"
                               />
                             </td>
-                            <td className="px-3 py-2 border-r border-slate-100 font-medium text-slate-700 bg-slate-50/50">
+                            <td className="px-3 py-2 border-r border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-10 z-10 whitespace-nowrap">
                               {row.functionName}
                             </td>
                             <td className="px-2 py-2 border-r border-slate-100 text-center">
@@ -1343,42 +1353,46 @@ export default function GridTeamInclusionForm() {
                                 maxLength={15}
                               />
                             </td>
-                            {dates.map(date => (
-                              <td key={date} className="px-1 py-2 border-r border-slate-100 text-center">
-                                <div 
-                                  className="relative"
-                                  onFocus={() => setFocusedCell({functionId: row.functionId, date})}
-                                  onBlur={() => setFocusedCell(null)}
-                                >
-                                  <Select
-                                    value={row.dailyRates[date]?.toString() || "0"}
-                                    onValueChange={(val) => updateDailyRate(row.functionId, date, parseInt(val))}
+                            {dates.map(date => {
+                              const { isWeekend } = formatDateHeader(date);
+                              const val = row.dailyRates[date] || 0;
+                              return (
+                                <td key={date} className={`px-1 py-2 border-r border-slate-100 text-center ${isWeekend ? 'bg-orange-50/30' : ''}`}>
+                                  <div 
+                                    className="relative"
+                                    onFocus={() => setFocusedCell({functionId: row.functionId, date})}
+                                    onBlur={() => setFocusedCell(null)}
                                   >
-                                    <SelectTrigger 
-                                      className={`h-7 w-12 rounded-lg text-xs font-semibold transition-colors ${
-                                        (row.dailyRates[date] || 0) > 0
-                                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                          : 'bg-white text-slate-300 border border-slate-200'
-                                      } ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
-                                      onFocus={() => setFocusedCell({functionId: row.functionId, date})}
+                                    <Select
+                                      value={val.toString()}
+                                      onValueChange={(v) => updateDailyRate(row.functionId, date, parseInt(v))}
                                     >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="0">-</SelectItem>
-                                      <SelectItem value="1">1</SelectItem>
-                                      <SelectItem value="2">2</SelectItem>
-                                      <SelectItem value="3">3</SelectItem>
-                                      <SelectItem value="4">4</SelectItem>
-                                      <SelectItem value="5">5</SelectItem>
-                                      <SelectItem value="6">6</SelectItem>
-                                      <SelectItem value="7">7</SelectItem>
-                                      <SelectItem value="8">8</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </td>
-                            ))}
+                                      <SelectTrigger 
+                                        className={`!h-7 w-12 rounded-lg text-xs font-semibold transition-colors py-0 ${
+                                          val > 0
+                                            ? 'bg-[#0033CC]/10 text-[#0033CC] border border-[#0033CC]/30'
+                                            : 'bg-white text-slate-300 border border-slate-200'
+                                        } ${focusedCell?.functionId === row.functionId && focusedCell?.date === date ? 'ring-2 ring-blue-300 border-blue-400' : ''}`}
+                                        onFocus={() => setFocusedCell({functionId: row.functionId, date})}
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="0">-</SelectItem>
+                                        <SelectItem value="1">1</SelectItem>
+                                        <SelectItem value="2">2</SelectItem>
+                                        <SelectItem value="3">3</SelectItem>
+                                        <SelectItem value="4">4</SelectItem>
+                                        <SelectItem value="5">5</SelectItem>
+                                        <SelectItem value="6">6</SelectItem>
+                                        <SelectItem value="7">7</SelectItem>
+                                        <SelectItem value="8">8</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </td>
+                              );
+                            })}
                             <td className="px-2 py-2 text-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
