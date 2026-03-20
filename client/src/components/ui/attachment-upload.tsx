@@ -1,9 +1,13 @@
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Paperclip, X, CheckCircle } from "lucide-react";
+import { useState, useRef } from "react";
+import { Paperclip, X, Upload, FileText, FileImage } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface AttachmentMeta {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+}
 
 interface AttachmentUploadProps {
   attachmentIds?: string[];
@@ -12,228 +16,142 @@ interface AttachmentUploadProps {
   title?: string;
 }
 
-export default function AttachmentUpload({ 
-  attachmentIds = [], 
-  onAttachmentsChange, 
+export default function AttachmentUpload({
+  attachmentIds = [],
+  onAttachmentsChange,
   disabled = false,
-  title = "📎 Anexos"
 }: AttachmentUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [localMeta, setLocalMeta] = useState<AttachmentMeta[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
-  console.log("🔍 DEBUG ATTACHMENT COMPONENT: Renderizando com", attachmentIds?.length || 0, "anexos:", attachmentIds);
-  
-  // Verificar se há anexos para renderizar
-  useEffect(() => {
-    console.log("🔍 DEBUG ATTACHMENT EFFECT: AttachmentIds prop mudou para:", attachmentIds);
-    console.log("🔍 DEBUG ATTACHMENT EFFECT: Vai renderizar", attachmentIds?.length || 0, "anexos");
-  }, [attachmentIds]);
-  
-
-  const generateAttachmentId = () => {
-    return `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
-  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validar tipo de arquivo
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Tipo de arquivo inválido",
-        description: "Apenas PDF, JPG e PNG são permitidos",
-        variant: "destructive",
-      });
+      toast({ title: "Tipo inválido", description: "Apenas PDF, JPG e PNG são permitidos", variant: "destructive" });
       return;
     }
-
-    // Validar tamanho (5MB máximo)
     if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Arquivo muito grande",
-        description: "O arquivo deve ter no máximo 5MB",
-        variant: "destructive",
-      });
+      toast({ title: "Arquivo muito grande", description: "Máximo 5MB por arquivo", variant: "destructive" });
       return;
     }
 
     setIsUploading(true);
-
     try {
-      // 1. Obter URL de upload do servidor
       const uploadResponse = await fetch('/api/attachments/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
-      
-      if (!uploadResponse.ok) {
-        throw new Error('Erro ao obter URL de upload');
-      }
-      
+      if (!uploadResponse.ok) throw new Error('Erro ao obter URL de upload');
       const { attachmentId, uploadURL } = await uploadResponse.json();
-      
-      // 2. Fazer upload do arquivo para o object storage
+
       const fileUploadResponse = await fetch(uploadURL, {
         method: 'PUT',
         body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
+        headers: { 'Content-Type': file.type },
       });
-      
-      if (!fileUploadResponse.ok) {
-        throw new Error('Erro ao fazer upload do arquivo');
-      }
-      
-      // 3. Confirmar upload e obter metadata do arquivo
+      if (!fileUploadResponse.ok) throw new Error('Erro ao fazer upload do arquivo');
+
       const confirmResponse = await fetch(`/api/attachments/${attachmentId}/confirm`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),
       });
-      
-      if (!confirmResponse.ok) {
-        throw new Error('Erro ao confirmar upload do arquivo');
-      }
-      
-      // 4. Adicionar ID do anexo à lista
-      const updatedIds = [...attachmentIds, attachmentId];
-      console.log("🔍 DEBUG UPLOAD: Antes de chamar callback - attachmentIds:", attachmentIds, "novo ID:", attachmentId, "updatedIds:", updatedIds);
-      console.log("🔍 DEBUG UPLOAD: Callback function exists?", typeof onAttachmentsChange, onAttachmentsChange);
-      
-      // Chamar callback para notificar o componente pai
-      console.log("🔍 DEBUG UPLOAD: Chamando onAttachmentsChange com:", updatedIds);
-      onAttachmentsChange(updatedIds);
-      console.log("🔍 DEBUG UPLOAD: Callback executado com sucesso");
-      
-      toast({
-        title: "Anexo carregado",
-        description: `Arquivo "${file.name}" anexado com sucesso ao storage`,
-      });
+      if (!confirmResponse.ok) throw new Error('Erro ao confirmar upload');
+
+      setLocalMeta(prev => [...prev, { id: attachmentId, name: file.name, size: file.size, type: file.type }]);
+      onAttachmentsChange([...attachmentIds, attachmentId]);
+      toast({ title: "Anexo carregado", description: `"${file.name}" anexado com sucesso` });
     } catch (error) {
-      console.error('Erro no upload:', error);
-      toast({
-        title: "Erro no upload",
-        description: error instanceof Error ? error.message : "Erro ao carregar o anexo",
-        variant: "destructive",
-      });
+      toast({ title: "Erro no upload", description: error instanceof Error ? error.message : "Erro ao carregar", variant: "destructive" });
     } finally {
       setIsUploading(false);
-      // Limpar o input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const removeAttachment = (attachmentToRemove: string) => {
-    const updatedIds = attachmentIds.filter(id => id !== attachmentToRemove);
-    console.log("🔍 DEBUG REMOVE: Removendo anexo", attachmentToRemove, "updatedIds:", updatedIds);
-    onAttachmentsChange(updatedIds);
-    toast({
-      title: "Anexo removido",
-      description: "O anexo foi removido com sucesso",
-    });
+  const removeAttachment = (id: string) => {
+    setLocalMeta(prev => prev.filter(m => m.id !== id));
+    onAttachmentsChange(attachmentIds.filter(a => a !== id));
   };
 
-  const clearAllAttachments = () => {
-    onAttachmentsChange([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    toast({
-      title: "Anexos removidos",
-      description: "Todos os anexos foram removidos",
-    });
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  const getIcon = (type: string) => {
+    if (type.startsWith('image/')) return <FileImage className="w-3.5 h-3.5 text-blue-500" />;
+    return <FileText className="w-3.5 h-3.5 text-red-400" />;
+  };
+
+  const displayedIds = attachmentIds;
+  const knownIds = new Set(localMeta.map(m => m.id));
+  const unknownIds = displayedIds.filter(id => !knownIds.has(id));
 
   return (
-    <div className="space-y-3 p-4 border-2 border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-      <div className="flex items-center justify-between">
-        <Label className="text-lg font-semibold text-blue-700 dark:text-blue-300">{title}</Label>
-        {attachmentIds.length > 1 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={clearAllAttachments}
-            disabled={disabled}
-            className="text-red-600 hover:text-red-700 text-xs"
-            data-testid="button-clear-all-attachments"
-          >
-            Remover todos
-          </Button>
-        )}
-      </div>
-      
-      {/* Lista de anexos existentes */}
-      {(() => {
-        console.log("🔍 DEBUG RENDER: Renderizando", attachmentIds.length, "anexos:", attachmentIds);
-        return null;
-      })()}
-      {attachmentIds.map((attachmentId, index) => (
-        <div key={attachmentId} className="flex items-center gap-2 p-2 border rounded-md bg-green-50 dark:bg-green-900/20">
-          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <div className="flex-1">
-            <span className="text-sm font-mono text-green-700 dark:text-green-300" data-testid={`text-attachment-id-${index}`}>
-              ID: {attachmentId}
-            </span>
-            <div className="text-xs text-green-600 dark:text-green-400">
-              Anexo {index + 1} de {attachmentIds.length}
-            </div>
+    <div className="space-y-2">
+      {/* Lista de anexos com nome */}
+      {localMeta.filter(m => displayedIds.includes(m.id)).map(meta => (
+        <div key={meta.id} className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+          {getIcon(meta.type)}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-slate-700 truncate">{meta.name}</p>
+            <p className="text-[10px] text-slate-400">{formatSize(meta.size)}</p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => removeAttachment(attachmentId)}
-            disabled={disabled}
-            data-testid={`button-remove-attachment-${index}`}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {!disabled && (
+            <button type="button" onClick={() => removeAttachment(meta.id)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       ))}
 
-      {/* Campo para adicionar novo anexo */}
-      <div className="flex items-center gap-2">
-        <Input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          onChange={handleFileSelect}
-          disabled={disabled || isUploading}
-          className="flex-1"
-          data-testid="input-attachment-file"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
-          data-testid="button-add-attachment"
-        >
-          <Paperclip className="h-4 w-4" />
-          {isUploading ? "Carregando..." : "Adicionar Anexo"}
-        </Button>
-      </div>
-      
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Formatos: PDF, JPG, PNG. Tamanho máximo: 5MB por arquivo. Você pode adicionar múltiplos anexos.
-      </p>
+      {/* IDs sem metadata (carregados anteriormente) */}
+      {unknownIds.map((id, i) => (
+        <div key={id} className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+          <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <p className="text-xs text-slate-500 flex-1 truncate">Anexo {i + 1}</p>
+          {!disabled && (
+            <button type="button" onClick={() => removeAttachment(id)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      ))}
+
+      {/* Botão de upload */}
+      {!disabled && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={handleFileSelect}
+            disabled={isUploading}
+            className="hidden"
+            data-testid="input-attachment-file"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            data-testid="button-add-attachment"
+            className="w-full flex items-center justify-center gap-2 h-8 border border-dashed border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:border-[#0033CC] hover:text-[#0033CC] hover:bg-blue-50/50 transition-all disabled:opacity-50"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            {isUploading ? "Carregando..." : "Adicionar arquivo"}
+          </button>
+          <p className="text-[10px] text-slate-400">PDF, JPG ou PNG · máx. 5MB</p>
+        </>
+      )}
     </div>
   );
 }
