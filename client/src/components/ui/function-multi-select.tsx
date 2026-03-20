@@ -60,7 +60,7 @@ export default function FunctionMultiSelect({
         <button
           data-testid={testId}
           type="button"
-          className="w-full h-8 flex items-center justify-between px-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="w-full h-9 flex items-center justify-between px-3 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 cursor-pointer hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
           <span className="mr-2 flex items-center gap-2">
             <span>{displayText}</span>
