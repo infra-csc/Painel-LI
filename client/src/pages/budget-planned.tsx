@@ -1754,23 +1754,16 @@ export default function BudgetPlannedPage() {
               <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
                 <UserX className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-white/60">Ausência</p>
-                <h2 className="text-[16px] font-bold text-white leading-tight">Marcar como não participou</h2>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Marcar como não participou</p>
+                {notAttendedModal && (
+                  <>
+                    <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">{notAttendedModal.name}</h2>
+                    <p className="text-[12px] text-white/70">{notAttendedModal.functionName}</p>
+                  </>
+                )}
               </div>
             </div>
-
-            {notAttendedModal && (
-              <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.18)'}}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0" style={{background:'rgba(255,255,255,0.15)'}}>
-                  {notAttendedModal.name.split(' ').map((n: string) => n[0]).slice(0,2).join('')}
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold text-white leading-tight">{notAttendedModal.name}</p>
-                  <p className="text-[11px] text-white/60">{notAttendedModal.functionName}</p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Corpo */}
