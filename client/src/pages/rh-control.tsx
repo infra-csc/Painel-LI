@@ -601,6 +601,7 @@ export default function RhControlPage() {
     const nfRecusada = nfStatus === "recusada";
     const nfEnviada = nfStatus === "enviada";
     const nfDevolvida = nfStatus === "devolvida";
+    const nfAwaitingSubmission = nfEligible && nfStatus === "pendente"; // comparativo approved, waiting collaborator to send NF
     const nfDateStr = nfCompleted && nfInv?.approvedAt
       ? new Date(nfInv.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : (nfEnviada || nfDevolvida) && nfInv?.createdAt
@@ -626,7 +627,7 @@ export default function RhControlPage() {
             const dateStr = getStepDate(item, i);
             const responsibleName = getStepResponsible(item, i);
             const connectorColor = i === 3
-              ? nfEligible ? 'bg-emerald-300' : 'bg-gray-200'
+              ? nfCompleted ? 'bg-emerald-300' : nfEligible ? 'bg-amber-300' : 'bg-gray-200'
               : isCompleted ? 'bg-blue-300' : 'bg-gray-200';
             return (
               <div key={label} className="flex items-start flex-1 min-w-0">
@@ -672,30 +673,32 @@ export default function RhControlPage() {
             <TooltipTrigger asChild>
               <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
                 <div className="relative flex items-center justify-center">
-                  {nfEnviada && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
+                  {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
                   <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                     nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
                     : nfRecusada ? 'bg-red-500'
                     : nfEnviada ? 'bg-white border-2 border-amber-400'
                     : nfDevolvida ? 'bg-white border-2 border-orange-400'
+                    : nfAwaitingSubmission ? 'bg-white border-2 border-amber-400'
                     : 'bg-gray-200 border border-gray-300'
                   }`}>
                     {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                     {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
                     {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
                     {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                    {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-amber-300" />}
                   </div>
                 </div>
                 <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
                   nfCompleted ? 'text-emerald-600'
-                  : nfEnviada ? 'text-amber-600'
+                  : nfEnviada || nfAwaitingSubmission ? 'text-amber-600'
                   : nfDevolvida ? 'text-orange-600'
                   : nfRecusada ? 'text-red-600'
                   : 'text-slate-400'
                 }`}>Nota Fiscal</span>
                 {nfDateStr
                   ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
-                  : <span className="text-[9px] text-slate-400 italic">{nfEligible ? "Pendente" : "—"}</span>}
+                  : <span className="text-[9px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
