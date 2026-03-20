@@ -8,21 +8,20 @@ import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { useTheme } from "@/contexts/theme-context";
 
-// ─── Material Symbol icon component ──────────────────────────────────────────
-function MI({ name, filled, className, style }: {
+function MI({ name, filled, style }: {
   name: string;
   filled?: boolean;
-  className?: string;
   style?: React.CSSProperties;
 }) {
   return (
     <span
-      className={cn("material-symbols-outlined select-none", className)}
+      className="material-symbols-outlined select-none"
       style={{
-        fontSize: 20,
+        fontSize: 18,
+        lineHeight: 1,
         fontVariationSettings: filled
           ? "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24"
-          : "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+          : "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
         ...style,
       }}
     >
@@ -31,41 +30,32 @@ function MI({ name, filled, className, style }: {
   );
 }
 
-// ─── Initials helper ──────────────────────────────────────────────────────────
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── Nav items ────────────────────────────────────────────────────────────────
-const ORANGE = "#ff4d00";
-const ORANGE70 = "#e04400";
-const BLUE70 = "#1a4db5";
-const ACTIVE_BLUE = "#0025d2";
+const BLUE = "#0033CC";
 
 const allTabs = [
-  // Cadastros
-  { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: "person_add",           iconColor: ACTIVE_BLUE,  permission: "canAccessScreen0"     as const },
-  { id: "events",            path: "/events",            label: "Eventos",               icon: "event",               iconColor: ORANGE,       permission: "canAccessAdminUsers"  as const },
-  { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month",      iconColor: BLUE70,       permission: "canAccessCalendar"    as const },
-  { id: "functions",         path: "/functions",         label: "Funções",               icon: "work",                iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
-  { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge",               iconColor: BLUE70,       permission: "canAccessCollaborators" as const },
-  // Operacional
-  { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",           iconColor: ORANGE70,     permission: "canAccessScreen1"     as const },
-  { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",      iconColor: BLUE70,       permission: "canAccessScreen2"     as const },
-  { id: "tickets",           path: "/tickets",           label: "Passagem",    icon: "confirmation_number", iconColor: ORANGE70,     permission: "canAccessScreen3"     as const },
-  { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                 iconColor: BLUE70,       permission: "canAccessScreen3"     as const },
-  // Financeiro
-  { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",     iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
-  { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet", iconColor: BLUE70,   permission: "canAccessScreen0"     as const },
-  { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",         iconColor: ORANGE70,     permission: "canAccessScreen5"     as const },
-  { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: "groups",              iconColor: BLUE70,       permission: "canAccessScreen5"     as const },
-  { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: "receipt_long",        iconColor: ORANGE70,     permission: "canAccessScreen0"     as const },
-  { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest",    iconColor: BLUE70,       permission: "canAccessAdminUsers"  as const },
-  // Gestão
-  { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: "manage_search",       iconColor: BLUE70,       permission: "canAccessScreen6"     as const },
-  { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts",     iconColor: BLUE70,       permission: "canAccessAdminUsers"  as const },
+  { id: "user-registration", path: "/user-registration", label: "Cadastro de Usuários", icon: "person_add",            permission: "canAccessScreen0"       as const },
+  { id: "events",            path: "/events",            label: "Eventos",               icon: "event",                permission: "canAccessAdminUsers"    as const },
+  { id: "calendar",          path: "/calendar",          label: "Calendário",            icon: "calendar_month",       permission: "canAccessCalendar"      as const },
+  { id: "functions",         path: "/functions",         label: "Funções",               icon: "work",                 permission: "canAccessScreen0"       as const },
+  { id: "collaborators",     path: "/collaborators",     label: "Colaboradores",         icon: "badge",                permission: "canAccessCollaborators" as const },
+  { id: "team-inclusion",    path: "/team-inclusion",    label: "Inclusão de Equipe",    icon: "group_add",            permission: "canAccessScreen1"       as const },
+  { id: "scaling",           path: "/scaling",           label: "Escalação",             icon: "assignment_ind",       permission: "canAccessScreen2"       as const },
+  { id: "tickets",           path: "/tickets",           label: "Passagem",              icon: "confirmation_number",  permission: "canAccessScreen3"       as const },
+  { id: "accommodations",    path: "/accommodations",    label: "Hospedagem",            icon: "bed",                  permission: "canAccessScreen3"       as const },
+  { id: "budget-planned",    path: "/budget-planned",    label: "Planejado",             icon: "pending_actions",      permission: "canAccessScreen0"       as const },
+  { id: "budget-actual",     path: "/budget-actual",     label: "Realizado",             icon: "account_balance_wallet", permission: "canAccessScreen0"     as const },
+  { id: "budget-comparison", path: "/budget-comparison", label: "Comparativo",           icon: "query_stats",          permission: "canAccessScreen5"       as const },
+  { id: "rh-control",        path: "/rh-control",        label: "Controle RH",           icon: "groups",               permission: "canAccessScreen5"       as const },
+  { id: "invoices",          path: "/invoices",          label: "Notas Fiscais",         icon: "receipt_long",         permission: "canAccessScreen0"       as const },
+  { id: "system-settings",   path: "/system-settings",   label: "Valores Padrão",        icon: "settings_suggest",     permission: "canAccessAdminUsers"    as const },
+  { id: "consultation",      path: "/consultation",      label: "Consulta Geral",        icon: "manage_search",        permission: "canAccessScreen6"       as const },
+  { id: "admin-users",       path: "/admin-users",       label: "Usuários",              icon: "manage_accounts",      permission: "canAccessAdminUsers"    as const },
 ];
 
 const menuGroups = [
@@ -75,7 +65,6 @@ const menuGroups = [
   { title: "Gestão",      ids: ["consultation", "admin-users"] },
 ];
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
 export default function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
@@ -86,8 +75,7 @@ export default function Sidebar() {
   const tabs = allTabs.filter(t => hasPermission(user, t.permission));
   const getGroup = (ids: string[]) => tabs.filter(t => ids.includes(t.id));
   const userName = user?.name || "Usuário";
-
-  const sidebarHidden = (isCollapsed || isFocusMode);
+  const sidebarHidden = isCollapsed || isFocusMode;
 
   return (
     <>
@@ -96,9 +84,7 @@ export default function Sidebar() {
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow border border-slate-200"
         onClick={() => setMobileOpen(v => !v)}
       >
-        {mobileOpen
-          ? <X className="w-5 h-5 text-slate-600" />
-          : <Menu className="w-5 h-5 text-slate-600" />}
+        {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
       </button>
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
@@ -108,10 +94,10 @@ export default function Sidebar() {
       {sidebarHidden && (
         <button
           className="hidden lg:flex fixed top-1/2 -translate-y-1/2 left-0 z-50 items-center justify-center text-white rounded-r-lg"
-          style={{ width: 28, height: 48, background: ACTIVE_BLUE }}
+          style={{ width: 24, height: 44, background: BLUE }}
           onClick={toggleCollapsed}
         >
-          <MI name="chevron_right" style={{ fontSize: 18, color: "#fff" }} />
+          <MI name="chevron_right" style={{ fontSize: 16, color: "#fff" }} />
         </button>
       )}
 
@@ -119,44 +105,61 @@ export default function Sidebar() {
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen flex flex-col shrink-0 z-40 transition-transform duration-300",
-          "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           sidebarHidden && "lg:-translate-x-full"
         )}
-        style={{ width: 260, fontFamily: "'Inter', sans-serif" }}
+        style={{
+          width: 248,
+          fontFamily: "'Inter', sans-serif",
+          background: "#FAFBFF",
+          borderRight: "1px solid #E8ECF8",
+        }}
       >
 
-        {/* Logo row */}
-        <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: "1px solid #F1F5F9" }}>
-          <div className="flex items-center gap-3 min-w-0">
-            <img src={logoImg} alt="Norte" className="h-9 w-9 object-contain shrink-0" />
-            <div className="flex flex-col leading-tight truncate">
-              <span className="text-lg font-bold tracking-tight" style={{ color: "#0033CC" }}>Norte</span>
-              <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">Sistema de Logística Interna</span>
+        {/* ── Logo ── */}
+        <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid #E8ECF8", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8, overflow: "hidden",
+              background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <img src={logoImg} alt="Norte" style={{ width: 24, height: 24, objectFit: "contain" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: BLUE, letterSpacing: "-0.01em" }}>Norte</span>
+              <span style={{ fontSize: 10, color: "#94A3B8", fontWeight: 400 }}>Logística Interna</span>
             </div>
           </div>
           <button
-            className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors hidden lg:flex"
             onClick={toggleCollapsed}
+            className="hidden lg:flex"
+            style={{
+              width: 28, height: 28, borderRadius: 6, background: "#EEF2FF",
+              alignItems: "center", justifyContent: "center", border: "none",
+              cursor: "pointer", color: "#64748B", flexShrink: 0,
+            }}
           >
-            <MI name="chevron_left" style={{ fontSize: 18 }} />
+            <MI name="chevron_left" style={{ fontSize: 16 }} />
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-4 py-2" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+        {/* ── Nav ── */}
+        <nav style={{ flex: 1, overflowY: "auto", padding: "10px 10px", display: "flex", flexDirection: "column", gap: 20 }}>
           {menuGroups.map(group => {
             const items = getGroup(group.ids);
             if (!items.length) return null;
             return (
               <div key={group.title}>
-                <p
-                  className="px-3 uppercase text-slate-500 dark:text-slate-400 mb-3"
-                  style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em" }}
-                >
-                  {group.title}
-                </p>
-                <div className="space-y-1">
+                {/* Group label */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, padding: "0 6px" }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#B0BACC", letterSpacing: "0.07em", textTransform: "uppercase" }}>
+                    {group.title}
+                  </span>
+                </div>
+
+                {/* Items */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                   {items.map(tab => {
                     const isActive = location === tab.path;
                     return (
@@ -164,23 +167,46 @@ export default function Sidebar() {
                         <div
                           role="button"
                           onClick={() => setMobileOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer",
-                            isActive
-                              ? "font-semibold"
-                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          )}
-                          style={isActive ? {
-                            backgroundColor: "rgba(0,37,210,0.08)",
-                            color: ACTIVE_BLUE,
-                          } : undefined}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 9,
+                            padding: "7px 10px", borderRadius: 8, cursor: "pointer",
+                            transition: "all 0.15s",
+                            position: "relative",
+                            background: isActive ? "#EEF2FF" : "transparent",
+                            color: isActive ? BLUE : "#4B5563",
+                          }}
+                          className={cn(!isActive && "hover:bg-slate-100/80")}
                         >
-                          <MI
-                            name={tab.icon}
-                            filled={isActive}
-                            style={{ color: isActive ? ACTIVE_BLUE : tab.iconColor }}
-                          />
-                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: isActive ? 500 : 400 }}>{tab.label}</span>
+                          {/* Active left bar */}
+                          {isActive && (
+                            <span style={{
+                              position: "absolute", left: 0, top: "20%", bottom: "20%",
+                              width: 3, borderRadius: "0 3px 3px 0", background: BLUE,
+                            }} />
+                          )}
+
+                          {/* Icon */}
+                          <span style={{
+                            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            background: isActive ? "#DBEAFE" : "transparent",
+                            transition: "background 0.15s",
+                          }}>
+                            <MI
+                              name={tab.icon}
+                              filled={isActive}
+                              style={{ color: isActive ? BLUE : "#94A3B8", fontSize: 17 }}
+                            />
+                          </span>
+
+                          <span style={{
+                            fontSize: 13,
+                            fontWeight: isActive ? 600 : 400,
+                            color: isActive ? BLUE : "#374151",
+                            letterSpacing: isActive ? "-0.01em" : "normal",
+                          }}>
+                            {tab.label}
+                          </span>
                         </div>
                       </Link>
                     );
@@ -191,53 +217,68 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
-          {/* Avatar + name + email */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
-              style={{ background: ACTIVE_BLUE }}
-            >
+        {/* ── Footer ── */}
+        <div style={{ padding: "12px 10px", borderTop: "1px solid #E8ECF8", background: "#F5F7FF" }}>
+
+          {/* User card */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 9,
+            padding: "8px 10px", borderRadius: 8, marginBottom: 8,
+            background: "white", border: "1px solid #E8ECF8",
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8, background: BLUE,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "white", fontSize: 12, fontWeight: 700, flexShrink: 0,
+            }}>
               {initials(userName)}
             </div>
-            <div className="flex flex-col flex-1 min-w-0">
-              <span className="truncate text-slate-900 dark:text-white" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>{user?.name}</span>
-              <span className="truncate text-slate-500" style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 400 }}>{user?.email}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "#1E293B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user?.name}
+              </p>
+              <p style={{ fontSize: 10, color: "#94A3B8", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user?.email}
+              </p>
             </div>
           </div>
 
-          {/* 4 action icons */}
-          <div className="flex items-center justify-between mt-4 px-1">
-            <div className="flex gap-4">
-              <button
-                className="text-slate-400 hover:text-[#0025d2] transition-colors"
-                onClick={toggleCompact}
-                title="Expandir"
-              >
-                <MI name="open_in_full" />
-              </button>
-              <button
-                className="text-slate-400 hover:text-[#0025d2] transition-colors"
-                onClick={enterFocusMode}
-                title="Modo foco"
-              >
-                <MI name="grid_view" />
-              </button>
-              <button
-                className="text-slate-400 hover:text-[#0025d2] transition-colors"
-                onClick={toggleTheme}
-                title={theme === "light" ? "Modo escuro" : "Modo claro"}
-              >
-                <MI name={theme === "light" ? "dark_mode" : "light_mode"} />
-              </button>
+          {/* Action row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px" }}>
+            <div style={{ display: "flex", gap: 2 }}>
+              {[
+                { icon: "open_in_full", action: toggleCompact,  title: "Expandir" },
+                { icon: "grid_view",    action: enterFocusMode, title: "Modo foco" },
+                { icon: theme === "light" ? "dark_mode" : "light_mode", action: toggleTheme, title: theme === "light" ? "Modo escuro" : "Modo claro" },
+              ].map(btn => (
+                <button
+                  key={btn.icon}
+                  onClick={btn.action}
+                  title={btn.title}
+                  style={{
+                    width: 30, height: 30, borderRadius: 6, border: "none",
+                    background: "transparent", cursor: "pointer", display: "flex",
+                    alignItems: "center", justifyContent: "center", color: "#94A3B8",
+                    transition: "all 0.15s",
+                  }}
+                  className="hover:bg-slate-100 hover:text-[#0033CC]"
+                >
+                  <MI name={btn.icon} style={{ fontSize: 17 }} />
+                </button>
+              ))}
             </div>
             <button
-              className="text-slate-400 hover:text-red-500 transition-colors"
               onClick={logout}
               title="Sair"
+              style={{
+                width: 30, height: 30, borderRadius: 6, border: "none",
+                background: "transparent", cursor: "pointer", display: "flex",
+                alignItems: "center", justifyContent: "center", color: "#94A3B8",
+                transition: "all 0.15s",
+              }}
+              className="hover:bg-red-50 hover:text-red-500"
             >
-              <MI name="logout" />
+              <MI name="logout" style={{ fontSize: 17 }} />
             </button>
           </div>
         </div>
