@@ -833,61 +833,6 @@ export default function BudgetPlannedPage() {
             </div>
 
 
-            {/* ── Timeline de etapas ── */}
-            {(() => {
-              const currentStep = 1;
-              const steps = [
-                { label: "Escalação", desc: "Inclusões confirmadas" },
-                { label: "Planejamento RH", desc: "Valores previstos" },
-                { label: "Prestação", desc: "Resp. preenche realizado" },
-                { label: "Aprovação RH", desc: "Análise e aprovação" },
-              ];
-              return (
-                <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
-                  <div className="flex items-center">
-                    {steps.map((step, i) => {
-                      const isDone = i < currentStep;
-                      const isActive = i === currentStep;
-                      const isLast = i === steps.length - 1;
-                      return (
-                        <div key={i} className="flex items-center flex-1">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <div
-                              className={`rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                                isDone ? 'w-8 h-8 bg-emerald-500 text-white shadow-md shadow-emerald-200' :
-                                isActive ? 'w-9 h-9 text-white' :
-                                'w-8 h-8 bg-gray-100 text-gray-300'
-                              }`}
-                              style={isActive ? { background:'#0033CC', boxShadow: "0 0 0 4px rgba(0,51,204,0.15)" } : undefined}
-                            >
-                              {isDone ? (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (i + 1)}
-                            </div>
-                            <div className="text-center">
-                              <div className={`text-[11px] font-semibold leading-tight ${
-                                isDone ? 'text-emerald-600' :
-                                isActive ? 'text-[#0033CC]' :
-                                'text-gray-400'
-                              }`}>{step.label}</div>
-                              <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
-                            </div>
-                          </div>
-                          {!isLast && (
-                            <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                              isDone ? 'bg-emerald-300' : 'bg-gray-100'
-                            }`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* ── Cards de métricas ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {/* Casa */}
@@ -951,47 +896,75 @@ export default function BudgetPlannedPage() {
               </div>
             </div>
 
-            {/* ── Barra de Progresso de Envio ── */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-[#0033CC] flex items-center justify-center">
-                    <Send className="w-3 h-3 text-white" />
+            {/* ── Timeline de etapas ── */}
+            {(() => {
+              const currentStep = 1;
+              const steps = [
+                { label: "Escalação", desc: "Inclusões confirmadas" },
+                { label: "Planejamento RH", desc: "Valores previstos" },
+                { label: "Prestação", desc: "Resp. preenche realizado" },
+                { label: "Aprovação RH", desc: "Análise e aprovação" },
+              ];
+              return (
+                <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Etapa atual</span>
+                    {selectedCards.size > 0 && (
+                      <Button 
+                        size="sm"
+                        onClick={() => setConfirmSendOpen(true)}
+                        disabled={sendSelectedToActualMutation.isPending}
+                        className="h-7 text-xs px-3"
+                        style={{background:'#0033CC'}}
+                      >
+                        <Send className="w-3 h-3 mr-1.5" />
+                        Enviar {selectedCards.size} selecionados
+                      </Button>
+                    )}
                   </div>
-                  <span className="text-sm font-semibold text-slate-700">Envio para Prestação de Contas</span>
+                  <div className="flex items-center">
+                    {steps.map((step, i) => {
+                      const isDone = i < currentStep;
+                      const isActive = i === currentStep;
+                      const isLast = i === steps.length - 1;
+                      return (
+                        <div key={i} className="flex items-center flex-1">
+                          <div className="flex flex-col items-center gap-1.5">
+                            <div
+                              className={`rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
+                                isDone ? 'w-8 h-8 bg-emerald-500 text-white shadow-md shadow-emerald-200' :
+                                isActive ? 'w-9 h-9 text-white' :
+                                'w-8 h-8 bg-gray-100 text-gray-300'
+                              }`}
+                              style={isActive ? { background:'#0033CC', boxShadow: "0 0 0 4px rgba(0,51,204,0.15)" } : undefined}
+                            >
+                              {isDone ? (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (i + 1)}
+                            </div>
+                            <div className="text-center">
+                              <div className={`text-[11px] font-semibold leading-tight ${
+                                isDone ? 'text-emerald-600' :
+                                isActive ? 'text-[#0033CC]' :
+                                'text-gray-400'
+                              }`}>{step.label}</div>
+                              <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
+                            </div>
+                          </div>
+                          {!isLast && (
+                            <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
+                              isDone ? 'bg-emerald-300' : 'bg-gray-100'
+                            }`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                    {stats.enviados}/{stats.total}
-                    <span className="text-xs font-normal text-gray-400 ml-1">({Math.round(stats.progressoEnvio)}%)</span>
-                  </span>
-                  {selectedCards.size > 0 && (
-                    <Button 
-                      size="sm"
-                      onClick={() => setConfirmSendOpen(true)}
-                      disabled={sendSelectedToActualMutation.isPending}
-                      className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs shadow-md shadow-indigo-200 dark:shadow-indigo-900/30"
-                    >
-                      <Send className="w-3 h-3 mr-1.5" />
-                      Enviar {selectedCards.size} selecionados
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="relative h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
-                <div 
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    stats.progressoEnvio === 0 ? 'bg-gray-200 dark:bg-gray-600' : 
-                    stats.progressoEnvio === 100 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 
-                    'bg-gradient-to-r from-indigo-500 to-violet-500'
-                  }`}
-                  style={{ width: `${Math.max(stats.progressoEnvio, stats.progressoEnvio > 0 ? 4 : 0)}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                <span className="font-semibold text-gray-700 dark:text-gray-300">{stats.enviados} de {stats.total}</span> colaboradores enviados para Prestação de Contas
-              </p>
-            </div>
+              );
+            })()}
 
             {/* ── Filtros e Busca ── */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
