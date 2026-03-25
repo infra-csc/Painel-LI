@@ -570,65 +570,66 @@ export default function BudgetComparisonPage() {
           {/* ── 3 Metric cards ── */}
           <div className="grid grid-cols-3 gap-3">
             {/* Planejado */}
-            <div className="rounded-xl border border-blue-100 overflow-hidden" style={{background:'rgba(239,246,255,0.5)'}}>
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] uppercase text-blue-600 font-black tracking-widest">Total Planejado</p>
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <DollarSign className="w-3.5 h-3.5 text-blue-600" />
-                  </div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Planejado</p>
+                <div className="w-7 h-7 rounded-lg bg-blue-100/60 flex items-center justify-center">
+                  <DollarSign className="w-3.5 h-3.5 text-blue-500" />
                 </div>
-                <p className="text-2xl font-black text-blue-700 tabular-nums">{fmt(totals.totalPlanned)}</p>
-                <p className="text-[10px] text-slate-400 mt-1">Orçamento aprovado para o evento</p>
               </div>
+              <p className="text-2xl font-semibold text-slate-900 tabular-nums">{fmt(totals.totalPlanned)}</p>
+              <p className="text-[10px] text-slate-400 font-light mt-1.5">Orçamento aprovado para o evento</p>
             </div>
 
             {/* Realizado */}
-            <div className="rounded-xl border border-purple-100 overflow-hidden" style={{background:'rgba(245,243,255,0.5)'}}>
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] uppercase text-violet-600 font-black tracking-widest">Total Realizado</p>
-                  <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
-                    <BarChart3 className="w-3.5 h-3.5 text-violet-600" />
-                  </div>
+            <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Realizado</p>
+                <div className="w-7 h-7 rounded-lg bg-violet-100/60 flex items-center justify-center">
+                  <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
                 </div>
-                <p className="text-2xl font-black text-violet-700 tabular-nums">{fmt(totals.totalActual)}</p>
-                <p className="text-[10px] text-slate-400 mt-1">Valores prestados e enviados</p>
               </div>
+              <p className="text-2xl font-semibold text-slate-900 tabular-nums">{fmt(totals.totalActual)}</p>
+              <p className="text-[10px] text-slate-400 font-light mt-1.5">Valores prestados e enviados</p>
             </div>
 
             {/* Diferença */}
-            <div className={`rounded-xl overflow-hidden border ${
+            <div className={`rounded-xl border p-5 ${
               totals.difference === 0 ? 'border-slate-100 bg-slate-50' :
-              totals.difference < 0 ? 'border-emerald-100 bg-emerald-50/50' :
-              'border-red-200 bg-red-50'
+              totals.difference < 0 ? 'border-emerald-100 bg-emerald-50' :
+              'border-red-100 bg-red-50'
             }`}>
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className={`text-[10px] uppercase font-black tracking-widest ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                    Diferença
-                  </p>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${totals.difference === 0 ? 'bg-slate-100' : totals.difference < 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                    {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-slate-400" /> :
-                     totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-600" /> :
-                     <TrendingUp className="w-3.5 h-3.5 text-red-600" />}
-                  </div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Diferença</p>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                  totals.difference === 0 ? 'bg-slate-100/60' :
+                  totals.difference < 0 ? 'bg-emerald-100/60' : 'bg-red-100/60'
+                }`}>
+                  {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-slate-400" /> :
+                   totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> :
+                   <TrendingUp className="w-3.5 h-3.5 text-red-400" />}
                 </div>
-                <p className={`text-2xl font-black tabular-nums ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
+              </div>
+              <p className={`text-2xl font-semibold tabular-nums ${
+                totals.difference === 0 ? 'text-slate-400' :
+                totals.difference < 0 ? 'text-emerald-700' : 'text-red-600'
+              }`}>
+                {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <p className={`text-[10px] font-light ${
+                  totals.difference === 0 ? 'text-slate-400' :
+                  totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'
+                }`}>
+                  {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do planejado'}
                 </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <p className={`text-[10px] ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do planejado'}
-                  </p>
-                  {totals.totalPlanned > 0 && totals.difference !== 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      totals.difference < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
-                    </span>
-                  )}
-                </div>
+                {totals.totalPlanned > 0 && totals.difference !== 0 && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    totals.difference < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {Math.abs(totals.difference / totals.totalPlanned * 100).toFixed(1)}%
+                  </span>
+                )}
               </div>
             </div>
           </div>
