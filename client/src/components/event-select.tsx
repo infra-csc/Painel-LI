@@ -90,8 +90,6 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
   const sorted = useSortedEvents(events);
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedEvent = useMemo(() => events?.find(e => e.id === value), [events, value]);
@@ -102,24 +100,19 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     return sorted.filter(e => e.name.toLowerCase().includes(q));
   }, [sorted, search]);
 
-  function updateRect() {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      // Use fixed positioning — coordinates relative to viewport, no scroll offset needed
-      setDropdownRect({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-    }
+  function handleOpen() {
+    setIsOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 60);
   }
 
-  function handleOpen() {
-    updateRect();
-    setIsOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
+  function handleClose() {
+    setIsOpen(false);
+    setSearch("");
   }
 
   function handleSelect(eventId: string) {
     onValueChange(eventId);
-    setIsOpen(false);
-    setSearch("");
+    handleClose();
   }
 
   function handleClear(e: React.MouseEvent) {
@@ -129,169 +122,188 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
 
   useEffect(() => {
     if (!isOpen) return;
-    function handleClickOutside(ev: MouseEvent) {
-      const target = ev.target as Node;
-      const portal = document.getElementById("event-search-portal");
-      if (
-        containerRef.current && !containerRef.current.contains(target) &&
-        portal && !portal.contains(target)
-      ) {
-        setIsOpen(false);
-        setSearch("");
-      }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") handleClose();
     }
-    function handleScroll() { updateRect(); }
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("scroll", handleScroll, true);
-    window.addEventListener("resize", handleScroll);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("scroll", handleScroll, true);
-      window.removeEventListener("resize", handleScroll);
-    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [isOpen]);
 
-  const dropdown = isOpen && dropdownRect && createPortal(
+  // Command palette portal — renders at document.body, always centered, never clipped
+  const palette = isOpen && createPortal(
     <div
-      id="event-search-portal"
+      id="event-command-palette"
       style={{
-        position: 'fixed',
-        top: dropdownRect.top,
-        left: dropdownRect.left,
-        width: Math.max(dropdownRect.width, 320),
-        zIndex: 9999,
-        background: 'rgba(255, 255, 255, 0.94)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(226, 232, 240, 0.8)',
-        borderRadius: 14,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,51,204,0.06)',
-        overflow: 'hidden',
+        position: 'fixed', inset: 0, zIndex: 99999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(15, 23, 42, 0.32)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
       }}
+      onMouseDown={e => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      {/* Search bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '12px 14px', borderBottom: '1px solid rgba(241,245,249,0.9)',
-        background: 'rgba(248,250,252,0.7)',
-      }}>
-        <Search style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
-        <input
-          ref={inputRef}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar evento..."
-          style={{
-            flex: 1, fontSize: 13, outline: 'none', border: 'none',
-            background: 'transparent', color: '#1E293B',
-            caretColor: '#0033CC',
-          }}
-        />
-        {search && (
-          <button
-            onMouseDown={e => { e.preventDefault(); setSearch(""); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94A3B8', display: 'flex', alignItems: 'center' }}
-          >
-            <X style={{ width: 13, height: 13 }} />
-          </button>
-        )}
-      </div>
+      {/* Modal */}
+      <div
+        style={{
+          width: 'min(560px, 92vw)',
+          maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column',
+          background: 'rgba(255, 255, 255, 0.97)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(226, 232, 240, 0.6)',
+          borderRadius: 18,
+          boxShadow: '0 32px 80px rgba(0,0,0,0.22), 0 8px 24px rgba(0,51,204,0.08)',
+          overflow: 'hidden',
+          animation: 'cmdPaletteIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+        }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        {/* Search header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '16px 20px',
+          borderBottom: '1px solid #F1F5F9',
+        }}>
+          <Search style={{ width: 18, height: 18, color: '#0033CC', flexShrink: 0 }} />
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar evento..."
+            style={{
+              flex: 1, fontSize: 15, fontWeight: 500,
+              outline: 'none', border: 'none', background: 'transparent',
+              color: '#0F172A', caretColor: '#0033CC',
+            }}
+          />
+          {search ? (
+            <button
+              onMouseDown={e => { e.preventDefault(); setSearch(""); }}
+              style={{
+                background: '#F1F5F9', border: 'none', cursor: 'pointer',
+                padding: '4px', borderRadius: 6, color: '#94A3B8',
+                display: 'flex', alignItems: 'center',
+              }}
+            >
+              <X style={{ width: 13, height: 13 }} />
+            </button>
+          ) : (
+            <kbd style={{
+              fontSize: 11, color: '#94A3B8', background: '#F8FAFC',
+              border: '1px solid #E2E8F0', borderRadius: 5,
+              padding: '2px 6px', fontFamily: 'inherit',
+            }}>ESC</kbd>
+          )}
+        </div>
 
-      {/* List */}
-      <div className="event-search-list" style={{ maxHeight: 260, overflowY: 'auto', padding: '6px 6px 8px' }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
-            Nenhum evento encontrado
+        {/* Event count badge */}
+        {!search && (
+          <div style={{
+            padding: '8px 20px 4px',
+            fontSize: 11, fontWeight: 600, color: '#94A3B8',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>
+            {sorted.length} evento{sorted.length !== 1 ? 's' : ''}
           </div>
-        ) : (
-          filtered.map((event) => {
-            const isSelected = event.id === value;
-            return (
-              <button
-                key={event.id}
-                onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                  padding: '9px 10px', border: 'none',
-                  background: isSelected
-                    ? 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)'
-                    : 'transparent',
-                  cursor: 'pointer', textAlign: 'left',
-                  borderRadius: 10,
-                  transition: 'all 0.13s ease',
-                  marginBottom: 2,
-                  outline: 'none',
-                }}
-                onMouseEnter={e => {
-                  if (!isSelected) {
-                    (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg, #F0F7FF 0%, #E8F0FE 100%)';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateX(2px)';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isSelected) {
-                    (e.currentTarget as HTMLElement).style.background = 'transparent';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
-                  }
-                }}
-              >
-                {/* Icon badge */}
-                <div style={{
-                  width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                  background: isSelected
-                    ? 'linear-gradient(135deg, #0033CC 0%, #0044FF 100%)'
-                    : '#F1F5F9',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: isSelected ? '0 2px 8px rgba(0,51,204,0.25)' : 'none',
-                  transition: 'all 0.13s ease',
-                }}>
-                  <Calendar style={{ width: 14, height: 14, color: isSelected ? '#fff' : '#94A3B8' }} />
-                </div>
+        )}
 
-                {/* Text */}
-                <div style={{ flex: 1, minWidth: 0 }}>
+        {/* List */}
+        <div className="event-search-list" style={{ overflowY: 'auto', padding: '4px 10px 12px', flex: 1 }}>
+          {filtered.length === 0 ? (
+            <div style={{
+              padding: '32px 16px', textAlign: 'center',
+              color: '#94A3B8', fontSize: 14,
+            }}>
+              <Search style={{ width: 28, height: 28, color: '#CBD5E1', marginBottom: 8 }} />
+              <div>Nenhum evento encontrado</div>
+              <div style={{ fontSize: 12, marginTop: 4, color: '#CBD5E1' }}>Tente outro termo de busca</div>
+            </div>
+          ) : (
+            filtered.map((event) => {
+              const isSelected = event.id === value;
+              return (
+                <button
+                  key={event.id}
+                  onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 13,
+                    width: '100%', padding: '11px 12px',
+                    border: 'none', borderRadius: 12, marginBottom: 3,
+                    cursor: 'pointer', textAlign: 'left', outline: 'none',
+                    background: isSelected
+                      ? 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)'
+                      : 'transparent',
+                    transition: 'all 0.12s ease',
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = '#F0F7FF';
+                      (e.currentTarget as HTMLElement).style.transform = 'translateX(3px)';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                      (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
+                    }
+                  }}
+                >
+                  {/* Icon */}
                   <div style={{
-                    fontSize: 13, fontWeight: 600,
-                    color: isSelected ? '#0033CC' : '#1E293B',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    letterSpacing: '-0.01em',
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    background: isSelected
+                      ? 'linear-gradient(135deg, #0033CC, #0044FF)'
+                      : '#F1F5F9',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isSelected ? '0 3px 10px rgba(0,51,204,0.28)' : 'none',
+                    transition: 'all 0.12s ease',
                   }}>
-                    {event.name}
+                    <Calendar style={{ width: 15, height: 15, color: isSelected ? '#fff' : '#94A3B8' }} />
                   </div>
-                  {(event.startDate || event.endDate) && (
+
+                  {/* Text */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: 11, color: isSelected ? '#4F7BF5' : '#94A3B8', marginTop: 2,
-                      display: 'flex', alignItems: 'center', gap: 3,
+                      fontSize: 14, fontWeight: 600,
+                      color: isSelected ? '#0033CC' : '#0F172A',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      letterSpacing: '-0.01em',
                     }}>
-                      {fmtEventDate(event.startDate, event.endDate)}
+                      {event.name}
+                    </div>
+                    {(event.startDate || event.endDate) && (
+                      <div style={{ fontSize: 12, color: isSelected ? '#5580FF' : '#94A3B8', marginTop: 2 }}>
+                        {fmtEventDate(event.startDate, event.endDate)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Check */}
+                  {isSelected && (
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: '#0033CC', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 2px 8px rgba(0,51,204,0.35)',
+                    }}>
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                        <path d="M2 5.5l2.5 2.5L9 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </div>
                   )}
-                </div>
-
-                {/* Selected indicator */}
-                {isSelected && (
-                  <div style={{
-                    width: 18, height: 18, borderRadius: '50%',
-                    background: '#0033CC', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 2px 6px rgba(0,51,204,0.3)',
-                  }}>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                )}
-              </button>
-            );
-          })
-        )}
+                </button>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>,
     document.body
   );
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', minWidth: 280 }} className={className}>
+    <div style={{ position: 'relative', minWidth: 280 }} className={className}>
       {/* Trigger */}
       <button
         onClick={handleOpen}
@@ -305,10 +317,10 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
           boxShadow: isOpen
             ? '0 0 0 3px rgba(0,51,204,0.10), 0 2px 8px rgba(0,51,204,0.08)'
             : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
-        <Search style={{ width: 14, height: 14, color: isOpen ? '#0033CC' : '#94A3B8', flexShrink: 0, transition: 'color 0.15s' }} />
+        <Search style={{ width: 14, height: 14, color: isOpen ? '#0033CC' : '#94A3B8', flexShrink: 0 }} />
         <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: selectedEvent ? 500 : 400 }}>
           {selectedEvent ? selectedEvent.name : 'Selecionar evento'}
         </span>
@@ -325,7 +337,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
         )}
       </button>
 
-      {dropdown}
+      {palette}
     </div>
   );
 }
