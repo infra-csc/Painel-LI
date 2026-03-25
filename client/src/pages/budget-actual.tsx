@@ -104,6 +104,7 @@ export default function BudgetActualPage() {
   } | null>(null);
   type DayEntry = { date: string; valueCents: number; active: boolean; isWeekend: boolean };
   const [editDayEntries, setEditDayEntries] = useState<DayEntry[]>([]);
+  const addDayInputRef = useRef<HTMLInputElement>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("adjusted");
@@ -1586,23 +1587,31 @@ export default function BudgetActualPage() {
                         );
                       })}
                     </div>
-                    {/* Add extra day */}
+                    {/* Add extra day — hidden native date input + trigger button */}
                     {!isReadOnly && (
                       <div className="px-4 py-2 border-t border-slate-100">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const lastDate = editDayEntries.length > 0
-                              ? new Date(editDayEntries[editDayEntries.length - 1].date + 'T00:00:00')
-                              : new Date();
-                            lastDate.setDate(lastDate.getDate() + 1);
-                            const newDate = lastDate.toISOString().split('T')[0];
+                        <input
+                          ref={addDayInputRef}
+                          type="date"
+                          className="sr-only"
+                          onChange={e => {
+                            const newDate = e.target.value;
+                            if (!newDate) return;
+                            if (editDayEntries.some(d => d.date === newDate)) { e.target.value = ''; return; }
                             const isWknd = isWeekendDate(newDate);
                             const refVal = isWknd
-                              ? (editDayEntries.find(e => e.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0)
-                              : (editDayEntries.find(e => !e.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0);
-                            setEditDayEntries(prev => [...prev, { date: newDate, valueCents: refVal, active: true, isWeekend: isWknd }]);
+                              ? (editDayEntries.find(de => de.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0)
+                              : (editDayEntries.find(de => !de.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0);
+                            setEditDayEntries(prev =>
+                              [...prev, { date: newDate, valueCents: refVal, active: true, isWeekend: isWknd }]
+                                .sort((a, b) => a.date.localeCompare(b.date))
+                            );
+                            e.target.value = '';
                           }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addDayInputRef.current?.click()}
                           className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors py-0.5"
                         >
                           <Plus className="w-3 h-3" />
@@ -1621,187 +1630,86 @@ export default function BudgetActualPage() {
                     )}
                   </div>
 
-                  {/* ── Mobilidade ── */}
+                  {/* ── Mobilidade ── (somente leitura) */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-violet-500" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/60 border-b border-violet-100">
+                    <div className="h-[3px] bg-violet-400" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/40 border-b border-violet-100">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-violet-500 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-violet-400 flex items-center justify-center">
                           <Car className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
-                        <span className="text-[10px] text-violet-400">ida e volta</span>
+                        <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>
                       </div>
-                      <span className="text-sm font-bold text-violet-700 tabular-nums">{formatCurrency(modalMobility)}</span>
+                      <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
                     </div>
-                    {/* Integrated 3-col table */}
                     {(() => {
-                      const plannedIda = planned ? ((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2)) : 0;
-                      const plannedVolta = planned ? ((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2)) : 0;
-                      const diffMob = modalMobility - (planned?.mobility ?? 0);
-                      const pctMob = planned && planned.mobility > 0 ? (diffMob / planned.mobility * 100) : 0;
                       return (
-                        <div className="text-[11px]">
-                          <div className="grid grid-cols-[1fr_110px_150px] bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                            <span>Item</span>
-                            <span className="text-center">Planejado</span>
-                            <span className="text-right pr-2">Realizado</span>
+                        <div className="divide-y divide-slate-50">
+                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4">
+                            <div className="flex items-center gap-2">
+                              <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-500">Ida</span>
+                            </div>
+                            <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityIda)}</span>
                           </div>
-                          <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 border-b border-slate-50 gap-2">
-                            <div className="flex items-center gap-1.5">
-                              <ArrowRight className="w-3 h-3 text-violet-400 flex-shrink-0" />
-                              <span className="text-slate-600">Ida</span>
-                              {planned && isFieldChanged(editFormData.mobilityIda, plannedIda) && (
-                                <span className="text-[9px] text-amber-500 bg-amber-50 px-1 rounded">alt.</span>
-                              )}
+                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4 bg-slate-50/30">
+                            <div className="flex items-center gap-2">
+                              <ArrowLeft className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                              <span className="text-[12px] text-slate-500">Volta</span>
                             </div>
-                            <div className="text-center">
-                              {planned ? <span className="tabular-nums text-slate-500">{formatCurrency(plannedIda)}</span> : <span className="text-slate-300">—</span>}
-                            </div>
-                            <div className="flex justify-end">
-                              <CurrencyInput
-                                className={`h-9 text-sm text-right w-28 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                value={editFormData.mobilityIda}
-                                onChange={v => setEditFormData({...editFormData, mobilityIda: v})}
-                                disabled={isReadOnly}
-                              />
-                            </div>
+                            <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityVolta)}</span>
                           </div>
-                          <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 bg-slate-50/40">
-                            <div className="flex items-center gap-1.5">
-                              <ArrowLeft className="w-3 h-3 text-violet-400 flex-shrink-0" />
-                              <span className="text-slate-600">Volta</span>
-                              {planned && isFieldChanged(editFormData.mobilityVolta, plannedVolta) && (
-                                <span className="text-[9px] text-amber-500 bg-amber-50 px-1 rounded">alt.</span>
-                              )}
-                            </div>
-                            <div className="text-center">
-                              {planned ? <span className="tabular-nums text-slate-500">{formatCurrency(plannedVolta)}</span> : <span className="text-slate-300">—</span>}
-                            </div>
-                            <div className="flex justify-end">
-                              <CurrencyInput
-                                className={`h-9 text-sm text-right w-28 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                value={editFormData.mobilityVolta}
-                                onChange={v => setEditFormData({...editFormData, mobilityVolta: v})}
-                                disabled={isReadOnly}
-                              />
-                            </div>
-                          </div>
-                          {planned && Math.abs(diffMob) > 1 && (
-                            <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffMob < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                              <span className={`font-semibold tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {formatCurrency(planned.mobility)} → {formatCurrency(modalMobility)}
-                                {' '}<span className="font-bold">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>
-                              </span>
-                            </div>
-                          )}
                         </div>
                       );
                     })()}
                   </div>
 
-                  {/* ── Alimentação ── */}
+                  {/* ── Alimentação ── (somente leitura) */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                     <div className="h-[3px] bg-orange-400" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/60 border-b border-orange-100">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/40 border-b border-orange-100">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-md bg-orange-400 flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
                         <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
+                        <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {planned && (() => {
-                          const plannedAlim = planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner;
-                          const diffAlim = totalAlimentacao - plannedAlim;
-                          if (Math.abs(diffAlim) <= 1) return null;
-                          return (
-                            <span className={`text-[10px] font-bold tabular-nums ${diffAlim < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                              {diffAlim > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffAlim))}
-                            </span>
-                          );
-                        })()}
-                        <span className="text-sm font-bold text-orange-700 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
-                      </div>
+                      <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
                     </div>
-                    <div className="p-3">
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
-                        <div />
-                        <div className="text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
-                            <Briefcase className="w-2.5 h-2.5" /> Dias Úteis
-                          </span>
-                        </div>
-                        <div className="text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                            <Sun className="w-2.5 h-2.5" /> Fins de Sem.
-                          </span>
-                        </div>
+                    <div className="divide-y divide-slate-50">
+                      {/* Header row */}
+                      <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-slate-50 border-b border-slate-100">
+                        <span />
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-20 text-right">Dias Úteis</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-20 text-right">Fins de Sem.</span>
                       </div>
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
-                        <div className="flex items-center gap-1">
-                          <Sun className="w-3 h-3 text-amber-400" />
-                          <span className="text-[11px] font-semibold text-slate-600">Almoço</span>
+                      {/* Almoço */}
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                          <span className="text-[12px] text-slate-500">Almoço</span>
                         </div>
-                        <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
-                          <CurrencyInput
-                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.weekdayLunch}
-                            onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
-                            disabled={itemDays.weekdays === 0 || isReadOnly}
-                          />
-                          {planned && planned.weekdayLunch > 0 && (
-                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekdayLunch, planned.weekdayLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayLunch)}</div>
-                          )}
-                        </div>
-                        <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
-                          <CurrencyInput
-                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.weekendLunch}
-                            onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
-                            disabled={itemDays.weekends === 0 || isReadOnly}
-                          />
-                          {planned && planned.weekendLunch > 0 && (
-                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekendLunch, planned.weekendLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendLunch)}</div>
-                          )}
-                        </div>
+                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
+                          {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
+                        </span>
+                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
+                          {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
-                        <div className="flex items-center gap-1">
-                          <Moon className="w-3 h-3 text-indigo-400" />
-                          <span className="text-[11px] font-semibold text-slate-600">Jantar</span>
+                      {/* Jantar */}
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 bg-slate-50/30">
+                        <div className="flex items-center gap-1.5">
+                          <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                          <span className="text-[12px] text-slate-500">Jantar</span>
                         </div>
-                        <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
-                          <CurrencyInput
-                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.weekdayDinner}
-                            onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
-                            disabled={itemDays.weekdays === 0 || isReadOnly}
-                          />
-                          {planned && planned.weekdayDinner > 0 && (
-                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekdayDinner, planned.weekdayDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayDinner)}</div>
-                          )}
-                        </div>
-                        <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
-                          <CurrencyInput
-                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.weekendDinner}
-                            onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
-                            disabled={itemDays.weekends === 0 || isReadOnly}
-                          />
-                          {planned && planned.weekendDinner > 0 && (
-                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekendDinner, planned.weekendDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendDinner)}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-slate-100 pt-2">
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase self-center">Subtotal</span>
-                        <div className="text-center">
-                          <span className="text-xs font-bold text-indigo-600 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
-                        </div>
-                        <div className="text-center">
-                          <span className="text-xs font-bold text-amber-600 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
-                        </div>
+                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
+                          {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
+                        </span>
+                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
+                          {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
                     </div>
                   </div>
