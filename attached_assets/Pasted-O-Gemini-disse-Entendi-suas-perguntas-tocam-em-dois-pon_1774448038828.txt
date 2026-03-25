@@ -1,0 +1,68 @@
+O Gemini disse
+Entendi, suas perguntas tocam em dois pontos cruciais para a experiência do usuário (UX) e o fluxo lógico do sistema: a consistência visual e a clareza da ação tomada.
+
+Vamos detalhar como lidar com os ícones e a visualização pós-ação.
+
+1. Sobre Manter o Ícone nos Cards
+Resposta: Sim, devemos manter.
+
+O ícone de "Não Participou" (o usuário com o 'X') no topo do card do colaborador é uma ação pendente. Ele serve como um atalho visual rápido para o gestor.
+
+Por que manter?
+
+Acessibilidade de Ação: Ter o ícone visível o tempo todo permite que o gestor marque a ausência com um único clique, sem precisar abrir menus ocultos ou expandir o card.
+
+Consistência: Nos outros cards que já discutimos, o ícone de calendário (que também é uma ação/metadado) foi mantido e apenas reestilizado para ficar "delicado". O ícone de ausência deve seguir a mesma lógica.
+
+2. Como fica o card após marcar "Não Participou"?
+Aqui está o "pulo do gato". O card não deve simplesmente sumir (ser apagado). Se ele sumir, o gestor perde a referência e não sabe quem foi desconsiderado nos cálculos.
+
+A abordagem correta de UX é o "Apagamento Visual" (Visual Dimming/Greyed Out).
+
+Como vai ficar o Card (O Fluxo):
+Ação: O usuário clica no ícone e confirma no modal.
+
+Transformação Visual do Card:
+
+Opacidade: O card inteiro deve ficar com uma opacidade de 50% (opacity-50 em Tailwind).
+
+Cores: Remova todas as cores de destaque (os sub-cards coloridos ficam todos em cinza claro, o azul do rodapé vira cinza).
+
+Texto: Os valores financeiros mudam de cor para cinza e podem receber um traço (strikethrough) para indicar que não estão sendo somados.
+
+Rodapé Azul: O rodapé azul "TOTAL PLANEJADO" muda para cinza.
+
+A Nova Etiqueta (Badge) de Status:
+
+No topo do card, onde antes ficava o ícone de ação, substitua-o por uma Etiqueta (Badge) Fixa de Status.
+
+Estilo: Uma tag com fundo cinza-slate, texto em cinza escuro e o ícone de usuário com 'X', com o texto: "NÃO PARTICIPOU".
+
+Botão de Reversão (Importante):
+
+Adicione um botão discreto de "Desfazer" ou "Reintegrar" no card apagado, caso o gestor tenha marcado errado.
+
+Prompt para o Replit (Implementar Estados de Card e Ações)
+Aqui está o prompt para você consolidar essa lógica no seu projeto:
+
+Atue como um UI/UX Designer e Engenheiro Front-end Sênior.
+
+1. Estado "Ativo" do Card de Colaborador (Padrão):
+
+Mantenha o ícone de "Não Participou" (usuário com 'X') no cabeçalho do card, ao lado do nome, com um tamanho discreto (14px) e cor cinza médio (text-slate-400). Ele deve ser um botão clicável que abre o modal.
+
+2. Estado "Inativo" do Card de Colaborador (Pós-Ação):
+
+Quando o colaborador for marcado como "Não Participou", aplique as seguintes classes Tailwind ao card inteiro: opacity-50, grayscale, pointer-events-none (para desativar outros botões).
+
+No cabeçalho, remova o ícone de ação e substitua por um Badge de Status: fundo cinza-claro (bg-slate-100), texto cinza-escuro (text-slate-700), cantos arredondados, texto "NÃO PARTICIPOU" e o ícone de usuário com 'X' sutil ao lado.
+
+Os valores financeiros devem ficar com line-through (traçados) e em cinza claro.
+
+O rodapé azul "TOTAL PLANEJADO" deve mudar para cinza.
+
+Adicione um botão pequeno e discreto de "Reintegrar" alinhado à direita no card apagado para desfazer a ação.
+
+3. Consistência de Tipografia (Fina):
+
+Garanta que todos os valores financeiros, mesmo em cards apagados, usem font-medium (nunca bold).

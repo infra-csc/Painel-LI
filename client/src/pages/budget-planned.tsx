@@ -1171,7 +1171,7 @@ export default function BudgetPlannedPage() {
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
                       className={`rounded-2xl border transition-all duration-300 ease-in-out overflow-hidden flex flex-col group h-full ${
-                        isNotAttended ? 'bg-slate-50 opacity-75 border-dashed border-slate-300 shadow-sm' :
+                        isNotAttended ? 'bg-white border-slate-200 shadow-sm opacity-50 grayscale' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
                         isSent ? 'bg-white border-indigo-200 opacity-85 shadow-sm' :
@@ -1307,7 +1307,7 @@ export default function BudgetPlannedPage() {
                       
                       {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
-                        <div className="px-4 pt-3 pb-3 flex-1 flex flex-col gap-3">
+                        <div className={`px-4 pt-3 pb-3 flex-1 flex flex-col gap-3${isNotAttended ? ' pointer-events-none select-none' : ''}`}>
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
                           <div className="flex flex-col gap-2">
                             {/* ── Diárias ── */}
@@ -1319,7 +1319,7 @@ export default function BudgetPlannedPage() {
                                     <Calendar className="w-2.5 h-2.5 shrink-0" style={{color:'#0033CC'}} />
                                     <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#0033CC'}}>Diárias</span>
                                   </div>
-                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.subtotalDiarias)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.subtotalDiarias)}</span>
                                 </div>
                               </div>
                               {/* Separador */}
@@ -1352,7 +1352,7 @@ export default function BudgetPlannedPage() {
                                     <Utensils className="w-2.5 h-2.5 shrink-0" style={{color:'#EA580C'}} />
                                     <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#EA580C'}}>Alimentação</span>
                                   </div>
-                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
                                 </div>
                               </div>
                               <div style={{width: 1, background: 'rgba(234,88,12,0.08)', margin: '9px 0'}} />
@@ -1383,7 +1383,7 @@ export default function BudgetPlannedPage() {
                                     <Car className="w-2.5 h-2.5 shrink-0" style={{color:'#6d28d9'}} />
                                     <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#6d28d9'}}>Mobilidade</span>
                                   </div>
-                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.mobilidade)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em', textDecoration: isNotAttended ? 'line-through' : 'none'}}>{formatCurrency(budget.mobilidade)}</span>
                                 </div>
                               </div>
                               <div style={{width: 1, background: 'rgba(109,40,217,0.08)', margin: '9px 0'}} />
@@ -1414,11 +1414,19 @@ export default function BudgetPlannedPage() {
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         padding: '10px 16px',
                         background: isNotAttended ? '#F8FAFC' : '#F5F7FF',
-                        borderTop: '1px solid rgba(224,231,255,0.8)',
+                        borderTop: isNotAttended ? '1px solid #E2E8F0' : '1px solid rgba(224,231,255,0.8)',
                         marginTop: 'auto',
                       }}>
-                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#C7D2FE'}}>Total Planejado</span>
-                        <span style={{fontSize: 16, fontWeight: 500, color: isNotAttended ? '#CBD5E1' : '#0033CC', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums'}}>{formatCurrency(isNotAttended ? 0 : budget.totalFinal)}</span>
+                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#CBD5E1' : '#C7D2FE'}}>
+                          {isNotAttended ? 'Não contabilizado' : 'Total Planejado'}
+                        </span>
+                        <span style={{
+                          fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
+                          color: isNotAttended ? '#CBD5E1' : '#0033CC',
+                          textDecoration: isNotAttended ? 'line-through' : 'none',
+                        }}>
+                          {formatCurrency(budget.totalFinal)}
+                        </span>
                       </div>
                     </div>
                   );
