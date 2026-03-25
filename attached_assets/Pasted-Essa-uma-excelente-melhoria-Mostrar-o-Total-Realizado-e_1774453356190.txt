@@ -1,0 +1,46 @@
+Essa é uma excelente melhoria! Mostrar o Total Realizado e o Delta (a diferença em relação ao planejado) no card do colaborador é o que realmente traz valor para uma tela de prestação de contas. O gestor precisa bater o olho e saber: "Esse cara gastou mais ou menos do que eu previ?".
+
+Para manter a consistência com o Planejamento e adicionar essa inteligência visual, aqui está o prompt de refino:
+
+💎 Prompt: Harmonização e Inteligência Financeira (Realizado)
+Atue como Desenvolvedor Front-end e UI Designer Senior.
+
+1. Estrutura do Card de Colaborador (Com Total e Delta):
+
+No rodapé de cada card de colaborador, adicione uma área de resumo financeiro:
+
+Lado Esquerdo: Exiba "Total Realizado: R$ [Valor]" (use font-medium e a cor roxa do tema).
+
+Lado Direito: Adicione um badge ou texto discreto comparativo:
+
+Se o Realizado for MAIOR que o Planejado: Exiba (+ R$ [Diferença]) em vermelho/coral suave.
+
+Se o Realizado for MENOR que o Planejado: Exiba (- R$ [Diferença]) em verde suave.
+
+Se for IGUAL: Exiba (Dentro do previsto) em cinza.
+
+2. Harmonização Visual (Identidade do Planejamento):
+
+Bordas e Sombras: Use o mesmo rounded-3xl e a sombra suave que usamos no Planejamento.
+
+Topo do Card: Mantenha a linha fina superior colorida (3px), mas use um tom de roxo acinzentado para não berrar tanto quanto o verde atual.
+
+Tipografia: Troque fontes bold pesadas por font-medium. Isso deixa a tela com aspecto de software financeiro premium.
+
+3. Limpeza da Barra de Filtros:
+
+Remova a borda externa que envolve todos os filtros. Deixe o campo de busca e os dropdowns flutuarem sobre o fundo da página, com um leve gap-4 entre eles, exatamente como na tela de Planejamento.
+
+4. Ajuste do Card de Resumo Superior (Roxo):
+
+Centralize os KPIs ("Prestações", "Em Revisão", "Aprovadas") e a barra de progresso.
+
+A barra de progresso verde deve ter um fundo (track) cinza claro para parecer um componente de progresso real.
+
+Suavize o peso da fonte do valor total "R$ 1.095,00" para font-bold (evite o black/extra-bold).
+
+5. Rodapé Fixo (Sticky):
+
+Mantenha a barra branca com backdrop-blur no fundo da tela, mostrando o Total Geral Realizado e o botão de ação, seguindo o design da tela anterior.
+
+Gere o código focando na clareza da comparação entre Planejado vs. Realizado dentro de cada card.

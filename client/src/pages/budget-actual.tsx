@@ -680,7 +680,7 @@ export default function BudgetActualPage() {
       <div
         data-card-id={cardItem.id}
         className={[
-          'rounded-2xl border overflow-hidden transition-all duration-300 bg-white flex flex-col',
+          'rounded-3xl border overflow-hidden transition-all duration-300 bg-white flex flex-col',
           isInGroup ? 'border-l-[3px] border-l-purple-300' : '',
           highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-[0_8px_32px_rgba(109,40,217,0.14)]'
             : isSelected ? 'ring-2 ring-violet-300 border-violet-200 shadow-md'
@@ -758,13 +758,13 @@ export default function BudgetActualPage() {
               <div className="px-4 py-3 border-t border-slate-100">
                 <div className="grid grid-cols-3 gap-2">
                   {/* Diárias */}
-                  <div className="rounded-lg p-2.5 border border-blue-100 bg-blue-50/50">
+                  <div className="rounded-xl p-2.5 border border-blue-100 bg-blue-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-blue-500 flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-black text-blue-700 uppercase">Diárias</span>
+                      <span className="text-[9px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
+                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardSubtotalDiarias)}</span>
                       {diffInline(cardSubtotalDiarias, plannedDiarias)}
                     </div>
                     {planned && Math.abs(cardSubtotalDiarias - plannedDiarias) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedDiarias)}</div>}
@@ -774,25 +774,25 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
                   {/* Alimentação */}
-                  <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
+                  <div className="rounded-xl p-2.5 border border-orange-100 bg-orange-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-black text-orange-700 uppercase">Alimentação</span>
+                      <span className="text-[9px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
                     {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
                   </div>
                   {/* Mobilidade */}
-                  <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
+                  <div className="rounded-xl p-2.5 border border-violet-100 bg-violet-50/50">
                     <div className="flex items-center gap-1 mb-2">
                       <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
-                      <span className="text-[9px] font-black text-violet-700 uppercase">Mobilidade</span>
+                      <span className="text-[9px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
                     </div>
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
+                      <span className="text-[14px] font-medium text-slate-800 tabular-nums">{formatCurrency(cardItem.mobility)}</span>
                       {diffInline(cardItem.mobility, planned?.mobility ?? 0)}
                     </div>
                     {(() => {
@@ -815,14 +815,25 @@ export default function BudgetActualPage() {
           const planned = cardPlanned;
           const diff = planned ? cardItem.totalValue - planned.totalValue : 0;
           return (
-            <div className={`flex items-center justify-between px-4 py-2.5 border-t ${planned && Math.abs(diff) > 1 ? (diff < 0 ? 'border-emerald-100 bg-emerald-50/50' : 'border-amber-100 bg-amber-50/50') : 'border-slate-100 bg-slate-50/60'}`}>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</span>
-                {planned && <span className="text-[10px] text-slate-400 tabular-nums">plan: {formatCurrency(planned.totalValue)}</span>}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/40 mt-auto">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Total Realizado</span>
+                <span className="text-[17px] font-medium tabular-nums text-violet-700" style={{letterSpacing:'-0.02em'}}>{formatCurrency(cardItem.totalValue)}</span>
               </div>
-              <div className="flex items-center gap-2">
-                {planned && Math.abs(diff) > 1 && <span className={`text-[11px] font-bold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
-                <span className="text-[16px] font-bold tabular-nums text-blue-600">{formatCurrency(cardItem.totalValue)}</span>
+              <div>
+                {!planned ? null
+                  : Math.abs(diff) <= 1 ? (
+                    <span className="text-[10px] font-medium text-slate-400 px-2.5 py-1 rounded-lg bg-slate-100">Dentro do previsto</span>
+                  ) : diff < 0 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums text-emerald-700 px-2.5 py-1 rounded-lg bg-emerald-100">
+                      <TrendingDown className="w-3 h-3" />− {formatCurrency(Math.abs(diff))}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums text-red-600 px-2.5 py-1 rounded-lg bg-red-50">
+                      <TrendingUp className="w-3 h-3" />+ {formatCurrency(diff)}
+                    </span>
+                  )
+                }
               </div>
             </div>
           );
