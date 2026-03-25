@@ -1230,30 +1230,32 @@ export default function BudgetPlannedPage() {
                             {initials || '?'}
                           </div>
 
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 flex flex-col gap-y-1">
+                            {/* Linha 1: nome + dot */}
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-slate-800 text-[14px] truncate">{name}</span>
                               {budget.hasOverride && (
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
-                              <span className="flex-1" />
-                              {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                                <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 400,
-                                    color: '#64748B',
-                                    background: 'transparent',
-                                    letterSpacing: '0.01em',
-                                  }}>
-                                  <Calendar style={{width:12, height:12, color:'#94A3B8', flexShrink:0}} />
-                                  {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
-                                  <span style={{color:'#CBD5E1', fontSize:10}}>–</span>
-                                  {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
-                                </span>
-                              )}
                             </div>
-                            <div className="flex items-center gap-1 mt-0.5 overflow-hidden flex-wrap">
+                            {/* Linha 2: badge de data — linha dedicada */}
+                            {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
+                              <span className="inline-flex items-center gap-1 self-start px-1.5 py-0.5 rounded-md"
+                                style={{
+                                  background: '#F1F5F9',
+                                  fontSize: 10,
+                                  fontWeight: 400,
+                                  color: '#64748B',
+                                  letterSpacing: '0.01em',
+                                }}>
+                                <Calendar style={{width:10, height:10, color:'#94A3B8', flexShrink:0}} />
+                                {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                                <span style={{color:'#CBD5E1'}}>–</span>
+                                {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                              </span>
+                            )}
+                            {/* Linha 3: badges de função/tipo */}
+                            <div className="flex items-center gap-1 overflow-hidden flex-wrap">
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
