@@ -366,20 +366,19 @@ export default function BudgetComparisonPage() {
     const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
 
     return (
-      <div className="rounded-xl border border-slate-200 overflow-hidden">
-        <div className={`h-[3px] ${stripColor}`} />
+      <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
         {/* Category header */}
-        <div className={`flex items-center justify-between px-3 py-2 ${bgColor}`}>
+        <div className={`flex items-center justify-between px-4 py-2.5 ${bgColor} border-b border-slate-100`}>
           <div className="flex items-center gap-2">
             <div className={`w-5 h-5 rounded-md flex items-center justify-center ${stripColor}`}>
               <Icon className="w-3 h-3 text-white" />
             </div>
-            <span className={`text-[10px] font-black uppercase tracking-wide ${iconColor}`}>{title}</span>
+            <span className={`text-[11px] font-semibold uppercase tracking-wide ${iconColor}`}>{title}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-black tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
+            <span className={`text-sm font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
             {hasAnyDiff && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                 <AlertTriangle className="w-2.5 h-2.5" /> Divergência
               </span>
             )}
@@ -387,30 +386,30 @@ export default function BudgetComparisonPage() {
         </div>
 
         {/* Column headers */}
-        <div className="grid grid-cols-4 gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-100">
+        <div className="grid grid-cols-4 gap-2 px-4 py-1.5 bg-white border-b border-slate-100">
           <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider"></span>
-          <span className="text-[9px] uppercase text-blue-500 font-bold tracking-wider text-right">Planejado</span>
-          <span className="text-[9px] uppercase text-violet-500 font-bold tracking-wider text-right">Realizado</span>
+          <span className="text-[9px] uppercase text-blue-500 font-semibold tracking-wider text-right">Planejado</span>
+          <span className="text-[9px] uppercase text-violet-500 font-semibold tracking-wider text-right">Realizado</span>
           <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
         </div>
 
         {/* Rows */}
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-100 bg-white">
           {rows.map((row, i) => {
             const diff = row.actual - row.planned;
             const isDiff = diff !== 0;
             return (
-              <div key={i} className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center ${i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}`}>
-                <span className="text-slate-600 font-medium">{row.label}</span>
-                <span className="text-right tabular-nums text-blue-600">{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums font-semibold ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
+              <div key={i} className="grid grid-cols-4 gap-2 px-4 py-2.5 text-[12px] items-center">
+                <span className="text-slate-500 font-medium">{row.label}</span>
+                <span className="text-right tabular-nums text-blue-600 font-medium">{fmtVal(row.planned, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums font-medium ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
                   {fmtVal(row.actual, row.isQuantity)}
                 </span>
                 <div className="text-right">
                   {diff === 0 ? (
                     <span className="text-slate-300 tabular-nums">—</span>
                   ) : (
-                    <span className={`tabular-nums font-bold text-[10px] ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <span className={`tabular-nums font-semibold text-[11px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                       {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
                     </span>
                   )}
@@ -422,15 +421,15 @@ export default function BudgetComparisonPage() {
 
         {/* Subtotal */}
         {currencyRows.length > 0 && (
-          <div className={`grid grid-cols-4 gap-2 px-3 py-2 text-[11px] items-center border-t-2 border-slate-100 font-bold ${subtotalDiff > 0 ? 'bg-red-50/50' : subtotalDiff < 0 ? 'bg-emerald-50/50' : 'bg-slate-50'}`}>
-            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Subtotal</span>
-            <span className="text-right tabular-nums text-blue-700">{fmt(subtotalPlanned)}</span>
-            <span className={`text-right tabular-nums ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
+          <div className={`grid grid-cols-4 gap-2 px-4 py-2.5 text-[12px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`}>
+            <span className="text-slate-400 uppercase text-[9px] tracking-wider font-semibold">Subtotal</span>
+            <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
+            <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
             <div className="text-right">
               {subtotalDiff === 0 ? (
                 <span className="text-slate-300 tabular-nums">—</span>
               ) : (
-                <span className={`tabular-nums text-[10px] ${subtotalDiff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                <span className={`tabular-nums text-[11px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                   {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
                 </span>
               )}
@@ -809,24 +808,24 @@ export default function BudgetComparisonPage() {
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-bold text-slate-800 truncate">{colName}</span>
+                              <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
                               {row.isSplit && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 border border-purple-200 text-[9px] font-semibold text-purple-700 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-purple-50 text-[10px] font-semibold text-purple-700 shrink-0">
                                   <GitFork className="w-2.5 h-2.5" /> Dividida
                                 </span>
                               )}
                               {isDecided && decidedStyle && (
-                                <span className={`flex items-center gap-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${decidedStyle.bg} ${decidedStyle.border} border ${decidedStyle.text} shrink-0`}>
+                                <span className={`flex items-center gap-1 text-[10px] font-semibold px-3 py-1 rounded-full ${decidedStyle.bg} ${decidedStyle.text} shrink-0`}>
                                   <decidedStyle.icon className="w-2.5 h-2.5" /> {decidedStyle.label}
                                 </span>
                               )}
                               {isResubmitted && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-[9px] font-semibold text-violet-700 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-violet-50 text-[10px] font-semibold text-violet-700 shrink-0">
                                   <RotateCcw className="w-2.5 h-2.5" /> Reenviado
                                 </span>
                               )}
                               {isNotAttended && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[9px] font-semibold text-slate-500 shrink-0">
+                                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500 shrink-0">
                                   <UserX className="w-2.5 h-2.5" /> Não participou
                                 </span>
                               )}
@@ -898,7 +897,7 @@ export default function BudgetComparisonPage() {
                       {/* Expanded body */}
                       {isExpanded && (
                         <div className="border-t border-slate-100 bg-slate-50">
-                          <div className="p-4 space-y-3">
+                          <div className="p-6 space-y-4">
 
                             {/* ── Not attended notice ── */}
                             {isNotAttended && (
@@ -1156,7 +1155,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 border-none shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-50 hover:bg-amber-100 text-amber-600 border-none shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1175,7 +1174,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-500 hover:bg-emerald-600 shadow-md disabled:opacity-40"
+                      className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'approve' })}
                       disabled={selectedItems.size === 0}
                     >
