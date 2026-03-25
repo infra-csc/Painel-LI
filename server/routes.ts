@@ -2691,7 +2691,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Payment Companies
   app.get("/api/payment-companies", async (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
+    const userId = req.session.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const companies = await storage.getPaymentCompanies();
       res.json(companies);
@@ -2702,7 +2703,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/payment-companies", async (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
+    const userId = req.session.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const { name, cnpj } = req.body;
       if (!name || !cnpj) return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
@@ -2715,8 +2717,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/payment-companies/:id", async (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
+    const userId = req.session.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
     if (!user || !["admin"].includes(user.role)) return res.status(403).json({ message: "Sem permissão" });
     try {
       await storage.deletePaymentCompany(Number(req.params.id));
