@@ -833,45 +833,35 @@ export default function BudgetPlannedPage() {
 
                   <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
-                  {/* Enviados */}
+                  {/* Casa */}
                   <div className="flex-1 flex flex-col items-center gap-1 px-4">
-                    <div className="text-[26px] font-black leading-none tracking-tight text-emerald-600">{stats.enviados}</div>
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#2563EB'}}>{stats.totalCasa}</div>
                     <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                      <Send className="w-3 h-3" />Enviados
+                      <Home className="w-3 h-3" />Casa
                     </div>
                   </div>
 
                   <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
-                  {/* Progresso */}
+                  {/* Freela */}
                   <div className="flex-1 flex flex-col items-center gap-1 px-4">
-                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0033CC'}}>{Math.round(stats.progressoEnvio)}%</div>
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#EA580C'}}>{stats.totalFreela}</div>
                     <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                      <TrendingUp className="w-3 h-3" />Progresso
+                      <UserCheck className="w-3 h-3" />Freela
                     </div>
                   </div>
 
-                  {stats.total > 0 && (
-                    <>
-                      <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
-                      {/* Progress bar */}
-                      <div className="flex-[2] px-5 flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">Envio</span>
-                          <span className="text-[10px] font-semibold text-slate-500">{stats.enviados}/{stats.total}</span>
-                        </div>
-                        <div className="h-2 rounded-full overflow-hidden" style={{background:'rgba(0,51,204,0.08)'}}>
-                          <div className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width:`${stats.progressoEnvio}%`,
-                              background: stats.progressoEnvio >= 100
-                                ? '#059669'
-                                : 'linear-gradient(90deg, #0033CC, #4F7BF5)',
-                            }} />
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+
+                  {/* Dias totais */}
+                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0D9488'}}>
+                      {calculatedBudgets.reduce((s, b) => s + b.qtdDiarias, 0)}
+                    </div>
+                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      <Calendar className="w-3 h-3" />Diárias
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1945,6 +1935,110 @@ export default function BudgetPlannedPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Sticky Footer — Barra de Progresso do Envio ── */}
+      {selectedEventId && calculatedBudgets.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 256,
+          right: 0,
+          zIndex: 40,
+          background: 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderTop: '1px solid #E2E8F0',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.07), 0 -1px 4px rgba(0,0,0,0.04)',
+        }}>
+          <div style={{maxWidth: 1024, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 20}}>
+
+            {/* Esquerda: texto informativo */}
+            <div style={{flexShrink: 0}}>
+              <div style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8', marginBottom: 2}}>
+                Progresso do Envio
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em',
+                color: stats.progressoEnvio >= 100 ? '#059669' : '#1E293B',
+              }}>
+                {stats.enviados} de {stats.total} enviados
+                {stats.progressoEnvio >= 100 && (
+                  <span style={{marginLeft: 6, fontSize: 12}}>✓</span>
+                )}
+              </div>
+            </div>
+
+            {/* Centro: barra de progresso elegante */}
+            <div style={{flex: 1}}>
+              <div style={{
+                height: 8,
+                borderRadius: 9999,
+                overflow: 'hidden',
+                background: '#F1F5F9',
+              }}>
+                <div style={{
+                  height: '100%',
+                  borderRadius: 9999,
+                  transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                  width: `${stats.progressoEnvio}%`,
+                  background: stats.progressoEnvio >= 100
+                    ? '#059669'
+                    : 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 60%, #059669 100%)',
+                  boxShadow: stats.progressoEnvio >= 100
+                    ? '0 0 10px rgba(5,150,105,0.5), 0 0 20px rgba(5,150,105,0.25)'
+                    : 'none',
+                }} />
+              </div>
+              <div style={{display:'flex', justifyContent:'space-between', marginTop: 4}}>
+                <span style={{fontSize: 9, color: '#CBD5E1', fontWeight: 600}}>0%</span>
+                <span style={{
+                  fontSize: 9, fontWeight: 700,
+                  color: stats.progressoEnvio >= 100 ? '#059669' : '#94A3B8',
+                }}>
+                  {Math.round(stats.progressoEnvio)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Direita: botão de ação */}
+            {stats.progressoEnvio >= 100 ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 20px', borderRadius: 12,
+                background: '#F0FDF4', border: '1px solid #BBF7D0',
+                flexShrink: 0,
+              }}>
+                <CheckCheck className="w-4 h-4" style={{color:'#059669'}} />
+                <span style={{fontSize: 13, fontWeight: 700, color: '#059669'}}>Todos Enviados</span>
+              </div>
+            ) : (
+              <Button
+                onClick={() => selectedCards.size > 0 ? setConfirmSendOpen(true) : undefined}
+                disabled={selectedCards.size === 0}
+                className="shrink-0 gap-2 font-semibold text-sm"
+                style={{
+                  height: 40,
+                  paddingLeft: 20,
+                  paddingRight: 20,
+                  borderRadius: 12,
+                  background: selectedCards.size > 0
+                    ? '#059669'
+                    : '#E2E8F0',
+                  color: selectedCards.size > 0 ? '#fff' : '#94A3B8',
+                  boxShadow: selectedCards.size > 0 ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
+                  border: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Send className="w-3.5 h-3.5" />
+                {selectedCards.size > 0
+                  ? `Enviar Selecionados (${selectedCards.size})`
+                  : 'Selecione para Enviar'}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
