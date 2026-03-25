@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
+import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison, BudgetNote } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
@@ -179,6 +180,17 @@ export default function BudgetActualPage() {
     },
     enabled: !!selectedEventId,
     staleTime: 30000,
+  });
+
+  const { data: plannedLogs = [] } = useQuery<any[]>({
+    queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+    staleTime: 60_000,
   });
 
   const didScrollToCard = useRef(false);
@@ -780,6 +792,7 @@ export default function BudgetActualPage() {
                   {diverges && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0 whitespace-nowrap">Divergência</span>}
                   {isGParent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 shrink-0 whitespace-nowrap">Titular</span>}
                   {isGChild && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
+                  {cardItem.plannedId && <PlannedEditedBadge logs={plannedLogs} entityId={cardItem.plannedId} />}
                 </div>
                 {workedDaysStr && isInGroup && (
                   <div className="flex items-center gap-1 mt-1">
@@ -1760,6 +1773,9 @@ export default function BudgetActualPage() {
 
                 {/* ── Observações (Chat) ── */}
                 {editingItem && <BudgetChat entityType="actual" entityId={editingItem.id} />}
+
+                {/* ── Histórico de alterações ── */}
+                {editingItem && <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} />}
 
                 {/* ── Footer ── */}
                 <div className="border-t border-slate-100 bg-white">

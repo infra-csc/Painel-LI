@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -2097,6 +2098,11 @@ export default function BudgetPlannedPage() {
                   entityId={editingBudgetPlannedId}
                   eventId={selectedEventId}
                 />
+              )}
+
+              {/* ── Histórico de alterações ── */}
+              {editingBudgetPlannedId && (
+                <ActivityTimeline entityType="budget_planned" entityId={editingBudgetPlannedId} />
               )}
 
               {/* ── Footer ── */}

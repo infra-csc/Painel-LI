@@ -25,6 +25,7 @@ import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, Budget
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
+import { ActivityTimeline, PlannedEditedBadge } from "@/components/activity-timeline";
 
 const AVATAR_COLORS = [
   'bg-violet-500','bg-blue-500','bg-emerald-500','bg-orange-500',
@@ -100,6 +101,17 @@ export default function BudgetComparisonPage() {
       return res.json();
     },
     enabled: !!selectedEventId,
+  });
+
+  const { data: plannedLogs = [] } = useQuery<any[]>({
+    queryKey: ['/api/activity-logs/by-event', 'budget_planned', selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/activity-logs/by-event?entityType=budget_planned&eventId=${selectedEventId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+    staleTime: 60_000,
   });
 
   const { data: budgetPlanned } = useQuery<BudgetPlanned[]>({
@@ -844,6 +856,9 @@ export default function BudgetComparisonPage() {
                               {eventNotes.length > 0 && (
                                 <BudgetNotesBadge notes={eventNotes} entityId={a.id} />
                               )}
+                              {row.planned && (
+                                <PlannedEditedBadge logs={plannedLogs} entityId={(row.planned as any).id} />
+                              )}
                             </div>
                             {eventNotes.length > 0 && (
                               <BudgetNotesSnippet notes={eventNotes} entityId={a.id} />
@@ -1139,12 +1154,34 @@ export default function BudgetComparisonPage() {
                               </div>
                             )}
 
+                            {/* ── Aviso: planejamento alterado pelo RH ── */}
+                            {row.planned && (() => {
+                              const planId = (row.planned as any).id;
+                              const hasEdits = plannedLogs.some(l => l.entity_id === planId && l.action === 'update');
+                              if (!hasEdits) return null;
+                              const last = plannedLogs
+                                .filter(l => l.entity_id === planId && l.action === 'update')
+                                .sort((x: any, y: any) => new Date(y.created_at || 0).getTime() - new Date(x.created_at || 0).getTime())[0];
+                              return (
+                                <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50">
+                                  <span className="text-amber-500 text-base leading-none shrink-0">⚠️</span>
+                                  <div>
+                                    <p className="text-[11px] font-semibold text-amber-800">Orçamento Planejado foi alterado pelo RH</p>
+                                    {last && <p className="text-[10px] text-amber-600 mt-0.5">Última edição por {last.user_name || '?'} — os valores de referência podem ter mudado após o envio.</p>}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
                             {/* ── Chat de Auditoria ── */}
                             <BudgetChat
                               entityType="actual"
                               entityId={a.id}
                               eventId={a.eventId}
                             />
+
+                            {/* ── Histórico de alterações ── */}
+                            <ActivityTimeline entityType="budget_actual" entityId={a.id} />
                           </div>
                         </div>
                       )}
