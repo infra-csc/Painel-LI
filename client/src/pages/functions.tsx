@@ -332,7 +332,9 @@ export default function Functions() {
 
   const sortedFunctions = useMemo(() => {
     if (!functions) return [];
-    let list = [...functions].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    let list = [...functions]
+      .filter(f => f.responsibleArea !== '__system__')
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     if (search.trim()) {
       const t = search.toLowerCase();
       list = list.filter(f => f.name.toLowerCase().includes(t));
@@ -426,9 +428,9 @@ export default function Functions() {
             <h1 className="text-[18px] font-bold text-slate-900 leading-tight">Funções</h1>
             <p className="text-xs text-slate-400 mt-0.5">Gerencie as funções e atribua responsáveis</p>
           </div>
-          {functions && functions.length > 0 && (
+          {sortedFunctions.length > 0 && (
             <div className="ml-2 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100">
-              <span className="text-xs font-semibold text-blue-600">{functions.length} funções</span>
+              <span className="text-xs font-semibold text-blue-600">{sortedFunctions.length} funções</span>
             </div>
           )}
         </div>
@@ -649,7 +651,7 @@ export default function Functions() {
             <div className="px-5 py-2.5 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <span className="text-[11px] text-slate-400">
                 {search
-                  ? `${sortedFunctions.length} de ${functions?.length ?? 0} funções`
+                  ? `${sortedFunctions.length} de ${(functions ?? []).filter(f => f.responsibleArea !== '__system__').length} funções`
                   : `${sortedFunctions.length} ${sortedFunctions.length === 1 ? "função" : "funções"} no total`
                 }
               </span>
