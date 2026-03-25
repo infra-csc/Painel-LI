@@ -850,6 +850,109 @@ export default function BudgetActualPage() {
         </div>
       </div>
 
+      {/* ── Stepper — sempre visível ── */}
+      {(() => {
+        const currentStep = 2;
+        const steps = [
+          { label: "Escalação", desc: "Inclusões confirmadas" },
+          { label: "Planejamento RH", desc: "Valores previstos" },
+          { label: "Prestação", desc: "Resp. preenche realizado" },
+          { label: "Aprovação RH", desc: "Análise e aprovação" },
+        ];
+        return (
+          <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
+            <div className="flex items-center">
+              {steps.map((step, i) => {
+                const isDone = i < currentStep;
+                const isActive = i === currentStep;
+                const isLast = i === steps.length - 1;
+                return (
+                  <div key={i} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
+                        isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' :
+                        isActive ? 'bg-violet-600 text-white shadow-lg shadow-violet-300 ring-4 ring-violet-100' :
+                        'bg-gray-100 text-gray-300'
+                      }`}>
+                        {isDone ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (i + 1)}
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-[11px] font-semibold leading-tight ${
+                          isDone ? 'text-emerald-600' :
+                          isActive ? 'text-violet-700' :
+                          'text-gray-400'
+                        }`}>{step.label}</div>
+                        <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
+                      </div>
+                    </div>
+                    {!isLast && (
+                      <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
+                        isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100'
+                      }`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Banner Total Realizado — sempre visível ── */}
+      {(() => {
+        const nAprovadas  = filteredItems.filter(i => i.rhStatus === 'aprovado').length;
+        const nRevisao    = filteredItems.filter(i => i.sentForReview && !['aprovado','devolvido','rejeitado'].includes(i.rhStatus || '')).length;
+        const nDevolvidas = filteredItems.filter(i => i.rhStatus === 'devolvido').length;
+        const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
+        return (
+          <div className="rounded-2xl overflow-hidden flex" style={{boxShadow:'0 4px 20px #7c3aed20'}}>
+            <div className="px-7 py-6 flex flex-col justify-center min-w-[240px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1.5">Total Realizado</p>
+              <div className="text-[32px] font-black text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
+              <div className={`text-[11px] mt-2 font-semibold flex items-center gap-1 ${totalDifference === 0 ? 'text-white/50' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
+                {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
+                {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
+              </div>
+            </div>
+            <div className="flex-1 px-6 py-5 flex flex-col justify-between" style={{background:'#F5F3FF'}}>
+              <div className="flex items-start gap-6">
+                <div className="flex-1">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Prestações</div>
+                  <div className="text-[20px] font-black leading-none text-violet-700">{prestacaoCount}</div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Em Revisão</div>
+                  <div className="text-[20px] font-black leading-none text-blue-600">{nRevisao}</div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Aprovadas</div>
+                  <div className="text-[20px] font-black leading-none text-emerald-600">{nAprovadas}</div>
+                </div>
+                {nDevolvidas > 0 && (
+                  <div className="flex-1">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Devolvidas</div>
+                    <div className="text-[20px] font-black leading-none text-amber-600">{nDevolvidas}</div>
+                  </div>
+                )}
+              </div>
+              {prestacaoCount > 0 && (
+                <div className="mt-3">
+                  <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all" style={{width:`${pctAprovado}%`}} />
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1">{nAprovadas} de {prestacaoCount} aprovadas</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {!selectedEventId ? (
         /* ── Tela 1: Seleção de evento ── */
         <div className="rounded-3xl bg-white flex flex-col items-center justify-center text-center px-10 py-20"
