@@ -65,7 +65,7 @@ function CurrencyInput({ value, onChange, className, disabled }: {
       ref={inputRef}
       type="text"
       inputMode="decimal"
-      className={className}
+      className={`bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 focus-visible:border-violet-300 transition-colors ${className ?? ''}`}
       value={display}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -1278,7 +1278,7 @@ export default function BudgetActualPage() {
       )}
 
       <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); }}>
-        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden border-0 shadow-xl">
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Prestação de Contas</DialogTitle>
           </DialogHeader>
@@ -1437,7 +1437,7 @@ export default function BudgetActualPage() {
                 )}
 
                 {/* ── Body ── */}
-                <div className="max-h-[52vh] overflow-y-auto px-5 py-4 space-y-3 bg-slate-50">
+                <div className="max-h-[52vh] overflow-y-auto px-6 py-5 space-y-4 bg-slate-50">
 
                   {/* Period */}
                   {(itemDays.startDate || itemDays.endDate) && (
@@ -1475,9 +1475,9 @@ export default function BudgetActualPage() {
                         <div className="w-5 h-5 rounded-md bg-indigo-500 flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-black text-indigo-700 uppercase">Diárias</span>
+                        <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Diárias</span>
                       </div>
-                      <span className="text-sm font-black text-indigo-700 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
+                      <span className="text-sm font-bold text-indigo-700 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {planned && (
@@ -1528,10 +1528,12 @@ export default function BudgetActualPage() {
                             />
                             <span className="text-[10px] text-slate-400">/d</span>
                           </div>
-                          {isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) && (
-                            <div className="text-[9px] text-amber-600 tabular-nums mt-1 text-center">plan: {formatCurrency(plannedValorUtil)}</div>
+                          {planned && plannedValorUtil > 0 && (
+                            <div className={`text-[9px] tabular-nums mt-1 text-center ${isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                              plan: {formatCurrency(plannedValorUtil)}
+                            </div>
                           )}
-                          <div className="text-[11px] font-black text-indigo-700 tabular-nums text-center mt-1.5">{formatCurrency(subtotalDiariasUtil)}</div>
+                          <div className="text-[11px] font-bold text-indigo-700 tabular-nums text-center mt-1.5">{formatCurrency(subtotalDiariasUtil)}</div>
                         </div>
                         {/* Fins de semana */}
                         <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
@@ -1550,10 +1552,12 @@ export default function BudgetActualPage() {
                             />
                             <span className="text-[10px] text-slate-400">/d</span>
                           </div>
-                          {isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) && (
-                            <div className="text-[9px] text-amber-600 tabular-nums mt-1 text-center">plan: {formatCurrency(plannedValorFds)}</div>
+                          {planned && plannedValorFds > 0 && (
+                            <div className={`text-[9px] tabular-nums mt-1 text-center ${isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                              plan: {formatCurrency(plannedValorFds)}
+                            </div>
                           )}
-                          <div className={`text-[11px] font-black tabular-nums text-center mt-1.5 ${itemDays.weekends === 0 ? 'text-slate-300' : 'text-indigo-700'}`}>{formatCurrency(subtotalDiariasFds)}</div>
+                          <div className={`text-[11px] font-bold tabular-nums text-center mt-1.5 ${itemDays.weekends === 0 ? 'text-slate-300' : 'text-indigo-700'}`}>{formatCurrency(subtotalDiariasFds)}</div>
                         </div>
                       </div>
                     </div>
@@ -1567,10 +1571,10 @@ export default function BudgetActualPage() {
                         <div className="w-5 h-5 rounded-md bg-violet-500 flex items-center justify-center">
                           <Car className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-black text-violet-700 uppercase">Mobilidade</span>
+                        <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">Mobilidade</span>
                         <span className="text-[10px] text-violet-400">ida e volta</span>
                       </div>
-                      <span className="text-sm font-black text-violet-700 tabular-nums">{formatCurrency(modalMobility)}</span>
+                      <span className="text-sm font-bold text-violet-700 tabular-nums">{formatCurrency(modalMobility)}</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {planned && (() => {
@@ -1647,7 +1651,7 @@ export default function BudgetActualPage() {
                         <div className="w-5 h-5 rounded-md bg-orange-400 flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-black text-orange-700 uppercase">Alimentação</span>
+                        <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {planned && (() => {
@@ -1689,8 +1693,8 @@ export default function BudgetActualPage() {
                             onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                             disabled={itemDays.weekdays === 0 || isReadOnly}
                           />
-                          {isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) && (
-                            <div className="text-[9px] text-slate-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekdayLunch)}</div>
+                          {planned && planned.weekdayLunch > 0 && (
+                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekdayLunch, planned.weekdayLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayLunch)}</div>
                           )}
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
@@ -1700,8 +1704,8 @@ export default function BudgetActualPage() {
                             onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                             disabled={itemDays.weekends === 0 || isReadOnly}
                           />
-                          {isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) && (
-                            <div className="text-[9px] text-slate-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekendLunch)}</div>
+                          {planned && planned.weekendLunch > 0 && (
+                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekendLunch, planned.weekendLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendLunch)}</div>
                           )}
                         </div>
                       </div>
@@ -1717,8 +1721,8 @@ export default function BudgetActualPage() {
                             onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                             disabled={itemDays.weekdays === 0 || isReadOnly}
                           />
-                          {isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) && (
-                            <div className="text-[9px] text-slate-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekdayDinner)}</div>
+                          {planned && planned.weekdayDinner > 0 && (
+                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekdayDinner, planned.weekdayDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayDinner)}</div>
                           )}
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
@@ -1728,18 +1732,18 @@ export default function BudgetActualPage() {
                             onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                             disabled={itemDays.weekends === 0 || isReadOnly}
                           />
-                          {isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) && (
-                            <div className="text-[9px] text-slate-400 tabular-nums text-center mt-0.5">plan: {formatCurrency(planned!.weekendDinner)}</div>
+                          {planned && planned.weekendDinner > 0 && (
+                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekendDinner, planned.weekendDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendDinner)}</div>
                           )}
                         </div>
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-slate-100 pt-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase self-center">Subtotal</span>
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase self-center">Subtotal</span>
                         <div className="text-center">
-                          <span className="text-xs font-black text-indigo-600 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
+                          <span className="text-xs font-bold text-indigo-600 tabular-nums">{formatCurrency(editFormData.weekdayLunch + editFormData.weekdayDinner)}</span>
                         </div>
                         <div className="text-center">
-                          <span className="text-xs font-black text-amber-600 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
+                          <span className="text-xs font-bold text-amber-600 tabular-nums">{formatCurrency(editFormData.weekendLunch + editFormData.weekendDinner)}</span>
                         </div>
                       </div>
                     </div>
@@ -1747,60 +1751,64 @@ export default function BudgetActualPage() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="border-t border-slate-200 bg-white">
+                <div className="border-t border-slate-100 bg-white">
                   {planned ? (
-                    <div className="grid grid-cols-3 divide-x divide-slate-200">
-                      <div className="px-4 py-3 text-center">
-                        <div className="text-[9px] uppercase text-slate-400 font-black tracking-widest mb-1">Planejado</div>
-                        <div className="text-sm font-black text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</div>
-                      </div>
-                      <div className="px-4 py-3 text-center bg-violet-50/60">
-                        <div className="text-[9px] uppercase text-violet-500 font-black tracking-widest mb-1">Realizado</div>
-                        <div className="text-sm font-black text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
-                      </div>
-                      <div className={`px-4 py-3 text-center ${Math.abs(difference) <= 1 ? 'bg-slate-50/60' : difference < 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
-                        <div className="text-[9px] uppercase text-slate-400 font-black tracking-widest mb-1">Diferença</div>
-                        {Math.abs(difference) <= 1 ? (
-                          <div className="text-sm font-black text-slate-300 tabular-nums">—</div>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-center gap-1">
-                              {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
-                              <span className={`text-sm font-black tabular-nums ${difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                                {difference > 0 ? '+' : '−'}{formatCurrency(Math.abs(difference))}
-                              </span>
-                            </div>
-                            {plannedTotal > 0 && (
-                              <div className={`text-[10px] tabular-nums font-semibold ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                                {difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%
-                              </div>
+                    <div className="px-5 pt-4 pb-2">
+                      <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                        <div className="grid grid-cols-3 divide-x divide-slate-200">
+                          <div className="px-4 py-3.5 text-center bg-slate-50/70">
+                            <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider mb-1.5">Planejado</div>
+                            <div className="text-sm font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</div>
+                          </div>
+                          <div className="px-4 py-3.5 text-center bg-violet-50/70">
+                            <div className="text-[9px] uppercase text-violet-500 font-semibold tracking-wider mb-1.5">Realizado</div>
+                            <div className="text-sm font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
+                          </div>
+                          <div className={`px-4 py-3.5 text-center ${Math.abs(difference) <= 1 ? 'bg-slate-50/70' : difference < 0 ? 'bg-emerald-50/80' : 'bg-red-50/80'}`}>
+                            <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider mb-1.5">Diferença</div>
+                            {Math.abs(difference) <= 1 ? (
+                              <div className="text-sm font-bold text-slate-300 tabular-nums">—</div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-center gap-1">
+                                  {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                                  <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                    {difference > 0 ? '+' : '−'}{formatCurrency(Math.abs(difference))}
+                                  </span>
+                                </div>
+                                {plannedTotal > 0 && (
+                                  <div className={`text-[10px] tabular-nums font-semibold mt-0.5 ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                                    {difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%
+                                  </div>
+                                )}
+                              </>
                             )}
-                          </>
-                        )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="px-6 py-3 flex items-center justify-between">
+                    <div className="px-6 py-3.5 flex items-center justify-between">
                       <div>
-                        <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Total da prestação</div>
-                        <div className="text-xl font-black text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
+                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Total da prestação</div>
+                        <div className="text-xl font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
                       </div>
                     </div>
                   )}
-                  <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <div className="px-5 py-3.5 flex items-center justify-end gap-3">
                     {isReadOnly ? (
                       <Button variant="ghost" className="h-9 px-6 text-sm rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={() => { setEditingItem(null); setEditFormData(null); }}>
                         Fechar
                       </Button>
                     ) : (
                       <>
-                        <Button variant="ghost" className="h-9 px-4 text-sm text-slate-400 hover:text-slate-600 rounded-xl" onClick={() => { setEditingItem(null); setEditFormData(null); }}>
+                        <Button variant="ghost" className="h-9 px-4 text-sm text-slate-400 hover:text-slate-600 rounded-xl border-0" onClick={() => { setEditingItem(null); setEditFormData(null); }}>
                           Cancelar
                         </Button>
                         <Button
                           onClick={saveEdit}
                           disabled={updateMutation.isPending}
-                          className="h-9 px-6 text-sm rounded-xl text-white shadow-md"
+                          className="h-9 px-6 text-sm rounded-xl text-white shadow-md font-medium"
                           style={{background: '#6d28d9'}}
                         >
                           <CheckCheck className="w-4 h-4 mr-2" />
