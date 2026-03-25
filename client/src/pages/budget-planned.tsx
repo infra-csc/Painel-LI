@@ -1170,7 +1170,7 @@ export default function BudgetPlannedPage() {
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`rounded-2xl border transition-all duration-300 ease-in-out overflow-hidden flex flex-col group h-full ${
+                      className={`rounded-2xl border transition-all duration-500 ease-in-out overflow-hidden flex flex-col group h-full ${
                         isNotAttended ? 'bg-white border-slate-200 shadow-sm opacity-40 grayscale' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
@@ -1866,41 +1866,50 @@ export default function BudgetPlannedPage() {
 
       {/* ── Modal de confirmação de restauração ── */}
       <Dialog open={!!restoreModal} onOpenChange={() => setRestoreModal(null)}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
-                <Undo2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <span>Restaurar participação</span>
-            </DialogTitle>
+        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
+          <DialogHeader className="sr-only">
+            <DialogTitle>Restaurar Planejamento</DialogTitle>
           </DialogHeader>
           {restoreModal && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl px-4 py-3 flex items-center gap-3 border border-gray-100 dark:border-gray-700">
-                <div>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{restoreModal.name}</p>
-                  <p className="text-[10px] text-gray-400">{restoreModal.functionName}</p>
-                </div>
+            <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
+              style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
+
+              {/* Ícone — círculo azul claro */}
+              <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
+                <Undo2 style={{color:'#2563EB', width:18, height:18}} />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                O colaborador voltará a ser contabilizado normalmente nos totais financeiros do planejado.
+
+              {/* Título + subtítulo */}
+              <div className="text-center space-y-1">
+                <h2 className="text-[15px] font-medium text-slate-800 leading-snug">Restaurar Planejamento?</h2>
+                <p className="text-[12px] font-normal" style={{color:'#94A3B8'}}>{restoreModal.name} · {restoreModal.functionName}</p>
+              </div>
+
+              {/* Texto explicativo */}
+              <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+                Deseja incluir novamente este colaborador nos cálculos? Todos os valores de diárias, alimentação e mobilidade serão reativados.
               </p>
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" className="rounded-xl" onClick={() => setRestoreModal(null)}>
-                  Cancelar
-                </Button>
-                <Button
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+
+              {/* Botões */}
+              <div className="flex gap-2 w-full pt-1">
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 transition-colors hover:bg-slate-200"
+                  onClick={() => setRestoreModal(null)}
+                >
+                  Voltar
+                </button>
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 bg-blue-600 hover:bg-blue-700"
                   onClick={() => {
                     toggleNotAttendedMutation.mutate({ id: restoreModal.id, reason: "" });
                     setRestoreModal(null);
                   }}
                   disabled={toggleNotAttendedMutation.isPending}
                 >
-                  <Undo2 className="w-3.5 h-3.5 mr-1.5" />
+                  <Undo2 className="w-3.5 h-3.5" />
                   {toggleNotAttendedMutation.isPending ? 'Restaurando...' : 'Restaurar'}
-                </Button>
+                </button>
               </div>
             </div>
           )}
