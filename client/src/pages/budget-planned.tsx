@@ -853,13 +853,23 @@ export default function BudgetPlannedPage() {
 
                   <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
 
-                  {/* Dias totais */}
+                  {/* Período do evento */}
                   <div className="flex-1 flex flex-col items-center gap-1 px-4">
-                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0D9488'}}>
-                      {calculatedBudgets.reduce((s, b) => s + b.qtdDiarias, 0)}
-                    </div>
+                    {selectedEvent?.startDate && selectedEvent?.endDate ? (
+                      <div className="flex flex-col items-center gap-0">
+                        <div className="text-[14px] font-black leading-none tracking-tight tabular-nums" style={{color:'#0D9488'}}>
+                          {new Date(selectedEvent.startDate + 'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-300 leading-none my-0.5">→</div>
+                        <div className="text-[14px] font-black leading-none tracking-tight tabular-nums" style={{color:'#0D9488'}}>
+                          {new Date(selectedEvent.endDate + 'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[14px] font-black leading-none tracking-tight text-slate-300">—</div>
+                    )}
                     <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                      <Calendar className="w-3 h-3" />Diárias
+                      <Calendar className="w-3 h-3" />Período
                     </div>
                   </div>
                 </div>
