@@ -1,0 +1,34 @@
+Analisando essa última imagem (image_a58bca.png), o layout deu um salto gigantesco. A estrutura geral está excelente e o alinhamento central foi resolvido.
+
+Porém, com o "olho clínico" de design premium, existem 4 detalhes de refinamento que estão impedindo essa tela de ficar perfeita. São ajustes finos, principalmente em tipografia e "ruído" visual:
+
+O peso do valor R$ 1.095,00: A fonte está extremamente grossa (provavelmente um font-black ou font-extrabold). Isso destoa da elegância do resto do sistema. Precisamos suavizar para um font-bold ou font-semibold.
+
+Aperto no Bloco Roxo: O texto minúsculo "= planejado" está muito colado na borda inferior do bloco roxo. Precisamos de um pouco mais de respiro (padding) vertical.
+
+A Barra Verde (Progresso): A linha verde "2 de 2 aprovadas" está flutuando de um jeito solto. Ela precisa de uma "trilha" (um fundo cinza bem clarinho por trás) para parecer uma barra de progresso real e arredondada.
+
+Filtros "Caixa dentro de Caixa": A barra de filtros lá embaixo tem uma borda externa contornando tudo, e os botões dentro dela também têm suas próprias bordas. Isso gera um ruído visual. O ideal é remover a borda do container externo.
+
+Aqui está o prompt exato para o Replit aplicar essa camada final de "polimento Apple/SaaS":
+
+💎 Prompt de Refinamento: Acabamento Premium
+Atue como UI Designer Senior. Aplique este polimento final na tela de Resumo do Realizado:
+
+1. Tipografia do Card Roxo (Refino):
+
+O valor "R$ 1.095,00" está muito pesado. Altere de font-black para font-bold ou font-semibold para combinar com a identidade clean.
+
+Aumente um pouco o padding interno do bloco roxo (p-8 ou p-6) para que o texto "= planejado" não fique espremido no rodapé do bloco.
+
+2. KPIs e Barra de Progresso (Lado Direito):
+
+A barra de progresso verde ("2 de 2 aprovadas") deve parecer um componente real: adicione uma trilha de fundo (bg-slate-200), altura h-2 e rounded-full. A parte verde deve ser apenas a largura preenchida (w-full ou a porcentagem correspondente).
+
+Dê um leve respiro (mt-4) entre os números gigantes (2, 0, 2) e a barra de progresso.
+
+3. Limpeza Visual dos Filtros (Bottom Bar):
+
+O container que envolve a busca e os dropdowns ("Buscar colaborador...", "Todas funções", etc.) está criando um efeito "caixa dentro de caixa".
+
+Ação: Remova a borda e o fundo desse container pai. Deixe os inputs e dropdowns flutuarem diretamente sobre o fundo da página, com um espaçamento gap-4 entre eles. Eles já possuem suas próprias bordas arredondadas e isso deixará o visual muito mais limpo.
