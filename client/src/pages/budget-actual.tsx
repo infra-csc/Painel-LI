@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
@@ -1401,6 +1401,22 @@ export default function BudgetActualPage() {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                         </span>
+                        {(itemDays.startDate || itemDays.endDate) && (
+                          <span className="text-[10px] text-violet-200 bg-white/15 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Calendar className="w-2.5 h-2.5" />
+                            {itemDays.startDate && itemDays.endDate
+                              ? `${new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → ${new Date(itemDays.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`
+                              : itemDays.startDate
+                                ? new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})
+                                : new Date(itemDays.endDate!+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})
+                            }
+                          </span>
+                        )}
+                        {itemDays.weekdays > 0 && (
+                          <span className="text-[10px] text-indigo-200 bg-white/10 px-2 py-0.5 rounded-full">
+                            {itemDays.weekdays}u {itemDays.weekends > 0 ? `· ${itemDays.weekends}f` : ''}
+                          </span>
+                        )}
                         {isReadOnly && (
                           <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Lock className="w-2.5 h-2.5" /> Bloqueado
@@ -1439,34 +1455,6 @@ export default function BudgetActualPage() {
                 {/* ── Body ── */}
                 <div className="max-h-[52vh] overflow-y-auto px-6 py-5 space-y-4 bg-slate-50">
 
-                  {/* Period */}
-                  {(itemDays.startDate || itemDays.endDate) && (
-                    <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-semibold text-slate-600">
-                          {itemDays.startDate && itemDays.endDate ? `${fmt(itemDays.startDate)} → ${fmt(itemDays.endDate)}` :
-                           itemDays.startDate ? `Início: ${fmt(itemDays.startDate)}` : `Fim: ${fmt(itemDays.endDate!)}`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {itemDays.weekdays > 0 && (
-                          <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
-                            {itemDays.weekdays} {itemDays.weekdays === 1 ? 'dia útil' : 'dias úteis'}
-                          </span>
-                        )}
-                        {itemDays.weekends > 0 && (
-                          <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                            {itemDays.weekends} {itemDays.weekends === 1 ? 'fim de sem.' : 'fins de sem.'}
-                          </span>
-                        )}
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                          {formatDias(itemDays.weekdays + itemDays.weekends)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
                   {/* ── Diárias ── */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                     <div className="h-[3px] bg-indigo-500" />
@@ -1479,87 +1467,73 @@ export default function BudgetActualPage() {
                       </div>
                       <span className="text-sm font-bold text-indigo-700 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
                     </div>
-                    <div className="p-4 space-y-3">
-                      {planned && (
-                        <div className="rounded-lg border border-slate-100 overflow-hidden text-[11px]">
-                          <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                            <span></span><span className="text-center">Planejado</span><span className="text-right">Realizado</span>
+                    {/* Integrated 3-col table: Item | Planejado | Realizado */}
+                    <div className="text-[11px]">
+                      <div className="grid grid-cols-[1fr_110px_150px] bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                        <span>Item</span>
+                        <span className="text-center">Planejado</span>
+                        <span className="text-right pr-2">Realizado/dia</span>
+                      </div>
+                      {itemDays.weekdays > 0 && (
+                        <div className={`grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 ${itemDays.weekends > 0 ? 'border-b border-slate-50' : ''}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Briefcase className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                            <span className="text-slate-600">Dias Úteis</span>
+                            <span className="text-[10px] text-slate-400 bg-indigo-50 border border-indigo-100 px-1.5 rounded-full">{itemDays.weekdays}d</span>
                           </div>
-                          {itemDays.weekdays > 0 && (
-                            <div className="px-3 py-1.5 grid grid-cols-3 items-center border-b border-slate-50">
-                              <span className="text-slate-500 flex items-center gap-1"><Briefcase className="w-3 h-3 text-indigo-400" /> Úteis</span>
-                              <span className="text-center tabular-nums text-slate-500">{itemDays.weekdays} × {formatCurrency(plannedValorUtil)}</span>
-                              <span className="text-right tabular-nums text-indigo-600 font-semibold">{itemDays.weekdays} × {formatCurrency(editFormData.valorDiariaUtil)}</span>
-                            </div>
-                          )}
-                          {itemDays.weekends > 0 && (
-                            <div className="px-3 py-1.5 grid grid-cols-3 items-center bg-slate-50/40">
-                              <span className="text-slate-500 flex items-center gap-1"><Sun className="w-3 h-3 text-amber-400" /> Fds</span>
-                              <span className="text-center tabular-nums text-slate-500">{itemDays.weekends} × {formatCurrency(plannedValorFds)}</span>
-                              <span className="text-right tabular-nums text-indigo-600 font-semibold">{itemDays.weekends} × {formatCurrency(editFormData.valorDiariaFds)}</span>
-                            </div>
-                          )}
-                          {Math.abs(diffDiarias) > 1 && (
-                            <div className={`px-3 py-1.5 text-center border-t border-slate-100 ${diffDiarias < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                              <span className={`font-semibold tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {diffDiarias > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffDiarias))}
-                                {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* Dias úteis */}
-                        <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <Briefcase className="w-3 h-3 text-indigo-500" />
-                            <span className="text-[11px] font-semibold text-slate-600">Dias Úteis</span>
-                            <span className="text-[10px] text-slate-400 ml-auto">{itemDays.weekdays}d</span>
+                          <div className="text-center">
+                            {planned && plannedValorUtil > 0 ? (
+                              <div>
+                                <div className="tabular-nums text-slate-500">{formatCurrency(plannedValorUtil)}/d</div>
+                                <div className="text-[9px] text-slate-400 tabular-nums">{formatCurrency(itemDays.weekdays * plannedValorUtil)}</div>
+                              </div>
+                            ) : <span className="text-slate-300">—</span>}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400">R$</span>
+                          <div className="flex items-center gap-1.5 justify-end">
                             <CurrencyInput
-                              className={`h-8 text-sm flex-1 text-center font-semibold ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              className={`h-9 text-sm text-right w-24 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                               value={editFormData.valorDiariaUtil}
                               onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
                               disabled={itemDays.weekdays === 0 || isReadOnly}
                             />
-                            <span className="text-[10px] text-slate-400">/d</span>
+                            <span className="text-[10px] text-slate-400 flex-shrink-0">/d</span>
                           </div>
-                          {planned && plannedValorUtil > 0 && (
-                            <div className={`text-[9px] tabular-nums mt-1 text-center ${isFieldChanged(editFormData.valorDiariaUtil, plannedValorUtil) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
-                              plan: {formatCurrency(plannedValorUtil)}
-                            </div>
-                          )}
-                          <div className="text-[11px] font-bold text-indigo-700 tabular-nums text-center mt-1.5">{formatCurrency(subtotalDiariasUtil)}</div>
                         </div>
-                        {/* Fins de semana */}
-                        <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <Sun className="w-3 h-3 text-amber-500" />
-                            <span className="text-[11px] font-semibold text-slate-600">Fim de Semana</span>
-                            <span className="text-[10px] text-slate-400 ml-auto">{itemDays.weekends}d</span>
+                      )}
+                      {itemDays.weekends > 0 && (
+                        <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 bg-slate-50/40">
+                          <div className="flex items-center gap-1.5">
+                            <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                            <span className="text-slate-600">Fins de Semana</span>
+                            <span className="text-[10px] text-slate-400 bg-amber-50 border border-amber-100 px-1.5 rounded-full">{itemDays.weekends}d</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400">R$</span>
+                          <div className="text-center">
+                            {planned && plannedValorFds > 0 ? (
+                              <div>
+                                <div className="tabular-nums text-slate-500">{formatCurrency(plannedValorFds)}/d</div>
+                                <div className="text-[9px] text-slate-400 tabular-nums">{formatCurrency(itemDays.weekends * plannedValorFds)}</div>
+                              </div>
+                            ) : <span className="text-slate-300">—</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 justify-end">
                             <CurrencyInput
-                              className={`h-8 text-sm flex-1 text-center font-semibold ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              className={`h-9 text-sm text-right w-24 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                               value={editFormData.valorDiariaFds}
                               onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
                               disabled={itemDays.weekends === 0 || isReadOnly}
                             />
-                            <span className="text-[10px] text-slate-400">/d</span>
+                            <span className="text-[10px] text-slate-400 flex-shrink-0">/d</span>
                           </div>
-                          {planned && plannedValorFds > 0 && (
-                            <div className={`text-[9px] tabular-nums mt-1 text-center ${isFieldChanged(editFormData.valorDiariaFds, plannedValorFds) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
-                              plan: {formatCurrency(plannedValorFds)}
-                            </div>
-                          )}
-                          <div className={`text-[11px] font-bold tabular-nums text-center mt-1.5 ${itemDays.weekends === 0 ? 'text-slate-300' : 'text-indigo-700'}`}>{formatCurrency(subtotalDiariasFds)}</div>
                         </div>
-                      </div>
+                      )}
+                      {planned && Math.abs(diffDiarias) > 1 && (
+                        <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffDiarias < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                          <span className={`font-semibold tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {diffDiarias > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffDiarias))}
+                            {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1576,71 +1550,70 @@ export default function BudgetActualPage() {
                       </div>
                       <span className="text-sm font-bold text-violet-700 tabular-nums">{formatCurrency(modalMobility)}</span>
                     </div>
-                    <div className="p-4 space-y-3">
-                      {planned && (() => {
-                        const diffMob = modalMobility - planned.mobility;
-                        const pctMob = planned.mobility > 0 ? (diffMob / planned.mobility * 100) : 0;
-                        const plannedIda = (planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2);
-                        const plannedVolta = (planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2);
-                        return (
-                          <div className="rounded-lg border border-slate-100 overflow-hidden text-[11px]">
-                            <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                              <span></span><span className="text-center">Planejado</span><span className="text-right">Realizado</span>
-                            </div>
-                            <div className="px-3 py-1.5 grid grid-cols-3 items-center border-b border-slate-50">
-                              <span className="text-slate-500">Ida</span>
-                              <span className="text-center tabular-nums text-slate-500">{formatCurrency(plannedIda)}</span>
-                              <span className="text-right tabular-nums text-violet-600 font-semibold">{formatCurrency(editFormData.mobilityIda)}</span>
-                            </div>
-                            <div className="px-3 py-1.5 grid grid-cols-3 items-center bg-slate-50/40">
-                              <span className="text-slate-500">Volta</span>
-                              <span className="text-center tabular-nums text-slate-500">{formatCurrency(plannedVolta)}</span>
-                              <span className="text-right tabular-nums text-violet-600 font-semibold">{formatCurrency(editFormData.mobilityVolta)}</span>
-                            </div>
-                            {Math.abs(diffMob) > 1 && (
-                              <div className={`px-3 py-1.5 text-center border-t border-slate-100 ${diffMob < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                                <span className={`font-semibold tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                  {formatCurrency(planned.mobility)} → {formatCurrency(modalMobility)}
-                                  {' '}<span className="font-bold">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>
-                                </span>
-                              </div>
-                            )}
+                    {/* Integrated 3-col table */}
+                    {(() => {
+                      const plannedIda = planned ? ((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2)) : 0;
+                      const plannedVolta = planned ? ((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2)) : 0;
+                      const diffMob = modalMobility - (planned?.mobility ?? 0);
+                      const pctMob = planned && planned.mobility > 0 ? (diffMob / planned.mobility * 100) : 0;
+                      return (
+                        <div className="text-[11px]">
+                          <div className="grid grid-cols-[1fr_110px_150px] bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                            <span>Item</span>
+                            <span className="text-center">Planejado</span>
+                            <span className="text-right pr-2">Realizado</span>
                           </div>
-                        );
-                      })()}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                            Ida (R$)
-                            {planned && isFieldChanged(editFormData.mobilityIda, ((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2))) && (
-                              <span className="ml-1 text-[9px] text-amber-600">alt.</span>
-                            )}
-                          </label>
-                          <CurrencyInput
-                            className={`h-9 text-sm ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.mobilityIda}
-                            onChange={v => setEditFormData({...editFormData, mobilityIda: v})}
-                            disabled={isReadOnly}
-                          />
-                          {planned && <span className="text-[9px] text-slate-400 tabular-nums block mt-0.5">plan: {formatCurrency((planned as any).mobilityIda ?? Math.ceil(planned.mobility / 2))}</span>}
+                          <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 border-b border-slate-50 gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowRight className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                              <span className="text-slate-600">Ida</span>
+                              {planned && isFieldChanged(editFormData.mobilityIda, plannedIda) && (
+                                <span className="text-[9px] text-amber-500 bg-amber-50 px-1 rounded">alt.</span>
+                              )}
+                            </div>
+                            <div className="text-center">
+                              {planned ? <span className="tabular-nums text-slate-500">{formatCurrency(plannedIda)}</span> : <span className="text-slate-300">—</span>}
+                            </div>
+                            <div className="flex justify-end">
+                              <CurrencyInput
+                                className={`h-9 text-sm text-right w-28 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                value={editFormData.mobilityIda}
+                                onChange={v => setEditFormData({...editFormData, mobilityIda: v})}
+                                disabled={isReadOnly}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 bg-slate-50/40">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowLeft className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                              <span className="text-slate-600">Volta</span>
+                              {planned && isFieldChanged(editFormData.mobilityVolta, plannedVolta) && (
+                                <span className="text-[9px] text-amber-500 bg-amber-50 px-1 rounded">alt.</span>
+                              )}
+                            </div>
+                            <div className="text-center">
+                              {planned ? <span className="tabular-nums text-slate-500">{formatCurrency(plannedVolta)}</span> : <span className="text-slate-300">—</span>}
+                            </div>
+                            <div className="flex justify-end">
+                              <CurrencyInput
+                                className={`h-9 text-sm text-right w-28 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                value={editFormData.mobilityVolta}
+                                onChange={v => setEditFormData({...editFormData, mobilityVolta: v})}
+                                disabled={isReadOnly}
+                              />
+                            </div>
+                          </div>
+                          {planned && Math.abs(diffMob) > 1 && (
+                            <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffMob < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                              <span className={`font-semibold tabular-nums ${diffMob < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {formatCurrency(planned.mobility)} → {formatCurrency(modalMobility)}
+                                {' '}<span className="font-bold">({diffMob > 0 ? '+' : ''}{pctMob.toFixed(0)}%)</span>
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                            Volta (R$)
-                            {planned && isFieldChanged(editFormData.mobilityVolta, ((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2))) && (
-                              <span className="ml-1 text-[9px] text-amber-600">alt.</span>
-                            )}
-                          </label>
-                          <CurrencyInput
-                            className={`h-9 text-sm ${isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                            value={editFormData.mobilityVolta}
-                            onChange={v => setEditFormData({...editFormData, mobilityVolta: v})}
-                            disabled={isReadOnly}
-                          />
-                          {planned && <span className="text-[9px] text-slate-400 tabular-nums block mt-0.5">plan: {formatCurrency((planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2))}</span>}
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* ── Alimentação ── */}
@@ -1688,24 +1661,24 @@ export default function BudgetActualPage() {
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekdayLunch, planned?.weekdayLunch ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
                           <CurrencyInput
-                            className={`h-8 text-xs text-center w-full ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={editFormData.weekdayLunch}
                             onChange={v => setEditFormData({...editFormData, weekdayLunch: v})}
                             disabled={itemDays.weekdays === 0 || isReadOnly}
                           />
                           {planned && planned.weekdayLunch > 0 && (
-                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekdayLunch, planned.weekdayLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayLunch)}</div>
+                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekdayLunch, planned.weekdayLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayLunch)}</div>
                           )}
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendLunch, planned?.weekendLunch ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
                           <CurrencyInput
-                            className={`h-8 text-xs text-center w-full ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={editFormData.weekendLunch}
                             onChange={v => setEditFormData({...editFormData, weekendLunch: v})}
                             disabled={itemDays.weekends === 0 || isReadOnly}
                           />
                           {planned && planned.weekendLunch > 0 && (
-                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekendLunch, planned.weekendLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendLunch)}</div>
+                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekendLunch, planned.weekendLunch) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendLunch)}</div>
                           )}
                         </div>
                       </div>
@@ -1716,24 +1689,24 @@ export default function BudgetActualPage() {
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekdayDinner, planned?.weekdayDinner ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
                           <CurrencyInput
-                            className={`h-8 text-xs text-center w-full ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={editFormData.weekdayDinner}
                             onChange={v => setEditFormData({...editFormData, weekdayDinner: v})}
                             disabled={itemDays.weekdays === 0 || isReadOnly}
                           />
                           {planned && planned.weekdayDinner > 0 && (
-                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekdayDinner, planned.weekdayDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayDinner)}</div>
+                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekdayDinner, planned.weekdayDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekdayDinner)}</div>
                           )}
                         </div>
                         <div className={`rounded-lg p-2 border ${isFieldChanged(editFormData.weekendDinner, planned?.weekendDinner ?? 0) ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}>
                           <CurrencyInput
-                            className={`h-8 text-xs text-center w-full ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            className={`h-9 text-sm text-right w-full bg-transparent border-0 shadow-none focus-visible:ring-0 font-medium ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
                             value={editFormData.weekendDinner}
                             onChange={v => setEditFormData({...editFormData, weekendDinner: v})}
                             disabled={itemDays.weekends === 0 || isReadOnly}
                           />
                           {planned && planned.weekendDinner > 0 && (
-                            <div className={`text-[9px] tabular-nums text-center mt-0.5 ${isFieldChanged(editFormData.weekendDinner, planned.weekendDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendDinner)}</div>
+                            <div className={`text-[9px] tabular-nums text-right ${isFieldChanged(editFormData.weekendDinner, planned.weekendDinner) ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>plan: {formatCurrency(planned.weekendDinner)}</div>
                           )}
                         </div>
                       </div>
