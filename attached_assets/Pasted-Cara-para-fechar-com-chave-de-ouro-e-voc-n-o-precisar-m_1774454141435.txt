@@ -1,0 +1,42 @@
+Cara, para fechar com chave de ouro e você não precisar mais mexer nesse layout, aqui está o "Master Prompt". Ele condensa todos os ajustes de refinamento, tipografia, correção de sidebar e a inteligência de dados que discutimos.
+
+Copie e cole este prompt no Replit para finalizar a tela de Realizado e o Modal:
+
+🚀 Prompt Final: Refinamento de Elite (Realizado & Modal)
+Atue como um Desenvolvedor Front-end e UI Designer Senior (Especialista em Tailwind CSS).
+
+OBJETIVO FINAL: Ajustar a tela de "Orçamento Realizado" e seu "Modal de Preenchimento" para o padrão visual Apple/SaaS, garantindo consistência total com a tela de Planejamento.
+
+1. Correção de Estrutura e Tipografia (Main Screen):
+
+Fonte: Substitua qualquer peso de fonte font-black ou font-extrabold por font-bold ou font-semibold. O visual deve ser robusto, mas elegante (premium).
+
+Sidebar vs. Footer: Garanta que a barra fixa inferior (Sticky Footer) não sobreponha a Sidebar. Se a barra for fixed, use left-[largura_da_sidebar] ou garanta que ela esteja contida no elemento principal de conteúdo.
+
+Filtros: Remova a borda externa e o fundo cinza que envolve os filtros. Deixe o campo de busca e os dropdowns flutuando sobre o fundo da página com gap-4, exatamente como na tela de Planejamento.
+
+2. Inteligência nos Cards de Colaborador:
+
+Comparativo de Valores: Dentro de cada card de colaborador, exiba o "Total Realizado" e, ao lado, o Delta (Diferença) em relação ao planejado:
+
+Se Realizado < Planejado: Texto em verde (Ex: - R$ 50,00).
+
+Se Realizado > Planejado: Texto em vermelho/coral (Ex: + R$ 20,00).
+
+Estética: Mantenha o arredondamento rounded-3xl e a sombra suave.
+
+3. Refino do Modal de Preenchimento (image_a66c84.png):
+
+Inputs: Os campos de valor devem ter fundo bg-slate-50, bordas rounded-lg e um focus:ring-2 na cor roxa.
+
+Hierarquia: O valor Planejado deve ser uma etiqueta pequena e cinza (text-slate-400), enquanto o campo Realizado deve ser o foco principal.
+
+Resumo do Modal: No rodapé do modal, a seção "PLANEJADO | REALIZADO | DIFERENÇA" deve ser um card destacado. Aplique a mesma lógica de cores (Verde/Vermelho) no valor da Diferença.
+
+Espaçamento: Aumente o respiro interno do modal (p-8). Não deixe os elementos colados nas bordas.
+
+4. Card Superior (Header do Realizado):
+
+No bloco roxo principal, exiba o "Total Planejado" de forma discreta abaixo do "Total Realizado".
+
+Barra de Progresso: Adicione uma trilha de fundo (track) com opacidade (bg-purple-900/30) para a barra verde de progresso, com h-2 e rounded-full.

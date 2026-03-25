@@ -985,7 +985,7 @@ export default function BudgetActualPage() {
                     background: 'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)',
                     minWidth: 230,
                   }}>
-                    <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
                     <div className="text-[30px] font-semibold text-white leading-none mt-1.5" style={{letterSpacing:'-0.03em'}}>
                       {formatCurrency(totalRealizado)}
                     </div>
@@ -1031,8 +1031,8 @@ export default function BudgetActualPage() {
                     </div>
                     {prestacaoCount > 0 && (
                       <div className="mt-4">
-                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
+                        <div className="h-2 rounded-full overflow-hidden" style={{background:'rgba(109,40,217,0.25)'}}>
+                          <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
                         </div>
                         <div className="text-[9px] text-slate-400 mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
                       </div>
@@ -1482,7 +1482,7 @@ export default function BudgetActualPage() {
                     <div className="p-4 space-y-3">
                       {planned && (
                         <div className="rounded-lg border border-slate-100 overflow-hidden text-[11px]">
-                          <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                          <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                             <span></span><span className="text-center">Planejado</span><span className="text-right">Realizado</span>
                           </div>
                           {itemDays.weekdays > 0 && (
@@ -1584,7 +1584,7 @@ export default function BudgetActualPage() {
                         const plannedVolta = (planned as any).mobilityVolta ?? Math.floor(planned.mobility / 2);
                         return (
                           <div className="rounded-lg border border-slate-100 overflow-hidden text-[11px]">
-                            <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                            <div className="grid grid-cols-3 bg-slate-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                               <span></span><span className="text-center">Planejado</span><span className="text-right">Realizado</span>
                             </div>
                             <div className="px-3 py-1.5 grid grid-cols-3 items-center border-b border-slate-50">
@@ -1664,7 +1664,7 @@ export default function BudgetActualPage() {
                             </span>
                           );
                         })()}
-                        <span className="text-sm font-black text-orange-700 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
+                        <span className="text-sm font-bold text-orange-700 tabular-nums">{formatCurrency(totalAlimentacao)}</span>
                       </div>
                     </div>
                     <div className="p-3">
