@@ -391,37 +391,76 @@ export default function BudgetActualPage() {
     const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
     const totalDays = days.weekdays + days.weekends;
 
-    let valorUtil = days.weekdays > 0 ? 5000 : 0;
-    let valorFds = days.weekends > 0 ? 10000 : 0;
+    let valorUtil = 0;
+    let valorFds = 0;
 
-    if (totalDays === 0 || storedSubtotalDiarias <= 0) {
-      valorUtil = 0;
-      valorFds = 0;
-    } else if (days.weekdays === 0) {
-      valorUtil = 0;
-      valorFds = Math.round(storedSubtotalDiarias / days.weekends);
-    } else if (days.weekends === 0) {
-      valorFds = 0;
-      valorUtil = Math.round(storedSubtotalDiarias / days.weekdays);
+    const isUnfilled = totalDays === 0 || storedSubtotalDiarias <= 0;
+
+    if (!isUnfilled) {
+      // Restore from saved actual values
+      if (days.weekdays === 0) {
+        valorUtil = 0;
+        valorFds = Math.round(storedSubtotalDiarias / days.weekends);
+      } else if (days.weekends === 0) {
+        valorFds = 0;
+        valorUtil = Math.round(storedSubtotalDiarias / days.weekdays);
+      } else {
+        // Use dailyValue approach: util rate = stored/weekdays, fds = remainder
+        valorUtil = Math.round(storedSubtotalDiarias / (days.weekdays + days.weekends));
+        valorFds = Math.round((storedSubtotalDiarias - days.weekdays * valorUtil) / days.weekends);
+      }
     } else {
-      const totalWeightedDays = days.weekdays + days.weekends * 2;
-      valorUtil = Math.round(storedSubtotalDiarias / totalWeightedDays);
-      valorFds = Math.round((storedSubtotalDiarias - days.weekdays * valorUtil) / days.weekends);
+      // Actual not yet filled — pre-fill from planned values so user has a starting point
+      const plannedRef = getPlannedRef(item);
+      if (plannedRef && plannedRef.dailyValue > 0) {
+        const plannedSub = plannedRef.totalValue - plannedRef.weekdayLunch - plannedRef.weekdayDinner - plannedRef.weekendLunch - plannedRef.weekendDinner - plannedRef.mobility;
+        if (days.weekdays === 0 && days.weekends > 0) {
+          valorUtil = 0;
+          valorFds = Math.round(plannedSub / days.weekends);
+        } else if (days.weekends === 0 && days.weekdays > 0) {
+          valorFds = 0;
+          valorUtil = Math.round(plannedSub / days.weekdays);
+        } else if (days.weekdays > 0 && days.weekends > 0) {
+          valorUtil = plannedRef.dailyValue;
+          valorFds = Math.round((plannedSub - days.weekdays * valorUtil) / days.weekends);
+        }
+      }
     }
 
-    // mobilityIda/mobilityVolta: use stored values if available; otherwise split 50/50 from mobility
+    // mobilityIda/mobilityVolta: use stored values if available; otherwise from planned or split 50/50
     const storedIda = (item as any).mobilityIda;
     const storedVolta = (item as any).mobilityVolta;
     const hasBreakdown = typeof storedIda === 'number' && (storedIda > 0 || storedVolta > 0);
-    const initIda = hasBreakdown ? storedIda : Math.ceil(item.mobility / 2);
-    const initVolta = hasBreakdown ? (typeof storedVolta === 'number' ? storedVolta : 0) : Math.floor(item.mobility / 2);
+
+    let initIda: number;
+    let initVolta: number;
+    if (hasBreakdown) {
+      initIda = storedIda;
+      initVolta = typeof storedVolta === 'number' ? storedVolta : 0;
+    } else if (item.mobility > 0) {
+      initIda = Math.ceil(item.mobility / 2);
+      initVolta = Math.floor(item.mobility / 2);
+    } else if (isUnfilled) {
+      // Pre-fill mobility from planned
+      const plannedRef = getPlannedRef(item);
+      const pIda = (plannedRef as any)?.mobilityIda ?? (plannedRef ? Math.ceil(plannedRef.mobility / 2) : 0);
+      const pVolta = (plannedRef as any)?.mobilityVolta ?? (plannedRef ? Math.floor(plannedRef.mobility / 2) : 0);
+      initIda = pIda;
+      initVolta = pVolta;
+    } else {
+      initIda = 0;
+      initVolta = 0;
+    }
+
+    // Pre-fill alimentação from planned when actual is unfilled
+    const plannedRef = isUnfilled ? getPlannedRef(item) : null;
     setEditFormData({
       valorDiariaUtil: valorUtil,
       valorDiariaFds: valorFds,
-      weekdayLunch: item.weekdayLunch,
-      weekdayDinner: item.weekdayDinner,
-      weekendLunch: item.weekendLunch,
-      weekendDinner: item.weekendDinner,
+      weekdayLunch: isUnfilled && plannedRef ? plannedRef.weekdayLunch : item.weekdayLunch,
+      weekdayDinner: isUnfilled && plannedRef ? plannedRef.weekdayDinner : item.weekdayDinner,
+      weekendLunch: isUnfilled && plannedRef ? plannedRef.weekendLunch : item.weekendLunch,
+      weekendDinner: isUnfilled && plannedRef ? plannedRef.weekendDinner : item.weekendDinner,
       mobilityIda: initIda,
       mobilityVolta: initVolta,
     });
