@@ -802,32 +802,10 @@ export default function BudgetPlannedPage() {
               <div className="flex items-stretch">
                 {/* Total Planejado — hero section */}
                 <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden" style={{
-                  background: 'linear-gradient(160deg, #003DCC 0%, #1957E0 45%, #2563EB 100%)',
+                  background: 'linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #3B82F6 100%)',
                   minWidth: 230,
                 }}>
-                  {/* Mesh gradient — 3 blobs coloridos sobrepostos */}
-                  <div style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'none',
-                    background: [
-                      'radial-gradient(ellipse 80% 60% at 0% 0%, rgba(99,140,255,0.35) 0%, transparent 60%)',
-                      'radial-gradient(ellipse 70% 80% at 100% 100%, rgba(0,20,120,0.40) 0%, transparent 55%)',
-                      'radial-gradient(ellipse 50% 50% at 50% 110%, rgba(79,123,245,0.20) 0%, transparent 60%)',
-                    ].join(', '),
-                  }} />
-                  {/* Grade pontilhada */}
-                  <div style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'none',
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.22) 1.5px, transparent 1.5px)',
-                    backgroundSize: '18px 18px',
-                  }} />
-                  {/* Reflexo de vidro — faixa diagonal */}
-                  <div style={{
-                    position: 'absolute', top: 0, left: '-20%', width: '55%', height: '100%',
-                    background: 'linear-gradient(105deg, rgba(255,255,255,0.09) 0%, transparent 60%)',
-                    pointerEvents: 'none',
-                  }} />
-
-                  <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/50 relative">Total Planejado</p>
+                  <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/60 relative">Total Planejado</p>
                   {selectedEvent?.startDate && (
                     <p className="flex items-center gap-1 text-[10px] text-white/40 relative">
                       <Calendar className="w-2.5 h-2.5 shrink-0" />
@@ -1062,7 +1040,7 @@ export default function BudgetPlannedPage() {
             </div>
 
             {/* ── Filtros e Busca — minimal ── */}
-            <div className="flex flex-wrap items-center gap-3 px-1">
+            <div className="flex flex-wrap items-center gap-3 px-0">
               {pendingCount > 0 && (
                 <Checkbox 
                   checked={selectedCards.size === pendingCount && pendingCount > 0}
@@ -1096,10 +1074,10 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-[#0033CC]">
                   <SelectValue placeholder="Função" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[180px]">
-                  <SelectItem value="all">Todas as funções</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[180px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
+                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Todas as funções</SelectItem>
                   {uniqueFunctions.map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                    <SelectItem key={f} value={f} className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">{f}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1108,10 +1086,10 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[140px]">
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="casa">Casa</SelectItem>
-                  <SelectItem value="freela">Freela</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[140px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
+                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Todos</SelectItem>
+                  <SelectItem value="casa" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Casa</SelectItem>
+                  <SelectItem value="freela" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Freela</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1119,12 +1097,12 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-auto min-w-[120px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[160px]">
-                  <SelectItem value="name_asc">Nome A-Z</SelectItem>
-                  <SelectItem value="name_desc">Nome Z-A</SelectItem>
-                  <SelectItem value="days_desc">Mais Dias</SelectItem>
-                  <SelectItem value="days_asc">Menos Dias</SelectItem>
-                  <SelectItem value="function">Por Função</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[160px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
+                  <SelectItem value="name_asc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Nome A-Z</SelectItem>
+                  <SelectItem value="name_desc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Nome Z-A</SelectItem>
+                  <SelectItem value="days_desc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Mais Dias</SelectItem>
+                  <SelectItem value="days_asc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Menos Dias</SelectItem>
+                  <SelectItem value="function" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Por Função</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1306,7 +1284,7 @@ export default function BudgetPlannedPage() {
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
                           <div className="grid grid-cols-3 gap-2 items-stretch">
                             {/* Diárias */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#EEF2FF', minHeight: 108, padding: '12px 14px 14px'}}>
+                            <div className="rounded-2xl flex flex-col" style={{background:'#EEF2FF', minHeight: 108, padding: '12px 16px 14px'}}>
                               <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
@@ -1334,7 +1312,7 @@ export default function BudgetPlannedPage() {
                             </div>
 
                             {/* Alimentação */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#FFF7ED', minHeight: 108, padding: '12px 14px 14px'}}>
+                            <div className="rounded-2xl flex flex-col" style={{background:'#FFF7ED', minHeight: 108, padding: '12px 16px 14px'}}>
                               <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
@@ -1362,7 +1340,7 @@ export default function BudgetPlannedPage() {
                             </div>
 
                             {/* Mobilidade */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#F5F3FF', minHeight: 108, padding: '12px 14px 14px'}}>
+                            <div className="rounded-2xl flex flex-col" style={{background:'#F5F3FF', minHeight: 108, padding: '12px 16px 14px'}}>
                               <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
