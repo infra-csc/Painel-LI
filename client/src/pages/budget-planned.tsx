@@ -1273,97 +1273,97 @@ export default function BudgetPlannedPage() {
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
                           <div className="flex flex-col gap-2">
                             {/* ── Diárias ── */}
-                            <div className="rounded-xl flex items-stretch" style={{background:'#EEF2FF', minHeight: 52}}>
+                            <div className="rounded-xl flex items-stretch" style={{background:'#EEF2FF', minHeight: 50}}>
                               {/* Esquerda: ícone + label + total */}
-                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                              <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
-                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
+                                    <Calendar className="w-2.5 h-2.5 shrink-0" style={{color:'#0033CC'}} />
+                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#0033CC'}}>Diárias</span>
                                   </div>
-                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.subtotalDiarias)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.subtotalDiarias)}</span>
                                 </div>
                               </div>
                               {/* Separador */}
-                              <div style={{width: 1, background: 'rgba(0,51,204,0.08)', margin: '8px 0'}} />
+                              <div style={{width: 1, background: 'rgba(0,51,204,0.07)', margin: '9px 0'}} />
                               {/* Direita: detalhes */}
-                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
+                              <div className="flex-1 flex flex-col justify-center gap-1 px-3 py-2.5">
                                 {budget.weekdays > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>{formatDiasUteis(budget.weekdays)}</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatDiasUteis(budget.weekdays)}</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
                                   </div>
                                 )}
                                 {budget.weekends > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>{formatFds(budget.weekends)}</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>{formatFds(budget.weekends)}</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
                                 {budget.weekdays === 0 && budget.weekends === 0 && (
-                                  <span className="text-[10px]" style={{color:'#CBD5E1'}}>—</span>
+                                  <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
 
                             {/* ── Alimentação ── */}
-                            <div className="rounded-xl flex items-stretch" style={{background:'#FFF7ED', minHeight: 52}}>
-                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                            <div className="rounded-xl flex items-stretch" style={{background:'#FFF7ED', minHeight: 50}}>
+                              <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
-                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
+                                    <Utensils className="w-2.5 h-2.5 shrink-0" style={{color:'#EA580C'}} />
+                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#EA580C'}}>Alimentação</span>
                                   </div>
-                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
                                 </div>
                               </div>
-                              <div style={{width: 1, background: 'rgba(234,88,12,0.10)', margin: '8px 0'}} />
-                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
+                              <div style={{width: 1, background: 'rgba(234,88,12,0.08)', margin: '9px 0'}} />
+                              <div className="flex-1 flex flex-col justify-center gap-1 px-3 py-2.5">
                                 {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Semana</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>Semana</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
                                   </div>
                                 )}
                                 {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Fim de semana</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>Fim de semana</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
                                   </div>
                                 )}
                                 {budget.almocoSemana === 0 && budget.jantarSemana === 0 && budget.almocoFds === 0 && budget.jantarFds === 0 && (
-                                  <span className="text-[10px]" style={{color:'#CBD5E1'}}>—</span>
+                                  <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
 
                             {/* ── Mobilidade ── */}
-                            <div className="rounded-xl flex items-stretch" style={{background:'#F5F3FF', minHeight: 52}}>
-                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                            <div className="rounded-xl flex items-stretch" style={{background:'#F5F3FF', minHeight: 50}}>
+                              <div className="flex items-center px-3 py-2.5 shrink-0" style={{minWidth: 112}}>
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1">
-                                    <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
-                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
+                                    <Car className="w-2.5 h-2.5 shrink-0" style={{color:'#6d28d9'}} />
+                                    <span className="text-[9px] font-semibold uppercase tracking-[0.1em]" style={{color:'#6d28d9'}}>Mobilidade</span>
                                   </div>
-                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.mobilidade)}</span>
+                                  <span className="tabular-nums font-medium text-[14px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.mobilidade)}</span>
                                 </div>
                               </div>
-                              <div style={{width: 1, background: 'rgba(109,40,217,0.10)', margin: '8px 0'}} />
-                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
+                              <div style={{width: 1, background: 'rgba(109,40,217,0.08)', margin: '9px 0'}} />
+                              <div className="flex-1 flex flex-col justify-center gap-1 px-3 py-2.5">
                                 {budget.mobilidadeIda > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Ida</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>Ida</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeVolta > 0 && (
                                   <div className="flex items-center justify-between gap-x-2">
-                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Volta</span>
-                                    <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
+                                    <span className="text-[11px] leading-tight font-normal flex-1" style={{color:'#94A3B8', minWidth:'fit-content'}}>Volta</span>
+                                    <span className="font-normal tabular-nums text-[11px] leading-tight shrink-0 tracking-wide" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeIda === 0 && budget.mobilidadeVolta === 0 && (
-                                  <span className="text-[10px]" style={{color:'#CBD5E1'}}>—</span>
+                                  <span className="text-[11px] font-normal" style={{color:'#CBD5E1'}}>—</span>
                                 )}
                               </div>
                             </div>
@@ -1943,58 +1943,50 @@ export default function BudgetPlannedPage() {
           left: 256,
           right: 0,
           zIndex: 40,
-          background: 'rgba(255,255,255,0.97)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderTop: '1px solid #E2E8F0',
-          boxShadow: '0 -4px 32px rgba(0,0,0,0.07), 0 -1px 4px rgba(0,0,0,0.04)',
+          background: 'rgba(255,255,255,0.82)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderTop: '1px solid rgba(226,232,240,0.7)',
+          boxShadow: '0 -2px 20px rgba(0,0,0,0.05)',
         }}>
-          <div style={{maxWidth: 1024, margin: '0 auto', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 24}}>
+          <div style={{maxWidth: 1024, margin: '0 auto', padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 24}}>
 
-            {/* Esquerda: Total do Evento — destaque principal */}
-            <div style={{flexShrink: 0, borderRight: '1px solid #E2E8F0', paddingRight: 24}}>
-              <div style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8', marginBottom: 2}}>
-                Valor Total do Evento
-              </div>
-              <div style={{
-                fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em',
+            {/* Esquerda: Total do Evento — delicado, flutuante */}
+            <div style={{flexShrink: 0, paddingRight: 24, borderRight: '1px solid rgba(226,232,240,0.8)'}}>
+              <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#CBD5E1', marginRight: 8}}>
+                Total
+              </span>
+              <span style={{
+                fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em',
                 color: '#0033CC', fontVariantNumeric: 'tabular-nums',
                 fontFeatureSettings: '"tnum"',
               }}>
                 {formatCurrency(totalGeral)}
-              </div>
+              </span>
             </div>
 
             {/* Centro: progresso do envio */}
             <div style={{flex: 1}}>
-              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 6}}>
-                <div style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8'}}>
-                  Progresso do Envio
+              <div style={{display:'flex', alignItems:'center', gap: 10}}>
+                <div style={{flex: 1, height: 4, borderRadius: 9999, overflow: 'hidden', background: 'rgba(226,232,240,0.8)'}}>
+                  <div style={{
+                    height: '100%', borderRadius: 9999,
+                    transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                    width: `${stats.progressoEnvio}%`,
+                    background: stats.progressoEnvio >= 100
+                      ? '#059669'
+                      : 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 60%, #059669 100%)',
+                    boxShadow: stats.progressoEnvio >= 100
+                      ? '0 0 6px rgba(5,150,105,0.45)'
+                      : 'none',
+                  }} />
                 </div>
-                <div style={{
-                  fontSize: 12, fontWeight: 800, letterSpacing: '-0.01em',
-                  color: stats.progressoEnvio >= 100 ? '#059669' : '#1E293B',
+                <span style={{
+                  fontSize: 11, fontWeight: 400, letterSpacing: '0.01em', whiteSpace: 'nowrap',
+                  color: stats.progressoEnvio >= 100 ? '#059669' : '#94A3B8',
                 }}>
-                  {stats.enviados} de {stats.total} enviados
+                  {stats.enviados}/{stats.total}
                   {stats.progressoEnvio >= 100 && <span style={{marginLeft: 4}}>✓</span>}
-                </div>
-              </div>
-              <div style={{height: 6, borderRadius: 9999, overflow: 'hidden', background: '#F1F5F9'}}>
-                <div style={{
-                  height: '100%', borderRadius: 9999,
-                  transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
-                  width: `${stats.progressoEnvio}%`,
-                  background: stats.progressoEnvio >= 100
-                    ? '#059669'
-                    : 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 60%, #059669 100%)',
-                  boxShadow: stats.progressoEnvio >= 100
-                    ? '0 0 8px rgba(5,150,105,0.5), 0 0 16px rgba(5,150,105,0.25)'
-                    : 'none',
-                }} />
-              </div>
-              <div style={{display:'flex', justifyContent:'flex-end', marginTop: 3}}>
-                <span style={{fontSize: 9, fontWeight: 700, color: stats.progressoEnvio >= 100 ? '#059669' : '#94A3B8'}}>
-                  {Math.round(stats.progressoEnvio)}%
                 </span>
               </div>
             </div>
