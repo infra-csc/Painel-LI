@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Save } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Save } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
@@ -1283,7 +1283,7 @@ export default function BudgetPlannedPage() {
                           <div className="min-w-0 flex-1 flex flex-col gap-y-1">
                             {/* Linha 1: nome + dot */}
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-800 text-[14px] truncate">{name}</span>
+                              <span className="font-medium text-slate-800 text-[14px] truncate">{name}</span>
                               {budget.hasOverride && (
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
@@ -1863,27 +1863,37 @@ export default function BudgetPlannedPage() {
               </div>
             </div>
             {/* Mensagem */}
-            <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+            <p className="text-center text-[12px] font-normal text-slate-400 leading-relaxed">
               As informações de custos e logística serão enviadas para aprovação. Deseja prosseguir?
             </p>
+            {/* Linha do total */}
+            <div className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl"
+              style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}>
+              <span className="text-[11px] font-normal text-slate-400">Total a ser enviado</span>
+              <span className="text-[14px] font-medium tabular-nums" style={{color:'#059669'}}>
+                {formatCurrency(totalSelecionado)}
+              </span>
+            </div>
             {/* Botões */}
-            <div className="flex gap-2 w-full pt-1">
+            <div className="flex gap-2 w-full">
               <button
-                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
+                style={{background:'rgba(241,245,249,0.6)'}}
                 onClick={() => setConfirmSendOpen(false)}
                 disabled={sendSelectedToActualMutation.isPending}
               >
                 Voltar
               </button>
               <button
-                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70"
+                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
+                style={{background:'#059669', boxShadow:'0 2px 10px rgba(5,150,105,0.3)'}}
                 disabled={sendSelectedToActualMutation.isPending}
                 onClick={() => sendSelectedToActualMutation.mutate()}
               >
                 {sendSelectedToActualMutation.isPending ? (
                   <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
                 ) : (
-                  <><Send className="w-3.5 h-3.5" />Enviar</>
+                  <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
                 )}
               </button>
             </div>
@@ -1943,16 +1953,28 @@ export default function BudgetPlannedPage() {
                   </div>
                 </div>
                 {/* Mensagem de apoio */}
-                <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+                <p className="text-center text-[12px] font-normal text-slate-400 leading-relaxed">
                   {isEdited
                     ? 'As alterações nos custos e logística deste colaborador serão salvas. Você poderá enviar o lote completo para aprovação mais tarde.'
                     : 'Os valores calculados serão enviados diretamente para o Realizado. Esta ação não pode ser desfeita.'
                   }
                 </p>
+                {/* Linha do total */}
+                <div className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl"
+                  style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}>
+                  <span className="text-[11px] font-normal text-slate-400">
+                    {isEdited ? 'Total a ser salvo' : 'Total a ser enviado'}
+                  </span>
+                  <span className="text-[14px] font-medium tabular-nums"
+                    style={{color: isEdited ? '#2563EB' : '#059669'}}>
+                    {formatCurrency(confirmSendSingle.totalFinal)}
+                  </span>
+                </div>
                 {/* Botões */}
-                <div className="flex gap-2 w-full pt-1">
+                <div className="flex gap-2 w-full">
                   <button
-                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 bg-transparent border border-slate-200 hover:bg-slate-50 transition-colors"
+                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
+                    style={{background:'rgba(241,245,249,0.6)'}}
                     onClick={() => setConfirmSendSingle(null)}
                     disabled={sendToActualMutation.isPending}
                   >
@@ -1960,16 +1982,16 @@ export default function BudgetPlannedPage() {
                   </button>
                   <button
                     className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
-                    style={{background: isEdited ? '#2563EB' : '#059669'}}
+                    style={{background: isEdited ? '#2563EB' : '#059669', boxShadow: isEdited ? '0 2px 10px rgba(37,99,235,0.3)' : '0 2px 10px rgba(5,150,105,0.3)'}}
                     disabled={sendToActualMutation.isPending}
                     onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
                   >
                     {sendToActualMutation.isPending ? (
                       <><RefreshCw className="w-3.5 h-3.5 animate-spin" />{isEdited ? 'Salvando...' : 'Enviando...'}</>
                     ) : isEdited ? (
-                      <><Save className="w-3.5 h-3.5" />Confirmar e Salvar</>
+                      <><Check className="w-3.5 h-3.5" />Sim, Salvar</>
                     ) : (
-                      <><Send className="w-3.5 h-3.5" />Confirmar Envio</>
+                      <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
                     )}
                   </button>
                 </div>
