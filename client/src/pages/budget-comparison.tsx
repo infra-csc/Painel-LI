@@ -1044,29 +1044,36 @@ export default function BudgetComparisonPage() {
                             </>}
 
                             {/* Expanded card footer — totals */}
-                            <div className={`rounded-xl border overflow-hidden ${diff > 0 ? 'border-red-200' : diff < 0 ? 'border-emerald-200' : 'border-slate-200'}`}>
-                              <div className="grid grid-cols-3 divide-x divide-slate-100">
-                                <div className="px-4 py-3 text-center bg-blue-50/40">
-                                  <span className="text-[9px] uppercase text-blue-500 font-black tracking-widest block mb-1">Total Planejado</span>
-                                  <span className="text-lg font-black text-blue-700 tabular-nums">{fmt(plannedTotal)}</span>
-                                </div>
-                                <div className="px-4 py-3 text-center bg-violet-50/40">
-                                  <span className="text-[9px] uppercase text-violet-500 font-black tracking-widest block mb-1">Total Realizado</span>
-                                  <span className="text-lg font-black text-violet-700 tabular-nums">{fmt(actualTotal)}</span>
-                                </div>
-                                <div className={`px-4 py-3 text-center ${diff > 0 ? 'bg-red-50/60' : diff < 0 ? 'bg-emerald-50/60' : 'bg-slate-50'}`}>
-                                  <span className={`text-[9px] uppercase font-black tracking-widest block mb-1 ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
-                                    Diferença
+                            <div className="grid grid-cols-3 gap-2">
+                              {/* Planejado mini-card */}
+                              <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-center">
+                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Planejado</span>
+                                <span className="text-base font-semibold text-slate-900 tabular-nums">{fmt(plannedTotal)}</span>
+                              </div>
+                              {/* Realizado mini-card */}
+                              <div className="rounded-xl border border-purple-100 bg-purple-50/50 px-4 py-3 text-center">
+                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Realizado</span>
+                                <span className="text-base font-semibold text-slate-900 tabular-nums">{fmt(actualTotal)}</span>
+                              </div>
+                              {/* Diferença mini-card */}
+                              <div className={`rounded-xl border px-4 py-3 text-center ${
+                                diff === 0 ? 'border-slate-100 bg-slate-50' :
+                                diff < 0 ? 'border-emerald-100 bg-emerald-50' :
+                                'border-red-100 bg-red-50'
+                              }`}>
+                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Diferença</span>
+                                <span className={`text-base font-semibold tabular-nums ${
+                                  diff === 0 ? 'text-slate-400' : diff < 0 ? 'text-emerald-700' : 'text-red-600'
+                                }`}>
+                                  {diff > 0 ? '+' : diff < 0 ? '−' : ''}{fmt(Math.abs(diff))}
+                                </span>
+                                {hasDiff && plannedTotal > 0 && (
+                                  <span className={`inline-flex items-center mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded-full ${
+                                    diff > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                                  }`}>
+                                    {diff > 0 ? 'Estouro' : 'Economia'} {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
                                   </span>
-                                  <span className={`text-lg font-black tabular-nums ${diff > 0 ? 'text-red-700' : diff < 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
-                                    {diff > 0 ? '+' : diff < 0 ? '−' : ''}{fmt(Math.abs(diff))}
-                                  </span>
-                                  {hasDiff && plannedTotal > 0 && (
-                                    <span className={`block text-[10px] mt-0.5 font-semibold ${diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                      {diff > 0 ? 'Estouro' : 'Economia'} ({Math.abs(diff / plannedTotal * 100).toFixed(1)}%)
-                                    </span>
-                                  )}
-                                </div>
+                                )}
                               </div>
                             </div>
 
