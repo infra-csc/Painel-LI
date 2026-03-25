@@ -1576,13 +1576,13 @@ export default function BudgetPlannedPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50">
-                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Colaborador</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-20">Diárias</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Valor/dia</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Alimentação</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Mobilidade</th>
-                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-500 uppercase tracking-wider w-32 bg-blue-50/40">Subtotal</th>
+                      <tr className="border-b border-slate-200 bg-slate-50/80">
+                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Colaborador</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-20">Diárias</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Valor/dia</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Alimentação</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Mobilidade</th>
+                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-600 uppercase tracking-wider w-32 bg-blue-50/60">Subtotal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1597,7 +1597,7 @@ export default function BudgetPlannedPage() {
                         const name = getCollaboratorName(budget.inclusion.collaboratorId);
                         const funcName = getFunctionName(budget.inclusion.functionId);
                         const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
-                        const cellCls = "bg-slate-50 rounded-md px-2 py-1 border border-transparent hover:border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all flex items-center gap-1";
+                        const cellCls = "bg-slate-50 rounded-md px-2 py-1 border border-transparent hover:border-slate-200 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-sm transition-all flex items-center gap-1";
                         const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5";
                         const disabled = isSent || isNotAttended;
                         const sid = budget.inclusion.id;
@@ -1693,12 +1693,14 @@ export default function BudgetPlannedPage() {
                             </td>
                             {/* Subtotal */}
                             <td className="px-4 py-2 text-right bg-blue-50/30">
-                              <span className={`text-sm font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-700'}`}>
-                                {formatCurrency(budget.totalFinal)}
-                              </span>
-                              {hasOvr && !isSent && (
-                                <div className="text-[9px] text-amber-500 font-medium">editado</div>
-                              )}
+                              <div className="flex items-center justify-end gap-1.5">
+                                {hasOvr && !isSent && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Valor editado" />
+                                )}
+                                <span className={`text-sm font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-700'}`}>
+                                  {formatCurrency(budget.totalFinal)}
+                                </span>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1725,11 +1727,12 @@ export default function BudgetPlannedPage() {
               {(() => {
                 const pendingSheet = filteredBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !isCardNotAttended(b));
                 const hasEdits = pendingSheet.some(b => b.hasOverride);
-                const canSend = pendingSheet.length > 0 && isRhOrAdmin(user);
+                const isAdmin = isRhOrAdmin(user);
+                const hasPending = pendingSheet.length > 0;
                 return (
                   <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
                     <div className="flex items-center gap-2">
-                      {pendingSheet.length > 0 && (
+                      {hasPending && (
                         <span className="text-xs text-slate-400">
                           {pendingSheet.length} {pendingSheet.length === 1 ? 'colaborador pendente' : 'colaboradores pendentes'}
                         </span>
@@ -1741,34 +1744,38 @@ export default function BudgetPlannedPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      {hasEdits && (
+                    {isAdmin && (
+                      <div className="flex items-center gap-3">
+                        {hasEdits && (
+                          <button
+                            onClick={() => setBudgetOverrides(prev => {
+                              const updated = { ...prev };
+                              filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
+                              return updated;
+                            })}
+                            className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors"
+                          >
+                            Descartar Alterações
+                          </button>
+                        )}
                         <button
-                          onClick={() => setBudgetOverrides(prev => {
-                            const updated = { ...prev };
-                            filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
-                            return updated;
-                          })}
-                          className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors"
-                        >
-                          Descartar Alterações
-                        </button>
-                      )}
-                      {canSend && (
-                        <button
+                          disabled={!hasPending}
                           onClick={() => {
+                            if (!hasPending) return;
                             setSelectedCards(new Set(pendingSheet.map(b => b.inclusion.id)));
                             setConfirmSendOpen(true);
                           }}
-                          className={`flex items-center gap-2 text-sm font-semibold text-white px-6 py-2.5 rounded-lg shadow-md transition-all bg-blue-600 hover:bg-blue-700
-                            ${hasEdits ? 'shadow-blue-300 ring-2 ring-blue-400 ring-offset-2' : 'shadow-blue-100'}
+                          className={`flex items-center gap-2 text-sm font-semibold text-white px-6 py-2.5 rounded-lg shadow-md transition-all
+                            ${hasPending
+                              ? `bg-blue-600 hover:bg-blue-700 ${hasEdits ? 'shadow-blue-300 ring-2 ring-blue-400 ring-offset-1' : 'shadow-blue-100'}`
+                              : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
                           `}
                         >
                           <Send className="w-4 h-4" />
-                          Enviar Planejamento{pendingSheet.length > 0 ? ` (${pendingSheet.length})` : ''}
+                          {hasPending ? `Enviar Planejamento (${pendingSheet.length})` : 'Nenhum pendente'}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
