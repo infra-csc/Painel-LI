@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Save } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2 } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
@@ -1342,11 +1342,11 @@ export default function BudgetPlannedPage() {
                           {!isSent && (
                             <Button 
                               variant="ghost" size="icon" 
-                              className={`h-8 w-8 rounded-lg ${budget.hasOverride ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'}`}
-                              title={budget.hasOverride ? "Salvar planejamento editado" : "Enviar para o Realizado"}
+                              className="h-8 w-8 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              title="Enviar para o Realizado"
                               onClick={() => setConfirmSendSingle(budget)}
                             >
-                              {budget.hasOverride ? <Save className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                              <Send className="w-3.5 h-3.5" />
                             </Button>
                           )}
                           <Button 
@@ -1906,25 +1906,18 @@ export default function BudgetPlannedPage() {
         <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
           <DialogHeader className="sr-only"><DialogTitle>Salvar Planejamento</DialogTitle></DialogHeader>
           {confirmSendSingle && (() => {
-            const isEdited = !!confirmSendSingle.hasOverride;
             return (
               <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
                 style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
-                {/* Ícone: Save (editado) ou Send (envio direto) */}
+                {/* Ícone Send */}
                 <div className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={isEdited
-                    ? {background:'#EFF6FF', border:'1.5px solid #BFDBFE'}
-                    : {background:'#ECFDF5', border:'1.5px solid #A7F3D0'}
-                  }>
-                  {isEdited
-                    ? <Save style={{color:'#2563EB', width:20, height:20}} />
-                    : <Send style={{color:'#059669', width:20, height:20}} />
-                  }
+                  style={{background:'#ECFDF5', border:'1.5px solid #A7F3D0'}}>
+                  <Send style={{color:'#059669', width:20, height:20}} />
                 </div>
                 {/* Título + colaborador */}
                 <div className="text-center space-y-1">
                   <h2 className="text-[15px] font-medium text-slate-800">
-                    {isEdited ? 'Salvar Planejamento?' : 'Enviar para o Realizado?'}
+                    Enviar para o Realizado?
                   </h2>
                   <p className="text-[12px] font-normal text-slate-400">
                     {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
@@ -1946,27 +1939,21 @@ export default function BudgetPlannedPage() {
                   </div>
                   <div className="flex items-center justify-between px-4 py-3" style={{
                     borderTop:'1px solid #F1F5F9',
-                    background: isEdited ? '#F8FAFF' : '#F0FDF4',
+                    background: '#F0FDF4',
                   }}>
                     <span className="text-[12px] font-medium text-slate-600">Total planejado</span>
-                    <span className="text-[15px] font-medium" style={{color: isEdited ? '#2563EB' : '#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+                    <span className="text-[15px] font-medium" style={{color:'#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
                   </div>
                 </div>
                 {/* Mensagem de apoio */}
                 <p className="text-center text-[12px] font-normal text-slate-400 leading-relaxed">
-                  {isEdited
-                    ? 'As alterações nos custos e logística deste colaborador serão salvas. Você poderá enviar o lote completo para aprovação mais tarde.'
-                    : 'Os valores calculados serão enviados diretamente para o Realizado. Esta ação não pode ser desfeita.'
-                  }
+                  Os valores calculados serão enviados diretamente para o Realizado. Esta ação não pode ser desfeita.
                 </p>
                 {/* Linha do total */}
                 <div className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl"
                   style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}>
-                  <span className="text-[11px] font-normal text-slate-400">
-                    {isEdited ? 'Total a ser salvo' : 'Total a ser enviado'}
-                  </span>
-                  <span className="text-[14px] font-medium tabular-nums"
-                    style={{color: isEdited ? '#2563EB' : '#059669'}}>
+                  <span className="text-[11px] font-normal text-slate-400">Total a ser enviado</span>
+                  <span className="text-[14px] font-medium tabular-nums" style={{color:'#059669'}}>
                     {formatCurrency(confirmSendSingle.totalFinal)}
                   </span>
                 </div>
@@ -1978,18 +1965,16 @@ export default function BudgetPlannedPage() {
                     onClick={() => setConfirmSendSingle(null)}
                     disabled={sendToActualMutation.isPending}
                   >
-                    {isEdited ? 'Continuar Editando' : 'Voltar'}
+                    Voltar
                   </button>
                   <button
                     className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
-                    style={{background: isEdited ? '#2563EB' : '#059669', boxShadow: isEdited ? '0 2px 10px rgba(37,99,235,0.3)' : '0 2px 10px rgba(5,150,105,0.3)'}}
+                    style={{background:'#059669', boxShadow:'0 2px 10px rgba(5,150,105,0.3)'}}
                     disabled={sendToActualMutation.isPending}
                     onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
                   >
                     {sendToActualMutation.isPending ? (
-                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" />{isEdited ? 'Salvando...' : 'Enviando...'}</>
-                    ) : isEdited ? (
-                      <><Check className="w-3.5 h-3.5" />Sim, Salvar</>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
                     ) : (
                       <><Check className="w-3.5 h-3.5" />Confirmar Envio</>
                     )}
