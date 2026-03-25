@@ -1171,7 +1171,7 @@ export default function BudgetPlannedPage() {
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
                       className={`rounded-2xl border transition-all duration-300 ease-in-out overflow-hidden flex flex-col group h-full ${
-                        isNotAttended ? 'bg-white border-slate-200 shadow-sm opacity-50 grayscale' :
+                        isNotAttended ? 'bg-white border-slate-200 shadow-sm opacity-40 grayscale' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
                         isSent ? 'bg-white border-indigo-200 opacity-85 shadow-sm' :
@@ -1917,20 +1917,20 @@ export default function BudgetPlannedPage() {
             <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
               style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
 
-              {/* Ícone centralizado */}
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                style={{background:'#FFF7ED', border:'1.5px solid #FED7AA'}}>
-                <UserX className="w-6 h-6" style={{color:'#D97706'}} />
+              {/* Ícone centralizado — círculo rose claro */}
+              <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                style={{background:'#FFF1F2', border:'1.5px solid #FECDD3'}}>
+                <UserX className="w-4.5 h-4.5" style={{color:'#F43F5E', width:18, height:18}} />
               </div>
 
               {/* Título + subtítulo */}
               <div className="text-center space-y-1">
-                <h2 className="text-[16px] font-medium text-slate-800 leading-snug">Confirmar Ausência?</h2>
-                <p className="text-[12px] font-medium" style={{color:'#94A3B8'}}>{notAttendedModal.name} · {notAttendedModal.functionName}</p>
+                <h2 className="text-[15px] font-medium text-slate-800 leading-snug">Confirmar Ausência?</h2>
+                <p className="text-[12px] font-normal" style={{color:'#94A3B8'}}>{notAttendedModal.name} · {notAttendedModal.functionName}</p>
               </div>
 
               {/* Texto explicativo */}
-              <p className="text-center text-[13px] text-slate-500 leading-relaxed">
+              <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
                 Você está marcando que este colaborador não participou deste evento. Os cálculos de diárias e custos associados serão removidos dos totais.
               </p>
 
@@ -1940,7 +1940,7 @@ export default function BudgetPlannedPage() {
                   Motivo <span className="normal-case tracking-normal font-normal text-slate-300">(opcional)</span>
                 </label>
                 <Textarea
-                  className="w-full rounded-xl text-[13px] resize-none border-slate-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-slate-300"
+                  className="w-full rounded-xl text-[13px] resize-none border-slate-200 focus:border-rose-300 focus:ring-2 focus:ring-rose-50 placeholder:text-slate-300"
                   value={notAttendedReason}
                   onChange={e => setNotAttendedReason(e.target.value)}
                   placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
@@ -1952,17 +1952,13 @@ export default function BudgetPlannedPage() {
               {/* Botões */}
               <div className="flex gap-2 w-full pt-1">
                 <button
-                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
-                  style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 transition-colors hover:bg-slate-200"
                   onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}
                 >
-                  Cancelar
+                  Voltar
                 </button>
                 <button
-                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-60"
-                  style={{background:'#D97706', filter: 'brightness(1)'}}
-                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.94)')}
-                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 bg-rose-500 hover:bg-rose-600"
                   onClick={() => {
                     if (notAttendedModal.id) {
                       toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason });
