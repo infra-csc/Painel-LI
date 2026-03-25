@@ -893,18 +893,6 @@ export default function BudgetPlannedPage() {
                       <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Etapa atual</span>
                       <div className="text-[13px] font-bold text-[#0033CC] mt-0.5">{steps[currentStep].label}</div>
                     </div>
-                    {selectedCards.size > 0 && (
-                      <Button 
-                        size="sm"
-                        onClick={() => setConfirmSendOpen(true)}
-                        disabled={sendSelectedToActualMutation.isPending}
-                        className="h-8 text-xs px-4 rounded-xl font-bold"
-                        style={{background:'#059669'}}
-                      >
-                        <Send className="w-3 h-3 mr-1.5" />
-                        Enviar {selectedCards.size} selecionados
-                      </Button>
-                    )}
                   </div>
                   <div className="flex items-center">
                     {steps.map((step, i) => {
