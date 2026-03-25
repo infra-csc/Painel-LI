@@ -105,7 +105,8 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
   function updateRect() {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setDropdownRect({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: rect.width });
+      // Use fixed positioning — coordinates relative to viewport, no scroll offset needed
+      setDropdownRect({ top: rect.bottom + 6, left: rect.left, width: rect.width });
     }
   }
 
@@ -154,20 +155,26 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
     <div
       id="event-search-portal"
       style={{
-        position: 'absolute',
+        position: 'fixed',
         top: dropdownRect.top,
         left: dropdownRect.left,
-        width: Math.max(dropdownRect.width, 300),
+        width: Math.max(dropdownRect.width, 320),
         zIndex: 9999,
-        background: '#fff',
-        border: '1px solid #E2E8F0',
-        borderRadius: 12,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.13)',
+        background: 'rgba(255, 255, 255, 0.94)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(226, 232, 240, 0.8)',
+        borderRadius: 14,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,51,204,0.06)',
         overflow: 'hidden',
       }}
     >
-      {/* Search bar inside dropdown */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid #F1F5F9' }}>
+      {/* Search bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '12px 14px', borderBottom: '1px solid rgba(241,245,249,0.9)',
+        background: 'rgba(248,250,252,0.7)',
+      }}>
         <Search style={{ width: 14, height: 14, color: '#94A3B8', flexShrink: 0 }} />
         <input
           ref={inputRef}
@@ -177,6 +184,7 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
           style={{
             flex: 1, fontSize: 13, outline: 'none', border: 'none',
             background: 'transparent', color: '#1E293B',
+            caretColor: '#0033CC',
           }}
         />
         {search && (
@@ -188,46 +196,56 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
           </button>
         )}
       </div>
+
       {/* List */}
-      <div style={{ maxHeight: 252, overflowY: 'auto' }}>
+      <div className="event-search-list" style={{ maxHeight: 280, overflowY: 'auto', padding: '6px' }}>
         {filtered.length === 0 ? (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
             Nenhum evento encontrado
           </div>
         ) : (
-          filtered.map((event, i) => {
+          filtered.map((event) => {
             const isSelected = event.id === value;
             return (
               <button
                 key={event.id}
                 onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '9px 14px', border: 'none',
-                  background: isSelected ? '#F5F3FF' : 'transparent',
+                  display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+                  padding: '10px 12px', border: 'none',
+                  background: isSelected ? '#EEF2FF' : 'transparent',
                   cursor: 'pointer', textAlign: 'left',
-                  borderBottom: i < filtered.length - 1 ? '1px solid #F8FAFC' : 'none',
+                  borderRadius: 9,
+                  transition: 'background 0.12s',
+                  marginBottom: 1,
                 }}
-                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#F8FAFC'; }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#EFF6FF'; }}
                 onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                <Calendar style={{ width: 14, height: 14, color: isSelected ? '#7C3AED' : '#94A3B8', flexShrink: 0 }} />
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                  background: isSelected ? '#0033CC' : '#F1F5F9',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background 0.12s',
+                }}>
+                  <Calendar style={{ width: 14, height: 14, color: isSelected ? '#fff' : '#94A3B8' }} />
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 13, fontWeight: isSelected ? 600 : 400,
-                    color: isSelected ? '#7C3AED' : '#1E293B',
+                    fontSize: 13, fontWeight: 600,
+                    color: isSelected ? '#0033CC' : '#1E293B',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {event.name}
                   </div>
                   {(event.startDate || event.endDate) && (
-                    <div style={{ fontSize: 11, color: isSelected ? '#A78BFA' : '#94A3B8', marginTop: 1 }}>
+                    <div style={{ fontSize: 11, color: isSelected ? '#6d94ff' : '#94A3B8', marginTop: 2 }}>
                       {fmtEventDate(event.startDate, event.endDate)}
                     </div>
                   )}
                 </div>
                 {isSelected && (
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', flexShrink: 0 }} />
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#0033CC', flexShrink: 0 }} />
                 )}
               </button>
             );
@@ -245,15 +263,18 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
         onClick={handleOpen}
         className="hover:scale-[1.015] active:scale-[0.985]"
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 12px',
-          width: '100%', border: isOpen ? '1px solid #7C3AED' : '1px solid #CBD5E1',
-          borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14,
+          display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 14px',
+          width: '100%',
+          border: isOpen ? '1.5px solid #0033CC' : '1px solid #CBD5E1',
+          borderRadius: 9, background: '#fff', cursor: 'pointer', fontSize: 14,
           color: selectedEvent ? '#1E293B' : '#94A3B8',
-          boxShadow: isOpen ? '0 0 0 3px rgba(124,58,237,0.1)' : '0 1px 3px rgba(0,0,0,0.06)',
+          boxShadow: isOpen
+            ? '0 0 0 3px rgba(0,51,204,0.10), 0 2px 8px rgba(0,51,204,0.08)'
+            : '0 1px 3px rgba(0,0,0,0.06)',
           transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <Search style={{ width: 14, height: 14, color: isOpen ? '#7C3AED' : '#94A3B8', flexShrink: 0 }} />
+        <Search style={{ width: 14, height: 14, color: isOpen ? '#0033CC' : '#94A3B8', flexShrink: 0, transition: 'color 0.15s' }} />
         <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: selectedEvent ? 500 : 400 }}>
           {selectedEvent ? selectedEvent.name : 'Selecionar evento'}
         </span>

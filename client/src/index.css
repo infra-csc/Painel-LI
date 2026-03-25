@@ -113,3 +113,18 @@
     @apply bg-green-500;
   }
 }
+
+/* Thin scrollbar for event search dropdown */
+.event-search-list::-webkit-scrollbar {
+  width: 4px;
+}
+.event-search-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.event-search-list::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+.event-search-list::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
