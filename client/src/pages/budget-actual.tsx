@@ -835,163 +835,45 @@ export default function BudgetActualPage() {
 
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
             style={{background:'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', boxShadow:'0 4px 14px rgba(109,40,217,0.35)'}}>
-            <ClipboardCheck className="w-[18px] h-[18px] text-white" />
+            <ClipboardCheck className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-[17px] font-semibold text-slate-800 leading-tight">Orçamento Realizado</h1>
-            <p className="text-[11px] text-slate-400 font-normal">Prestação de contas — escalas enviadas do Planejado</p>
+            <h1 className="text-[18px] font-bold text-gray-900">Orçamento Realizado</h1>
+            <p className="text-xs text-gray-400">Prestação de contas — escalas enviadas do Planejado</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
-        </div>
+        {selectedEventId && (
+          <div className="flex items-center gap-3">
+            <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
+          </div>
+        )}
       </div>
 
-      {/* ── Stepper — sempre visível ── */}
-      {(() => {
-        const currentStep = 2;
-        const steps = [
-          { label: "Escalação", desc: "Inclusões confirmadas" },
-          { label: "Planejamento RH", desc: "Valores previstos" },
-          { label: "Prestação", desc: "Resp. preenche realizado" },
-          { label: "Aprovação RH", desc: "Análise e aprovação" },
-        ];
-        return (
-          <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
-            <div className="flex items-center">
-              {steps.map((step, i) => {
-                const isDone = i < currentStep;
-                const isActive = i === currentStep;
-                const isLast = i === steps.length - 1;
-                return (
-                  <div key={i} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center gap-1.5">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                        isDone ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' :
-                        isActive ? 'bg-violet-600 text-white shadow-lg shadow-violet-300 ring-4 ring-violet-100' :
-                        'bg-gray-100 text-gray-300'
-                      }`}>
-                        {isDone ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (i + 1)}
-                      </div>
-                      <div className="text-center">
-                        <div className={`text-[11px] font-semibold leading-tight ${
-                          isDone ? 'text-emerald-600' :
-                          isActive ? 'text-violet-700' :
-                          'text-gray-400'
-                        }`}>{step.label}</div>
-                        <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
-                      </div>
-                    </div>
-                    {!isLast && (
-                      <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                        isDone ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gray-100'
-                      }`} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Banner Total Realizado — sempre visível ── */}
-      {(() => {
-        const nAprovadas  = filteredItems.filter(i => i.rhStatus === 'aprovado').length;
-        const nRevisao    = filteredItems.filter(i => i.sentForReview && !['aprovado','devolvido','rejeitado'].includes(i.rhStatus || '')).length;
-        const nDevolvidas = filteredItems.filter(i => i.rhStatus === 'devolvido').length;
-        const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
-        return (
-          <div className="rounded-2xl overflow-hidden flex" style={{boxShadow:'0 4px 20px #7c3aed20'}}>
-            <div className="px-7 py-6 flex flex-col justify-center min-w-[240px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1.5">Total Realizado</p>
-              <div className="text-[32px] font-black text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
-              <div className={`text-[11px] mt-2 font-semibold flex items-center gap-1 ${totalDifference === 0 ? 'text-white/50' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
-                {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
-                {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
-              </div>
-            </div>
-            <div className="flex-1 px-6 py-5 flex flex-col justify-between" style={{background:'#F5F3FF'}}>
-              <div className="flex items-start gap-6">
-                <div className="flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Prestações</div>
-                  <div className="text-[20px] font-black leading-none text-violet-700">{prestacaoCount}</div>
-                </div>
-                <div className="flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Em Revisão</div>
-                  <div className="text-[20px] font-black leading-none text-blue-600">{nRevisao}</div>
-                </div>
-                <div className="flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Aprovadas</div>
-                  <div className="text-[20px] font-black leading-none text-emerald-600">{nAprovadas}</div>
-                </div>
-                {nDevolvidas > 0 && (
-                  <div className="flex-1">
-                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Devolvidas</div>
-                    <div className="text-[20px] font-black leading-none text-amber-600">{nDevolvidas}</div>
-                  </div>
-                )}
-              </div>
-              {prestacaoCount > 0 && (
-                <div className="mt-3">
-                  <div className="h-1.5 bg-violet-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full transition-all" style={{width:`${pctAprovado}%`}} />
-                  </div>
-                  <div className="text-[9px] text-slate-400 mt-1">{nAprovadas} de {prestacaoCount} aprovadas</div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
+      {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        /* ── Tela 1: Seleção de evento ── */
-        <div className="rounded-3xl bg-white flex flex-col items-center justify-center text-center px-10 py-20"
-          style={{boxShadow:'0 8px 48px rgba(109,40,217,0.07), 0 1px 4px rgba(0,0,0,0.04)', border:'1px solid rgba(109,40,217,0.08)'}}>
-
-          {/* Ícone central — maior, gradiente suave, badge com glow */}
-          <div className="relative w-28 h-28 mx-auto mb-8">
-            {/* Halo difuso */}
-            <div className="absolute inset-0 rounded-3xl"
-              style={{background:'radial-gradient(circle at 50% 60%, rgba(109,40,217,0.18) 0%, transparent 70%)', transform:'scale(1.35)', filter:'blur(12px)'}} />
-            {/* Ícone principal */}
-            <div className="absolute inset-0 rounded-3xl flex items-center justify-center"
-              style={{background:'linear-gradient(145deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)', boxShadow:'0 12px 32px rgba(109,40,217,0.35)', transform:'rotate(-2deg)'}}>
-              <ClipboardCheck className="w-12 h-12 text-white" style={{filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.15))'}} />
-            </div>
-            {/* Badge check com glow */}
-            <div className="absolute -bottom-1.5 -right-1.5 w-9 h-9 rounded-[10px] flex items-center justify-center"
-              style={{background:'linear-gradient(135deg, #34d399 0%, #059669 100%)', boxShadow:'0 0 0 3px white, 0 4px 12px rgba(5,150,105,0.45)'}}>
-              <CheckCircle2 className="w-4.5 h-4.5 text-white" style={{width:18, height:18}} />
-            </div>
-          </div>
-
-          {/* Tipografia */}
-          <h2 className="text-[22px] font-semibold text-slate-800 mb-3 tracking-tight">
-            Selecione um evento
-          </h2>
-          <p className="text-[14px] text-slate-400 font-normal max-w-xs mx-auto leading-7 mb-10">
-            Registre a prestação de contas. Preencha os valores efetivamente gastos em cada escala.
-          </p>
-
-          {/* Seletor de evento */}
-          <div className="w-full max-w-sm mx-auto">
-            <div className="relative">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10">
-                <Search className="w-4 h-4 text-slate-400" />
+        <div className="rounded-2xl border border-violet-100 shadow-md">
+          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
+            {/* Ícone */}
+            <div className="relative w-24 h-24 mx-auto mb-8">
+              <div className="absolute inset-0 rounded-2xl flex items-center justify-center -rotate-3"
+                style={{background:'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)', boxShadow:'0 8px 24px rgba(109,40,217,0.4)'}}>
+                <ClipboardCheck className="w-10 h-10 text-white" />
               </div>
-              <div className="[&>button]:rounded-xl [&>button]:bg-slate-50 [&>button]:border-slate-200 [&>button]:pl-9 [&>button]:h-11 [&>button]:shadow-none [&>button]:text-slate-600">
-                <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
+                <CheckCircle2 className="w-4 h-4 text-white" />
               </div>
+            </div>
+
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
+              Selecione um evento para iniciar a prestação de contas.
+            </p>
+
+            <div className="max-w-sm w-full mx-auto mt-8">
+              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
             </div>
           </div>
         </div>
