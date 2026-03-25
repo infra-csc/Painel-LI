@@ -709,7 +709,7 @@ export default function BudgetActualPage() {
                 <span className="text-white text-[12px] font-bold">{initials || '?'}</span>
               </div>
               <div>
-                <span className="font-bold text-slate-800 text-[14px]">{collabName}</span>
+                <span className="font-medium text-slate-800 text-[14px]">{collabName}</span>
                 <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
                   <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(cardItem.functionId)}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
@@ -831,7 +831,7 @@ export default function BudgetActualPage() {
   };
 
   return (
-    <div className="space-y-7 max-w-5xl mx-auto pb-24">
+    <div className="space-y-7 max-w-5xl mx-auto pb-36">
 
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
@@ -1002,18 +1002,18 @@ export default function BudgetActualPage() {
           })()}
 
           {/* ── Filtros ── */}
-          <div className="rounded-xl border border-slate-200 bg-[#FAFBFF] px-4 py-2.5 flex items-center gap-2.5 flex-wrap">
+          <div className="rounded-xl border border-slate-200 bg-[#FAFBFF] px-4 py-3 flex items-center gap-2.5 flex-wrap mt-2">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <Input
                 placeholder="Buscar colaborador..."
-                className="pl-8 h-8 text-xs rounded-lg border-slate-200 bg-white"
+                className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-white"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+              <SelectTrigger className="w-auto min-w-[150px] h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
                 <SelectValue placeholder="Função" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
@@ -1024,7 +1024,7 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-24 h-8 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+              <SelectTrigger className="w-28 h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[130px]">
@@ -1034,7 +1034,7 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-auto min-w-[160px] h-8 text-xs border border-slate-200 rounded-lg bg-white text-slate-700">
+              <SelectTrigger className="w-auto min-w-[160px] h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
                 <ArrowUpDown className="w-3 h-3 mr-1 text-slate-400" />
                 <SelectValue />
               </SelectTrigger>
@@ -1045,7 +1045,7 @@ export default function BudgetActualPage() {
               </SelectContent>
             </Select>
             {/* Contador */}
-            <span className="ml-auto text-[11px] text-slate-400 bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
+            <span className="ml-auto text-[11px] text-slate-400 bg-white border border-gray-200 px-2.5 py-1.5 rounded-lg">
               {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
@@ -1090,7 +1090,7 @@ export default function BudgetActualPage() {
             </div>
           )}
 
-          <div className="space-y-3.5">
+          <div className="space-y-5">
             {orderedRenderItems.map((item) => {
               const isGroupParent = !item.splitParentId && splitGroupsMap.has(item.id);
               const isGroupChild = !!item.splitParentId;
