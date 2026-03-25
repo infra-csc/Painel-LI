@@ -831,17 +831,18 @@ export default function BudgetActualPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto pb-24">
+    <div className="space-y-7 max-w-5xl mx-auto pb-24">
 
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center" style={{background:'#6d28d9', boxShadow:'0 4px 14px #6d28d950'}}>
-            <ClipboardCheck className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
+            style={{background:'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', boxShadow:'0 4px 14px rgba(109,40,217,0.35)'}}>
+            <ClipboardCheck className="w-[18px] h-[18px] text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">Orçamento Realizado</h1>
-            <p className="text-xs text-slate-400">Prestação de contas — escalas enviadas do Planejado</p>
+            <h1 className="text-[17px] font-semibold text-slate-800 leading-tight">Orçamento Realizado</h1>
+            <p className="text-[11px] text-slate-400 font-normal">Prestação de contas — escalas enviadas do Planejado</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -851,22 +852,43 @@ export default function BudgetActualPage() {
 
       {!selectedEventId ? (
         /* ── Tela 1: Seleção de evento ── */
-        <div className="rounded-2xl border border-violet-100 shadow-sm">
-          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl px-8 py-16 text-center">
-            <div className="relative w-24 h-24 mx-auto mb-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-200 dark:shadow-violet-900/40 flex items-center justify-center -rotate-3">
-                <ClipboardCheck className="w-10 h-10 text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-              </div>
+        <div className="rounded-3xl bg-white flex flex-col items-center justify-center text-center px-10 py-20"
+          style={{boxShadow:'0 8px 48px rgba(109,40,217,0.07), 0 1px 4px rgba(0,0,0,0.04)', border:'1px solid rgba(109,40,217,0.08)'}}>
+
+          {/* Ícone central — maior, gradiente suave, badge com glow */}
+          <div className="relative w-28 h-28 mx-auto mb-8">
+            {/* Halo difuso */}
+            <div className="absolute inset-0 rounded-3xl"
+              style={{background:'radial-gradient(circle at 50% 60%, rgba(109,40,217,0.18) 0%, transparent 70%)', transform:'scale(1.35)', filter:'blur(12px)'}} />
+            {/* Ícone principal */}
+            <div className="absolute inset-0 rounded-3xl flex items-center justify-center"
+              style={{background:'linear-gradient(145deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)', boxShadow:'0 12px 32px rgba(109,40,217,0.35)', transform:'rotate(-2deg)'}}>
+              <ClipboardCheck className="w-12 h-12 text-white" style={{filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.15))'}} />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Selecione um evento</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8">
-              Registre a prestação de contas. Preencha os valores efetivamente gastos em cada escala.
-            </p>
-            <div className="max-w-sm mx-auto">
-              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
+            {/* Badge check com glow */}
+            <div className="absolute -bottom-1.5 -right-1.5 w-9 h-9 rounded-[10px] flex items-center justify-center"
+              style={{background:'linear-gradient(135deg, #34d399 0%, #059669 100%)', boxShadow:'0 0 0 3px white, 0 4px 12px rgba(5,150,105,0.45)'}}>
+              <CheckCircle2 className="w-4.5 h-4.5 text-white" style={{width:18, height:18}} />
+            </div>
+          </div>
+
+          {/* Tipografia */}
+          <h2 className="text-[22px] font-semibold text-slate-800 mb-3 tracking-tight">
+            Selecione um evento
+          </h2>
+          <p className="text-[14px] text-slate-400 font-normal max-w-xs mx-auto leading-7 mb-10">
+            Registre a prestação de contas. Preencha os valores efetivamente gastos em cada escala.
+          </p>
+
+          {/* Seletor de evento */}
+          <div className="w-full max-w-sm mx-auto">
+            <div className="relative">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                <Search className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="[&>button]:rounded-xl [&>button]:bg-slate-50 [&>button]:border-slate-200 [&>button]:pl-9 [&>button]:h-11 [&>button]:shadow-none [&>button]:text-slate-600">
+                <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
+              </div>
             </div>
           </div>
         </div>
