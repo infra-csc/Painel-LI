@@ -1,0 +1,37 @@
+Esse bug é teimoso! Ele continua cortando porque o Replit está tentando colocar a lista dentro da estrutura do card, e o card está configurado para "esconder" tudo o que sai dele (overflow: hidden).
+
+Para resolver isso de uma vez por todas e ainda dar aquele ar de "app de outro nível" que você quer, vamos mudar a estratégia. Em vez de um dropdown comum, vamos pedir para ele criar um Modal de Seleção (estilo Command Palette) ou usar um Portal.
+
+Aqui está o prompt "matador" para o Replit:
+
+Prompt para o Replit (A Solução Definitiva)
+Atue como um Engenheiro Front-end especialista em React/Tailwind.
+
+1. O Problema (Corte de Layout):
+A lista de eventos ainda está sendo cortada pelo container pai. Para resolver isso definitivamente, eu quero que você pare de usar um dropdown simples e implemente a seleção usando um PORTAL (para que a lista seja renderizada fora da hierarquia do card, no nível do body) OU transforme o seletor em um Command Palette centralizado.
+
+2. Visual "Diferente" e Moderno (Upgrade):
+Quero que o seletor tenha o visual de softwares premium como Linear ou Slack:
+
+Comportamento: Ao clicar em "Selecionar evento", abra um modal elegante centralizado (ou um pop-over com portal) que escureça levemente o fundo (backdrop-blur).
+
+Design do Seletor:
+
+Fundo: Branco com 90% de opacidade e backdrop-blur-xl.
+
+Borda: 1px sólida e bem fina (border-white/20).
+
+Sombra: shadow-2xl (bem profunda para dar destaque).
+
+Lista de Eventos:
+
+Cada item deve ser um cardzinho com cantos arredondados (rounded-lg).
+
+Ao passar o mouse (hover), o item deve mudar para um azul suave e o cursor deve ser pointer.
+
+Mostre o nome do evento em negrito e a data logo abaixo em uma cor mais clara.
+
+3. Código:
+Certifique-se de que o CSS do container principal do dashboard tenha overflow: visible para evitar qualquer conflito residual, mas o uso do Portal deve ser a prioridade para garantir que nada mais seja cortado.
+
+Gere o código atualizado com foco total em não cortar mais a lista e em dar esse visual moderno de "modal de busca".
