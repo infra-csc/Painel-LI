@@ -734,7 +734,7 @@ export default function BudgetPlannedPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto pb-24">
+    <div className="space-y-7 max-w-5xl mx-auto pb-24">
 
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
@@ -786,62 +786,90 @@ export default function BudgetPlannedPage() {
         </div>
       ) : (
           <>
-            {/* ── Banner Total Planejado ── */}
-            <div className="rounded-xl overflow-hidden shadow-sm flex" style={{border:'1px solid #0033CC30'}}>
-              {/* Esquerda — azul sólido */}
-              <div className="px-6 py-4 flex flex-col justify-center gap-0.5" style={{background:'linear-gradient(135deg, #0033CC 0%, #0044FF 100%)', minWidth:240}}>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white">Total Planejado</p>
-                {selectedEvent?.startDate && (
-                  <p className="flex items-center gap-1 text-[11px] text-white/70">
-                    <Calendar className="w-3 h-3 shrink-0" />
-                    {formatEventDate(selectedEvent.startDate)}
-                  </p>
-                )}
-                <div className="text-[28px] font-black text-white leading-tight mt-0.5">{formatCurrency(totalGeral)}</div>
-              </div>
-              {/* Direita — stats em fundo azul muito claro */}
-              <div className="flex-1 px-6 py-4 flex items-center gap-6" style={{background:'#F0F4FF'}}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{background:'#0033CC18'}}>
-                    <Users className="w-4 h-4" style={{color:'#0033CC'}} />
-                  </div>
-                  <div>
-                    <div className="text-[20px] font-black leading-none" style={{color:'#0033CC'}}>{stats.total}</div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Colaboradores</div>
-                  </div>
+            {/* ── Dashboard Bar Superior ── */}
+            <div style={{
+              background: 'rgba(255,255,255,0.85)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(0,51,204,0.12)',
+              borderRadius: 20,
+              boxShadow: '0 4px 24px rgba(0,51,204,0.07), 0 1px 4px rgba(0,0,0,0.04)',
+              overflow: 'hidden',
+            }}>
+              {/* Faixa accent azul topo */}
+              <div style={{height: 3, background: 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 50%, #059669 100%)'}} />
+
+              <div className="flex items-stretch">
+                {/* Total Planejado — destaque principal */}
+                <div className="px-7 py-5 flex flex-col justify-center gap-1" style={{
+                  background: 'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)',
+                  minWidth: 220,
+                }}>
+                  <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-white/60">Total Planejado</p>
+                  {selectedEvent?.startDate && (
+                    <p className="flex items-center gap-1 text-[10px] text-white/50">
+                      <Calendar className="w-2.5 h-2.5 shrink-0" />
+                      {formatEventDate(selectedEvent.startDate)}
+                    </p>
+                  )}
+                  <div className="text-[32px] font-black text-white leading-none tracking-tight mt-1">{formatCurrency(totalGeral)}</div>
                 </div>
-                <div className="w-px h-9" style={{background:'#0033CC20'}} />
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-100">
-                    <Send className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <div>
-                    <div className="text-[20px] font-black text-emerald-600 leading-none">{stats.enviados}</div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Enviados</div>
-                  </div>
-                </div>
-                <div className="w-px h-9" style={{background:'#0033CC20'}} />
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{background:'#0033CC18'}}>
-                    <TrendingUp className="w-4 h-4" style={{color:'#0033CC'}} />
-                  </div>
-                  <div>
-                    <div className="text-[20px] font-black leading-none" style={{color:'#0033CC'}}>{Math.round(stats.progressoEnvio)}%</div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">Progresso</div>
-                  </div>
-                </div>
-                {stats.total > 0 && (
-                  <>
-                    <div className="w-px h-9" style={{background:'#0033CC20'}} />
-                    <div className="flex-1">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Envio</div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{background:'#0033CC20'}}>
-                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{width:`${stats.progressoEnvio}%`}} />
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-1">{stats.enviados} de {stats.total} enviados</div>
+
+                {/* Separador vertical */}
+                <div style={{width: 1, background: 'rgba(0,51,204,0.1)'}} />
+
+                {/* Stats */}
+                <div className="flex-1 px-6 py-5 flex items-center gap-0">
+                  {/* Colaboradores */}
+                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0033CC'}}>{stats.total}</div>
+                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      <Users className="w-3 h-3" />Colaboradores
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+
+                  {/* Enviados */}
+                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                    <div className="text-[26px] font-black leading-none tracking-tight text-emerald-600">{stats.enviados}</div>
+                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      <Send className="w-3 h-3" />Enviados
+                    </div>
+                  </div>
+
+                  <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+
+                  {/* Progresso */}
+                  <div className="flex-1 flex flex-col items-center gap-1 px-4">
+                    <div className="text-[26px] font-black leading-none tracking-tight" style={{color:'#0033CC'}}>{Math.round(stats.progressoEnvio)}%</div>
+                    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      <TrendingUp className="w-3 h-3" />Progresso
+                    </div>
+                  </div>
+
+                  {stats.total > 0 && (
+                    <>
+                      <div style={{width:1, height:36, background:'rgba(0,51,204,0.08)'}} />
+                      {/* Progress bar */}
+                      <div className="flex-[2] px-5 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">Envio</span>
+                          <span className="text-[10px] font-semibold text-slate-500">{stats.enviados}/{stats.total}</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{background:'rgba(0,51,204,0.08)'}}>
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width:`${stats.progressoEnvio}%`,
+                              background: stats.progressoEnvio >= 100
+                                ? '#059669'
+                                : 'linear-gradient(90deg, #0033CC, #4F7BF5)',
+                            }} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -856,16 +884,19 @@ export default function BudgetPlannedPage() {
                 { label: "Aprovação RH", desc: "Análise e aprovação" },
               ];
               return (
-                <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Etapa atual</span>
+                <div className="bg-white rounded-2xl px-6 py-5" style={{border:'1px solid #E8EEFF', boxShadow:'0 2px 12px rgba(0,51,204,0.04)'}}>
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Etapa atual</span>
+                      <div className="text-[13px] font-bold text-[#0033CC] mt-0.5">{steps[currentStep].label}</div>
+                    </div>
                     {selectedCards.size > 0 && (
                       <Button 
                         size="sm"
                         onClick={() => setConfirmSendOpen(true)}
                         disabled={sendSelectedToActualMutation.isPending}
-                        className="h-7 text-xs px-3"
-                        style={{background:'#0033CC'}}
+                        className="h-8 text-xs px-4 rounded-xl font-bold"
+                        style={{background:'#059669'}}
                       >
                         <Send className="w-3 h-3 mr-1.5" />
                         Enviar {selectedCards.size} selecionados
@@ -879,34 +910,56 @@ export default function BudgetPlannedPage() {
                       const isLast = i === steps.length - 1;
                       return (
                         <div key={i} className="flex items-center flex-1">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <div
-                              className={`rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
-                                isDone ? 'w-8 h-8 bg-emerald-500 text-white shadow-md shadow-emerald-200' :
-                                isActive ? 'w-9 h-9 text-white' :
-                                'w-8 h-8 bg-gray-100 text-gray-300'
-                              }`}
-                              style={isActive ? { background:'#0033CC', boxShadow: "0 0 0 4px rgba(0,51,204,0.15)" } : undefined}
-                            >
+                          <div className="flex flex-col items-center gap-2">
+                            {/* Bolinha */}
+                            <div style={
+                              isDone ? {
+                                width: 32, height: 32, borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #059669, #34d399)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 2px 8px rgba(5,150,105,0.30)',
+                                flexShrink: 0,
+                              } : isActive ? {
+                                width: 36, height: 36, borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #0033CC, #1a4fd8)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 0 0 5px rgba(0,51,204,0.12), 0 0 16px rgba(0,51,204,0.25)',
+                                flexShrink: 0,
+                              } : {
+                                width: 32, height: 32, borderRadius: '50%',
+                                background: '#F1F5F9',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                              }
+                            }>
                               {isDone ? (
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                              ) : (i + 1)}
+                              ) : (
+                                <span style={{
+                                  fontSize: 12, fontWeight: 800,
+                                  color: isActive ? '#fff' : '#CBD5E1',
+                                }}>{i + 1}</span>
+                              )}
                             </div>
+                            {/* Labels */}
                             <div className="text-center">
-                              <div className={`text-[11px] font-semibold leading-tight ${
-                                isDone ? 'text-emerald-600' :
-                                isActive ? 'text-[#0033CC]' :
-                                'text-gray-400'
-                              }`}>{step.label}</div>
-                              <div className="text-[9px] text-gray-400 mt-0.5 hidden sm:block">{step.desc}</div>
+                              <div style={{
+                                fontSize: 11, fontWeight: 700, lineHeight: 1.2,
+                                color: isDone ? '#059669' : isActive ? '#0033CC' : '#CBD5E1',
+                              }}>{step.label}</div>
+                              <div style={{fontSize: 9, color: '#CBD5E1', marginTop: 2}}>{step.desc}</div>
                             </div>
                           </div>
                           {!isLast && (
-                            <div className={`flex-1 h-[3px] mx-2 rounded-full mb-5 ${
-                              isDone ? 'bg-emerald-300' : 'bg-gray-100'
-                            }`} />
+                            <div style={{
+                              flex: 1, height: 3, marginBottom: 28, marginLeft: 6, marginRight: 6,
+                              borderRadius: 9999,
+                              background: isDone
+                                ? 'linear-gradient(90deg, #34d399, #059669)'
+                                : '#F1F5F9',
+                            }} />
                           )}
                         </div>
                       );
@@ -979,68 +1032,80 @@ export default function BudgetPlannedPage() {
               </div>
             </div>
 
-            {/* ── Filtros e Busca ── */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 bg-[#FAFBFF] flex flex-wrap items-center gap-2.5">
-                {pendingCount > 0 && (
-                  <Checkbox 
-                    checked={selectedCards.size === pendingCount && pendingCount > 0}
-                    onCheckedChange={(checked) => checked ? selectAllCards() : clearSelection()}
-                    className="shrink-0"
-                  />
-                )}
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nome..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8 pl-8 pr-3 w-44 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
-                  />
-                </div>
-                
-                <Select value={filterFunction} onValueChange={setFilterFunction}>
-                  <SelectTrigger className="w-auto min-w-[150px] h-8 text-xs shrink-0 border border-gray-200 rounded-lg bg-white text-slate-700 focus:ring-1 focus:ring-blue-400/20 focus:border-blue-400">
-                    <SelectValue placeholder="Função" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                    <SelectItem value="all">Todas as funções</SelectItem>
-                    {uniqueFunctions.map(f => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-28 h-8 text-xs shrink-0 border border-gray-200 rounded-lg bg-white text-slate-700 focus:ring-1 focus:ring-blue-400/20 focus:border-blue-400">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[140px]">
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="casa">Casa</SelectItem>
-                    <SelectItem value="freela">Freela</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-auto min-w-[130px] h-8 text-xs shrink-0 border border-gray-200 rounded-lg bg-white text-slate-700 focus:ring-1 focus:ring-blue-400/20 focus:border-blue-400">
-                    <SelectValue placeholder="Ordenar" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px]">
-                    <SelectItem value="name_asc">Nome A-Z</SelectItem>
-                    <SelectItem value="name_desc">Nome Z-A</SelectItem>
-                    <SelectItem value="days_desc">Mais Dias</SelectItem>
-                    <SelectItem value="days_asc">Menos Dias</SelectItem>
-                    <SelectItem value="function">Por Função</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* ── Filtros e Busca — minimal ── */}
+            <div className="flex flex-wrap items-center gap-3 px-1">
+              {pendingCount > 0 && (
+                <Checkbox 
+                  checked={selectedCards.size === pendingCount && pendingCount > 0}
+                  onCheckedChange={(checked) => checked ? selectAllCards() : clearSelection()}
+                  className="shrink-0"
+                />
+              )}
 
-                <div className="flex-1" />
-                <span className="text-[11px] text-slate-400 font-medium bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
-                  {filteredBudgets.length} resultado{filteredBudgets.length !== 1 ? 's' : ''}
-                </span>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nome..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    height: 34, paddingLeft: 28, paddingRight: 12, width: 180,
+                    background: '#F8FAFC', border: 'none',
+                    borderBottom: `1.5px solid ${searchTerm ? '#0033CC' : '#E2E8F0'}`,
+                    borderRadius: '6px 6px 0 0',
+                    fontSize: 12, color: '#334155', outline: 'none',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderBottomColor = '#0033CC')}
+                  onBlur={e => (e.currentTarget.style.borderBottomColor = searchTerm ? '#0033CC' : '#E2E8F0')}
+                />
               </div>
+
+              <Select value={filterFunction} onValueChange={setFilterFunction}>
+                <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-[#0033CC]">
+                  <SelectValue placeholder="Função" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[180px]">
+                  <SelectItem value="all">Todas as funções</SelectItem>
+                  {uniqueFunctions.map(f => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[140px]">
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="casa">Casa</SelectItem>
+                  <SelectItem value="freela">Freela</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-auto min-w-[120px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-slate-100 rounded-xl shadow-lg min-w-[160px]">
+                  <SelectItem value="name_asc">Nome A-Z</SelectItem>
+                  <SelectItem value="name_desc">Nome Z-A</SelectItem>
+                  <SelectItem value="days_desc">Mais Dias</SelectItem>
+                  <SelectItem value="days_asc">Menos Dias</SelectItem>
+                  <SelectItem value="function">Por Função</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex-1" />
+              <span style={{
+                fontSize: 11, color: '#94A3B8', fontWeight: 600,
+                background: '#F8FAFC', borderRadius: 8, padding: '4px 10px',
+              }}>
+                {filteredBudgets.length} resultado{filteredBudgets.length !== 1 ? 's' : ''}
+              </span>
             </div>
 
             {/* ── Cards de Colaboradores ── */}
@@ -1076,7 +1141,7 @@ export default function BudgetPlannedPage() {
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group ${
+                      className={`rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group ${
                         isNotAttended ? 'bg-slate-50 opacity-75 border-dashed border-slate-300' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-blue-100' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200' : 
@@ -1201,55 +1266,61 @@ export default function BudgetPlannedPage() {
                       
                       {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
-                        <div className="px-4 py-3 flex-1 flex flex-col gap-2">
+                        <div className="px-4 pt-3 pb-4 flex-1 flex flex-col gap-3">
                           {/* Período */}
                           {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 -mt-1">
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                               <Calendar className="w-3 h-3 shrink-0" />
                               {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                             </div>
                           )}
-                          {/* 3 blocos coloridos */}
+                          {/* 3 blocos sem bordas — fundos suaves */}
                           <div className="grid grid-cols-3 gap-2">
                             {/* Diárias */}
-                            <div className="rounded-lg p-2.5 border border-indigo-100 bg-indigo-50/50">
-                              <div className="flex items-center gap-1 mb-2">
-                                <div className="w-3.5 h-3.5 rounded bg-indigo-500 flex items-center justify-center shrink-0"><Calendar className="w-2 h-2 text-white" /></div>
-                                <span className="text-[9px] font-black text-indigo-700 uppercase min-w-0">Diárias</span>
+                            <div className="rounded-2xl p-3" style={{background:'#EEF2FF'}}>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
                               </div>
-                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.subtotalDiarias)}</div>
+                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.subtotalDiarias)}</div>
                               <div className="mt-1.5 space-y-0.5">
-                                {budget.weekdays > 0 && <div className="text-[10px] text-indigo-600 tabular-nums">{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>}
-                                {budget.weekends > 0 && <div className="text-[10px] text-indigo-500 tabular-nums">{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>}
+                                {budget.weekdays > 0 && <div className="text-[10px] tabular-nums" style={{color:'#4F7BF5'}}>{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>}
+                                {budget.weekends > 0 && <div className="text-[10px] tabular-nums" style={{color:'#6d28d9'}}>{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>}
                               </div>
                             </div>
                             {/* Alimentação */}
-                            <div className="rounded-lg p-2.5 border border-orange-100 bg-orange-50/50">
-                              <div className="flex items-center gap-1 mb-2">
-                                <div className="w-3.5 h-3.5 rounded bg-orange-400 flex items-center justify-center shrink-0"><Utensils className="w-2 h-2 text-white" /></div>
-                                <span className="text-[9px] font-black text-orange-700 uppercase min-w-0">Alimentação</span>
+                            <div className="rounded-2xl p-3" style={{background:'#FFF7ED'}}>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
                               </div>
-                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</div>
+                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</div>
                             </div>
-                            {/* Mobilidade + Ajuda */}
-                            <div className="rounded-lg p-2.5 border border-violet-100 bg-violet-50/50">
-                              <div className="flex items-center gap-1 mb-2">
-                                <div className="w-3.5 h-3.5 rounded bg-violet-500 flex items-center justify-center shrink-0"><Car className="w-2 h-2 text-white" /></div>
-                                <span className="text-[9px] font-black text-violet-700 uppercase min-w-0">Mobilidade</span>
+                            {/* Mobilidade */}
+                            <div className="rounded-2xl p-3" style={{background:'#F5F3FF'}}>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
                               </div>
-                              <div className="text-[14px] font-black text-slate-800 tabular-nums">{formatCurrency(budget.mobilidade)}</div>
+                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.mobilidade)}</div>
                               {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
-                                <div className="text-[9px] text-violet-400 tabular-nums mt-0.5">Ida: {formatCurrency(budget.mobilidadeIda)} · Volta: {formatCurrency(budget.mobilidadeVolta)}</div>
+                                <div className="text-[9px] tabular-nums mt-0.5" style={{color:'#7C3AED'}}>Ida: {formatCurrency(budget.mobilidadeIda)} · Volta: {formatCurrency(budget.mobilidadeVolta)}</div>
                               )}
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* ── Total ── */}
-                      <div className="flex justify-between items-center px-4 py-3 bg-slate-50 border-t border-slate-100 mt-auto">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Planejado</span>
-                        <span className="text-[16px] font-black text-[#0033CC]">{formatCurrency(isNotAttended ? 0 : budget.totalFinal)}</span>
+                      {/* ── Rodapé Total — faixa sólida distinta ── */}
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '12px 16px',
+                        background: isNotAttended ? '#F8FAFC' : 'linear-gradient(135deg, #EEF2FF 0%, #E8EEFF 100%)',
+                        borderTop: '1px solid #E0E7FF',
+                        marginTop: 'auto',
+                      }}>
+                        <span style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8'}}>Total Planejado</span>
+                        <span style={{fontSize: 17, fontWeight: 900, color: isNotAttended ? '#94A3B8' : '#0033CC', letterSpacing: '-0.02em'}}>{formatCurrency(isNotAttended ? 0 : budget.totalFinal)}</span>
                       </div>
                     </div>
                   );
