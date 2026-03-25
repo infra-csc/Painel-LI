@@ -101,7 +101,7 @@ export default function BudgetPlannedPage() {
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
-  const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string } | null>(null);
+  const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -1194,22 +1194,40 @@ export default function BudgetPlannedPage() {
                             </div>
                             {canMarkNotAttended && planRecord && (
                               <button
-                                className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[12px] font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shrink-0 disabled:opacity-60"
-                                onClick={() => setRestoreModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}
+                                className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shrink-0 disabled:opacity-60 shadow-sm shadow-blue-200"
+                                onClick={() => setRestoreModal({
+                                  id: planRecord.id, name,
+                                  functionName: getFunctionName(budget.inclusion.functionId),
+                                  startDate: budget.inclusion.scheduleStartDate ?? undefined,
+                                  endDate: budget.inclusion.scheduleEndDate ?? undefined,
+                                })}
                                 disabled={toggleNotAttendedMutation.isPending}
                               >
-                                <Undo2 style={{width:13, height:13}} />
+                                <Undo2 style={{width:14, height:14}} />
                                 Restaurar
                               </button>
                             )}
                           </div>
-                          {/* Linha inferior: badge motivo */}
+
+                          {/* Linha inferior: data + badge motivo */}
                           <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            {/* Data do período */}
+                            {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+                                style={{background:'#F1F5F9', fontSize:10, fontWeight:400, color:'#64748B'}}>
+                                <Calendar style={{width:10, height:10, color:'#94A3B8', flexShrink:0}} />
+                                {new Date(budget.inclusion.scheduleStartDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                                <span style={{color:'#CBD5E1'}}>–</span>
+                                {new Date(budget.inclusion.scheduleEndDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                              </span>
+                            )}
+                            {/* Badge ausência */}
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium"
                               style={{background:'#FEF9C3', color:'#92400E', border:'1px solid #FDE68A'}}>
                               <UserX style={{width:10, height:10}} />
                               Não participou
                             </span>
+                            {/* Motivo */}
                             {planRecord?.didNotAttendReason && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium"
                                 style={{background:'#FFFBEB', color:'#B45309', border:'1px solid #FDE68A'}}>
@@ -1905,6 +1923,15 @@ export default function BudgetPlannedPage() {
               <div className="text-center space-y-1">
                 <h2 className="text-[15px] font-medium text-slate-800 leading-snug">Restaurar Planejamento?</h2>
                 <p className="text-[12px] font-normal" style={{color:'#94A3B8'}}>{restoreModal.name} · {restoreModal.functionName}</p>
+                {restoreModal.startDate && restoreModal.endDate && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md mt-1"
+                    style={{background:'#EFF6FF', fontSize:11, fontWeight:500, color:'#2563EB', border:'1px solid #BFDBFE'}}>
+                    <Calendar style={{width:10, height:10}} />
+                    {new Date(restoreModal.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                    {' – '}
+                    {new Date(restoreModal.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                  </span>
+                )}
               </div>
 
               {/* Texto explicativo */}
