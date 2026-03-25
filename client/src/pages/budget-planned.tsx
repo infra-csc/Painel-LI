@@ -1282,26 +1282,32 @@ export default function BudgetPlannedPage() {
                             </div>
                           )}
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
-                          <div className="grid grid-cols-3 gap-2 items-stretch">
-                            {/* Diárias */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#EEF2FF', minHeight: 112, padding: '12px 14px 14px'}}>
-                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
-                                <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
+                          <div className="flex flex-col gap-2">
+                            {/* ── Diárias ── */}
+                            <div className="rounded-xl flex items-stretch" style={{background:'#EEF2FF', minHeight: 52}}>
+                              {/* Esquerda: ícone + label + total */}
+                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
+                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
+                                  </div>
+                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.subtotalDiarias)}</span>
+                                </div>
                               </div>
-                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
-                                {formatCurrency(budget.subtotalDiarias)}
-                              </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              {/* Separador */}
+                              <div style={{width: 1, background: 'rgba(0,51,204,0.08)', margin: '8px 0'}} />
+                              {/* Direita: detalhes */}
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
                                 {budget.weekdays > 0 && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">{formatDiasUteis(budget.weekdays)}</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>{formatDiasUteis(budget.weekdays)}</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
                                   </div>
                                 )}
                                 {budget.weekends > 0 && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">{formatFds(budget.weekends)}</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>{formatFds(budget.weekends)}</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
@@ -1311,25 +1317,28 @@ export default function BudgetPlannedPage() {
                               </div>
                             </div>
 
-                            {/* Alimentação */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#FFF7ED', minHeight: 112, padding: '12px 14px 14px'}}>
-                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
-                                <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
+                            {/* ── Alimentação ── */}
+                            <div className="rounded-xl flex items-stretch" style={{background:'#FFF7ED', minHeight: 52}}>
+                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1">
+                                    <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
+                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
+                                  </div>
+                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</span>
+                                </div>
                               </div>
-                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
-                                {formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}
-                              </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              <div style={{width: 1, background: 'rgba(234,88,12,0.10)', margin: '8px 0'}} />
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
                                 {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">Semana</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Semana</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
                                   </div>
                                 )}
                                 {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">Fim de semana</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Fim de semana</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
                                   </div>
                                 )}
@@ -1339,25 +1348,28 @@ export default function BudgetPlannedPage() {
                               </div>
                             </div>
 
-                            {/* Mobilidade */}
-                            <div className="rounded-2xl flex flex-col" style={{background:'#F5F3FF', minHeight: 112, padding: '12px 14px 14px'}}>
-                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
-                                <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
-                                <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
+                            {/* ── Mobilidade ── */}
+                            <div className="rounded-xl flex items-stretch" style={{background:'#F5F3FF', minHeight: 52}}>
+                              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0" style={{minWidth: 110}}>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1">
+                                    <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
+                                    <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
+                                  </div>
+                                  <span className="tabular-nums font-black text-[15px] leading-none" style={{color:'#1E293B', letterSpacing:'-0.01em'}}>{formatCurrency(budget.mobilidade)}</span>
+                                </div>
                               </div>
-                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
-                                {formatCurrency(budget.mobilidade)}
-                              </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              <div style={{width: 1, background: 'rgba(109,40,217,0.10)', margin: '8px 0'}} />
+                              <div className="flex-1 flex flex-col justify-center gap-1.5 px-3 py-2.5">
                                 {budget.mobilidadeIda > 0 && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">Ida</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Ida</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeVolta > 0 && (
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <span className="text-[10px] leading-tight text-slate-400 min-w-0 truncate">Volta</span>
+                                  <div className="flex items-center justify-between gap-x-2">
+                                    <span className="text-[10px] leading-tight text-slate-400 flex-1" style={{minWidth:'fit-content'}}>Volta</span>
                                     <span className="font-semibold tabular-nums text-[10px] leading-tight shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
                                   </div>
                                 )}
