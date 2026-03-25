@@ -836,8 +836,7 @@ export default function BudgetActualPage() {
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
-            style={{background:'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', boxShadow:'0 4px 14px rgba(109,40,217,0.35)'}}>
+          <div className="w-10 h-10 rounded-[10px] bg-[#6d28d9] flex items-center justify-center shrink-0" style={{boxShadow:'0 4px 14px #6d28d950'}}>
             <ClipboardCheck className="w-5 h-5 text-white" />
           </div>
           <div>
