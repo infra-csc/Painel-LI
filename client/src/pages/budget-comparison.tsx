@@ -446,29 +446,41 @@ export default function BudgetComparisonPage() {
       {/* ── Page header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{background: '#059669'}}>
+          <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'#059669', boxShadow:'0 4px 14px rgba(5,150,105,0.4)'}}>
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black text-slate-900 whitespace-nowrap">Comparativo Planejado × Realizado</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Análise e aprovação do RH para faturamento</p>
+            <h1 className="text-[18px] font-bold text-gray-900">Comparativo Planejado × Realizado</h1>
+            <p className="text-xs text-gray-400">Análise e aprovação do RH para faturamento</p>
           </div>
         </div>
-        <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
+        {selectedEventId && (
+          <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
+        )}
       </div>
 
       {/* ── No event selected ── */}
       {!selectedEventId && (
-        <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-16 text-center">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{background: '#059669'}}>
-            <BarChart3 className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-xl font-black text-slate-800 mb-2">Selecione um evento</h2>
-          <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
-            Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
-          </p>
-          <div className="flex justify-center">
-            <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} className="w-80" />
+        <div className="rounded-2xl border border-emerald-100 shadow-md">
+          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
+            {/* Ícone flutuante */}
+            <div className="relative w-24 h-24 mx-auto mb-8">
+              <div className="absolute inset-0 rounded-2xl shadow-lg shadow-emerald-200 flex items-center justify-center rotate-3" style={{background:'linear-gradient(135deg,#059669 0%,#10b981 100%)'}}>
+                <BarChart3 className="w-10 h-10 text-white" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center shadow-md">
+                <DollarSign className="w-4 h-4 text-white" />
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
+              Analise as diferenças entre o planejado e o realizado. O RH revisa e aprova os valores para faturamento.
+            </p>
+
+            <div className="max-w-sm w-full mx-auto mt-8">
+              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setExpandedCards(new Set()); setSelectedItems(new Set()); }} events={events} />
+            </div>
           </div>
         </div>
       )}
