@@ -480,6 +480,12 @@ export default function BudgetPlannedPage() {
       .reduce((sum, b) => sum + b.totalFinal, 0);
   }, [calculatedBudgets, notAttendedKeys]);
 
+  const totalSelecionado = useMemo(() => {
+    return calculatedBudgets
+      .filter(b => selectedCards.has(b.inclusion.id) && !sentToActual.has(b.inclusion.id))
+      .reduce((sum, b) => sum + b.totalFinal, 0);
+  }, [calculatedBudgets, selectedCards, sentToActual]);
+
   // Estatísticas de resumo
   const stats = useMemo(() => {
     const activeBudgets = calculatedBudgets.filter(b => !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`));
@@ -689,12 +695,13 @@ export default function BudgetPlannedPage() {
     },
     onSuccess: (data) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
-      toast({ title: "Sucesso", description: "Enviado para o Realizado" });
+      setConfirmSendSingle(null);
+      toast({ title: "Planejamento enviado com sucesso!", description: "Os dados foram enviados para o Realizado." });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
+      toast({ title: "Erro ao enviar", description: "Não foi possível enviar para o Realizado.", variant: "destructive" });
     },
   });
 
@@ -713,12 +720,13 @@ export default function BudgetPlannedPage() {
     onSuccess: (data) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); data.forEach(d => s.add(d.id)); return s; });
       setSelectedCards(new Set());
-      toast({ title: "Sucesso", description: `${data.length} itens enviados para o Realizado` });
+      setConfirmSendOpen(false);
+      toast({ title: "Planejamento enviado com sucesso!", description: `${data.length} ${data.length === 1 ? 'colaborador enviado' : 'colaboradores enviados'} para o Realizado.` });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
     onError: () => {
-      toast({ title: "Erro", description: "Erro ao enviar para o Realizado", variant: "destructive" });
+      toast({ title: "Erro ao enviar", description: "Não foi possível enviar para o Realizado.", variant: "destructive" });
     },
   });
 
@@ -1808,95 +1816,131 @@ export default function BudgetPlannedPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Confirmação - Envio em Lote */}
-      <Dialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
-        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Confirmar Envio</DialogTitle>
-          </DialogHeader>
-          {/* Header verde */}
-          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #059669 0%, #10b981 100%)'}}>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
-                <Send className="w-5 h-5 text-white" />
+      {/* ── Modal Envio em Lote ── */}
+      <Dialog open={confirmSendOpen} onOpenChange={v => { if (!sendSelectedToActualMutation.isPending) setConfirmSendOpen(v); }}>
+        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
+          <DialogHeader className="sr-only"><DialogTitle>Enviar Planejamento</DialogTitle></DialogHeader>
+          <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
+            style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
+            {/* Ícone */}
+            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
+              <Send style={{color:'#2563EB', width:20, height:20}} />
+            </div>
+            {/* Título */}
+            <div className="text-center space-y-1">
+              <h2 className="text-[15px] font-medium text-slate-800">Enviar Planejamento?</h2>
+              <p className="text-[12px] font-normal text-slate-400">
+                {selectedCards.size} {selectedCards.size === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}
+              </p>
+            </div>
+            {/* Resumo */}
+            <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-slate-400" />
+                  <span className="text-[12px] font-normal text-slate-500">Colaboradores</span>
+                </div>
+                <span className="text-[13px] font-medium text-slate-700">{selectedCards.size} {selectedCards.size === 1 ? 'pessoa' : 'pessoas'}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Envio em lote</p>
-                <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">Confirmar Envio</h2>
-                <p className="text-[12px] text-white/70">{selectedCards.size} {selectedCards.size === 1 ? 'item selecionado' : 'itens selecionados'}</p>
+              <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9', background:'#F8FAFF'}}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-normal text-slate-500">Valor total</span>
+                </div>
+                <span className="text-[15px] font-medium" style={{color:'#2563EB'}}>{formatCurrency(totalSelecionado)}</span>
               </div>
             </div>
-          </div>
-          {/* Corpo */}
-          <div className="px-5 py-4 space-y-3 bg-white">
-            <p className="text-[13px] text-slate-500 leading-relaxed">
-              Os orçamentos selecionados serão enviados para o <span className="font-semibold text-slate-700">Realizado</span>. Esta ação não pode ser desfeita.
+            {/* Mensagem */}
+            <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+              As informações de custos e logística serão enviadas para aprovação. Deseja prosseguir?
             </p>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm" onClick={() => setConfirmSendOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => { sendSelectedToActualMutation.mutate(); setConfirmSendOpen(false); }}
+            {/* Botões */}
+            <div className="flex gap-2 w-full pt-1">
+              <button
+                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                onClick={() => setConfirmSendOpen(false)}
                 disabled={sendSelectedToActualMutation.isPending}
-                className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
-                style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
               >
-                <Send className="w-3.5 h-3.5" />
-                Confirmar Envio
-              </Button>
+                Voltar
+              </button>
+              <button
+                className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70"
+                disabled={sendSelectedToActualMutation.isPending}
+                onClick={() => sendSelectedToActualMutation.mutate()}
+              >
+                {sendSelectedToActualMutation.isPending ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
+                ) : (
+                  <><Send className="w-3.5 h-3.5" />Enviar</>
+                )}
+              </button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Confirmação - Envio Individual */}
-      <Dialog open={!!confirmSendSingle} onOpenChange={() => setConfirmSendSingle(null)}>
-        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Confirmar Envio</DialogTitle>
-          </DialogHeader>
-          {/* Header verde */}
-          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #059669 0%, #10b981 100%)'}}>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
-                <Send className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Envio para realizado</p>
-                {confirmSendSingle && (
-                  <>
-                    <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">{getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)}</h2>
-                    <p className="text-[12px] text-white/70">{getFunctionName(confirmSendSingle.inclusion.functionId)}</p>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Corpo */}
+      {/* ── Modal Envio Individual ── */}
+      <Dialog open={!!confirmSendSingle} onOpenChange={v => { if (!sendToActualMutation.isPending) { if (!v) setConfirmSendSingle(null); } }}>
+        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
+          <DialogHeader className="sr-only"><DialogTitle>Enviar Planejamento</DialogTitle></DialogHeader>
           {confirmSendSingle && (
-            <div className="px-5 py-4 space-y-3 bg-white">
-              <p className="text-[13px] text-slate-500 leading-relaxed">
-                O orçamento planejado será enviado para o <span className="font-semibold text-slate-700">Realizado</span>. Esta ação não pode ser desfeita.
-              </p>
-              {/* Total destaque */}
-              <div className="rounded-xl px-4 py-3 flex items-center justify-between" style={{background:'#F0FDF4', border:'1px solid #bbf7d0'}}>
-                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Total Planejado</span>
-                <span className="text-[20px] font-black" style={{color:'#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+            <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
+              style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
+              {/* Ícone */}
+              <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
+                <Send style={{color:'#2563EB', width:20, height:20}} />
               </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="ghost" className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm" onClick={() => setConfirmSendSingle(null)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() => { sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0]); setConfirmSendSingle(null); }}
+              {/* Título */}
+              <div className="text-center space-y-1">
+                <h2 className="text-[15px] font-medium text-slate-800">Enviar Planejamento?</h2>
+                <p className="text-[12px] font-normal text-slate-400">
+                  {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
+                </p>
+              </div>
+              {/* Resumo */}
+              <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-[12px] font-normal text-slate-500">Diárias</span>
+                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.subtotalDiarias)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
+                  <span className="text-[12px] font-normal text-slate-500">Alimentação</span>
+                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.almocoSemana + confirmSendSingle.jantarSemana + confirmSendSingle.almocoFds + confirmSendSingle.jantarFds)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
+                  <span className="text-[12px] font-normal text-slate-500">Mobilidade</span>
+                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.mobilidade)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9', background:'#F8FAFF'}}>
+                  <span className="text-[12px] font-medium text-slate-600">Total</span>
+                  <span className="text-[15px] font-medium" style={{color:'#2563EB'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+                </div>
+              </div>
+              {/* Mensagem */}
+              <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+                As informações de custos e logística serão enviadas para aprovação. Deseja prosseguir?
+              </p>
+              {/* Botões */}
+              <div className="flex gap-2 w-full pt-1">
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                  onClick={() => setConfirmSendSingle(null)}
                   disabled={sendToActualMutation.isPending}
-                  className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
-                  style={{background:'#059669', boxShadow:'0 4px 12px #05966940'}}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Confirmar Envio
-                </Button>
+                  Voltar
+                </button>
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70"
+                  disabled={sendToActualMutation.isPending}
+                  onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
+                >
+                  {sendToActualMutation.isPending ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
+                  ) : (
+                    <><Send className="w-3.5 h-3.5" />Enviar</>
+                  )}
+                </button>
               </div>
             </div>
           )}
