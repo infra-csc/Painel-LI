@@ -430,42 +430,32 @@ export default function BudgetActualPage() {
       }
     }
 
-    // mobilityIda/mobilityVolta: use stored values if available; otherwise from planned or split 50/50
-    const storedIda = (item as any).mobilityIda;
-    const storedVolta = (item as any).mobilityVolta;
-    const hasBreakdown = typeof storedIda === 'number' && (storedIda > 0 || storedVolta > 0);
-
+    // Mobility and food: ALWAYS use planned values when a planned reference exists
+    const plannedRef = getPlannedRef(item);
     let initIda: number;
     let initVolta: number;
-    if (hasBreakdown) {
-      initIda = storedIda;
-      initVolta = typeof storedVolta === 'number' ? storedVolta : 0;
+    if (plannedRef) {
+      initIda = (plannedRef as any).mobilityIda ?? Math.ceil(plannedRef.mobility / 2);
+      initVolta = (plannedRef as any).mobilityVolta ?? Math.floor(plannedRef.mobility / 2);
     } else if (item.mobility > 0) {
-      initIda = Math.ceil(item.mobility / 2);
-      initVolta = Math.floor(item.mobility / 2);
-    } else if (isUnfilled) {
-      // Pre-fill mobility from planned
-      const plannedRef = getPlannedRef(item);
-      const pIda = (plannedRef as any)?.mobilityIda ?? (plannedRef ? Math.ceil(plannedRef.mobility / 2) : 0);
-      const pVolta = (plannedRef as any)?.mobilityVolta ?? (plannedRef ? Math.floor(plannedRef.mobility / 2) : 0);
-      initIda = pIda;
-      initVolta = pVolta;
+      const storedIda = (item as any).mobilityIda;
+      initIda = typeof storedIda === 'number' ? storedIda : Math.ceil(item.mobility / 2);
+      const storedVolta = (item as any).mobilityVolta;
+      initVolta = typeof storedVolta === 'number' ? storedVolta : Math.floor(item.mobility / 2);
     } else {
       initIda = 0;
       initVolta = 0;
     }
 
-    // Pre-fill alimentação from planned when actual is unfilled
-    const plannedRef = isUnfilled ? getPlannedRef(item) : null;
     setEditFormData({
       valorDiariaUtil: valorUtil,
       valorDiariaFds: valorFds,
-      weekdayLunch: isUnfilled && plannedRef ? plannedRef.weekdayLunch : item.weekdayLunch,
-      weekdayDinner: isUnfilled && plannedRef ? plannedRef.weekdayDinner : item.weekdayDinner,
-      weekendLunch: isUnfilled && plannedRef ? plannedRef.weekendLunch : item.weekendLunch,
-      weekendDinner: isUnfilled && plannedRef ? plannedRef.weekendDinner : item.weekendDinner,
-      mobilityIda: initIda,
-      mobilityVolta: initVolta,
+      weekdayLunch:   plannedRef ? plannedRef.weekdayLunch   : item.weekdayLunch,
+      weekdayDinner:  plannedRef ? plannedRef.weekdayDinner  : item.weekdayDinner,
+      weekendLunch:   plannedRef ? plannedRef.weekendLunch   : item.weekendLunch,
+      weekendDinner:  plannedRef ? plannedRef.weekendDinner  : item.weekendDinner,
+      mobilityIda:    initIda,
+      mobilityVolta:  initVolta,
     });
 
     // Build per-day entries from date range
