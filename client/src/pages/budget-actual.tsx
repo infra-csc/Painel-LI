@@ -1044,50 +1044,68 @@ export default function BudgetActualPage() {
           })()}
 
           {/* ── Filtros ── */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <Input
+          <div className="flex flex-wrap items-center gap-3 px-0">
+            {/* Busca */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
+              <input
+                type="text"
                 placeholder="Buscar colaborador..."
-                className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-white"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
+                style={{
+                  height: 34, paddingLeft: 26, paddingRight: 12, width: 200,
+                  background: '#F8FAFC', border: 'none',
+                  borderBottom: `1.5px solid ${searchTerm ? '#6d28d9' : '#E2E8F0'}`,
+                  borderRadius: '6px 6px 0 0',
+                  fontSize: 12, color: '#334155', outline: 'none',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => (e.currentTarget.style.borderBottomColor = '#6d28d9')}
+                onBlur={e => (e.currentTarget.style.borderBottomColor = searchTerm ? '#6d28d9' : '#E2E8F0')}
               />
             </div>
+
+            {/* Função */}
             <Select value={filterFunction} onValueChange={setFilterFunction}>
-              <SelectTrigger className="w-auto min-w-[150px] h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
+              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue placeholder="Função" />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                <SelectItem value="all">Todas funções</SelectItem>
+              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[180px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
+                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Todas as funções</SelectItem>
                 {[...(functions ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(f => (
-                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  <SelectItem key={f.id} value={f.id} className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">{f.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Tipo */}
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-28 h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
+              <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[130px]">
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="casa">Casa</SelectItem>
-                <SelectItem value="freela">Freela</SelectItem>
+              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[130px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
+                <SelectItem value="all" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Todos</SelectItem>
+                <SelectItem value="casa" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Casa</SelectItem>
+                <SelectItem value="freela" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Freela</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Ordenação */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-auto min-w-[160px] h-9 text-xs border border-slate-200 rounded-xl bg-white text-slate-700">
-                <ArrowUpDown className="w-3 h-3 mr-1 text-slate-400" />
+              <SelectTrigger className="w-auto min-w-[150px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-slate-200 rounded-xl shadow-lg min-w-[180px]">
-                <SelectItem value="adjusted">Ajustadas primeiro</SelectItem>
-                <SelectItem value="value">Maior valor</SelectItem>
-                <SelectItem value="name">Nome A-Z</SelectItem>
+              <SelectContent className="rounded-2xl shadow-xl border border-slate-100 min-w-[160px] p-1.5" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.96)'}}>
+                <SelectItem value="adjusted" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Ajustadas primeiro</SelectItem>
+                <SelectItem value="value" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Maior valor</SelectItem>
+                <SelectItem value="name" className="rounded-xl text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-violet-50 data-[highlighted]:text-violet-600 data-[highlighted]:border-l-violet-500 focus:bg-violet-50 focus:text-violet-600">Nome A-Z</SelectItem>
               </SelectContent>
             </Select>
+
             {/* Contador */}
-            <span className="ml-auto text-[11px] text-slate-400 bg-white border border-gray-200 px-2.5 py-1.5 rounded-lg">
+            <div className="flex-1" />
+            <span style={{fontSize:11, color:'#94A3B8', fontWeight:600, background:'#F8FAFC', borderRadius:8, padding:'4px 10px'}}>
               {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'itens'}
             </span>
           </div>
