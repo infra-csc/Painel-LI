@@ -987,7 +987,12 @@ export default function BudgetActualPage() {
                     <div className="text-[30px] font-semibold text-white leading-none mt-1.5" style={{letterSpacing:'-0.03em'}}>
                       {formatCurrency(totalRealizado)}
                     </div>
-                    <div className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {totalPlanejado > 0 && (
+                      <div className="text-[10px] text-white/40 mt-0.5 tabular-nums">
+                        Planejado: {formatCurrency(totalPlanejado)}
+                      </div>
+                    )}
+                    <div className={`text-[10px] mt-1.5 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                       {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
                       {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
                       {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
