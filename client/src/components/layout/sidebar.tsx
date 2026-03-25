@@ -114,7 +114,11 @@ export default function Sidebar() {
         style={{
           width: 248,
           fontFamily: "'Inter', sans-serif",
-          background: "#FAFBFF",
+          background: "rgba(248, 250, 255, 0.80)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          borderRight: "1px solid rgba(0, 51, 204, 0.09)",
+          boxShadow: "4px 0 28px rgba(0, 51, 204, 0.05)",
         }}
       >
 
