@@ -410,11 +410,55 @@ export function SplitVagaModal({
 
           {/* ══ STEP 1 ══════════════════════════════════════════════════════ */}
           {step === 1 && (
-            <div className="flex flex-col gap-5 flex-1 overflow-y-auto px-6 py-5 bg-slate-50">
+            <div className="flex flex-col gap-4 flex-1 overflow-y-auto px-6 py-5 bg-slate-50">
 
-              {/* Collaborator picker */}
+              {/* ── Context banner "De / Para" ── */}
+              {(() => {
+                const originalCollab = collaborators.find(c => c.id === item.collaboratorId);
+                const originalName = originalCollab
+                  ? capitalizeName(fixEncoding(originalCollab.fullName || ""))
+                  : "Colaborador original";
+                const totalDays = parentWorkedDays.length;
+                const selCount = selectedDays.size;
+                const remCount = totalDays - selCount;
+                return (
+                  <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-[10px] flex-shrink-0 flex items-center justify-center text-white text-[13px] font-bold"
+                      style={{background: '#6d28d9'}}>
+                      {fixEncoding(originalCollab?.fullName || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold text-violet-500 uppercase tracking-wide m-0 mb-0.5">Dividindo escalação de</p>
+                      <p className="text-sm font-semibold text-violet-900 m-0 truncate">{originalName}</p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-center pl-3 border-l border-violet-200">
+                        <p className="text-[9px] font-semibold text-violet-400 uppercase tracking-wide m-0">Total</p>
+                        <p className="text-xl font-bold text-violet-700 m-0 leading-tight">{totalDays}</p>
+                        <p className="text-[9px] text-violet-400 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
+                      </div>
+                      {selCount > 0 && (
+                        <div className="text-center pl-3 border-l border-violet-200">
+                          <p className="text-[9px] font-semibold text-violet-400 uppercase tracking-wide m-0">Para novo</p>
+                          <p className="text-xl font-bold text-violet-600 m-0 leading-tight">{selCount}</p>
+                          <p className="text-[9px] text-violet-400 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
+                        </div>
+                      )}
+                      {selCount > 0 && (
+                        <div className="text-center pl-3 border-l border-violet-200">
+                          <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide m-0">Resta</p>
+                          <p className={`text-xl font-bold m-0 leading-tight ${remCount === 0 ? 'text-red-500' : 'text-slate-500'}`}>{remCount}</p>
+                          <p className="text-[9px] text-slate-400 m-0">{remCount === 1 ? 'dia' : 'dias'}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── Collaborator picker ── */}
               <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Colaborador</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Novo colaborador</p>
                 <div ref={dropRef}>
                   <button
                     onClick={openDrop}
@@ -500,66 +544,126 @@ export function SplitVagaModal({
                 </div>
               </div>
 
-              {/* Day picker */}
+              {/* ── Day picker — grid calendar ── */}
               {availableDays.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                    Dias que este colaborador irá cobrir
-                  </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider m-0">
+                      Selecione os dias do novo colaborador
+                    </p>
+                    {selectedDays.size > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+                        <Check className="w-3 h-3" />
+                        {selectedDays.size} {selectedDays.size === 1 ? 'dia' : 'dias'} selecionado{selectedDays.size !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded border-2 border-violet-400 bg-violet-50" />
+                      <span className="text-[10px] text-slate-400">Selecionado</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded border border-amber-300 bg-amber-50" />
+                      <span className="text-[10px] text-slate-400">Fim de semana</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded border border-slate-200 bg-slate-100 opacity-60" />
+                      <span className="text-[10px] text-slate-400">Já atribuído</span>
+                    </div>
+                  </div>
+
+                  {/* Calendar grid — 7 cols (Mon–Sun) or auto if ≤7 days */}
+                  <div
+                    className="grid gap-2"
+                    style={{gridTemplateColumns: `repeat(${Math.min(availableDays.length, 7)}, minmax(0, 1fr))`}}
+                  >
                     {availableDays.map(day => {
                       const isSel = selectedDays.has(day);
                       const isTaken = takenSet.has(day);
                       const notParent = !parentWorkedDays.includes(day);
                       const wknd = isWeekend(day);
+                      const dt = new Date(day + 'T12:00:00');
+                      const dayNum = dt.getDate();
+                      const wdShort = dt.toLocaleDateString('pt-BR', {weekday: 'short'}).replace('.','').toUpperCase().slice(0,3);
+                      const moShort = dt.toLocaleDateString('pt-BR', {month: 'short'}).replace('.','').toUpperCase().slice(0,3);
 
-                      let bg = '#F8FAFC', border = '#E2E8F0', color = '#64748B';
-                      if (isTaken) { bg = '#F1F5F9'; border = '#CBD5E1'; color = '#CBD5E1'; }
-                      else if (isSel && wknd) { bg = '#FFF7ED'; border = '#F97316'; color = '#C2410C'; }
-                      else if (isSel) { bg = '#EDE9FE'; border = '#6d28d9'; color = '#6d28d9'; }
-                      else if (wknd) { bg = '#FFFBEB'; border = '#FDE68A'; color = '#92400E'; }
+                      let cardBg = '#F8FAFC', cardBorder = '#E2E8F0';
+                      let dayColor = '#475569', wdColor = '#94A3B8';
+                      if (isTaken) {
+                        cardBg = '#F1F5F9'; cardBorder = '#CBD5E1';
+                        dayColor = '#CBD5E1'; wdColor = '#CBD5E1';
+                      } else if (isSel && wknd) {
+                        cardBg = '#FFF7ED'; cardBorder = '#F97316';
+                        dayColor = '#C2410C'; wdColor = '#FB923C';
+                      } else if (isSel) {
+                        cardBg = '#EDE9FE'; cardBorder = '#6d28d9';
+                        dayColor = '#5B21B6'; wdColor = '#7C3AED';
+                      } else if (wknd) {
+                        cardBg = '#FFFBEB'; cardBorder = '#FDE68A';
+                        dayColor = '#92400E'; wdColor = '#D97706';
+                      }
 
                       return (
                         <button
                           key={day}
                           onClick={() => toggleDay(day)}
                           disabled={isTaken}
-                          title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : undefined}
-                          className="flex flex-col items-center rounded-xl transition-all"
+                          title={isTaken ? "Dia já atribuído a outro colaborador desta divisão" : notParent ? "Este dia está fora do período original" : undefined}
+                          className="flex flex-col items-center rounded-xl py-2.5 px-1 transition-all relative"
                           style={{
-                            padding: '6px 10px', minWidth: 56,
                             cursor: isTaken ? 'not-allowed' : 'pointer',
-                            border: `1.5px solid ${border}`, background: bg,
+                            border: `1.5px solid ${cardBorder}`,
+                            background: cardBg,
                             opacity: isTaken ? 0.5 : 1,
+                            boxShadow: isSel && !isTaken ? '0 2px 8px rgba(109,40,217,0.15)' : 'none',
                           }}
                         >
-                          {isSel && !isTaken
-                            ? <Check style={{width:12, height:12, color, marginBottom:1}} />
-                            : <span style={{fontSize: 9, fontWeight: 700, color: isTaken ? '#CBD5E1' : wknd ? '#F59E0B' : '#94A3B8', textTransform:'uppercase', letterSpacing:'0.05em', lineHeight:'14px'}}>
-                                {new Date(day+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase()}
-                              </span>
-                          }
-                          <span style={{fontSize: 13, fontWeight: 700, color, lineHeight: '16px', textDecoration: isTaken ? 'line-through' : 'none'}}>
-                            {new Date(day+'T12:00:00').getDate()}
+                          {/* Weekday */}
+                          <span style={{fontSize: 9, fontWeight: 600, color: wdColor, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: '13px'}}>
+                            {wdShort}
                           </span>
-                          <span style={{fontSize: 9, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight:'12px'}}>
-                            {new Date(day+'T12:00:00').toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase()}
+                          {/* Day number */}
+                          <span style={{fontSize: 18, fontWeight: 600, color: dayColor, lineHeight: '24px', textDecoration: isTaken ? 'line-through' : 'none'}}>
+                            {dayNum}
                           </span>
+                          {/* Month */}
+                          <span style={{fontSize: 9, color: isTaken ? '#CBD5E1' : '#94A3B8', lineHeight: '13px'}}>
+                            {moShort}
+                          </span>
+                          {/* Check badge */}
+                          {isSel && !isTaken && (
+                            <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                              style={{background: wknd ? '#F97316' : '#6d28d9'}}>
+                              <Check style={{width: 8, height: 8, color: '#fff'}} />
+                            </div>
+                          )}
+                          {/* Out-of-parent warning */}
                           {notParent && !isSel && !isTaken && (
-                            <span style={{fontSize:8, color:'#F59E0B', marginTop:1}}>⚠</span>
+                            <div className="absolute top-0.5 right-0.5 text-amber-400" style={{fontSize: 8}}>⚠</div>
                           )}
                         </button>
                       );
                     })}
                   </div>
+
+                  {/* Summary bar */}
                   {selectedDays.size > 0 && (
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-                      <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                      <p className="text-xs text-slate-600 m-0">
-                        <strong>{selectedDays.size}</strong> {selectedDays.size === 1 ? 'dia selecionado' : 'dias selecionados'}
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background: '#6d28d9'}} />
+                      <p className="text-xs text-slate-600 m-0 flex-1">
+                        <strong className="text-slate-700">{selectedDays.size}</strong> {selectedDays.size === 1 ? 'dia selecionado' : 'dias selecionados'}
                         {selWeekdays > 0 && <span className="text-indigo-600"> · {selWeekdays} {selWeekdays === 1 ? 'útil' : 'úteis'}</span>}
-                        {selWeekends > 0 && <span className="text-amber-600"> · {selWeekends} fim{selWeekends > 1 ? 's' : ''} de semana</span>}
+                        {selWeekends > 0 && <span className="text-amber-600"> · {selWeekends} fim{selWeekends > 1 ? 's' : ''} de sem.</span>}
                       </p>
+                      <button
+                        className="text-[11px] text-slate-400 hover:text-red-500 transition-colors border-0 bg-transparent cursor-pointer px-0"
+                        onClick={() => setSelectedDays(new Set())}
+                      >
+                        Limpar
+                      </button>
                     </div>
                   )}
                   {takenDays.length > 0 && (
@@ -573,19 +677,19 @@ export function SplitVagaModal({
 
               {/* Validations */}
               {!selectedCollabId && (
-                <div className="flex items-center gap-2 text-xs text-red-500">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Selecione um colaborador para continuar.
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione um colaborador para continuar.
                 </div>
               )}
               {selectedCollabId && selectedDays.size === 0 && (
-                <div className="flex items-center gap-2 text-xs text-red-500">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Selecione pelo menos 1 dia para o novo colaborador.
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Selecione pelo menos 1 dia para o novo colaborador.
                 </div>
               )}
 
               {/* Footer */}
               <div className="flex justify-end gap-2.5 pt-1 border-t border-slate-100 flex-shrink-0">
-                <Button variant="outline" className="h-9 px-4 rounded-xl" onClick={onClose}>Cancelar</Button>
+                <Button variant="ghost" className="h-9 px-4 rounded-xl text-slate-500 hover:text-slate-700" onClick={onClose}>Cancelar</Button>
                 <Button
                   onClick={goToStep2}
                   disabled={!canGoNext}
