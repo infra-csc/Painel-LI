@@ -872,22 +872,25 @@ export default function BudgetComparisonPage() {
                         <div className="flex items-center gap-3 shrink-0">
                           {/* Mini values strip */}
                           <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                            {/* Plan. — referência discreta */}
                             <div className="px-3 py-1.5 text-center min-w-[72px]">
-                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Plan.</span>
-                              <span className="text-sm tabular-nums text-blue-600 font-medium">{fmt(plannedTotal)}</span>
+                              <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
+                              <span className="text-sm tabular-nums text-slate-400 font-normal">{fmt(plannedTotal)}</span>
                             </div>
-                            <div className="px-3 py-1.5 text-center min-w-[72px] bg-violet-50/40">
-                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Real.</span>
-                              <span className="text-sm tabular-nums text-violet-600 font-medium">{fmt(actualTotal)}</span>
+                            {/* Real. — protagonista */}
+                            <div className="px-3 py-1.5 text-center min-w-[72px] bg-violet-50/50">
+                              <span className="text-[9px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
+                              <span className="text-sm tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
                             </div>
-                            <div className={`px-3 py-1.5 text-center min-w-[72px] ${hasDiff ? (diff > 0 ? 'bg-red-50/60' : 'bg-emerald-50/60') : ''}`}>
-                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Dif.</span>
+                            {/* Dif. — alerta imediato */}
+                            <div className={`px-3 py-1.5 text-center min-w-[72px] ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
+                              <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
-                                <span className={`text-sm tabular-nums font-medium ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                   {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                 </span>
                               ) : (
-                                <span className="text-sm text-slate-300 tabular-nums font-medium">—</span>
+                                <span className="text-sm text-slate-300 tabular-nums font-normal">—</span>
                               )}
                             </div>
                           </div>
