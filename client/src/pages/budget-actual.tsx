@@ -674,25 +674,26 @@ export default function BudgetActualPage() {
       : cardItem.rhStatus === 'rejeitado' ? '#ef4444'
       : cardItem.sentForReview ? '#2563eb'
       : diverges ? '#f59e0b'
-      : '#cbd5e1';
+      : '#6d28d9';
 
     return (
       <div
         data-card-id={cardItem.id}
         className={[
-          'rounded-xl border overflow-hidden transition-all duration-300 bg-white',
+          'rounded-2xl border overflow-hidden transition-all duration-300 bg-white flex flex-col',
           isInGroup ? 'border-l-[3px] border-l-purple-300' : '',
-          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-100'
+          highlightCardId === cardItem.id ? 'ring-2 ring-violet-400 shadow-[0_8px_32px_rgba(109,40,217,0.14)]'
             : isSelected ? 'ring-2 ring-violet-300 border-violet-200 shadow-md'
-            : diverges ? 'border-amber-200'
-            : isInGroup ? 'border-purple-200'
-            : 'border-slate-200',
+            : diverges ? 'border-amber-200 shadow-sm'
+            : isInGroup ? 'border-purple-200 shadow-sm'
+            : 'border-slate-200 shadow-sm',
+          !isSelected ? 'hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-100/60 hover:border-purple-200' : '',
         ].join(' ')}
       >
           <div className="h-[3px]" style={{background: stripeColor}} />
 
           {/* Card Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-50/60">
+          <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked && !['devolvido','rejeitado'].includes(cardItem.rhStatus||'') ? 'bg-indigo-50/40' : 'bg-slate-50/60'}`}>
             <div className="flex items-center gap-3">
               {isItemLocked ? (
                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
