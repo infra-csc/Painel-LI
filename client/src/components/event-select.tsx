@@ -198,9 +198,9 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
       </div>
 
       {/* List */}
-      <div className="event-search-list" style={{ maxHeight: 280, overflowY: 'auto', padding: '6px' }}>
+      <div className="event-search-list" style={{ maxHeight: 260, overflowY: 'auto', padding: '6px 6px 8px' }}>
         {filtered.length === 0 ? (
-          <div style={{ padding: '20px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+          <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
             Nenhum evento encontrado
           </div>
         ) : (
@@ -211,41 +211,75 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
                 key={event.id}
                 onMouseDown={e => { e.preventDefault(); handleSelect(event.id); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-                  padding: '10px 12px', border: 'none',
-                  background: isSelected ? '#EEF2FF' : 'transparent',
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '9px 10px', border: 'none',
+                  background: isSelected
+                    ? 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)'
+                    : 'transparent',
                   cursor: 'pointer', textAlign: 'left',
-                  borderRadius: 9,
-                  transition: 'background 0.12s',
-                  marginBottom: 1,
+                  borderRadius: 10,
+                  transition: 'all 0.13s ease',
+                  marginBottom: 2,
+                  outline: 'none',
                 }}
-                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#EFF6FF'; }}
-                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                onMouseEnter={e => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg, #F0F7FF 0%, #E8F0FE 100%)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateX(2px)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
+                  }
+                }}
               >
+                {/* Icon badge */}
                 <div style={{
-                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                  background: isSelected ? '#0033CC' : '#F1F5F9',
+                  width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                  background: isSelected
+                    ? 'linear-gradient(135deg, #0033CC 0%, #0044FF 100%)'
+                    : '#F1F5F9',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background 0.12s',
+                  boxShadow: isSelected ? '0 2px 8px rgba(0,51,204,0.25)' : 'none',
+                  transition: 'all 0.13s ease',
                 }}>
                   <Calendar style={{ width: 14, height: 14, color: isSelected ? '#fff' : '#94A3B8' }} />
                 </div>
+
+                {/* Text */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: 13, fontWeight: 600,
                     color: isSelected ? '#0033CC' : '#1E293B',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    letterSpacing: '-0.01em',
                   }}>
                     {event.name}
                   </div>
                   {(event.startDate || event.endDate) && (
-                    <div style={{ fontSize: 11, color: isSelected ? '#6d94ff' : '#94A3B8', marginTop: 2 }}>
+                    <div style={{
+                      fontSize: 11, color: isSelected ? '#4F7BF5' : '#94A3B8', marginTop: 2,
+                      display: 'flex', alignItems: 'center', gap: 3,
+                    }}>
                       {fmtEventDate(event.startDate, event.endDate)}
                     </div>
                   )}
                 </div>
+
+                {/* Selected indicator */}
                 {isSelected && (
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#0033CC', flexShrink: 0 }} />
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: '#0033CC', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(0,51,204,0.3)',
+                  }}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
                 )}
               </button>
             );

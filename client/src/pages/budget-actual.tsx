@@ -851,8 +851,8 @@ export default function BudgetActualPage() {
 
       {!selectedEventId ? (
         /* ── Tela 1: Seleção de evento ── */
-        <div className="rounded-2xl overflow-hidden border border-violet-100 dark:border-violet-900 shadow-sm">
-          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 dark:from-violet-950/40 dark:via-purple-950/30 dark:to-fuchsia-950/20 px-8 py-16 text-center">
+        <div className="rounded-2xl border border-violet-100 shadow-sm">
+          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl px-8 py-16 text-center">
             <div className="relative w-24 h-24 mx-auto mb-6">
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-200 dark:shadow-violet-900/40 flex items-center justify-center -rotate-3">
                 <ClipboardCheck className="w-10 h-10 text-white" />

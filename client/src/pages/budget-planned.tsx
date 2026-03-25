@@ -762,8 +762,8 @@ export default function BudgetPlannedPage() {
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        <div className="rounded-2xl overflow-hidden border border-blue-100 shadow-md">
-          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 px-8 py-20 flex flex-col items-center justify-center text-center">
+        <div className="rounded-2xl border border-blue-100 shadow-md">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
             {/* Ícone */}
             <div className="relative w-24 h-24 mx-auto mb-8">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 flex items-center justify-center rotate-3">
