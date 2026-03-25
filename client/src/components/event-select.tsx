@@ -243,13 +243,14 @@ export function EventSearchSelect({ value, onValueChange, events, className }: E
       {/* Trigger */}
       <button
         onClick={handleOpen}
+        className="hover:scale-[1.015] active:scale-[0.985]"
         style={{
           display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 12px',
           width: '100%', border: isOpen ? '1px solid #7C3AED' : '1px solid #CBD5E1',
           borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14,
           color: selectedEvent ? '#1E293B' : '#94A3B8',
           boxShadow: isOpen ? '0 0 0 3px rgba(124,58,237,0.1)' : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
+          transition: 'border-color 0.15s, box-shadow 0.15s, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         <Search style={{ width: 14, height: 14, color: isOpen ? '#7C3AED' : '#94A3B8', flexShrink: 0 }} />

@@ -176,12 +176,16 @@ export default function Sidebar() {
                           style={{
                             display: "flex", alignItems: "center", gap: 9,
                             padding: "7px 10px", borderRadius: 8, cursor: "pointer",
-                            transition: "all 0.15s",
+                            transition: "all 0.18s cubic-bezier(0.4, 0, 0.2, 1)",
                             position: "relative",
                             background: isActive ? "#EEF2FF" : "transparent",
                             color: isActive ? BLUE : "#4B5563",
                           }}
-                          className={cn(!isActive && "hover:bg-slate-100/80")}
+                          className={cn(
+                            "group",
+                            !isActive && "hover:bg-blue-50/60 hover:translate-x-[3px]",
+                            isActive && "hover:translate-x-[1px]",
+                          )}
                         >
                           {/* Active left bar */}
                           {isActive && (
@@ -192,10 +196,12 @@ export default function Sidebar() {
                           )}
 
                           {/* Icon */}
-                          <span style={{
-                            width: 24, height: 24, flexShrink: 0,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
+                          <span
+                            className="transition-transform duration-[180ms] group-hover:scale-110"
+                            style={{
+                              width: 24, height: 24, flexShrink: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}>
                             <MI
                               name={tab.icon}
                               filled={true}
