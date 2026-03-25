@@ -101,6 +101,7 @@ export default function BudgetPlannedPage() {
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
+  const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -738,6 +739,47 @@ export default function BudgetPlannedPage() {
 
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)).length;
 
+  // Handler para edição inline na planilha
+  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'alimentacao' | 'mobilidade', rawValue: string) => {
+    const val = parseFloat(rawValue) || 0;
+    const valCents = Math.round(val * 100);
+    const base: BudgetEdit = budgetOverrides[budget.inclusion.id] || {
+      inclusionId: budget.inclusion.id,
+      qtdDiarias: budget.qtdDiarias,
+      valorDiaria: budget.valorDiaria,
+      valorDiariaUtil: budget.valorDiariaUtil,
+      valorDiariaFds: budget.valorDiariaFds,
+      mobilidade: budget.mobilidade,
+      mobilidadeIda: budget.mobilidadeIda,
+      mobilidadeVolta: budget.mobilidadeVolta,
+      almocoSemana: budget.almocoSemana,
+      jantarSemana: budget.jantarSemana,
+      almocoFds: budget.almocoFds,
+      jantarFds: budget.jantarFds,
+    };
+    const updated = { ...base };
+    if (field === 'qtdDiarias') { updated.qtdDiarias = val; }
+    else if (field === 'valorDia') { updated.valorDiariaUtil = valCents; updated.valorDiariaFds = valCents; }
+    else if (field === 'alimentacao') {
+      const existingTotal = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
+      if (existingTotal === 0) {
+        const q = Math.round(valCents / 4);
+        updated.almocoSemana = q; updated.jantarSemana = q; updated.almocoFds = q; updated.jantarFds = valCents - q * 3;
+      } else {
+        const f = valCents / existingTotal;
+        updated.almocoSemana = Math.round(budget.almocoSemana * f);
+        updated.jantarSemana = Math.round(budget.jantarSemana * f);
+        updated.almocoFds = Math.round(budget.almocoFds * f);
+        updated.jantarFds = Math.round(budget.jantarFds * f);
+      }
+    } else if (field === 'mobilidade') {
+      updated.mobilidade = valCents;
+      updated.mobilidadeIda = Math.round(valCents / 2);
+      updated.mobilidadeVolta = valCents - Math.round(valCents / 2);
+    }
+    setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: updated }));
+  };
+
   // Avatar color based on first letter
   const avatarColor = (name: string) => {
     const colors = [
@@ -1075,6 +1117,23 @@ export default function BudgetPlannedPage() {
 
             </div>
 
+            {/* ── Seletor de Abas ── */}
+            <div className="flex items-center gap-1 border-b border-slate-100">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
+                Visão Geral
+              </button>
+              <button
+                onClick={() => setActiveTab('sheet')}
+                className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${activeTab === 'sheet' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
+                Planilha de Edição
+              </button>
+            </div>
+
+            {activeTab === 'overview' ? (<>
             {/* ── Filtros e Busca — minimal ── */}
             <div className="flex flex-wrap items-center gap-3 px-0">
               {pendingCount > 0 && (
@@ -1491,6 +1550,157 @@ export default function BudgetPlannedPage() {
                   );
                 })}
               </div>
+            )}
+            </>) : (
+            <>
+              {/* ── Planilha de Edição ── */}
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-1 py-1">
+                <span className="text-xs text-slate-400 font-medium">{filteredBudgets.length} colaborador{filteredBudgets.length !== 1 ? 'es' : ''}</span>
+                <button
+                  onClick={() => setBudgetOverrides(prev => {
+                    const updated = { ...prev };
+                    filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
+                    return updated;
+                  })}
+                  className="text-xs px-3 py-1.5 rounded-lg text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Aplicar Valor Padrão em Todos
+                </button>
+              </div>
+
+              {/* Tabela */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50">
+                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Colaborador</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-20">Diárias</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Valor/dia</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Alimentação</th>
+                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Mobilidade</th>
+                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-400 uppercase tracking-wider w-32">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {filteredBudgets.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
+                        </tr>
+                      ) : filteredBudgets.map((budget, rowIdx) => {
+                        const isSent = sentToActual.has(budget.inclusion.id);
+                        const isNotAttended = isCardNotAttended(budget);
+                        const hasOvr = budget.hasOverride;
+                        const name = getCollaboratorName(budget.inclusion.collaboratorId);
+                        const funcName = getFunctionName(budget.inclusion.functionId);
+                        const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
+                        const cellCls = "bg-slate-50 focus-within:bg-white rounded-md px-2 py-1 ring-1 ring-transparent focus-within:ring-blue-100 transition-all flex items-center gap-1";
+                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5";
+                        const disabled = isSent || isNotAttended;
+                        return (
+                          <tr
+                            key={budget.inclusion.id}
+                            className={`group transition-colors ${isSent ? 'bg-emerald-50/30' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
+                          >
+                            {/* Colaborador */}
+                            <td className="px-4 py-2">
+                              <div className="flex flex-col leading-tight">
+                                <span className={`text-sm font-medium ${isSent ? 'text-emerald-700' : isNotAttended ? 'line-through text-slate-400' : 'text-slate-700'}`}>{name}</span>
+                                <span className="text-[10px] text-slate-400">{funcName}</span>
+                              </div>
+                              {isSent && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full mt-0.5">
+                                  <Check className="w-2.5 h-2.5" />Enviado
+                                </span>
+                              )}
+                            </td>
+                            {/* Diárias qty */}
+                            <td className="px-3 py-2">
+                              <div className={cellCls}>
+                                <input
+                                  type="number" min="0" step="1"
+                                  tabIndex={rowIdx * 4 + 1}
+                                  disabled={disabled}
+                                  value={budget.qtdDiarias}
+                                  onChange={e => handleSheetEdit(budget, 'qtdDiarias', e.target.value)}
+                                  className={`${inputCls} text-slate-700 w-14 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                />
+                              </div>
+                            </td>
+                            {/* Valor/dia */}
+                            <td className="px-3 py-2">
+                              <div className={cellCls}>
+                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  tabIndex={rowIdx * 4 + 2}
+                                  disabled={disabled}
+                                  value={(budget.valorDiariaUtil / 100).toFixed(2)}
+                                  onChange={e => handleSheetEdit(budget, 'valorDia', e.target.value)}
+                                  className={`${inputCls} text-purple-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                />
+                              </div>
+                            </td>
+                            {/* Alimentação */}
+                            <td className="px-3 py-2">
+                              <div className={cellCls}>
+                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  tabIndex={rowIdx * 4 + 3}
+                                  disabled={disabled}
+                                  value={foodTotal.toFixed(2)}
+                                  onChange={e => handleSheetEdit(budget, 'alimentacao', e.target.value)}
+                                  className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                />
+                              </div>
+                            </td>
+                            {/* Mobilidade */}
+                            <td className="px-3 py-2">
+                              <div className={cellCls}>
+                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  tabIndex={rowIdx * 4 + 4}
+                                  disabled={disabled}
+                                  value={(budget.mobilidade / 100).toFixed(2)}
+                                  onChange={e => handleSheetEdit(budget, 'mobilidade', e.target.value)}
+                                  className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                />
+                              </div>
+                            </td>
+                            {/* Subtotal */}
+                            <td className="px-4 py-2 text-right">
+                              <span className={`text-sm font-mono font-semibold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-600'}`}>
+                                {formatCurrency(budget.totalFinal)}
+                              </span>
+                              {hasOvr && !isSent && (
+                                <div className="text-[9px] text-amber-500 font-medium">editado</div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {filteredBudgets.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-100 bg-blue-50/50">
+                          <td className="px-4 py-2.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total ({filteredBudgets.length})</span>
+                          </td>
+                          <td colSpan={4} className="px-3 py-2.5" />
+                          <td className="px-4 py-2.5 text-right">
+                            <span className="text-base font-bold font-mono text-blue-700 tabular-nums">{formatCurrency(totalGeral)}</span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+            </>
             )}
           </>
         )}
