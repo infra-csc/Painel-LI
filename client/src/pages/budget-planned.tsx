@@ -817,8 +817,8 @@ export default function BudgetPlannedPage() {
                   {/* Grade pontilhada */}
                   <div style={{
                     position: 'absolute', inset: 0, pointerEvents: 'none',
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.22) 1.5px, transparent 1.5px)',
+                    backgroundSize: '18px 18px',
                   }} />
                   {/* Reflexo de vidro — faixa diagonal */}
                   <div style={{
@@ -1003,7 +1003,7 @@ export default function BudgetPlannedPage() {
             })()}
 
             {/* ── KPI Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* Casa */}
               <div className="rounded-xl bg-white shadow-sm border-0 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)', borderTop:'4px solid #3B82F6'}}>
                 <div className="px-4 py-4 flex items-center gap-3.5">
@@ -1153,7 +1153,7 @@ export default function BudgetPlannedPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                 {filteredBudgets.map((budget) => {
                   const isSent = sentToActual.has(budget.inclusion.id);
                   const isSelected = selectedCards.has(budget.inclusion.id);
@@ -1170,7 +1170,7 @@ export default function BudgetPlannedPage() {
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col group ${
+                      className={`rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col group h-full ${
                         isNotAttended ? 'bg-slate-50 opacity-75 border-dashed border-slate-300 shadow-sm' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
@@ -1218,10 +1218,10 @@ export default function BudgetPlannedPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-1 mt-0.5 overflow-hidden flex-wrap">
-                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
-                              {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 shrink-0 whitespace-nowrap">No Realizado</span>}
-                              {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
+                              <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                              {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
+                              {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
                             {isNotAttended && planRecord?.didNotAttendReason && (
                               <p className="text-[10px] text-slate-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
@@ -1316,16 +1316,14 @@ export default function BudgetPlannedPage() {
                               </div>
                               <div className="flex flex-col gap-y-2 mt-auto">
                                 {budget.weekdays > 0 && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">{formatDiasUteis(budget.weekdays)}</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">×</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
                                   </div>
                                 )}
                                 {budget.weekends > 0 && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">{formatFds(budget.weekends)}</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">×</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
@@ -1346,16 +1344,14 @@ export default function BudgetPlannedPage() {
                               </div>
                               <div className="flex flex-col gap-y-2 mt-auto">
                                 {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">Semana</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">·</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
                                   </div>
                                 )}
                                 {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">Fim de semana</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">·</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
                                   </div>
                                 )}
@@ -1376,16 +1372,14 @@ export default function BudgetPlannedPage() {
                               </div>
                               <div className="flex flex-col gap-y-2 mt-auto">
                                 {budget.mobilidadeIda > 0 && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">Ida</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">·</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeVolta > 0 && (
-                                  <div className="flex items-baseline gap-1 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
+                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
                                     <span className="shrink-0">Volta</span>
-                                    <span style={{color:'#CBD5E1'}} className="shrink-0">·</span>
                                     <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
                                   </div>
                                 )}
