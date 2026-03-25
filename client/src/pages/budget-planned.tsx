@@ -18,9 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Event, Function, Collaborator, TeamInclusion, FunctionValue } from "@shared/schema";
+import type { Event, Function, Collaborator, TeamInclusion, FunctionValue, BudgetNote } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSearch } from "wouter";
+import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 
 interface BudgetEdit {
   inclusionId: string;
@@ -89,6 +90,7 @@ export default function BudgetPlannedPage() {
   });
   const [editingBudget, setEditingBudget] = useState<BudgetEdit | null>(null);
   const [editingBudgetInfo, setEditingBudgetInfo] = useState<{ name: string; functionName: string; type: string; weekdays: number; weekends: number; period: string } | null>(null);
+  const [editingBudgetPlannedId, setEditingBudgetPlannedId] = useState<string | null>(null);
   const [budgetOverrides, setBudgetOverrides] = useState<Record<string, BudgetEdit>>({});
   const [sentToActual, setSentToActual] = useState<Set<string>>(new Set());
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
@@ -173,6 +175,16 @@ export default function BudgetPlannedPage() {
     queryFn: async () => {
       const res = await fetch(`/api/budget-planned?eventId=${selectedEventId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch budget planned");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const { data: eventNotes = [] } = useQuery<BudgetNote[]>({
+    queryKey: ["/api/budget-notes/by-event", "planned", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-notes/by-event?entityType=planned&eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch event notes");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -628,6 +640,10 @@ export default function BudgetPlannedPage() {
     };
     setEditingBudget(editVals);
     setOriginalModalTotal(budget.totalFinal);
+    const planRec = allBudgetPlanned?.find(
+      (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
+    );
+    setEditingBudgetPlannedId(planRec?.id ?? null);
   };
 
   const saveEdit = () => {
@@ -637,6 +653,7 @@ export default function BudgetPlannedPage() {
       [editingBudget.inclusionId]: editingBudget,
     }));
     setEditingBudget(null);
+    setEditingBudgetPlannedId(null);
     toast({ title: "Sucesso", description: "Valores atualizados" });
   };
 
@@ -1547,6 +1564,12 @@ export default function BudgetPlannedPage() {
                           {formatCurrency(budget.totalFinal)}
                         </span>
                       </div>
+                      {planRecord && eventNotes.length > 0 && (
+                        <div className="px-4 pb-2 flex flex-col gap-1">
+                          <BudgetNotesBadge notes={eventNotes} entityId={planRecord.id} />
+                          <BudgetNotesSnippet notes={eventNotes} entityId={planRecord.id} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1785,7 +1808,7 @@ export default function BudgetPlannedPage() {
         )}
 
       {/* Modal de Edição */}
-      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); }}>
+      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Orçamento Planejado</DialogTitle>
@@ -2066,6 +2089,15 @@ export default function BudgetPlannedPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ── Chat ── */}
+              {editingBudgetPlannedId && (
+                <BudgetChat
+                  entityType="planned"
+                  entityId={editingBudgetPlannedId}
+                  eventId={selectedEventId}
+                />
+              )}
 
               {/* ── Footer ── */}
               <div className="border-t border-slate-100 bg-white">

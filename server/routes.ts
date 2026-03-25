@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
+import { db } from "./db";
+import { budgetNotes } from "@shared/schema";
+import { eq, and, inArray, desc, sql as drizzleSql } from "drizzle-orm";
 import { 
   insertEventSchema,
   updateEventSchema,
@@ -18,7 +21,8 @@ import {
   insertBudgetPlannedSchema,
   insertBudgetActualSchema,
   insertBudgetComparisonSchema,
-  insertInvoiceSchema
+  insertInvoiceSchema,
+  insertBudgetNoteSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -2727,6 +2731,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting payment company:", error);
       res.status(500).json({ message: "Erro ao excluir empresa" });
+    }
+  });
+
+  // ─── Budget Notes (Chat de Auditoria) ───────────────────────────────────────
+
+  // GET /api/budget-notes?entityType=X&entityId=Y
+  app.get("/api/budget-notes", async (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const { entityType, entityId } = req.query as Record<string, string>;
+    if (!entityType || !entityId) return res.status(400).json({ message: "entityType e entityId obrigatórios" });
+    try {
+      const notes = await db
+        .select()
+        .from(budgetNotes)
+        .where(and(eq(budgetNotes.entityType, entityType), eq(budgetNotes.entityId, entityId)))
+        .orderBy(budgetNotes.createdAt);
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching budget notes:", error);
+      res.status(500).json({ message: "Erro ao buscar observações" });
+    }
+  });
+
+  // POST /api/budget-notes
+  app.post("/api/budget-notes", async (req, res) => {
+    const userId = req.session.userId || req.body?._userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+    const parsed = insertBudgetNoteSchema.safeParse({
+      ...req.body,
+      authorId: userId,
+      authorName: user.name,
+    });
+    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    try {
+      const [note] = await db.insert(budgetNotes).values(parsed.data).returning();
+      res.status(201).json(note);
+    } catch (error) {
+      console.error("Error creating budget note:", error);
+      res.status(500).json({ message: "Erro ao criar observação" });
+    }
+  });
+
+  // GET /api/budget-notes/by-event?entityType=actual|planned&eventId=X
+  app.get("/api/budget-notes/by-event", async (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    const { entityType, eventId } = req.query as Record<string, string>;
+    if (!entityType || !eventId) return res.status(400).json({ message: "entityType e eventId obrigatórios" });
+    try {
+      let result: any;
+      if (entityType === "actual") {
+        result = await db.execute(drizzleSql`
+          SELECT bn.* FROM budget_notes bn
+          JOIN budget_actual ba ON bn.entity_id = ba.id
+          WHERE bn.entity_type = 'actual' AND ba.event_id = ${eventId}
+          ORDER BY bn.created_at DESC`
+        );
+      } else if (entityType === "planned") {
+        result = await db.execute(drizzleSql`
+          SELECT bn.* FROM budget_notes bn
+          JOIN budget_planned bp ON bn.entity_id = bp.id
+          WHERE bn.entity_type = 'planned' AND bp.event_id = ${eventId}
+          ORDER BY bn.created_at DESC`
+        );
+      } else {
+        return res.json([]);
+      }
+      const notes = Array.isArray(result) ? result : (result as any).rows || [];
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching event budget notes:", error);
+      res.status(500).json({ message: "Erro ao buscar observações do evento" });
     }
   });
 

@@ -14,7 +14,8 @@ import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun,
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
+import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison, BudgetNote } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
@@ -166,6 +167,19 @@ export default function BudgetActualPage() {
 
   const rhComment = budgetComparison?.status === 'devolvido' ? budgetComparison.returnReason :
                     budgetComparison?.status === 'rejeitado' ? budgetComparison.rejectionReason : null;
+
+  const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
+
+  const { data: eventNotes = [] } = useQuery<BudgetNote[]>({
+    queryKey: ["/api/budget-notes/by-event", "actual", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+    staleTime: 30000,
+  });
 
   const didScrollToCard = useRef(false);
   useEffect(() => {
@@ -773,9 +787,17 @@ export default function BudgetActualPage() {
                     <span className="text-[10px] text-purple-600 leading-tight">{workedDaysStr}</span>
                   </div>
                 )}
+                <BudgetNotesSnippet notes={eventNotes} entityId={cardItem.id} />
               </div>
             </div>
             <div className="flex items-center gap-0.5">
+              <button
+                className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-blue-50 transition-colors"
+                onClick={() => openEditModal(cardItem)}
+                title="Ver observações"
+              >
+                <BudgetNotesBadge notes={eventNotes} entityId={cardItem.id} />
+              </button>
               {isItemEditable ? (
                 <>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" onClick={() => openEditModal(cardItem)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
@@ -1330,7 +1352,7 @@ export default function BudgetActualPage() {
           </DialogHeader>
 
           {editingItem && editFormData && (() => {
-            const isReadOnly = editingItem.sentForReview && !["devolvido", "rejeitado"].includes(editingItem.rhStatus || "");
+            const isReadOnly = !isRhOrAdmin && editingItem.sentForReview && !["devolvido", "rejeitado"].includes(editingItem.rhStatus || "");
             const itemDays = getItemDayCounts(editingItem);
             const activeDayEntries = editDayEntries.filter(d => d.active);
             const subtotalDiariasRaw = activeDayEntries.reduce((sum, d) => sum + d.valueCents, 0);
@@ -1629,7 +1651,7 @@ export default function BudgetActualPage() {
                     )}
                   </div>
 
-                  {/* ── Mobilidade ── (somente leitura) */}
+                  {/* ── Mobilidade ── */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                     <div className="h-[3px] bg-violet-400" />
                     <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/40 border-b border-violet-100">
@@ -1638,33 +1660,38 @@ export default function BudgetActualPage() {
                           <Car className="w-3 h-3 text-white" />
                         </div>
                         <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">Mobilidade</span>
-                        <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>
+                        {!isRhOrAdmin && <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>}
+                        {isRhOrAdmin && <span className="text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">Editável RH</span>}
                       </div>
                       <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
                     </div>
-                    {(() => {
-                      return (
-                        <div className="divide-y divide-slate-50">
-                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4">
-                            <div className="flex items-center gap-2">
-                              <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-500">Ida</span>
-                            </div>
-                            <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityIda)}</span>
-                          </div>
-                          <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4 bg-slate-50/30">
-                            <div className="flex items-center gap-2">
-                              <ArrowLeft className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                              <span className="text-[12px] text-slate-500">Volta</span>
-                            </div>
-                            <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityVolta)}</span>
-                          </div>
+                    <div className="divide-y divide-slate-50">
+                      <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4">
+                        <div className="flex items-center gap-2">
+                          <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                          <span className="text-[12px] text-slate-500">Ida</span>
                         </div>
-                      );
-                    })()}
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.mobilityIda} onChange={v => setEditFormData(f => f ? { ...f, mobilityIda: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityIda)}</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4 bg-slate-50/30">
+                        <div className="flex items-center gap-2">
+                          <ArrowLeft className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                          <span className="text-[12px] text-slate-500">Volta</span>
+                        </div>
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.mobilityVolta} onChange={v => setEditFormData(f => f ? { ...f, mobilityVolta: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityVolta)}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* ── Alimentação ── (somente leitura) */}
+                  {/* ── Alimentação ── */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                     <div className="h-[3px] bg-orange-400" />
                     <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/40 border-b border-orange-100">
@@ -1673,7 +1700,8 @@ export default function BudgetActualPage() {
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
                         <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
-                        <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>
+                        {!isRhOrAdmin && <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>}
+                        {isRhOrAdmin && <span className="text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">Editável RH</span>}
                       </div>
                       <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
                     </div>
@@ -1681,38 +1709,57 @@ export default function BudgetActualPage() {
                       {/* Header row */}
                       <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-slate-50 border-b border-slate-100">
                         <span />
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-20 text-right">Dias Úteis</span>
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-20 text-right">Fins de Sem.</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Dias Úteis</span>
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Fins de Sem.</span>
                       </div>
                       {/* Almoço */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3">
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Almoço</span>
                         </div>
-                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
-                          {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
-                        </span>
-                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
-                          {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
-                        </span>
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.weekdayLunch} onChange={v => setEditFormData(f => f ? { ...f, weekdayLunch: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
+                            {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
+                          </span>
+                        )}
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.weekendLunch} onChange={v => setEditFormData(f => f ? { ...f, weekendLunch: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
+                            {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
+                          </span>
+                        )}
                       </div>
                       {/* Jantar */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 bg-slate-50/30">
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 bg-slate-50/30">
                         <div className="flex items-center gap-1.5">
                           <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Jantar</span>
                         </div>
-                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
-                          {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
-                        </span>
-                        <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-20 text-right">
-                          {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
-                        </span>
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.weekdayDinner} onChange={v => setEditFormData(f => f ? { ...f, weekdayDinner: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
+                            {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
+                          </span>
+                        )}
+                        {isRhOrAdmin && !isReadOnly ? (
+                          <CurrencyInput value={editFormData.weekendDinner} onChange={v => setEditFormData(f => f ? { ...f, weekendDinner: v } : f)} className="w-24 h-7 text-xs text-right" />
+                        ) : (
+                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
+                            {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {/* ── Observações (Chat) ── */}
+                {editingItem && <BudgetChat entityType="actual" entityId={editingItem.id} />}
 
                 {/* ── Footer ── */}
                 <div className="border-t border-slate-100 bg-white">

@@ -571,3 +571,18 @@ export const insertPaymentCompanySchema = createInsertSchema(paymentCompanies).o
 
 export type PaymentCompany = typeof paymentCompanies.$inferSelect;
 export type InsertPaymentCompany = z.infer<typeof insertPaymentCompanySchema>;
+
+// Budget Notes (chat de auditoria para Planejado e Realizado)
+export const budgetNotes = pgTable("budget_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: text("entity_type").notNull(), // 'planned' | 'actual'
+  entityId: varchar("entity_id").notNull(),
+  authorId: varchar("author_id").notNull(),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBudgetNoteSchema = createInsertSchema(budgetNotes).omit({ id: true, createdAt: true });
+export type BudgetNote = typeof budgetNotes.$inferSelect;
+export type InsertBudgetNote = z.infer<typeof insertBudgetNoteSchema>;

@@ -1,0 +1,39 @@
+O Gemini disse
+Com essas novas diretrizes, o sistema passa de uma simples conferência para uma ferramenta de auditoria e decisão final. O RH agora assume o controle total para ajustar qualquer divergência antes da aprovação.
+
+Aqui está o prompt para o Replit realizar essas mudanças estruturais:
+
+🚀 Prompt: Implementação de "Decisão RH" e Sistema de Observações (Chat)
+Atue como Desenvolvedor Full-stack e Designer de UX.
+
+1. Transição para "Decisão RH":
+
+Substitua a lógica/aba de "Comparativo" por "Decisão RH".
+
+Poder Total de Edição: No modal de "Realizado" desta fase, libere todos os campos de input. O RH deve conseguir alterar não apenas as Diárias, mas também Mobilidade e Alimentação.
+
+Adicione um botão de ação principal: "Aprovar e Finalizar" (Verde esmeralda).
+
+2. Sistema de Observações (Chat de Auditoria):
+
+Dentro dos modais de Planejado, Realizado e Decisão RH, adicione uma nova seção chamada "Observações / Chat".
+
+Interface: Deve ser uma área de histórico de mensagens simples (estilo chat) ou um campo de texto (textarea) onde o gestor ou o RH podem deixar notas (ex: "Ajustado valor de KM conforme comprovante").
+
+As mensagens devem ter data, hora e o nome de quem comentou.
+
+3. Visualização nos Cards (As 3 Telas):
+
+Nos cards principais das telas de Planejado, Realizado e Decisão RH, adicione um indicador visual de comentários.
+
+Design: Um pequeno ícone de balão de chat (chat-bubble) no canto do card. Se houver um comentário novo ou não lido, adicione um ponto de notificação azul sobre o ícone.
+
+Se possível, exiba um "snippet" (prévia) do último comentário diretamente no card para facilitar a leitura sem precisar abrir o modal.
+
+4. Unificação Visual:
+
+Mantenha a paleta de azul do app para os elementos de chat e botões de decisão.
+
+Garanta que o campo de observação seja fácil de encontrar, preferencialmente logo acima do rodapé de totais do modal.
+
+Gere o código focando na persistência desses comentários entre as fases e na liberdade total de edição para o perfil de RH.

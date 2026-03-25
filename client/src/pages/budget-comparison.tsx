@@ -21,9 +21,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison, BudgetNote } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
+import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 
 const AVATAR_COLORS = [
   'bg-violet-500','bg-blue-500','bg-emerald-500','bg-orange-500',
@@ -86,6 +87,16 @@ export default function BudgetComparisonPage() {
       if (!selectedEventId) return null;
       const res = await fetch(`/api/budget-comparison?eventId=${selectedEventId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!selectedEventId,
+  });
+
+  const { data: eventNotes = [] } = useQuery<BudgetNote[]>({
+    queryKey: ["/api/budget-notes/by-event", "actual", selectedEventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-notes/by-event?entityType=actual&eventId=${selectedEventId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch event notes");
       return res.json();
     },
     enabled: !!selectedEventId,
@@ -830,7 +841,13 @@ export default function BudgetComparisonPage() {
                                   <UserX className="w-2.5 h-2.5" /> Não participou
                                 </span>
                               )}
+                              {eventNotes.length > 0 && (
+                                <BudgetNotesBadge notes={eventNotes} entityId={a.id} />
+                              )}
                             </div>
+                            {eventNotes.length > 0 && (
+                              <BudgetNotesSnippet notes={eventNotes} entityId={a.id} />
+                            )}
                             {/* Not-attended reason snippet */}
                             {isNotAttended && (row.planned as any)?.didNotAttendReason && (
                               <p className="text-[10px] italic mt-0.5 text-slate-400 leading-snug max-w-xs truncate">
@@ -1121,6 +1138,13 @@ export default function BudgetComparisonPage() {
                                 </div>
                               </div>
                             )}
+
+                            {/* ── Chat de Auditoria ── */}
+                            <BudgetChat
+                              entityType="actual"
+                              entityId={a.id}
+                              eventId={a.eventId}
+                            />
                           </div>
                         </div>
                       )}
@@ -1192,7 +1216,7 @@ export default function BudgetComparisonPage() {
                       disabled={selectedItems.size === 0}
                     >
                       <CheckCircle className="w-4 h-4 mr-1.5" />
-                      {selectedItems.size > 0 ? `Aprovar (${selectedItems.size})` : 'Aprovar'}
+                      {selectedItems.size > 0 ? `Aprovar e Finalizar (${selectedItems.size})` : 'Aprovar e Finalizar'}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
