@@ -1074,10 +1074,10 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-auto min-w-[140px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0 focus:border-b-[#0033CC]">
                   <SelectValue placeholder="Função" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[180px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
-                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Todas as funções</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[180px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.94)'}}>
+                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Todas as funções</SelectItem>
                   {uniqueFunctions.map(f => (
-                    <SelectItem key={f} value={f} className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">{f}</SelectItem>
+                    <SelectItem key={f} value={f} className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">{f}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1086,10 +1086,10 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-28 h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[140px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
-                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Todos</SelectItem>
-                  <SelectItem value="casa" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Casa</SelectItem>
-                  <SelectItem value="freela" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Freela</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[140px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.94)'}}>
+                  <SelectItem value="all" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Todos</SelectItem>
+                  <SelectItem value="casa" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Casa</SelectItem>
+                  <SelectItem value="freela" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Freela</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1097,12 +1097,12 @@ export default function BudgetPlannedPage() {
                 <SelectTrigger className="w-auto min-w-[120px] h-[34px] text-xs shrink-0 bg-[#F8FAFC] border-0 border-b border-slate-200 rounded-none rounded-t-md text-slate-600 shadow-none focus:ring-0">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[160px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.92)'}}>
-                  <SelectItem value="name_asc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Nome A-Z</SelectItem>
-                  <SelectItem value="name_desc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Nome Z-A</SelectItem>
-                  <SelectItem value="days_desc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Mais Dias</SelectItem>
-                  <SelectItem value="days_asc" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Menos Dias</SelectItem>
-                  <SelectItem value="function" className="rounded-lg text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-700 focus:bg-blue-50 focus:text-blue-700">Por Função</SelectItem>
+                <SelectContent className="rounded-xl shadow-xl border border-slate-100 min-w-[160px] p-1" style={{backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', background:'rgba(255,255,255,0.94)'}}>
+                  <SelectItem value="name_asc" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Nome A-Z</SelectItem>
+                  <SelectItem value="name_desc" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Nome Z-A</SelectItem>
+                  <SelectItem value="days_desc" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Mais Dias</SelectItem>
+                  <SelectItem value="days_asc" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Menos Dias</SelectItem>
+                  <SelectItem value="function" className="rounded-lg text-xs cursor-pointer border-l-[3px] border-l-transparent data-[highlighted]:bg-blue-50 data-[highlighted]:text-blue-600 data-[highlighted]:border-l-blue-500 focus:bg-blue-50 focus:text-blue-600">Por Função</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1292,21 +1292,21 @@ export default function BudgetPlannedPage() {
                               <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
                                 {formatCurrency(budget.subtotalDiarias)}
                               </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              <div className="flex flex-col gap-y-2.5 mt-auto">
                                 {budget.weekdays > 0 && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">{formatDiasUteis(budget.weekdays)}</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>{formatDiasUteis(budget.weekdays)}</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
                                   </div>
                                 )}
                                 {budget.weekends > 0 && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">{formatFds(budget.weekends)}</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>{formatFds(budget.weekends)}</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
                                   </div>
                                 )}
                                 {budget.weekdays === 0 && budget.weekends === 0 && (
-                                  <div className="text-[11px] leading-relaxed" style={{color:'#CBD5E1'}}>—</div>
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
                                 )}
                               </div>
                             </div>
@@ -1320,21 +1320,21 @@ export default function BudgetPlannedPage() {
                               <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
                                 {formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}
                               </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              <div className="flex flex-col gap-y-2.5 mt-auto">
                                 {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">Semana</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>Semana</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
                                   </div>
                                 )}
                                 {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">Fim de semana</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>Fim de semana</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
                                   </div>
                                 )}
                                 {budget.almocoSemana === 0 && budget.jantarSemana === 0 && budget.almocoFds === 0 && budget.jantarFds === 0 && (
-                                  <div className="text-[11px] leading-relaxed" style={{color:'#CBD5E1'}}>—</div>
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
                                 )}
                               </div>
                             </div>
@@ -1348,21 +1348,21 @@ export default function BudgetPlannedPage() {
                               <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
                                 {formatCurrency(budget.mobilidade)}
                               </div>
-                              <div className="flex flex-col gap-y-2 mt-auto">
+                              <div className="flex flex-col gap-y-2.5 mt-auto">
                                 {budget.mobilidadeIda > 0 && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">Ida</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>Ida</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeVolta > 0 && (
-                                  <div className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed" style={{color:'#64748B'}}>
-                                    <span className="shrink-0">Volta</span>
-                                    <span className="font-semibold tabular-nums shrink-0" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] leading-tight" style={{color:'#94A3B8'}}>Volta</span>
+                                    <span className="font-bold tabular-nums text-right text-[11px] leading-tight" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
                                   </div>
                                 )}
                                 {budget.mobilidadeIda === 0 && budget.mobilidadeVolta === 0 && (
-                                  <div className="text-[11px] leading-relaxed" style={{color:'#CBD5E1'}}>—</div>
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
                                 )}
                               </div>
                             </div>
