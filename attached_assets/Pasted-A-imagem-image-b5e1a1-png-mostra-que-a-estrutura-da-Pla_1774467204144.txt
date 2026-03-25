@@ -1,0 +1,47 @@
+A imagem image_b5e1a1.png mostra que a estrutura da Planilha de Edição ficou excelente! A divisão por abas resolveu o problema do espaço.
+
+No entanto, para que essa tabela tenha um verdadeiro "feeling" de software financeiro enterprise (como uma planilha do Excel ou Google Sheets), precisamos ajustar o contraste, o alinhamento e a indicação visual de que os campos são editáveis.
+
+Aqui estão os pontos de melhoria e o prompt para você rodar:
+
+🎨 O que melhorar:
+Cores dos Nomes: O nome do colaborador (ex: Aroldo Francisco) está num tom de verde/teal. Isso quebra a identidade visual limpa (Azul/Cinza) que construímos. Vamos voltar para um cinza escuro ou preto elegante.
+
+Aparência de "Input": Atualmente, os valores (R$ 50,00) parecem textos estáticos. O usuário precisa bater o olho e entender: "Eu posso clicar aqui e digitar". Faremos isso colocando um fundo cinza muito sutil (bg-slate-50) nos campos editáveis.
+
+Alinhamento Numérico (A Regra de Ouro): Em tabelas financeiras, números devem ser sempre alinhados à direita para que as vírgulas e centavos fiquem perfeitamente um embaixo do outro.
+
+Destaque do Subtotal: A coluna de subtotal não é editável (é um cálculo). Vamos dar a ela um fundo levemente azulado para separá-la da área de digitação.
+
+🚀 Prompt: Refino Premium da Tabela de Edição
+Atue como Desenvolvedor Front-end Specialist e UI/UX Designer. > Objetivo: Refinar a aba "Planilha de Edição" para máxima usabilidade em digitação de dados.
+
+1. Cores e Tipografia (Coluna Colaborador):
+
+Remova a cor verde/teal do nome do colaborador. Altere para text-slate-900 font-semibold.
+
+Mantenha a função em text-slate-400 text-xs.
+
+2. Design dos Campos Editáveis (Inputs):
+
+Nas colunas "DIÁRIAS", "VALOR/DIA", "ALIMENTAÇÃO" e "MOBILIDADE", os valores não devem ser apenas texto solto. Envolva-os em um input ou container simulando input com: bg-slate-50, rounded-md, border border-transparent, hover:border-slate-200, focus-within:ring-2 focus-within:ring-blue-500.
+
+Isso deixa claro que a célula é clicável e digitável.
+
+Atenção à cor: Lembre-se de remover os tons de roxo (purple) e usar os tons da paleta azul do sistema.
+
+3. Alinhamento de Planilha Financeira:
+
+Force o alinhamento à direita (text-right) para todas as colunas numéricas, incluindo os cabeçalhos dessas colunas.
+
+Use a classe font-mono para todos os números e valores em R$. Isso garante que os decimais fiquem verticalmente alinhados de forma cirúrgica.
+
+4. Separação da Coluna Calculada (Subtotal):
+
+Aplique um fundo sutil em toda a coluna SUBTOTAL (ex: bg-blue-50/30) para indicar visualmente que é uma coluna de "resultado" bloqueada para edição.
+
+Mantenha o valor final em text-blue-700 font-bold.
+
+5. Botão "Aplicar Valor Padrão":
+
+Dê um leve destaque a esse botão para não parecer desabilitado. Mude o texto para text-blue-600 com um fundo bg-blue-50 e adicione um ícone discreto (como um raio ou varinha mágica) ao lado do texto.

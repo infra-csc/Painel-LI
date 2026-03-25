@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2 } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Zap } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
@@ -1564,9 +1564,9 @@ export default function BudgetPlannedPage() {
                     filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
                     return updated;
                   })}
-                  className="text-xs px-3 py-1.5 rounded-lg text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1.5"
+                  className="text-xs px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <Zap className="w-3 h-3" />
                   Aplicar Valor Padrão em Todos
                 </button>
               </div>
@@ -1582,7 +1582,7 @@ export default function BudgetPlannedPage() {
                         <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Valor/dia</th>
                         <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Alimentação</th>
                         <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Mobilidade</th>
-                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-400 uppercase tracking-wider w-32">Subtotal</th>
+                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-500 uppercase tracking-wider w-32 bg-blue-50/40">Subtotal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1597,8 +1597,8 @@ export default function BudgetPlannedPage() {
                         const name = getCollaboratorName(budget.inclusion.collaboratorId);
                         const funcName = getFunctionName(budget.inclusion.functionId);
                         const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
-                        const cellCls = "bg-slate-50 focus-within:bg-white rounded-md px-2 py-1 ring-1 ring-transparent focus-within:ring-blue-100 transition-all flex items-center gap-1";
-                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5 select-all";
+                        const cellCls = "bg-slate-50 rounded-md px-2 py-1 border border-transparent hover:border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all flex items-center gap-1";
+                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5";
                         const disabled = isSent || isNotAttended;
                         const sid = budget.inclusion.id;
                         const buf = (field: string, fallback: string) =>
@@ -1619,7 +1619,7 @@ export default function BudgetPlannedPage() {
                             {/* Colaborador */}
                             <td className="px-4 py-2">
                               <div className="flex flex-col leading-tight">
-                                <span className={`text-sm font-medium ${isSent ? 'text-emerald-700' : isNotAttended ? 'line-through text-slate-400' : 'text-slate-700'}`}>{name}</span>
+                                <span className={`text-sm font-semibold ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-900'}`}>{name}</span>
                                 <span className="text-[10px] text-slate-400">{funcName}</span>
                               </div>
                               {isSent && (
@@ -1655,7 +1655,7 @@ export default function BudgetPlannedPage() {
                                   onChange={e => setbuf('vdia', e.target.value)}
                                   onBlur={commitBlur('valorDia', 'vdia')}
                                   onFocus={e => e.target.select()}
-                                  className={`${inputCls} text-purple-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                  className={`${inputCls} text-blue-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
                                 />
                               </div>
                             </td>
@@ -1692,8 +1692,8 @@ export default function BudgetPlannedPage() {
                               </div>
                             </td>
                             {/* Subtotal */}
-                            <td className="px-4 py-2 text-right">
-                              <span className={`text-sm font-mono font-semibold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-600'}`}>
+                            <td className="px-4 py-2 text-right bg-blue-50/30">
+                              <span className={`text-sm font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-700'}`}>
                                 {formatCurrency(budget.totalFinal)}
                               </span>
                               {hasOvr && !isSent && (
