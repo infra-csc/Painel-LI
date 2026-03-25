@@ -693,10 +693,16 @@ export default function BudgetPlannedPage() {
     mutationFn: async (budget: typeof calculatedBudgets[0]) => {
       return savePlannedAndSendToActual(budget, "Enviado do planejado");
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
       setConfirmSendSingle(null);
-      toast({ title: "Planejamento salvo com sucesso!", description: "Os custos e logística foram registrados. Envie o lote quando estiver pronto." });
+      const wasEdited = !!(variables as any).hasOverride;
+      toast({
+        title: wasEdited ? "Planejamento salvo com sucesso!" : "Enviado para o Realizado!",
+        description: wasEdited
+          ? "Os valores editados foram registrados. Envie o lote quando estiver pronto."
+          : "Os valores calculados foram enviados diretamente.",
+      });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
@@ -1336,11 +1342,11 @@ export default function BudgetPlannedPage() {
                           {!isSent && (
                             <Button 
                               variant="ghost" size="icon" 
-                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                              title="Salvar planejamento"
+                              className={`h-8 w-8 rounded-lg ${budget.hasOverride ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'}`}
+                              title={budget.hasOverride ? "Salvar planejamento editado" : "Enviar para o Realizado"}
                               onClick={() => setConfirmSendSingle(budget)}
                             >
-                              <Save className="w-3.5 h-3.5" />
+                              {budget.hasOverride ? <Save className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
                             </Button>
                           )}
                           <Button 
@@ -1889,67 +1895,87 @@ export default function BudgetPlannedPage() {
       <Dialog open={!!confirmSendSingle} onOpenChange={v => { if (!sendToActualMutation.isPending) { if (!v) setConfirmSendSingle(null); } }}>
         <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
           <DialogHeader className="sr-only"><DialogTitle>Salvar Planejamento</DialogTitle></DialogHeader>
-          {confirmSendSingle && (
-            <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
-              style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
-              {/* Ícone Save */}
-              <div className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
-                <Save style={{color:'#2563EB', width:20, height:20}} />
-              </div>
-              {/* Título + subtítulo colaborador */}
-              <div className="text-center space-y-1">
-                <h2 className="text-[15px] font-medium text-slate-800">Salvar Planejamento?</h2>
-                <p className="text-[12px] font-normal text-slate-400">
-                  {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
+          {confirmSendSingle && (() => {
+            const isEdited = !!confirmSendSingle.hasOverride;
+            return (
+              <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
+                style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
+                {/* Ícone: Save (editado) ou Send (envio direto) */}
+                <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={isEdited
+                    ? {background:'#EFF6FF', border:'1.5px solid #BFDBFE'}
+                    : {background:'#ECFDF5', border:'1.5px solid #A7F3D0'}
+                  }>
+                  {isEdited
+                    ? <Save style={{color:'#2563EB', width:20, height:20}} />
+                    : <Send style={{color:'#059669', width:20, height:20}} />
+                  }
+                </div>
+                {/* Título + colaborador */}
+                <div className="text-center space-y-1">
+                  <h2 className="text-[15px] font-medium text-slate-800">
+                    {isEdited ? 'Salvar Planejamento?' : 'Enviar para o Realizado?'}
+                  </h2>
+                  <p className="text-[12px] font-normal text-slate-400">
+                    {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
+                  </p>
+                </div>
+                {/* Resumo de custos */}
+                <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[12px] font-normal text-slate-500">Diárias</span>
+                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.subtotalDiarias)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
+                    <span className="text-[12px] font-normal text-slate-500">Alimentação</span>
+                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.almocoSemana + confirmSendSingle.jantarSemana + confirmSendSingle.almocoFds + confirmSendSingle.jantarFds)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
+                    <span className="text-[12px] font-normal text-slate-500">Mobilidade</span>
+                    <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.mobilidade)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3" style={{
+                    borderTop:'1px solid #F1F5F9',
+                    background: isEdited ? '#F8FAFF' : '#F0FDF4',
+                  }}>
+                    <span className="text-[12px] font-medium text-slate-600">Total planejado</span>
+                    <span className="text-[15px] font-medium" style={{color: isEdited ? '#2563EB' : '#059669'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
+                  </div>
+                </div>
+                {/* Mensagem de apoio */}
+                <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
+                  {isEdited
+                    ? 'As alterações nos custos e logística deste colaborador serão salvas. Você poderá enviar o lote completo para aprovação mais tarde.'
+                    : 'Os valores calculados serão enviados diretamente para o Realizado. Esta ação não pode ser desfeita.'
+                  }
                 </p>
+                {/* Botões */}
+                <div className="flex gap-2 w-full pt-1">
+                  <button
+                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 bg-transparent border border-slate-200 hover:bg-slate-50 transition-colors"
+                    onClick={() => setConfirmSendSingle(null)}
+                    disabled={sendToActualMutation.isPending}
+                  >
+                    {isEdited ? 'Continuar Editando' : 'Voltar'}
+                  </button>
+                  <button
+                    className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
+                    style={{background: isEdited ? '#2563EB' : '#059669'}}
+                    disabled={sendToActualMutation.isPending}
+                    onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
+                  >
+                    {sendToActualMutation.isPending ? (
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" />{isEdited ? 'Salvando...' : 'Enviando...'}</>
+                    ) : isEdited ? (
+                      <><Save className="w-3.5 h-3.5" />Confirmar e Salvar</>
+                    ) : (
+                      <><Send className="w-3.5 h-3.5" />Confirmar Envio</>
+                    )}
+                  </button>
+                </div>
               </div>
-              {/* Resumo de custos */}
-              <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <span className="text-[12px] font-normal text-slate-500">Diárias</span>
-                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.subtotalDiarias)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
-                  <span className="text-[12px] font-normal text-slate-500">Alimentação</span>
-                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.almocoSemana + confirmSendSingle.jantarSemana + confirmSendSingle.almocoFds + confirmSendSingle.jantarFds)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9'}}>
-                  <span className="text-[12px] font-normal text-slate-500">Mobilidade</span>
-                  <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.mobilidade)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9', background:'#F8FAFF'}}>
-                  <span className="text-[12px] font-medium text-slate-600">Total planejado</span>
-                  <span className="text-[15px] font-medium" style={{color:'#2563EB'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
-                </div>
-              </div>
-              {/* Mensagem de apoio */}
-              <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
-                As alterações nos custos e logística deste colaborador serão salvas. Você poderá enviar o lote completo para aprovação mais tarde.
-              </p>
-              {/* Botões */}
-              <div className="flex gap-2 w-full pt-1">
-                <button
-                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 bg-transparent border border-slate-200 hover:bg-slate-50 transition-colors"
-                  onClick={() => setConfirmSendSingle(null)}
-                  disabled={sendToActualMutation.isPending}
-                >
-                  Continuar Editando
-                </button>
-                <button
-                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70"
-                  disabled={sendToActualMutation.isPending}
-                  onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
-                >
-                  {sendToActualMutation.isPending ? (
-                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Salvando...</>
-                  ) : (
-                    <><Save className="w-3.5 h-3.5" />Confirmar e Salvar</>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
