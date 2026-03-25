@@ -734,7 +734,7 @@ export default function BudgetPlannedPage() {
   };
 
   return (
-    <div className="space-y-7 max-w-5xl mx-auto pb-24">
+    <div className="space-y-7 max-w-5xl mx-auto pb-32">
 
       {/* ── Cabeçalho ── */}
       <div className="flex items-center justify-between">
@@ -1188,6 +1188,12 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center gap-1 mt-0.5 overflow-hidden flex-wrap">
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                              {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap flex items-center gap-1">
+                                  <Calendar className="w-2.5 h-2.5 shrink-0" />
+                                  {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                                </span>
+                              )}
                               {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
                               {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
@@ -1264,13 +1270,6 @@ export default function BudgetPlannedPage() {
                       {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
                         <div className="px-4 pt-3 pb-3 flex-1 flex flex-col gap-3">
-                          {/* Período */}
-                          {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                              <Calendar className="w-3 h-3 shrink-0" />
-                              {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-                            </div>
-                          )}
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
                           <div className="flex flex-col gap-2">
                             {/* ── Diárias ── */}
@@ -1950,51 +1949,51 @@ export default function BudgetPlannedPage() {
           borderTop: '1px solid #E2E8F0',
           boxShadow: '0 -4px 32px rgba(0,0,0,0.07), 0 -1px 4px rgba(0,0,0,0.04)',
         }}>
-          <div style={{maxWidth: 1024, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 20}}>
+          <div style={{maxWidth: 1024, margin: '0 auto', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 24}}>
 
-            {/* Esquerda: texto informativo */}
-            <div style={{flexShrink: 0}}>
+            {/* Esquerda: Total do Evento — destaque principal */}
+            <div style={{flexShrink: 0, borderRight: '1px solid #E2E8F0', paddingRight: 24}}>
               <div style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8', marginBottom: 2}}>
-                Progresso do Envio
+                Valor Total do Evento
               </div>
               <div style={{
-                fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em',
-                color: stats.progressoEnvio >= 100 ? '#059669' : '#1E293B',
+                fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em',
+                color: '#0033CC', fontVariantNumeric: 'tabular-nums',
+                fontFeatureSettings: '"tnum"',
               }}>
-                {stats.enviados} de {stats.total} enviados
-                {stats.progressoEnvio >= 100 && (
-                  <span style={{marginLeft: 6, fontSize: 12}}>✓</span>
-                )}
+                {formatCurrency(totalGeral)}
               </div>
             </div>
 
-            {/* Centro: barra de progresso elegante */}
+            {/* Centro: progresso do envio */}
             <div style={{flex: 1}}>
-              <div style={{
-                height: 8,
-                borderRadius: 9999,
-                overflow: 'hidden',
-                background: '#F1F5F9',
-              }}>
+              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 6}}>
+                <div style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8'}}>
+                  Progresso do Envio
+                </div>
                 <div style={{
-                  height: '100%',
-                  borderRadius: 9999,
+                  fontSize: 12, fontWeight: 800, letterSpacing: '-0.01em',
+                  color: stats.progressoEnvio >= 100 ? '#059669' : '#1E293B',
+                }}>
+                  {stats.enviados} de {stats.total} enviados
+                  {stats.progressoEnvio >= 100 && <span style={{marginLeft: 4}}>✓</span>}
+                </div>
+              </div>
+              <div style={{height: 6, borderRadius: 9999, overflow: 'hidden', background: '#F1F5F9'}}>
+                <div style={{
+                  height: '100%', borderRadius: 9999,
                   transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
                   width: `${stats.progressoEnvio}%`,
                   background: stats.progressoEnvio >= 100
                     ? '#059669'
                     : 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 60%, #059669 100%)',
                   boxShadow: stats.progressoEnvio >= 100
-                    ? '0 0 10px rgba(5,150,105,0.5), 0 0 20px rgba(5,150,105,0.25)'
+                    ? '0 0 8px rgba(5,150,105,0.5), 0 0 16px rgba(5,150,105,0.25)'
                     : 'none',
                 }} />
               </div>
-              <div style={{display:'flex', justifyContent:'space-between', marginTop: 4}}>
-                <span style={{fontSize: 9, color: '#CBD5E1', fontWeight: 600}}>0%</span>
-                <span style={{
-                  fontSize: 9, fontWeight: 700,
-                  color: stats.progressoEnvio >= 100 ? '#059669' : '#94A3B8',
-                }}>
+              <div style={{display:'flex', justifyContent:'flex-end', marginTop: 3}}>
+                <span style={{fontSize: 9, fontWeight: 700, color: stats.progressoEnvio >= 100 ? '#059669' : '#94A3B8'}}>
                   {Math.round(stats.progressoEnvio)}%
                 </span>
               </div>
@@ -2004,9 +2003,8 @@ export default function BudgetPlannedPage() {
             {stats.progressoEnvio >= 100 ? (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 20px', borderRadius: 12,
-                background: '#F0FDF4', border: '1px solid #BBF7D0',
-                flexShrink: 0,
+                padding: '8px 18px', borderRadius: 12,
+                background: '#F0FDF4', border: '1px solid #BBF7D0', flexShrink: 0,
               }}>
                 <CheckCheck className="w-4 h-4" style={{color:'#059669'}} />
                 <span style={{fontSize: 13, fontWeight: 700, color: '#059669'}}>Todos Enviados</span>
@@ -2017,23 +2015,17 @@ export default function BudgetPlannedPage() {
                 disabled={selectedCards.size === 0}
                 className="shrink-0 gap-2 font-semibold text-sm"
                 style={{
-                  height: 40,
-                  paddingLeft: 20,
-                  paddingRight: 20,
+                  height: 38,
+                  paddingLeft: 18, paddingRight: 18,
                   borderRadius: 12,
-                  background: selectedCards.size > 0
-                    ? '#059669'
-                    : '#E2E8F0',
+                  background: selectedCards.size > 0 ? '#059669' : '#E2E8F0',
                   color: selectedCards.size > 0 ? '#fff' : '#94A3B8',
                   boxShadow: selectedCards.size > 0 ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
-                  border: 'none',
-                  transition: 'all 0.2s ease',
+                  border: 'none', transition: 'all 0.2s ease',
                 }}
               >
                 <Send className="w-3.5 h-3.5" />
-                {selectedCards.size > 0
-                  ? `Enviar Selecionados (${selectedCards.size})`
-                  : 'Selecione para Enviar'}
+                {selectedCards.size > 0 ? `Enviar Selecionados (${selectedCards.size})` : 'Selecione para Enviar'}
               </Button>
             )}
           </div>
