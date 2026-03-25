@@ -1900,42 +1900,39 @@ export default function BudgetPlannedPage() {
       </Dialog>
 
       <Dialog open={!!notAttendedModal} onOpenChange={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}>
-        <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+        <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
           <DialogHeader className="sr-only">
-            <DialogTitle>Marcar como não participou</DialogTitle>
+            <DialogTitle>Confirmar Ausência</DialogTitle>
           </DialogHeader>
 
-          {/* Header azul */}
-          <div className="px-5 pt-5 pb-5" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-[10px] flex items-center justify-center shrink-0" style={{background:'rgba(255,255,255,0.15)', border:'1.5px solid rgba(255,255,255,0.25)'}}>
-                <UserX className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-white/60 uppercase tracking-widest font-bold">Marcar como não participou</p>
-                {notAttendedModal && (
-                  <>
-                    <h2 className="text-[17px] font-bold text-white leading-tight mt-0.5">{notAttendedModal.name}</h2>
-                    <p className="text-[12px] text-white/70">{notAttendedModal.functionName}</p>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Corpo */}
           {notAttendedModal && (
-            <div className="px-5 py-4 space-y-4 bg-white">
-              <p className="text-[13px] text-slate-500 leading-relaxed">
-                Este colaborador será <span className="font-semibold text-slate-700">excluído do cálculo financeiro</span> do planejado. Os valores não serão contabilizados nos totais.
+            <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
+              style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
+
+              {/* Ícone centralizado */}
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{background:'#FFF7ED', border:'1.5px solid #FED7AA'}}>
+                <UserX className="w-6 h-6" style={{color:'#D97706'}} />
+              </div>
+
+              {/* Título + subtítulo */}
+              <div className="text-center space-y-1">
+                <h2 className="text-[16px] font-medium text-slate-800 leading-snug">Confirmar Ausência?</h2>
+                <p className="text-[12px] font-medium" style={{color:'#94A3B8'}}>{notAttendedModal.name} · {notAttendedModal.functionName}</p>
+              </div>
+
+              {/* Texto explicativo */}
+              <p className="text-center text-[13px] text-slate-500 leading-relaxed">
+                Você está marcando que este colaborador não participou deste evento. Os cálculos de diárias e custos associados serão removidos dos totais.
               </p>
 
-              <div>
-                <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                  Motivo <span className="text-slate-300 font-normal normal-case tracking-normal">(opcional)</span>
+              {/* Campo motivo */}
+              <div className="w-full">
+                <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 block mb-1.5">
+                  Motivo <span className="normal-case tracking-normal font-normal text-slate-300">(opcional)</span>
                 </label>
                 <Textarea
-                  className="mt-2 rounded-xl text-sm resize-none border-slate-200 focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10"
+                  className="w-full rounded-xl text-[13px] resize-none border-slate-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-slate-300"
                   value={notAttendedReason}
                   onChange={e => setNotAttendedReason(e.target.value)}
                   placeholder='Ex: "Desistência", "Problema de saúde", "Substituído"...'
@@ -1944,17 +1941,20 @@ export default function BudgetPlannedPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-1">
-                <Button
-                  variant="ghost"
-                  className="h-9 px-4 text-slate-500 hover:text-slate-700 rounded-lg text-sm"
+              {/* Botões */}
+              <div className="flex gap-2 w-full pt-1">
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 transition-colors"
+                  style={{background:'#F8FAFC', border:'1px solid #E2E8F0'}}
                   onClick={() => { setNotAttendedModal(null); setNotAttendedReason(""); }}
                 >
                   Cancelar
-                </Button>
-                <Button
-                  className="h-9 px-5 text-white font-semibold rounded-lg text-sm gap-2"
-                  style={{background:'#0033CC', boxShadow:'0 4px 12px #0033CC40'}}
+                </button>
+                <button
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-60"
+                  style={{background:'#D97706', filter: 'brightness(1)'}}
+                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.94)')}
+                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                   onClick={() => {
                     if (notAttendedModal.id) {
                       toggleNotAttendedMutation.mutate({ id: notAttendedModal.id, reason: notAttendedReason });
@@ -1966,7 +1966,7 @@ export default function BudgetPlannedPage() {
                 >
                   <UserX className="w-3.5 h-3.5" />
                   {(toggleNotAttendedMutation.isPending || createAndMarkNotAttendedMutation.isPending) ? 'Confirmando...' : 'Confirmar'}
-                </Button>
+                </button>
               </div>
             </div>
           )}
