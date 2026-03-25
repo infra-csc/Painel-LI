@@ -114,6 +114,13 @@
   }
 }
 
+/* Stepper active step ping */
+@keyframes stepperPing {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  70%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
 /* Command palette entry animation */
 @keyframes cmdPaletteIn {
   from { opacity: 0; transform: scale(0.94) translateY(-8px); }

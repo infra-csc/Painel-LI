@@ -800,19 +800,35 @@ export default function BudgetPlannedPage() {
               <div style={{height: 3, background: 'linear-gradient(90deg, #0033CC 0%, #4F7BF5 50%, #059669 100%)'}} />
 
               <div className="flex items-stretch">
-                {/* Total Planejado — destaque principal */}
-                <div className="px-7 py-5 flex flex-col justify-center gap-1" style={{
-                  background: 'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)',
-                  minWidth: 220,
+                {/* Total Planejado — hero section */}
+                <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden" style={{
+                  background: 'linear-gradient(160deg, #003DCC 0%, #1957E0 45%, #2563EB 100%)',
+                  minWidth: 230,
                 }}>
-                  <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-white/60">Total Planejado</p>
+                  {/* Textura sutil — círculos em opacidade baixíssima */}
+                  <div style={{
+                    position: 'absolute', inset: 0, pointerEvents: 'none',
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
+                    backgroundSize: '18px 18px',
+                  }} />
+                  {/* Brilho difuso canto inferior */}
+                  <div style={{
+                    position: 'absolute', bottom: -20, right: -20, width: 100, height: 100,
+                    borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+                    pointerEvents: 'none',
+                  }} />
+
+                  <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/50 relative">Total Planejado</p>
                   {selectedEvent?.startDate && (
-                    <p className="flex items-center gap-1 text-[10px] text-white/50">
+                    <p className="flex items-center gap-1 text-[10px] text-white/40 relative">
                       <Calendar className="w-2.5 h-2.5 shrink-0" />
                       {formatEventDate(selectedEvent.startDate)}
                     </p>
                   )}
-                  <div className="text-[32px] font-black text-white leading-none tracking-tight mt-1">{formatCurrency(totalGeral)}</div>
+                  <div className="text-[30px] font-semibold text-white leading-none tracking-tight mt-1.5 relative"
+                    style={{letterSpacing: '-0.03em'}}>
+                    {formatCurrency(totalGeral)}
+                  </div>
                 </div>
 
                 {/* Separador vertical */}
@@ -912,36 +928,44 @@ export default function BudgetPlannedPage() {
                         <div key={i} className="flex items-center flex-1">
                           <div className="flex flex-col items-center gap-2">
                             {/* Bolinha */}
-                            <div style={
-                              isDone ? {
-                                width: 32, height: 32, borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #059669, #34d399)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 2px 8px rgba(5,150,105,0.30)',
-                                flexShrink: 0,
-                              } : isActive ? {
-                                width: 36, height: 36, borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #0033CC, #1a4fd8)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 0 0 5px rgba(0,51,204,0.12), 0 0 16px rgba(0,51,204,0.25)',
-                                flexShrink: 0,
-                              } : {
-                                width: 32, height: 32, borderRadius: '50%',
-                                background: '#F1F5F9',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                flexShrink: 0,
-                              }
-                            }>
-                              {isDone ? (
-                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (
-                                <span style={{
-                                  fontSize: 12, fontWeight: 800,
-                                  color: isActive ? '#fff' : '#CBD5E1',
-                                }}>{i + 1}</span>
+                            <div style={{position: 'relative', flexShrink: 0}}>
+                              {/* Ping no step ativo */}
+                              {isActive && (
+                                <span className="stepper-ping" style={{
+                                  position: 'absolute', inset: -4,
+                                  borderRadius: '50%',
+                                  border: '2px solid rgba(0,51,204,0.35)',
+                                  animation: 'stepperPing 1.6s ease-out infinite',
+                                }} />
                               )}
+                              <div style={
+                                isDone ? {
+                                  width: 32, height: 32, borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, #059669, #34d399)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  boxShadow: '0 2px 8px rgba(5,150,105,0.30)',
+                                } : isActive ? {
+                                  width: 36, height: 36, borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, #0033CC, #1a4fd8)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  boxShadow: '0 0 0 4px rgba(0,51,204,0.10), 0 0 18px rgba(0,51,204,0.22)',
+                                } : {
+                                  width: 32, height: 32, borderRadius: '50%',
+                                  background: '#F1F5F9',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }
+                              }>
+                                {isDone ? (
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <span style={{
+                                    fontSize: 12, fontWeight: 800,
+                                    color: isActive ? '#fff' : '#CBD5E1',
+                                  }}>{i + 1}</span>
+                                )}
+                              </div>
                             </div>
                             {/* Labels */}
                             <div className="text-center">
@@ -1141,13 +1165,13 @@ export default function BudgetPlannedPage() {
                     <div 
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
-                      className={`rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group ${
-                        isNotAttended ? 'bg-slate-50 opacity-75 border-dashed border-slate-300' :
-                        highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-blue-100' :
-                        isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200' : 
-                        isSent ? 'bg-white border-indigo-200 opacity-85' :
-                        budget.hasOverride ? 'bg-white border-amber-200' : 'bg-white border-slate-200'
-                      }`}
+                      className={`rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col group ${
+                        isNotAttended ? 'bg-slate-50 opacity-75 border-dashed border-slate-300 shadow-sm' :
+                        highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
+                        isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
+                        isSent ? 'bg-white border-indigo-200 opacity-85 shadow-sm' :
+                        budget.hasOverride ? 'bg-white border-amber-200 shadow-sm' : 'bg-white border-slate-200 shadow-sm'
+                      } ${!isNotAttended && !isSelected ? 'hover:-translate-y-1 hover:shadow-[0_12px_36px_rgba(0,51,204,0.12)] hover:border-blue-200' : ''}`}
                     >
                       {/* stripe top */}
                       <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-indigo-400' : isNotAttended ? 'bg-slate-300' : 'bg-[#0033CC]'}`} />
@@ -1188,11 +1212,11 @@ export default function BudgetPlannedPage() {
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden">
-                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
-                              {isSent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 shrink-0 whitespace-nowrap">No Realizado</span>}
-                              {isNotAttended && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
+                            <div className="flex items-center gap-1 mt-0.5 overflow-hidden flex-wrap">
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
+                              {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 shrink-0 whitespace-nowrap">No Realizado</span>}
+                              {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
                             {isNotAttended && planRecord?.didNotAttendReason && (
                               <p className="text-[10px] text-slate-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
