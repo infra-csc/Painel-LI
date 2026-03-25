@@ -854,43 +854,25 @@ export default function BudgetActualPage() {
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="w-full max-w-md bg-white flex flex-col items-center justify-center text-center px-10 py-16"
-            style={{borderRadius:32, boxShadow:'0 20px 60px rgba(109,40,217,0.08), 0 4px 16px rgba(0,0,0,0.04)', border:'1px solid rgba(109,40,217,0.07)'}}>
-
-            {/* Ícone com glow */}
+        <div className="rounded-2xl border border-violet-100 shadow-md">
+          <div className="bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 rounded-2xl px-8 py-20 flex flex-col items-center justify-center text-center">
+            {/* Ícone */}
             <div className="relative w-24 h-24 mx-auto mb-8">
-              {/* Glow atrás */}
-              <div className="absolute inset-0 rounded-2xl"
-                style={{background:'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', filter:'blur(16px)', opacity:0.3, transform:'scale(1.2) translateY(4px)'}} />
-              {/* Ícone principal */}
-              <div className="relative w-24 h-24 rounded-2xl flex items-center justify-center"
-                style={{background:'linear-gradient(145deg, #8b5cf6 0%, #7c3aed 60%, #6d28d9 100%)', boxShadow:'0 8px 24px rgba(109,40,217,0.35)', transform:'rotate(-3deg)'}}>
-                <ClipboardCheck className="w-11 h-11 text-white" />
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-200 flex items-center justify-center -rotate-3">
+                <ClipboardCheck className="w-10 h-10 text-white" />
               </div>
-              {/* Badge verde */}
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{background:'linear-gradient(135deg, #34d399 0%, #059669 100%)', boxShadow:'0 0 0 3px white, 0 4px 10px rgba(5,150,105,0.4)'}}>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
                 <CheckCircle2 className="w-4 h-4 text-white" />
               </div>
             </div>
 
-            {/* Tipografia */}
-            <h2 className="text-xl font-medium text-slate-800 mb-2 tracking-tight">
-              Selecione um evento
-            </h2>
-            <p className="text-sm text-slate-400 max-w-[220px] mx-auto leading-relaxed mb-8">
-              Selecione um evento para iniciar a prestação de contas.
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
+              Registre a prestação de contas com os valores efetivamente gastos em cada escala.
             </p>
 
-            {/* Dropdown com lupa */}
-            <div className="w-full relative">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10">
-                <Search className="w-4 h-4 text-slate-400" />
-              </div>
-              <div className="[&>button]:rounded-xl [&>button]:bg-slate-50 [&>button]:border-slate-200 [&>button]:pl-9 [&>button]:h-11 [&>button]:text-slate-500 [&>button]:shadow-none [&>button]:w-full [&>button]:text-sm">
-                <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
-              </div>
+            <div className="max-w-sm w-full mx-auto mt-8">
+              <EventSearchSelect value={selectedEventId} onValueChange={v => { setSelectedEventId(v); setCollapsedCards(new Set()); }} events={eventsWithPlanned} />
             </div>
           </div>
         </div>
