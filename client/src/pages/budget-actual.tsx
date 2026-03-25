@@ -16,6 +16,7 @@ import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
 import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, TeamInclusion, BudgetComparison } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { useSidebar } from "@/contexts/sidebar-context";
 import { Link, useSearch } from "wouter";
 
 function CurrencyInput({ value, onChange, className, disabled }: {
@@ -111,6 +112,7 @@ export default function BudgetActualPage() {
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isCollapsed, isCompact, isFocusMode } = useSidebar();
   const qc = useQueryClient();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -1195,12 +1197,12 @@ export default function BudgetActualPage() {
       )}
 
       {selectedEventId && filteredItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 z-40" style={{boxShadow:'0 -4px 20px #6d28d910'}}>
+        <div className={`fixed bottom-0 right-0 z-40 px-6 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 transition-all duration-300 ${(isCollapsed || isFocusMode) ? 'left-0' : isCompact ? 'left-14' : 'left-[260px]'}`} style={{boxShadow:'0 -4px 20px #6d28d910'}}>
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-[9px] uppercase tracking-widest font-black text-violet-400">Total Realizado</div>
-                <div className="text-[18px] font-black tabular-nums leading-tight text-violet-700">{formatCurrency(totalRealizado)}</div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-violet-400">Total Realizado</div>
+                <div className="text-[18px] font-semibold tabular-nums leading-tight text-violet-700">{formatCurrency(totalRealizado)}</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div className="text-[11px] text-slate-400">
