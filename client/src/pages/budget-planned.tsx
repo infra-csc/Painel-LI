@@ -981,62 +981,104 @@ export default function BudgetPlannedPage() {
             })()}
 
             {/* ── KPI Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
               {/* Casa */}
-              <div className="rounded-xl bg-white shadow-sm border-0 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)', borderTop:'4px solid #3B82F6'}}>
-                <div className="px-4 py-4 flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{background:'#EFF6FF'}}>
-                    <Home className="w-4 h-4" style={{color:'#2563EB'}} />
+              <div className="rounded-2xl bg-white overflow-hidden" style={{
+                borderTop: '2px solid #3B82F6',
+                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              }}>
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
+                      <Home style={{width:13, height:13, color:'#2563EB'}} />
+                    </div>
+                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[9px] font-black tracking-[0.12em] uppercase mb-1" style={{color:'#94A3B8'}}>Casa</div>
-                    <div className="text-[19px] font-black leading-none" style={{color:'#1E293B', letterSpacing:'-0.02em'}}>{formatCurrency(stats.valorCasa)}</div>
-                    <div className="text-[10px] mt-1" style={{color:'#94A3B8'}}>{stats.totalCasa} colaborador{stats.totalCasa !== 1 ? 'es' : ''}</div>
+                  <div style={{fontSize:17, fontWeight:500, color:'#1E293B', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                    {formatCurrency(stats.valorCasa)}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Calendar style={{width:10, height:10, color:'#CBD5E1', flexShrink:0}} />
+                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>
+                      {stats.totalCasa} colaborador{stats.totalCasa !== 1 ? 'es' : ''}
+                      {selectedEvent?.startDate && selectedEvent?.endDate && (
+                        <span style={{color:'#CBD5E1'}}> · {new Date(selectedEvent.startDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – {new Date(selectedEvent.endDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Freela */}
-              <div className="rounded-xl bg-white shadow-sm border-0 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)', borderTop:'4px solid #F97316'}}>
-                <div className="px-4 py-4 flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{background:'#FFF7ED'}}>
-                    <UserCheck className="w-4 h-4" style={{color:'#EA580C'}} />
+              <div className="rounded-2xl bg-white overflow-hidden" style={{
+                borderTop: '2px solid #F97316',
+                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              }}>
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(234,88,12,0.08)'}}>
+                      <UserCheck style={{width:13, height:13, color:'#EA580C'}} />
+                    </div>
+                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Freela</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[9px] font-black tracking-[0.12em] uppercase mb-1" style={{color:'#94A3B8'}}>Freela</div>
-                    <div className="text-[19px] font-black leading-none" style={{color:'#1E293B', letterSpacing:'-0.02em'}}>{formatCurrency(stats.valorFreela)}</div>
-                    <div className="text-[10px] mt-1" style={{color:'#94A3B8'}}>{stats.totalFreela} colaborador{stats.totalFreela !== 1 ? 'es' : ''}</div>
+                  <div style={{fontSize:17, fontWeight:500, color:'#1E293B', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                    {formatCurrency(stats.valorFreela)}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Calendar style={{width:10, height:10, color:'#CBD5E1', flexShrink:0}} />
+                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>
+                      {stats.totalFreela} colaborador{stats.totalFreela !== 1 ? 'es' : ''}
+                      {selectedEvent?.startDate && selectedEvent?.endDate && (
+                        <span style={{color:'#CBD5E1'}}> · {new Date(selectedEvent.startDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – {new Date(selectedEvent.endDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Médio / Pessoa */}
-              <div className="rounded-xl bg-white shadow-sm border-0 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)', borderTop:'4px solid #7C3AED'}}>
-                <div className="px-4 py-4 flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{background:'#F5F3FF'}}>
-                    <Users className="w-4 h-4" style={{color:'#7C3AED'}} />
+              <div className="rounded-2xl bg-white overflow-hidden" style={{
+                borderTop: '2px solid #7C3AED',
+                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              }}>
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(124,58,237,0.08)'}}>
+                      <Users style={{width:13, height:13, color:'#7C3AED'}} />
+                    </div>
+                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Pessoa</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[9px] font-black tracking-[0.12em] uppercase mb-1" style={{color:'#94A3B8'}}>Médio / Pessoa</div>
-                    <div className="text-[19px] font-black leading-none" style={{color:'#7C3AED', letterSpacing:'-0.02em'}}>{formatCurrency(stats.media)}</div>
-                    <div className="text-[10px] mt-1" style={{color:'#94A3B8'}}>por colaborador</div>
+                  <div style={{fontSize:17, fontWeight:500, color:'#7C3AED', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                    {formatCurrency(stats.media)}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por colaborador</span>
                   </div>
                 </div>
               </div>
 
               {/* Médio / Dia */}
-              <div className="rounded-xl bg-white shadow-sm border-0 overflow-hidden" style={{boxShadow:'0 1px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.03)', borderTop:'4px solid #0D9488'}}>
-                <div className="px-4 py-4 flex items-center gap-3.5">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{background:'#F0FDFA'}}>
-                    <BarChart3 className="w-4 h-4" style={{color:'#0D9488'}} />
+              <div className="rounded-2xl bg-white overflow-hidden" style={{
+                borderTop: '2px solid #0D9488',
+                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              }}>
+                <div className="px-5 py-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(13,148,136,0.08)'}}>
+                      <BarChart3 style={{width:13, height:13, color:'#0D9488'}} />
+                    </div>
+                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Dia</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[9px] font-black tracking-[0.12em] uppercase mb-1" style={{color:'#94A3B8'}}>Médio / Dia</div>
-                    <div className="text-[19px] font-black leading-none" style={{color:'#0D9488', letterSpacing:'-0.02em'}}>{formatCurrency(stats.mediaPorDia)}</div>
-                    <div className="text-[10px] mt-1" style={{color:'#94A3B8'}}>por dia trabalhado</div>
+                  <div style={{fontSize:17, fontWeight:500, color:'#0D9488', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                    {formatCurrency(stats.mediaPorDia)}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por dia trabalhado</span>
                   </div>
                 </div>
               </div>
+
             </div>
 
             {/* ── Filtros e Busca — minimal ── */}
