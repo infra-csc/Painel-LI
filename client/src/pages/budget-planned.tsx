@@ -805,16 +805,25 @@ export default function BudgetPlannedPage() {
                   background: 'linear-gradient(160deg, #003DCC 0%, #1957E0 45%, #2563EB 100%)',
                   minWidth: 230,
                 }}>
-                  {/* Textura sutil — círculos em opacidade baixíssima */}
+                  {/* Mesh gradient — 3 blobs coloridos sobrepostos */}
                   <div style={{
                     position: 'absolute', inset: 0, pointerEvents: 'none',
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
-                    backgroundSize: '18px 18px',
+                    background: [
+                      'radial-gradient(ellipse 80% 60% at 0% 0%, rgba(99,140,255,0.35) 0%, transparent 60%)',
+                      'radial-gradient(ellipse 70% 80% at 100% 100%, rgba(0,20,120,0.40) 0%, transparent 55%)',
+                      'radial-gradient(ellipse 50% 50% at 50% 110%, rgba(79,123,245,0.20) 0%, transparent 60%)',
+                    ].join(', '),
                   }} />
-                  {/* Brilho difuso canto inferior */}
+                  {/* Grade pontilhada */}
                   <div style={{
-                    position: 'absolute', bottom: -20, right: -20, width: 100, height: 100,
-                    borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+                    position: 'absolute', inset: 0, pointerEvents: 'none',
+                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px)',
+                    backgroundSize: '20px 20px',
+                  }} />
+                  {/* Reflexo de vidro — faixa diagonal */}
+                  <div style={{
+                    position: 'absolute', top: 0, left: '-20%', width: '55%', height: '100%',
+                    background: 'linear-gradient(105deg, rgba(255,255,255,0.09) 0%, transparent 60%)',
                     pointerEvents: 'none',
                   }} />
 
@@ -1298,38 +1307,96 @@ export default function BudgetPlannedPage() {
                               {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
                             </div>
                           )}
-                          {/* 3 blocos sem bordas — fundos suaves */}
-                          <div className="grid grid-cols-3 gap-2">
+                          {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
+                          <div className="grid grid-cols-3 gap-2 items-stretch">
                             {/* Diárias */}
-                            <div className="rounded-2xl p-3" style={{background:'#EEF2FF'}}>
-                              <div className="flex items-center gap-1.5 mb-2">
+                            <div className="rounded-2xl flex flex-col" style={{background:'#EEF2FF', minHeight: 108, padding: '12px 14px 14px'}}>
+                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Calendar className="w-3 h-3 shrink-0" style={{color:'#0033CC'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#0033CC'}}>Diárias</span>
                               </div>
-                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.subtotalDiarias)}</div>
-                              <div className="mt-1.5 space-y-0.5">
-                                {budget.weekdays > 0 && <div className="text-[10px] tabular-nums" style={{color:'#4F7BF5'}}>{formatDiasUteis(budget.weekdays)} × {formatCurrency(budget.valorDiariaUtil)}</div>}
-                                {budget.weekends > 0 && <div className="text-[10px] tabular-nums" style={{color:'#6d28d9'}}>{formatFds(budget.weekends)} × {formatCurrency(budget.valorDiariaFds)}</div>}
+                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
+                                {formatCurrency(budget.subtotalDiarias)}
+                              </div>
+                              <div className="flex flex-col gap-y-1.5 mt-auto">
+                                {budget.weekdays > 0 && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>{formatDiasUteis(budget.weekdays)}</span>
+                                    <span style={{color:'#CBD5E1'}}>×</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#3B5FCC'}}>{formatCurrency(budget.valorDiariaUtil)}</span>
+                                  </div>
+                                )}
+                                {budget.weekends > 0 && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>{formatFds(budget.weekends)}</span>
+                                    <span style={{color:'#CBD5E1'}}>×</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#6d28d9'}}>{formatCurrency(budget.valorDiariaFds)}</span>
+                                  </div>
+                                )}
+                                {budget.weekdays === 0 && budget.weekends === 0 && (
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
+                                )}
                               </div>
                             </div>
+
                             {/* Alimentação */}
-                            <div className="rounded-2xl p-3" style={{background:'#FFF7ED'}}>
-                              <div className="flex items-center gap-1.5 mb-2">
+                            <div className="rounded-2xl flex flex-col" style={{background:'#FFF7ED', minHeight: 108, padding: '12px 14px 14px'}}>
+                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Utensils className="w-3 h-3 shrink-0" style={{color:'#EA580C'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#EA580C'}}>Alimentação</span>
                               </div>
-                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}</div>
+                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
+                                {formatCurrency(budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds)}
+                              </div>
+                              <div className="flex flex-col gap-y-1.5 mt-auto">
+                                {(budget.almocoSemana > 0 || budget.jantarSemana > 0) && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>Semana</span>
+                                    <span style={{color:'#CBD5E1'}}>·</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoSemana + budget.jantarSemana)}</span>
+                                  </div>
+                                )}
+                                {(budget.almocoFds > 0 || budget.jantarFds > 0) && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>Fim de semana</span>
+                                    <span style={{color:'#CBD5E1'}}>·</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#C2410C'}}>{formatCurrency(budget.almocoFds + budget.jantarFds)}</span>
+                                  </div>
+                                )}
+                                {budget.almocoSemana === 0 && budget.jantarSemana === 0 && budget.almocoFds === 0 && budget.jantarFds === 0 && (
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
+                                )}
+                              </div>
                             </div>
+
                             {/* Mobilidade */}
-                            <div className="rounded-2xl p-3" style={{background:'#F5F3FF'}}>
-                              <div className="flex items-center gap-1.5 mb-2">
+                            <div className="rounded-2xl flex flex-col" style={{background:'#F5F3FF', minHeight: 108, padding: '12px 14px 14px'}}>
+                              <div className="flex items-center gap-1.5" style={{marginBottom: 6}}>
                                 <Car className="w-3 h-3 shrink-0" style={{color:'#6d28d9'}} />
                                 <span className="text-[9px] font-black uppercase tracking-wide" style={{color:'#6d28d9'}}>Mobilidade</span>
                               </div>
-                              <div className="text-[15px] font-black tabular-nums" style={{color:'#1E293B'}}>{formatCurrency(budget.mobilidade)}</div>
-                              {(budget.mobilidadeIda > 0 || budget.mobilidadeVolta > 0) && (
-                                <div className="text-[9px] tabular-nums mt-0.5" style={{color:'#7C3AED'}}>Ida: {formatCurrency(budget.mobilidadeIda)} · Volta: {formatCurrency(budget.mobilidadeVolta)}</div>
-                              )}
+                              <div className="tabular-nums font-black" style={{fontSize: 16, color:'#1E293B', letterSpacing:'-0.01em', marginBottom: 8}}>
+                                {formatCurrency(budget.mobilidade)}
+                              </div>
+                              <div className="flex flex-col gap-y-1.5 mt-auto">
+                                {budget.mobilidadeIda > 0 && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>Ida</span>
+                                    <span style={{color:'#CBD5E1'}}>·</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeIda)}</span>
+                                  </div>
+                                )}
+                                {budget.mobilidadeVolta > 0 && (
+                                  <div className="flex items-baseline gap-1 text-[11px] leading-tight" style={{color:'#64748B'}}>
+                                    <span>Volta</span>
+                                    <span style={{color:'#CBD5E1'}}>·</span>
+                                    <span className="font-semibold tabular-nums" style={{color:'#6d28d9'}}>{formatCurrency(budget.mobilidadeVolta)}</span>
+                                  </div>
+                                )}
+                                {budget.mobilidadeIda === 0 && budget.mobilidadeVolta === 0 && (
+                                  <div className="text-[11px]" style={{color:'#CBD5E1'}}>—</div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
