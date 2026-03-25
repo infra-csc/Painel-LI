@@ -102,6 +102,7 @@ export default function BudgetPlannedPage() {
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
+  const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -1597,8 +1598,19 @@ export default function BudgetPlannedPage() {
                         const funcName = getFunctionName(budget.inclusion.functionId);
                         const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
                         const cellCls = "bg-slate-50 focus-within:bg-white rounded-md px-2 py-1 ring-1 ring-transparent focus-within:ring-blue-100 transition-all flex items-center gap-1";
-                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5";
+                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5 select-all";
                         const disabled = isSent || isNotAttended;
+                        const sid = budget.inclusion.id;
+                        const buf = (field: string, fallback: string) =>
+                          sheetInputValues[`${sid}:${field}`] ?? fallback;
+                        const setbuf = (field: string, val: string) =>
+                          setSheetInputValues(prev => ({ ...prev, [`${sid}:${field}`]: val }));
+                        const clearbuf = (field: string) =>
+                          setSheetInputValues(prev => { const n = {...prev}; delete n[`${sid}:${field}`]; return n; });
+                        const commitBlur = (field: 'qtdDiarias'|'valorDia'|'alimentacao'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+                          handleSheetEdit(budget, field, e.target.value);
+                          clearbuf(key);
+                        };
                         return (
                           <tr
                             key={budget.inclusion.id}
@@ -1620,11 +1632,13 @@ export default function BudgetPlannedPage() {
                             <td className="px-3 py-2">
                               <div className={cellCls}>
                                 <input
-                                  type="number" min="0" step="1"
+                                  type="text" inputMode="numeric"
                                   tabIndex={rowIdx * 4 + 1}
                                   disabled={disabled}
-                                  value={budget.qtdDiarias}
-                                  onChange={e => handleSheetEdit(budget, 'qtdDiarias', e.target.value)}
+                                  value={buf('qty', String(budget.qtdDiarias))}
+                                  onChange={e => setbuf('qty', e.target.value)}
+                                  onBlur={commitBlur('qtdDiarias', 'qty')}
+                                  onFocus={e => e.target.select()}
                                   className={`${inputCls} text-slate-700 w-14 ${disabled ? 'cursor-default opacity-60' : ''}`}
                                 />
                               </div>
@@ -1634,11 +1648,13 @@ export default function BudgetPlannedPage() {
                               <div className={cellCls}>
                                 <span className="text-[10px] text-slate-300 shrink-0">R$</span>
                                 <input
-                                  type="number" min="0" step="0.01"
+                                  type="text" inputMode="decimal"
                                   tabIndex={rowIdx * 4 + 2}
                                   disabled={disabled}
-                                  value={(budget.valorDiariaUtil / 100).toFixed(2)}
-                                  onChange={e => handleSheetEdit(budget, 'valorDia', e.target.value)}
+                                  value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                                  onChange={e => setbuf('vdia', e.target.value)}
+                                  onBlur={commitBlur('valorDia', 'vdia')}
+                                  onFocus={e => e.target.select()}
                                   className={`${inputCls} text-purple-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
                                 />
                               </div>
@@ -1648,11 +1664,13 @@ export default function BudgetPlannedPage() {
                               <div className={cellCls}>
                                 <span className="text-[10px] text-slate-300 shrink-0">R$</span>
                                 <input
-                                  type="number" min="0" step="0.01"
+                                  type="text" inputMode="decimal"
                                   tabIndex={rowIdx * 4 + 3}
                                   disabled={disabled}
-                                  value={foodTotal.toFixed(2)}
-                                  onChange={e => handleSheetEdit(budget, 'alimentacao', e.target.value)}
+                                  value={buf('alim', foodTotal.toFixed(2))}
+                                  onChange={e => setbuf('alim', e.target.value)}
+                                  onBlur={commitBlur('alimentacao', 'alim')}
+                                  onFocus={e => e.target.select()}
                                   className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
                                 />
                               </div>
@@ -1662,11 +1680,13 @@ export default function BudgetPlannedPage() {
                               <div className={cellCls}>
                                 <span className="text-[10px] text-slate-300 shrink-0">R$</span>
                                 <input
-                                  type="number" min="0" step="0.01"
+                                  type="text" inputMode="decimal"
                                   tabIndex={rowIdx * 4 + 4}
                                   disabled={disabled}
-                                  value={(budget.mobilidade / 100).toFixed(2)}
-                                  onChange={e => handleSheetEdit(budget, 'mobilidade', e.target.value)}
+                                  value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
+                                  onChange={e => setbuf('mob', e.target.value)}
+                                  onBlur={commitBlur('mobilidade', 'mob')}
+                                  onFocus={e => e.target.select()}
                                   className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
                                 />
                               </div>
