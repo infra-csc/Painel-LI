@@ -2151,23 +2151,27 @@ export default function BudgetPlannedPage() {
                 <span style={{fontSize: 13, fontWeight: 700, color: '#059669'}}>Todos Enviados</span>
               </div>
             ) : (
-              <Button
+              <button
                 onClick={() => selectedCards.size > 0 ? setConfirmSendOpen(true) : undefined}
                 disabled={selectedCards.size === 0}
-                className="shrink-0 gap-2 font-semibold text-sm"
                 style={{
-                  height: 38,
-                  paddingLeft: 18, paddingRight: 18,
-                  borderRadius: 12,
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  height: 38, paddingLeft: 18, paddingRight: 18,
+                  borderRadius: 12, border: 'none', cursor: selectedCards.size > 0 ? 'pointer' : 'not-allowed',
+                  flexShrink: 0,
                   background: selectedCards.size > 0 ? '#059669' : '#E2E8F0',
                   color: selectedCards.size > 0 ? '#fff' : '#94A3B8',
                   boxShadow: selectedCards.size > 0 ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
-                  border: 'none', transition: 'all 0.2s ease',
+                  fontSize: 13, fontWeight: 600,
+                  transition: 'all 0.2s ease',
+                  opacity: selectedCards.size === 0 ? 0.7 : 1,
                 }}
               >
-                <Send className="w-3.5 h-3.5" />
-                {selectedCards.size > 0 ? `Enviar Selecionados (${selectedCards.size})` : 'Selecione para Enviar'}
-              </Button>
+                <Send style={{width: 14, height: 14}} />
+                {selectedCards.size > 0
+                  ? `Enviar Planejamento (${selectedCards.size})`
+                  : 'Selecione colaboradores'}
+              </button>
             )}
           </div>
         </div>
