@@ -571,12 +571,11 @@ export default function BudgetComparisonPage() {
           {/* ── 3 Metric cards ── */}
           <div className="grid grid-cols-3 gap-3">
             {/* Planejado */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="h-[3px]" style={{background:'#0033CC'}} />
+            <div className="rounded-xl border border-blue-100 overflow-hidden" style={{background:'rgba(239,246,255,0.5)'}}>
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] uppercase text-blue-600 font-black tracking-widest">Total Planejado</p>
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
                     <DollarSign className="w-3.5 h-3.5 text-blue-600" />
                   </div>
                 </div>
@@ -586,12 +585,11 @@ export default function BudgetComparisonPage() {
             </div>
 
             {/* Realizado */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="h-[3px]" style={{background:'#6d28d9'}} />
+            <div className="rounded-xl border border-purple-100 overflow-hidden" style={{background:'rgba(245,243,255,0.5)'}}>
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] uppercase text-violet-600 font-black tracking-widest">Total Realizado</p>
-                  <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center">
                     <BarChart3 className="w-3.5 h-3.5 text-violet-600" />
                   </div>
                 </div>
@@ -601,24 +599,27 @@ export default function BudgetComparisonPage() {
             </div>
 
             {/* Diferença */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className={`h-[3px] ${totals.difference === 0 ? 'bg-slate-200' : totals.difference < 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <div className={`rounded-xl overflow-hidden border ${
+              totals.difference === 0 ? 'border-slate-100 bg-slate-50' :
+              totals.difference < 0 ? 'border-emerald-100 bg-emerald-50/50' :
+              'border-red-200 bg-red-50'
+            }`}>
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className={`text-[10px] uppercase font-black tracking-widest ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                     Diferença
                   </p>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${totals.difference === 0 ? 'bg-slate-50' : totals.difference < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${totals.difference === 0 ? 'bg-slate-100' : totals.difference < 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
                     {totals.difference === 0 ? <Minus className="w-3.5 h-3.5 text-slate-400" /> :
-                     totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> :
-                     <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
+                     totals.difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-600" /> :
+                     <TrendingUp className="w-3.5 h-3.5 text-red-600" />}
                   </div>
                 </div>
                 <p className={`text-2xl font-black tabular-nums ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                   {totals.difference > 0 ? '+' : totals.difference < 0 ? '−' : ''}{fmt(Math.abs(totals.difference))}
                 </p>
                 <div className="flex items-center gap-1.5 mt-1">
-                  <p className={`text-[10px] ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  <p className={`text-[10px] ${totals.difference === 0 ? 'text-slate-400' : totals.difference < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                     {totals.difference === 0 ? 'Sem diferença' : totals.difference < 0 ? 'Economia' : 'Acima do planejado'}
                   </p>
                   {totals.totalPlanned > 0 && totals.difference !== 0 && (
@@ -634,9 +635,9 @@ export default function BudgetComparisonPage() {
           </div>
 
           {/* ── Info banner ── */}
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/60 border border-emerald-200/60 rounded-xl">
-            <Info className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-            <span className="text-[11px] text-emerald-700">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <span className="text-[11px] text-slate-500">
               Valores referentes apenas às prestações enviadas para revisão pelo responsável de função
             </span>
           </div>
@@ -871,28 +872,26 @@ export default function BudgetComparisonPage() {
                         <div className="flex items-center gap-3 shrink-0">
                           {/* Mini values strip */}
                           <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
-                            <div className="px-3 py-1.5 text-center">
-                              <span className="text-[9px] uppercase text-blue-400 tracking-wider block font-black leading-tight">Plan.</span>
-                              <span className="text-xs tabular-nums text-blue-600 font-black">{fmt(plannedTotal)}</span>
+                            <div className="px-3 py-1.5 text-center min-w-[72px]">
+                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Plan.</span>
+                              <span className="text-sm tabular-nums text-blue-600 font-medium">{fmt(plannedTotal)}</span>
                             </div>
-                            <div className="px-3 py-1.5 text-center bg-violet-50/40">
-                              <span className="text-[9px] uppercase text-violet-400 tracking-wider block font-black leading-tight">Real.</span>
-                              <span className="text-xs tabular-nums text-violet-600 font-black">{fmt(actualTotal)}</span>
+                            <div className="px-3 py-1.5 text-center min-w-[72px] bg-violet-50/40">
+                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Real.</span>
+                              <span className="text-sm tabular-nums text-violet-600 font-medium">{fmt(actualTotal)}</span>
                             </div>
-                            <div className={`px-3 py-1.5 text-center ${hasDiff ? (diff > 0 ? 'bg-red-50/60' : 'bg-emerald-50/60') : ''}`}>
-                              <span className="text-[9px] uppercase text-slate-400 tracking-wider block font-black leading-tight">Dif.</span>
+                            <div className={`px-3 py-1.5 text-center min-w-[72px] ${hasDiff ? (diff > 0 ? 'bg-red-50/60' : 'bg-emerald-50/60') : ''}`}>
+                              <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
-                                <span className={`text-xs tabular-nums font-black ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                <span className={`text-sm tabular-nums font-medium ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                   {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-300 tabular-nums font-black">—</span>
+                                <span className="text-sm text-slate-300 tabular-nums font-medium">—</span>
                               )}
                             </div>
                           </div>
-                          <div className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                          </div>
+                          <ChevronDown className={`w-4 h-4 text-slate-400 hover:text-slate-700 transition-all duration-200 cursor-pointer ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </div>
 
@@ -1141,7 +1140,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-red-50 hover:bg-red-100 text-red-600 border-none shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'reject' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1157,7 +1156,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 border-none shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
@@ -1176,8 +1175,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-5 rounded-xl text-white font-bold shadow-md disabled:opacity-40"
-                      style={{background: '#059669'}}
+                      className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-500 hover:bg-emerald-600 shadow-md disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'approve' })}
                       disabled={selectedItems.size === 0}
                     >
