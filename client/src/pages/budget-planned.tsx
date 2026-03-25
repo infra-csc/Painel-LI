@@ -984,11 +984,11 @@ export default function BudgetPlannedPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
               {/* Casa */}
-              <div className="rounded-2xl bg-white overflow-hidden" style={{
-                borderTop: '2px solid #3B82F6',
-                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              <div className="rounded-2xl bg-white" style={{
+                borderTop: '3px solid #3B82F6',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
               }}>
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 pb-4">
                   <div className="flex items-center gap-2.5 mb-3">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
                       <Home style={{width:13, height:13, color:'#2563EB'}} />
@@ -1011,11 +1011,11 @@ export default function BudgetPlannedPage() {
               </div>
 
               {/* Freela */}
-              <div className="rounded-2xl bg-white overflow-hidden" style={{
-                borderTop: '2px solid #F97316',
-                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              <div className="rounded-2xl bg-white" style={{
+                borderTop: '3px solid #F97316',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
               }}>
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 pb-4">
                   <div className="flex items-center gap-2.5 mb-3">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(234,88,12,0.08)'}}>
                       <UserCheck style={{width:13, height:13, color:'#EA580C'}} />
@@ -1038,11 +1038,11 @@ export default function BudgetPlannedPage() {
               </div>
 
               {/* Médio / Pessoa */}
-              <div className="rounded-2xl bg-white overflow-hidden" style={{
-                borderTop: '2px solid #7C3AED',
-                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              <div className="rounded-2xl bg-white" style={{
+                borderTop: '3px solid #7C3AED',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
               }}>
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 pb-4">
                   <div className="flex items-center gap-2.5 mb-3">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(124,58,237,0.08)'}}>
                       <Users style={{width:13, height:13, color:'#7C3AED'}} />
@@ -1059,11 +1059,11 @@ export default function BudgetPlannedPage() {
               </div>
 
               {/* Médio / Dia */}
-              <div className="rounded-2xl bg-white overflow-hidden" style={{
-                borderTop: '2px solid #0D9488',
-                boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+              <div className="rounded-2xl bg-white" style={{
+                borderTop: '3px solid #0D9488',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
               }}>
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 pb-4">
                   <div className="flex items-center gap-2.5 mb-3">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(13,148,136,0.08)'}}>
                       <BarChart3 style={{width:13, height:13, color:'#0D9488'}} />
@@ -1433,16 +1433,16 @@ export default function BudgetPlannedPage() {
                         </div>
                       )}
 
-                      {/* ── Rodapé Total — faixa sólida distinta ── */}
+                      {/* ── Rodapé Total ── */}
                       <div style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 16px',
-                        background: isNotAttended ? '#F8FAFC' : 'linear-gradient(135deg, #EEF2FF 0%, #E8EEFF 100%)',
-                        borderTop: '1px solid #E0E7FF',
+                        padding: '10px 16px',
+                        background: isNotAttended ? '#F8FAFC' : '#F5F7FF',
+                        borderTop: '1px solid rgba(224,231,255,0.8)',
                         marginTop: 'auto',
                       }}>
-                        <span style={{fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94A3B8'}}>Total Planejado</span>
-                        <span style={{fontSize: 17, fontWeight: 900, color: isNotAttended ? '#94A3B8' : '#0033CC', letterSpacing: '-0.02em'}}>{formatCurrency(isNotAttended ? 0 : budget.totalFinal)}</span>
+                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#C7D2FE'}}>Total Planejado</span>
+                        <span style={{fontSize: 16, fontWeight: 500, color: isNotAttended ? '#CBD5E1' : '#0033CC', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums'}}>{formatCurrency(isNotAttended ? 0 : budget.totalFinal)}</span>
                       </div>
                     </div>
                   );
@@ -2013,18 +2013,18 @@ export default function BudgetPlannedPage() {
         }}>
           <div style={{maxWidth: 1024, margin: '0 auto', padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 24}}>
 
-            {/* Esquerda: Total do Evento — delicado, flutuante */}
-            <div style={{flexShrink: 0, paddingRight: 24, borderRight: '1px solid rgba(226,232,240,0.8)'}}>
-              <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#CBD5E1', marginRight: 8}}>
-                Total
-              </span>
-              <span style={{
+            {/* Esquerda: Total do Evento — label empilhado + valor */}
+            <div style={{flexShrink: 0, paddingRight: 24, borderRight: '1px solid rgba(226,232,240,0.6)'}}>
+              <div style={{fontSize: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#CBD5E1', marginBottom: 2}}>
+                Valor Total do Evento
+              </div>
+              <div style={{
                 fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em',
                 color: '#0033CC', fontVariantNumeric: 'tabular-nums',
-                fontFeatureSettings: '"tnum"',
+                fontFeatureSettings: '"tnum"', lineHeight: 1,
               }}>
                 {formatCurrency(totalGeral)}
-              </span>
+              </div>
             </div>
 
             {/* Centro: progresso do envio */}
