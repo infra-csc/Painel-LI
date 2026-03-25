@@ -1188,22 +1188,32 @@ export default function BudgetPlannedPage() {
                             {initials || '?'}
                           </div>
 
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="font-bold text-slate-800 text-[14px] truncate">{name}</span>
                               {budget.hasOverride && (
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
                               )}
+                              <span className="flex-1" />
+                              {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
+                                <span className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 400,
+                                    color: '#64748B',
+                                    background: 'transparent',
+                                    letterSpacing: '0.01em',
+                                  }}>
+                                  <Calendar style={{width:12, height:12, color:'#94A3B8', flexShrink:0}} />
+                                  {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                                  <span style={{color:'#CBD5E1', fontSize:10}}>–</span>
+                                  {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1 mt-0.5 overflow-hidden flex-wrap">
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
-                              {budget.inclusion.scheduleStartDate && budget.inclusion.scheduleEndDate && (
-                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap flex items-center gap-1">
-                                  <Calendar className="w-2.5 h-2.5 shrink-0" />
-                                  {new Date(budget.inclusion.scheduleStartDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → {new Date(budget.inclusion.scheduleEndDate + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}
-                                </span>
-                              )}
                               {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
                               {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
