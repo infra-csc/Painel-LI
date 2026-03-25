@@ -2002,12 +2002,12 @@ export default function BudgetPlannedPage() {
           <div style={{maxWidth: 1024, margin: '0 auto', padding: '9px 24px', display: 'flex', alignItems: 'center', gap: 24}}>
 
             {/* Esquerda: Total do Evento — label empilhado + valor */}
-            <div style={{flexShrink: 0, paddingRight: 24, borderRight: '1px solid rgba(226,232,240,0.6)'}}>
-              <div style={{fontSize: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#CBD5E1', marginBottom: 2}}>
+            <div style={{flexShrink: 0, paddingRight: 24, borderRight: '1px solid #E2E8F0'}}>
+              <div style={{fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94A3B8', marginBottom: 3}}>
                 Valor Total do Evento
               </div>
               <div style={{
-                fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em',
+                fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em',
                 color: '#0033CC', fontVariantNumeric: 'tabular-nums',
                 fontFeatureSettings: '"tnum"', lineHeight: 1,
               }}>
