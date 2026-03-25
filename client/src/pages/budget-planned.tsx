@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2 } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Save } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
@@ -696,7 +696,7 @@ export default function BudgetPlannedPage() {
     onSuccess: (data) => {
       setSentToActual(prev => { const s = new Set(Array.from(prev)); s.add(data.id); return s; });
       setConfirmSendSingle(null);
-      toast({ title: "Planejamento enviado com sucesso!", description: "Os dados foram enviados para o Realizado." });
+      toast({ title: "Planejamento salvo com sucesso!", description: "Os custos e logística foram registrados. Envie o lote quando estiver pronto." });
       qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
       qc.invalidateQueries({ queryKey: ["/api/budget-planned"] });
     },
@@ -1187,7 +1187,7 @@ export default function BudgetPlannedPage() {
                       } ${!isNotAttended && !isSelected ? 'hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-100/60 hover:border-blue-200' : ''}`}
                     >
                       {/* stripe top */}
-                      <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-indigo-400' : isNotAttended ? 'bg-slate-300' : 'bg-[#0033CC]'}`} />
+                      <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-blue-400' : isNotAttended ? 'bg-slate-300' : 'bg-[#0033CC]'}`} />
                       {/* ── Header do card — estado INATIVO (Não Participou) ── */}
                       {isNotAttended ? (
                         <div className="px-4 py-3 bg-white">
@@ -1296,7 +1296,13 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center gap-1 overflow-hidden flex-wrap">
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
-                              {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
+                              {isSent && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
+                                  style={{background:'#EFF6FF', color:'#2563EB', border:'1px solid #BFDBFE'}}>
+                                  <CheckCheck style={{width:10,height:10}} />
+                                  Salvo
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1330,11 +1336,11 @@ export default function BudgetPlannedPage() {
                           {!isSent && (
                             <Button 
                               variant="ghost" size="icon" 
-                              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
-                              title="Enviar para realização"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                              title="Salvar planejamento"
                               onClick={() => setConfirmSendSingle(budget)}
                             >
-                              <Send className="w-3.5 h-3.5" />
+                              <Save className="w-3.5 h-3.5" />
                             </Button>
                           )}
                           <Button 
@@ -1879,26 +1885,26 @@ export default function BudgetPlannedPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal Envio Individual ── */}
+      {/* ── Modal Salvar Planejamento Individual ── */}
       <Dialog open={!!confirmSendSingle} onOpenChange={v => { if (!sendToActualMutation.isPending) { if (!v) setConfirmSendSingle(null); } }}>
         <DialogContent className="max-w-sm p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
-          <DialogHeader className="sr-only"><DialogTitle>Enviar Planejamento</DialogTitle></DialogHeader>
+          <DialogHeader className="sr-only"><DialogTitle>Salvar Planejamento</DialogTitle></DialogHeader>
           {confirmSendSingle && (
             <div className="bg-white flex flex-col items-center px-6 pt-7 pb-6 gap-4"
               style={{animation:'modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both'}}>
-              {/* Ícone */}
+              {/* Ícone Save */}
               <div className="w-12 h-12 rounded-full flex items-center justify-center"
                 style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE'}}>
-                <Send style={{color:'#2563EB', width:20, height:20}} />
+                <Save style={{color:'#2563EB', width:20, height:20}} />
               </div>
-              {/* Título */}
+              {/* Título + subtítulo colaborador */}
               <div className="text-center space-y-1">
-                <h2 className="text-[15px] font-medium text-slate-800">Enviar Planejamento?</h2>
+                <h2 className="text-[15px] font-medium text-slate-800">Salvar Planejamento?</h2>
                 <p className="text-[12px] font-normal text-slate-400">
                   {getCollaboratorName(confirmSendSingle.inclusion.collaboratorId)} · {getFunctionName(confirmSendSingle.inclusion.functionId)}
                 </p>
               </div>
-              {/* Resumo */}
+              {/* Resumo de custos */}
               <div className="w-full rounded-2xl overflow-hidden" style={{border:'1px solid #E2E8F0'}}>
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-[12px] font-normal text-slate-500">Diárias</span>
@@ -1913,22 +1919,22 @@ export default function BudgetPlannedPage() {
                   <span className="text-[12px] font-medium text-slate-600">{formatCurrency(confirmSendSingle.mobilidade)}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid #F1F5F9', background:'#F8FAFF'}}>
-                  <span className="text-[12px] font-medium text-slate-600">Total</span>
+                  <span className="text-[12px] font-medium text-slate-600">Total planejado</span>
                   <span className="text-[15px] font-medium" style={{color:'#2563EB'}}>{formatCurrency(confirmSendSingle.totalFinal)}</span>
                 </div>
               </div>
-              {/* Mensagem */}
+              {/* Mensagem de apoio */}
               <p className="text-center text-[13px] font-normal text-slate-400 leading-relaxed">
-                As informações de custos e logística serão enviadas para aprovação. Deseja prosseguir?
+                As alterações nos custos e logística deste colaborador serão salvas. Você poderá enviar o lote completo para aprovação mais tarde.
               </p>
               {/* Botões */}
               <div className="flex gap-2 w-full pt-1">
                 <button
-                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                  className="flex-1 h-10 rounded-xl text-[13px] font-medium text-slate-500 bg-transparent border border-slate-200 hover:bg-slate-50 transition-colors"
                   onClick={() => setConfirmSendSingle(null)}
                   disabled={sendToActualMutation.isPending}
                 >
-                  Voltar
+                  Continuar Editando
                 </button>
                 <button
                   className="flex-1 h-10 rounded-xl text-[13px] font-medium text-white flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-70"
@@ -1936,9 +1942,9 @@ export default function BudgetPlannedPage() {
                   onClick={() => sendToActualMutation.mutate(confirmSendSingle as typeof calculatedBudgets[0])}
                 >
                   {sendToActualMutation.isPending ? (
-                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enviando...</>
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Salvando...</>
                   ) : (
-                    <><Send className="w-3.5 h-3.5" />Enviar</>
+                    <><Save className="w-3.5 h-3.5" />Confirmar e Salvar</>
                   )}
                 </button>
               </div>
