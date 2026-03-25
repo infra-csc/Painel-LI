@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork } from "lucide-react";
+import { ClipboardCheck, Edit, Trash2, Copy, Calendar, Car, Utensils, Moon, Sun, Briefcase, ChevronDown, ChevronUp, ArrowRight, ArrowLeft, Search, ArrowUpDown, Users, DollarSign, CheckCircle2, Send, BarChart3, Lock, TrendingDown, TrendingUp, AlertTriangle, Info, Eye, Clock, AlertCircle, CheckCheck, UserPlus, GitFork, Plus, Check } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
 import { SplitVagaModal } from "@/components/split-vaga-modal";
@@ -102,6 +102,8 @@ export default function BudgetActualPage() {
     mobilityIda: number;
     mobilityVolta: number;
   } | null>(null);
+  type DayEntry = { date: string; valueCents: number; active: boolean; isWeekend: boolean };
+  const [editDayEntries, setEditDayEntries] = useState<DayEntry[]>([]);
   const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("adjusted");
@@ -464,15 +466,29 @@ export default function BudgetActualPage() {
       mobilityIda: initIda,
       mobilityVolta: initVolta,
     });
+
+    // Build per-day entries from date range
+    const workedDaysList = item.workedDays as string[] | null | undefined;
+    const dayEntries: { date: string; valueCents: number; active: boolean; isWeekend: boolean }[] = [];
+    if (days.startDate && days.endDate) {
+      const cur = new Date(days.startDate + 'T00:00:00');
+      const endD = new Date(days.endDate + 'T00:00:00');
+      while (cur <= endD) {
+        const dateStr = cur.toISOString().split('T')[0];
+        const isWknd = isWeekendDate(dateStr);
+        const active = !workedDaysList || workedDaysList.length === 0 || workedDaysList.includes(dateStr);
+        dayEntries.push({ date: dateStr, valueCents: isWknd ? valorFds : valorUtil, active, isWeekend: isWknd });
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    setEditDayEntries(dayEntries);
   };
 
   const saveEdit = () => {
     if (!editingItem || !editFormData) return;
-    const days = getItemDayCounts(editingItem);
-    const subtotalDiariasUtil = days.weekdays * editFormData.valorDiariaUtil;
-    const subtotalDiariasFds = days.weekends * editFormData.valorDiariaFds;
-    const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
-    const qtdDiarias = days.weekdays + days.weekends;
+    const activeDays = editDayEntries.filter(d => d.active);
+    const subtotalDiarias = activeDays.reduce((sum, d) => sum + d.valueCents, 0);
+    const qtdDiarias = activeDays.length;
     const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
     const totalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
     const totalValue = subtotalDiarias + editFormData.weekdayLunch + editFormData.weekdayDinner +
@@ -1325,15 +1341,12 @@ export default function BudgetActualPage() {
           {editingItem && editFormData && (() => {
             const isReadOnly = editingItem.sentForReview && !["devolvido", "rejeitado"].includes(editingItem.rhStatus || "");
             const itemDays = getItemDayCounts(editingItem);
-            const subtotalDiariasUtil = itemDays.weekdays * editFormData.valorDiariaUtil;
-            const subtotalDiariasFds = itemDays.weekends * editFormData.valorDiariaFds;
-            const subtotalDiariasRaw = subtotalDiariasUtil + subtotalDiariasFds;
+            const activeDayEntries = editDayEntries.filter(d => d.active);
+            const subtotalDiariasRaw = activeDayEntries.reduce((sum, d) => sum + d.valueCents, 0);
             const modalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
             const modalTotalRaw = subtotalDiariasRaw + modalMobility + editFormData.weekdayLunch + editFormData.weekdayDinner +
               editFormData.weekendLunch + editFormData.weekendDinner;
             const modalTotal = Math.abs(modalTotalRaw - editingItem.totalValue) <= 1 ? editingItem.totalValue : modalTotalRaw;
-            const subtotalDiarias = modalTotal - modalMobility - editFormData.weekdayLunch - editFormData.weekdayDinner -
-              editFormData.weekendLunch - editFormData.weekendDinner;
             const totalAlimentacao = editFormData.weekdayLunch + editFormData.weekdayDinner + editFormData.weekendLunch + editFormData.weekendDinner;
             const isFromPlanned = !!editingItem.plannedId || editingItem.observations?.includes('Enviado do planejado');
             const rawPlannedModal = (() => {
@@ -1408,8 +1421,8 @@ export default function BudgetActualPage() {
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const pctChange = plannedTotal > 0 ? ((modalTotal - plannedTotal) / plannedTotal * 100) : 0;
 
-            const diffDiarias = subtotalDiarias - plannedSubDiarias;
-            const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiarias - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
+            const diffDiarias = subtotalDiariasRaw - plannedSubDiarias;
+            const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiariasRaw - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
 
             const isFieldChanged = (current: number, plannedVal: number) => planned && current !== plannedVal;
 
@@ -1422,7 +1435,7 @@ export default function BudgetActualPage() {
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background: '#6d28d9'}} className="px-6 pt-5 pb-4">
+                <div style={{background: '#1d4ed8'}} className="px-6 pt-5 pb-4">
                   <div className="flex items-start gap-3">
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
@@ -1496,84 +1509,116 @@ export default function BudgetActualPage() {
 
                   {/* ── Diárias ── */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-indigo-500" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50/60 border-b border-indigo-100">
+                    <div className="h-[3px] bg-blue-600" />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/50 border-b border-blue-100">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-indigo-500 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Diárias</span>
+                        <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
+                        <span className="text-[10px] text-blue-400 bg-blue-50 border border-blue-100 px-1.5 rounded-full">
+                          {activeDayEntries.length} {activeDayEntries.length === 1 ? 'dia ativo' : 'dias ativos'}
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-indigo-700 tabular-nums">{formatCurrency(subtotalDiarias)}</span>
+                      <span className="text-sm font-bold font-mono text-blue-700 tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
                     </div>
-                    {/* Integrated 3-col table: Item | Planejado | Realizado */}
-                    <div className="text-[11px]">
-                      <div className="grid grid-cols-[1fr_110px_150px] bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                        <span>Item</span>
-                        <span className="text-center">Planejado</span>
-                        <span className="text-right pr-2">Realizado/dia</span>
+                    {/* Col headers */}
+                    <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                      <span className="w-5" />
+                      <span>Data</span>
+                      <span className="text-right">Planejado</span>
+                      <span className="text-right pr-1">Realizado</span>
+                    </div>
+                    {/* Day rows */}
+                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                      {editDayEntries.length === 0 && (
+                        <div className="px-4 py-6 text-center text-[11px] text-slate-400">
+                          Nenhuma data no período da escalação
+                        </div>
+                      )}
+                      {editDayEntries.map((entry, idx) => {
+                        const date = new Date(entry.date + 'T00:00:00');
+                        const dayLabel = date.toLocaleDateString('pt-BR', { weekday: 'short' });
+                        const dateLabel = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        const plannedVal = entry.isWeekend ? plannedValorFds : plannedValorUtil;
+                        const isChanged = planned && plannedVal > 0 && entry.active && entry.valueCents !== plannedVal;
+                        return (
+                          <div
+                            key={entry.date}
+                            className={`grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 px-4 py-2 transition-colors
+                              ${!entry.active ? 'opacity-40 bg-slate-50/60' : 'hover:bg-blue-50/20'}`}
+                          >
+                            {/* Toggle */}
+                            <button
+                              type="button"
+                              disabled={isReadOnly}
+                              onClick={() => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, active: !e.active } : e))}
+                              className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors
+                                ${entry.active ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}
+                                ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+                            >
+                              {entry.active && <Check className="w-2.5 h-2.5" />}
+                            </button>
+                            {/* Date + label */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-[12px] font-semibold text-slate-700 tabular-nums">{dateLabel}</span>
+                              <span className="text-[10px] text-slate-400 capitalize">{dayLabel}</span>
+                              {entry.isWeekend && (
+                                <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 rounded-full shrink-0">FDS</span>
+                              )}
+                            </div>
+                            {/* Planned reference */}
+                            <div className="text-right">
+                              {planned && plannedVal > 0
+                                ? <span className="text-[10px] text-slate-400 font-mono tabular-nums">{formatCurrency(plannedVal)}</span>
+                                : <span className="text-[10px] text-slate-200">—</span>}
+                            </div>
+                            {/* Actual value input */}
+                            <CurrencyInput
+                              key={entry.date}
+                              value={entry.valueCents}
+                              onChange={v => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, valueCents: v } : e))}
+                              disabled={!entry.active || isReadOnly}
+                              className={`h-8 text-xs text-right w-24 border rounded-lg font-mono tabular-nums focus-visible:ring-2 focus-visible:ring-blue-300/60
+                                ${!entry.active || isReadOnly ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed' : isChanged ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Add extra day */}
+                    {!isReadOnly && (
+                      <div className="px-4 py-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const lastDate = editDayEntries.length > 0
+                              ? new Date(editDayEntries[editDayEntries.length - 1].date + 'T00:00:00')
+                              : new Date();
+                            lastDate.setDate(lastDate.getDate() + 1);
+                            const newDate = lastDate.toISOString().split('T')[0];
+                            const isWknd = isWeekendDate(newDate);
+                            const refVal = isWknd
+                              ? (editDayEntries.find(e => e.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0)
+                              : (editDayEntries.find(e => !e.isWeekend)?.valueCents ?? editDayEntries[0]?.valueCents ?? 0);
+                            setEditDayEntries(prev => [...prev, { date: newDate, valueCents: refVal, active: true, isWeekend: isWknd }]);
+                          }}
+                          className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors py-0.5"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Adicionar Dia Extra
+                        </button>
                       </div>
-                      {itemDays.weekdays > 0 && (
-                        <div className={`grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 ${itemDays.weekends > 0 ? 'border-b border-slate-50' : ''}`}>
-                          <div className="flex items-center gap-1.5">
-                            <Briefcase className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                            <span className="text-slate-600">Dias Úteis</span>
-                            <span className="text-[10px] text-slate-400 bg-indigo-50 border border-indigo-100 px-1.5 rounded-full">{itemDays.weekdays}d</span>
-                          </div>
-                          <div className="text-center">
-                            {planned && plannedValorUtil > 0 ? (
-                              <div>
-                                <div className="tabular-nums text-slate-500">{formatCurrency(plannedValorUtil)}/d</div>
-                                <div className="text-[9px] text-slate-400 tabular-nums">{formatCurrency(itemDays.weekdays * plannedValorUtil)}</div>
-                              </div>
-                            ) : <span className="text-slate-300">—</span>}
-                          </div>
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <CurrencyInput
-                              className={`h-9 text-sm text-right w-24 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${itemDays.weekdays === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                              value={editFormData.valorDiariaUtil}
-                              onChange={v => setEditFormData({...editFormData, valorDiariaUtil: v})}
-                              disabled={itemDays.weekdays === 0 || isReadOnly}
-                            />
-                            <span className="text-[10px] text-slate-400 flex-shrink-0">/d</span>
-                          </div>
-                        </div>
-                      )}
-                      {itemDays.weekends > 0 && (
-                        <div className="grid grid-cols-[1fr_110px_150px] items-center px-4 py-2.5 gap-2 bg-slate-50/40">
-                          <div className="flex items-center gap-1.5">
-                            <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                            <span className="text-slate-600">Fins de Semana</span>
-                            <span className="text-[10px] text-slate-400 bg-amber-50 border border-amber-100 px-1.5 rounded-full">{itemDays.weekends}d</span>
-                          </div>
-                          <div className="text-center">
-                            {planned && plannedValorFds > 0 ? (
-                              <div>
-                                <div className="tabular-nums text-slate-500">{formatCurrency(plannedValorFds)}/d</div>
-                                <div className="text-[9px] text-slate-400 tabular-nums">{formatCurrency(itemDays.weekends * plannedValorFds)}</div>
-                              </div>
-                            ) : <span className="text-slate-300">—</span>}
-                          </div>
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <CurrencyInput
-                              className={`h-9 text-sm text-right w-24 bg-slate-50 border-slate-200 rounded-lg font-medium focus-visible:ring-2 focus-visible:ring-violet-300/60 ${itemDays.weekends === 0 || isReadOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
-                              value={editFormData.valorDiariaFds}
-                              onChange={v => setEditFormData({...editFormData, valorDiariaFds: v})}
-                              disabled={itemDays.weekends === 0 || isReadOnly}
-                            />
-                            <span className="text-[10px] text-slate-400 flex-shrink-0">/d</span>
-                          </div>
-                        </div>
-                      )}
-                      {planned && Math.abs(diffDiarias) > 1 && (
-                        <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffDiarias < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                          <span className={`font-semibold tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {diffDiarias > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffDiarias))}
-                            {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    )}
+                    {/* Divergence bar */}
+                    {planned && Math.abs(diffDiarias) > 1 && (
+                      <div className={`px-4 py-1.5 text-center border-t border-slate-100 ${diffDiarias < 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                        <span className={`text-[11px] font-semibold tabular-nums ${diffDiarias < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {diffDiarias > 0 ? '+' : '−'}{formatCurrency(Math.abs(diffDiarias))}
+                          {plannedSubDiarias > 0 && <span className="ml-1 opacity-70">({diffDiarias > 0 ? '+' : ''}{pctDiarias.toFixed(0)}%)</span>}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Mobilidade ── */}
@@ -1821,7 +1866,7 @@ export default function BudgetActualPage() {
                           onClick={saveEdit}
                           disabled={updateMutation.isPending}
                           className="h-9 px-6 text-sm rounded-xl text-white shadow-md font-medium"
-                          style={{background: '#6d28d9'}}
+                          style={{background: '#1d4ed8'}}
                         >
                           <CheckCheck className="w-4 h-4 mr-2" />
                           {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
