@@ -1171,7 +1171,7 @@ export default function BudgetPlannedPage() {
                       key={budget.inclusion.id}
                       data-card-id={budget.inclusion.id}
                       className={`rounded-2xl border transition-all duration-500 ease-in-out overflow-hidden flex flex-col group h-full ${
-                        isNotAttended ? 'bg-white border-slate-200 shadow-sm opacity-40 grayscale' :
+                        isNotAttended ? 'bg-slate-50 border-slate-200 shadow-sm' :
                         highlightCardId === budget.inclusion.id ? 'bg-white ring-2 ring-[#0033CC] shadow-[0_8px_32px_rgba(0,51,204,0.14)]' :
                         isSelected ? 'bg-white ring-2 ring-emerald-400 border-emerald-200 shadow-md' : 
                         isSent ? 'bg-white border-indigo-200 opacity-85 shadow-sm' :
@@ -1180,7 +1180,46 @@ export default function BudgetPlannedPage() {
                     >
                       {/* stripe top */}
                       <div className={`h-[3px] ${isSelected ? 'bg-emerald-400' : isSent ? 'bg-indigo-400' : isNotAttended ? 'bg-slate-300' : 'bg-[#0033CC]'}`} />
-                      {/* ── Header do card ── */}
+                      {/* ── Header do card — estado INATIVO (Não Participou) ── */}
+                      {isNotAttended ? (
+                        <div className="px-4 py-3 bg-white">
+                          {/* Linha superior: avatar + nome + botão restaurar */}
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-[8px] flex items-center justify-center text-slate-400 text-[12px] font-bold shrink-0 bg-slate-200">
+                              {initials || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-slate-600 text-[14px] truncate block">{name}</span>
+                              <span className="text-[11px] text-slate-400">{getFunctionName(budget.inclusion.functionId)}</span>
+                            </div>
+                            {canMarkNotAttended && planRecord && (
+                              <button
+                                className="flex items-center gap-1.5 px-3 h-8 rounded-xl text-[12px] font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors shrink-0 disabled:opacity-60"
+                                onClick={() => setRestoreModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}
+                                disabled={toggleNotAttendedMutation.isPending}
+                              >
+                                <Undo2 style={{width:13, height:13}} />
+                                Restaurar
+                              </button>
+                            )}
+                          </div>
+                          {/* Linha inferior: badge motivo */}
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium"
+                              style={{background:'#FEF9C3', color:'#92400E', border:'1px solid #FDE68A'}}>
+                              <UserX style={{width:10, height:10}} />
+                              Não participou
+                            </span>
+                            {planRecord?.didNotAttendReason && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium"
+                                style={{background:'#FFFBEB', color:'#B45309', border:'1px solid #FDE68A'}}>
+                                "{planRecord.didNotAttendReason}"
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                      /* ── Header do card — estado ATIVO ── */
                       <div className={`flex items-center justify-between px-4 py-3 ${
                         isSent ? 'bg-indigo-50/40' : 'bg-slate-50/60'
                       }`}>
@@ -1189,8 +1228,7 @@ export default function BudgetPlannedPage() {
                           {!isSent ? (
                             <Checkbox 
                               checked={isSelected}
-                              disabled={isNotAttended}
-                              onCheckedChange={() => !isNotAttended && toggleCardSelection(budget.inclusion.id)}
+                              onCheckedChange={() => toggleCardSelection(budget.inclusion.id)}
                             />
                           ) : (
                             <TooltipProvider delayDuration={200}>
@@ -1233,57 +1271,37 @@ export default function BudgetPlannedPage() {
                               <span className="text-[10px] font-semibold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full truncate shrink min-w-0">{getFunctionName(budget.inclusion.functionId)}</span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isCasa ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                               {isSent && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">No Realizado</span>}
-                              {isNotAttended && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 shrink-0 flex items-center gap-0.5 whitespace-nowrap"><UserX className="w-2.5 h-2.5" />Não participou</span>}
                             </div>
-                            {isNotAttended && planRecord?.didNotAttendReason && (
-                              <p className="text-[10px] text-slate-400 italic mt-0.5">{planRecord.didNotAttendReason}</p>
-                            )}
                           </div>
                         </div>
 
                         {/* Ações */}
                         <div className="flex items-center gap-0.5">
-                          {/* Não participou — visível para RH/Admin apenas em cards não enviados */}
                           {canMarkNotAttended && !isSent && (
-                            isNotAttended ? (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                      onClick={() => planRecord && setRestoreModal({ id: planRecord.id, name, functionName: getFunctionName(budget.inclusion.functionId) })}
-                                      disabled={toggleNotAttendedMutation.isPending}>
-                                      <Undo2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="text-xs">Restaurar participação</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                      onClick={() => setNotAttendedModal({
-                                        id: planRecord?.id,
-                                        budget: planRecord ? undefined : budget,
-                                        name,
-                                        functionName: getFunctionName(budget.inclusion.functionId)
-                                      })}>
-                                      <UserX className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg"
+                                    onClick={() => setNotAttendedModal({
+                                      id: planRecord?.id,
+                                      budget: planRecord ? undefined : budget,
+                                      name,
+                                      functionName: getFunctionName(budget.inclusion.functionId)
+                                    })}>
+                                    <UserX className="w-3.5 h-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">Marcar como não participou</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                           <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                          {canEdit && !isSent && !isNotAttended && (
+                          {canEdit && !isSent && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Editar valores" onClick={() => openEditModal(budget)}>
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
                           )}
-                          {!isSent && !isNotAttended && (
+                          {!isSent && (
                             <Button 
                               variant="ghost" size="icon" 
                               className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
@@ -1304,10 +1322,11 @@ export default function BudgetPlannedPage() {
                           </div>
                         </div>
                       </div>
+                      )}
                       
                       {/* ── Corpo colapsável ── */}
                       {!isCollapsed && (
-                        <div className={`px-4 pt-3 pb-3 flex-1 flex flex-col gap-3${isNotAttended ? ' pointer-events-none select-none' : ''}`}>
+                        <div className={`px-4 pt-3 pb-3 flex-1 flex flex-col gap-3 transition-all duration-500${isNotAttended ? ' opacity-25 grayscale pointer-events-none select-none' : ''}`}>
                           {/* 3 blocos — hierarquia tipográfica + altura mínima consistente */}
                           <div className="flex flex-col gap-2">
                             {/* ── Diárias ── */}
@@ -1410,19 +1429,21 @@ export default function BudgetPlannedPage() {
                       )}
 
                       {/* ── Rodapé Total ── */}
-                      <div style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 16px',
-                        background: isNotAttended ? '#F8FAFC' : '#F5F7FF',
-                        borderTop: isNotAttended ? '1px solid #E2E8F0' : '1px solid rgba(224,231,255,0.8)',
-                        marginTop: 'auto',
-                      }}>
-                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#CBD5E1' : '#C7D2FE'}}>
+                      <div
+                        className={`transition-all duration-500${isNotAttended ? ' opacity-30 grayscale' : ''}`}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '10px 16px',
+                          background: isNotAttended ? '#F8FAFC' : '#F5F7FF',
+                          borderTop: isNotAttended ? '1px solid #E2E8F0' : '1px solid rgba(224,231,255,0.8)',
+                          marginTop: 'auto',
+                        }}>
+                        <span style={{fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: isNotAttended ? '#94A3B8' : '#C7D2FE'}}>
                           {isNotAttended ? 'Não contabilizado' : 'Total Planejado'}
                         </span>
                         <span style={{
                           fontSize: 16, fontWeight: 500, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
-                          color: isNotAttended ? '#CBD5E1' : '#0033CC',
+                          color: isNotAttended ? '#94A3B8' : '#0033CC',
                           textDecoration: isNotAttended ? 'line-through' : 'none',
                         }}>
                           {formatCurrency(budget.totalFinal)}
