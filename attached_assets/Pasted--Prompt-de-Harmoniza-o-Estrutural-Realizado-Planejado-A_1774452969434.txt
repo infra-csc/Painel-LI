@@ -1,0 +1,40 @@
+🏛️ Prompt de Harmonização Estrutural (Realizado ➔ Planejado)
+Atue como UI/UX Designer Senior focado em Consistência de Interface.
+
+Objetivo: Ajustar a tela "Orçamento Realizado" (image_18.png, image_19.png) para se parecer estruturalmente e em termos de elegância com a tela "Orçamento Planejado" (image_9.png, image_11.png), sem alterar os dados, textos ou status específicos do Realizado.
+
+1. Card de Resumo Principal (Harmonização):
+
+O bloco roxo de resumo atual (image_19.png) é muito denso. Reestruture-o para ser um card grande e único, com o mesmo max-w e arredondamento (rounded-[32px]) do card de resumo do Planejado.
+
+Conteúdo do Card (Roxo Elegante): Use um fundo roxo escuro suave e elegante (bg-purple-600 ou similar, mais clean).
+
+Texto Principal: Exiba "TOTAL REALIZADO" e o valor "R$ 1.095,00" (em font-bold suavizado, evite o black).
+
+Integração de KPIs: Integre os KPIs (Prestações, Em Revisão, Aprovadas) de forma limpa e minimalista dentro deste card principal, usando font-medium.
+
+Barra de Progresso Integrada: Abaixo dos KPIs, integre a barra de progresso verde com a trilha de fundo cinza clara e o texto "2 de 2 aprovadas" em font-light. Elimine o texto redundante espremido no rodapé do bloco.
+
+2. Área de Filtros (Limpeza e Consistência):
+
+Na Captura image_19.png, remova a borda externa dupla que envolve toda a barra de filtros. Isso gera ruído visual.
+
+Composição: Deixe os inputs e dropdowns ("Buscar colaborador...", "Todas funções", etc.) flutuarem diretamente sobre o fundo da página, mantendo suas bordas arredondadas e gap-4, idêntico ao layout do Planejado.
+
+3. Cards de Colaborador (Padronização Visual):
+
+Mude a cor da borda superior fina de verde para a mesma cor azul clara (border-blue-300 ou border-t-3 azul) que é usada no Planejado. Isso cria consistência imediata na lista.
+
+Mude a cor do valor total inferior de card ("R$ 945,00", "R$ 150,00") de roxo para o mesmo azul claro (text-blue-600) usado no Planejado.
+
+Manter os badges de status de Realizado (Aprovado, etc.) em verde e os avatares (AC, ND) como estão.
+
+4. Rodapé e Tipografia (Refinos Finais):
+
+Mantenha a barra branca fixa, o botão "Enviado para revisão" e os dados de Realizado, mas garanta que o layout geral (blur, alinhamento) seja idêntico ao do Planejado. Mudar a cor do total inferior de roxo para azul claro (text-blue-600).
+
+Suavize todas as fontes grandes de font-black para font-bold ou font-semibold.
+
+Garanta que o espaçamento entre o Stepper e o card de resumo seja idêntico ao do Planejado.
+
+Gere o código focando em replicar a estrutura e a elegância de cards limpos do Planejamento na etapa de Realizado, preservando todos os dados e status específicos.

@@ -821,7 +821,7 @@ export default function BudgetActualPage() {
               </div>
               <div className="flex items-center gap-2">
                 {planned && Math.abs(diff) > 1 && <span className={`text-[11px] font-bold tabular-nums ${diff < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{diff > 0 ? '+' : ''}{formatCurrency(diff)}</span>}
-                <span className="text-[16px] font-black tabular-nums text-violet-700">{formatCurrency(cardItem.totalValue)}</span>
+                <span className="text-[16px] font-bold tabular-nums text-blue-600">{formatCurrency(cardItem.totalValue)}</span>
               </div>
             </div>
           );
@@ -954,48 +954,71 @@ export default function BudgetActualPage() {
             const nDevolvidas = filteredItems.filter(i => i.rhStatus === 'devolvido').length;
             const pctAprovado = prestacaoCount > 0 ? Math.round((nAprovadas / prestacaoCount) * 100) : 0;
             return (
-              <div className="rounded-2xl overflow-hidden flex" style={{boxShadow:'0 4px 20px #7c3aed20'}}>
-                {/* Esquerda — violeta sólido */}
-                <div className="px-8 py-7 flex flex-col justify-center min-w-[240px]" style={{background:'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)'}}>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Total Realizado</p>
-                  <div className="text-[32px] font-bold text-white tabular-nums leading-none">{formatCurrency(totalRealizado)}</div>
-                  <div className={`text-[11px] mt-3 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/50' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
-                    {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
-                    {totalDifference === 0 ? `= planejado` : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
+              <div style={{
+                background: 'rgba(255,255,255,0.88)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(109,40,217,0.12)',
+                borderRadius: 20,
+                boxShadow: '0 4px 24px rgba(109,40,217,0.07), 0 1px 4px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+              }}>
+                {/* Faixa accent roxo topo */}
+                <div style={{height: 3, background: 'linear-gradient(90deg, #5b21b6 0%, #7c3aed 60%, #059669 100%)'}} />
+                <div className="flex items-stretch">
+                  {/* Esquerda — total */}
+                  <div className="px-7 py-5 flex flex-col justify-center gap-1 relative overflow-hidden" style={{
+                    background: 'linear-gradient(135deg, #5b21b6 0%, #6d28d9 50%, #7c3aed 100%)',
+                    minWidth: 230,
+                  }}>
+                    <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-white/60">Total Realizado</p>
+                    <div className="text-[30px] font-semibold text-white leading-none mt-1.5" style={{letterSpacing:'-0.03em'}}>
+                      {formatCurrency(totalRealizado)}
+                    </div>
+                    <div className={`text-[10px] mt-1 font-medium flex items-center gap-1 ${totalDifference === 0 ? 'text-white/45' : totalDifference < 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {totalDifference < 0 && <TrendingDown className="w-3 h-3" />}
+                      {totalDifference > 0 && <TrendingUp className="w-3 h-3" />}
+                      {!selectedEventId ? 'Selecione um evento' : totalDifference === 0 ? '= planejado' : `${totalDifference > 0 ? '+' : ''}${formatCurrency(totalDifference)} vs planejado`}
+                    </div>
                   </div>
-                </div>
-                {/* Direita — 3 stats + barra */}
-                <div className="flex-1 px-6 py-6 flex flex-col justify-between" style={{background:'#F5F3FF'}}>
-                  <div className="flex items-start gap-6">
-                    <div className="flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Prestações</div>
-                      <div className="text-[20px] font-semibold leading-none text-violet-700">{prestacaoCount}</div>
+                  {/* Separador */}
+                  <div style={{width:1, background:'rgba(109,40,217,0.1)'}} />
+                  {/* Direita — KPIs + barra */}
+                  <div className="flex-1 px-6 py-5 flex flex-col justify-between">
+                    <div className="flex items-start gap-0">
+                      <div className="flex-1 flex flex-col items-center gap-1 px-3">
+                        <div className="text-[26px] font-bold leading-none tracking-tight text-violet-700">{prestacaoCount}</div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Users className="w-3 h-3" />Prestações</div>
+                      </div>
+                      <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                      <div className="flex-1 flex flex-col items-center gap-1 px-3">
+                        <div className="text-[26px] font-bold leading-none tracking-tight text-blue-600">{nRevisao}</div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />Em Revisão</div>
+                      </div>
+                      <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                      <div className="flex-1 flex flex-col items-center gap-1 px-3">
+                        <div className="text-[26px] font-bold leading-none tracking-tight text-emerald-600">{nAprovadas}</div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aprovadas</div>
+                      </div>
+                      {nDevolvidas > 0 && (
+                        <>
+                          <div style={{width:1, height:36, background:'rgba(109,40,217,0.08)'}} />
+                          <div className="flex-1 flex flex-col items-center gap-1 px-3">
+                            <div className="text-[26px] font-bold leading-none tracking-tight text-amber-600">{nDevolvidas}</div>
+                            <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Devolvidas</div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Em Revisão</div>
-                      <div className="text-[20px] font-semibold leading-none text-blue-600">{nRevisao}</div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Aprovadas</div>
-                      <div className="text-[20px] font-semibold leading-none text-emerald-600">{nAprovadas}</div>
-                    </div>
-                    {nDevolvidas > 0 && (
-                      <div className="flex-1">
-                        <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Devolvidas</div>
-                        <div className="text-[20px] font-semibold leading-none text-amber-600">{nDevolvidas}</div>
+                    {prestacaoCount > 0 && (
+                      <div className="mt-4">
+                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
+                        </div>
+                        <div className="text-[9px] text-slate-400 mt-1.5 font-light">{nAprovadas} de {prestacaoCount} aprovadas</div>
                       </div>
                     )}
                   </div>
-                  {/* Barra de aprovação */}
-                  {prestacaoCount > 0 && (
-                    <div className="mt-4">
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{width:`${pctAprovado}%`}} />
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-1.5">{nAprovadas} de {prestacaoCount} aprovadas</div>
-                    </div>
-                  )}
                 </div>
               </div>
             );
