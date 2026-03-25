@@ -570,7 +570,7 @@ export default function BudgetComparisonPage() {
           {/* ── 3 Metric cards ── */}
           <div className="grid grid-cols-3 gap-3">
             {/* Planejado */}
-            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-5">
+            <div className="rounded-xl border border-blue-100 p-5" style={{background:'#F0F7FF'}}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Planejado</p>
                 <div className="w-7 h-7 rounded-lg bg-blue-100/60 flex items-center justify-center">
@@ -582,7 +582,7 @@ export default function BudgetComparisonPage() {
             </div>
 
             {/* Realizado */}
-            <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-5">
+            <div className="rounded-xl border border-purple-100 p-5" style={{background:'#F5F3FF'}}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Total Realizado</p>
                 <div className="w-7 h-7 rounded-lg bg-violet-100/60 flex items-center justify-center">
@@ -597,8 +597,8 @@ export default function BudgetComparisonPage() {
             <div className={`rounded-xl border p-5 ${
               totals.difference === 0 ? 'border-slate-100 bg-slate-50' :
               totals.difference < 0 ? 'border-emerald-100 bg-emerald-50' :
-              'border-red-100 bg-red-50'
-            }`}>
+              'border-red-100'
+            }`} style={totals.difference > 0 ? {background:'#FEF2F2'} : {}}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] uppercase text-slate-500 font-medium tracking-widest">Diferença</p>
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
@@ -873,17 +873,17 @@ export default function BudgetComparisonPage() {
                           {/* Mini values strip */}
                           <div className="flex items-center divide-x divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
                             {/* Plan. — referência discreta */}
-                            <div className="px-3 py-1.5 text-center min-w-[72px]">
+                            <div className="px-3 py-1.5 text-center w-28">
                               <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Plan.</span>
-                              <span className="text-sm tabular-nums text-slate-400 font-normal">{fmt(plannedTotal)}</span>
+                              <span className="text-sm tabular-nums text-slate-400 font-light">{fmt(plannedTotal)}</span>
                             </div>
                             {/* Real. — protagonista */}
-                            <div className="px-3 py-1.5 text-center min-w-[72px] bg-violet-50/50">
+                            <div className="px-3 py-1.5 text-center w-28" style={{background:'#F5F3FF'}}>
                               <span className="text-[9px] uppercase font-medium text-slate-500 tracking-wider block leading-tight">Real.</span>
-                              <span className="text-sm tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
+                              <span className="text-base tabular-nums text-slate-900 font-bold">{fmt(actualTotal)}</span>
                             </div>
                             {/* Dif. — alerta imediato */}
-                            <div className={`px-3 py-1.5 text-center min-w-[72px] ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
+                            <div className={`px-3 py-1.5 text-center w-28 ${hasDiff ? (diff > 0 ? 'bg-red-50' : 'bg-emerald-50') : ''}`}>
                               <span className="text-[9px] uppercase font-medium text-slate-400 tracking-wider block leading-tight">Dif.</span>
                               {hasDiff ? (
                                 <span className={`text-sm tabular-nums font-bold ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -1166,7 +1166,7 @@ export default function BudgetComparisonPage() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-50 hover:bg-amber-100 text-amber-600 border-none shadow-none disabled:opacity-40"
+                      className="h-9 text-sm px-4 rounded-xl font-semibold bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 shadow-none disabled:opacity-40"
                       onClick={() => setActionModal({ type: 'return' })}
                       disabled={selectedItems.size === 0}
                     >
