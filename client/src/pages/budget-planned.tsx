@@ -747,24 +747,26 @@ export default function BudgetPlannedPage() {
             <p className="text-xs text-gray-400">Cálculo automático das escalações confirmadas</p>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
-          {selectedEvent?.startDate && (
-            <span style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Calendar className="w-3 h-3" style={{ color: '#94A3B8' }} />
-              {formatEventDate(selectedEvent.startDate)}
-            </span>
-          )}
-        </div>
+        {selectedEventId && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
+            {selectedEvent?.startDate && (
+              <span style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Calendar className="w-3 h-3" style={{ color: '#94A3B8' }} />
+                {formatEventDate(selectedEvent.startDate)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Tela 1: Seleção de evento ── */}
       {!selectedEventId ? (
-        <div className="rounded-2xl overflow-hidden border border-blue-100 dark:border-blue-900 shadow-sm">
-          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-violet-950/20 px-8 py-16 text-center">
-            {/* Ilustração */}
-            <div className="relative w-24 h-24 mx-auto mb-6">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40 flex items-center justify-center rotate-3">
+        <div className="rounded-2xl overflow-hidden border border-blue-100 shadow-md">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 px-8 py-20 flex flex-col items-center justify-center text-center">
+            {/* Ícone */}
+            <div className="relative w-24 h-24 mx-auto mb-8">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 flex items-center justify-center rotate-3">
                 <Calculator className="w-10 h-10 text-white" />
               </div>
               <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md">
@@ -772,15 +774,14 @@ export default function BudgetPlannedPage() {
               </div>
             </div>
 
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Selecione um evento</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-8">
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Selecione um evento</h2>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
               Visualize o orçamento previsto com base nas escalações confirmadas. Valores calculados automaticamente.
             </p>
 
-            <div className="max-w-sm mx-auto">
+            <div className="max-w-sm w-full mx-auto mt-8">
               <EventSearchSelect value={selectedEventId} onValueChange={setSelectedEventId} events={eventsWithInclusions} />
             </div>
-
           </div>
         </div>
       ) : (
