@@ -577,7 +577,7 @@ export default function BudgetComparisonPage() {
                   <DollarSign className="w-3.5 h-3.5 text-blue-500" />
                 </div>
               </div>
-              <p className="text-2xl font-semibold text-slate-900 tabular-nums">{fmt(totals.totalPlanned)}</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">{fmt(totals.totalPlanned)}</p>
               <p className="text-[10px] text-slate-400 font-light mt-1.5">Orçamento aprovado para o evento</p>
             </div>
 
@@ -589,7 +589,7 @@ export default function BudgetComparisonPage() {
                   <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
                 </div>
               </div>
-              <p className="text-2xl font-semibold text-slate-900 tabular-nums">{fmt(totals.totalActual)}</p>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums">{fmt(totals.totalActual)}</p>
               <p className="text-[10px] text-slate-400 font-light mt-1.5">Valores prestados e enviados</p>
             </div>
 
@@ -610,7 +610,7 @@ export default function BudgetComparisonPage() {
                    <TrendingUp className="w-3.5 h-3.5 text-red-400" />}
                 </div>
               </div>
-              <p className={`text-2xl font-semibold tabular-nums ${
+              <p className={`text-2xl font-bold tabular-nums ${
                 totals.difference === 0 ? 'text-slate-400' :
                 totals.difference < 0 ? 'text-emerald-700' : 'text-red-600'
               }`}>
@@ -1047,36 +1047,38 @@ export default function BudgetComparisonPage() {
                             </>}
 
                             {/* Expanded card footer — totals */}
-                            <div className="grid grid-cols-3 gap-2">
-                              {/* Planejado mini-card */}
-                              <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-center">
-                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Planejado</span>
-                                <span className="text-base font-semibold text-slate-900 tabular-nums">{fmt(plannedTotal)}</span>
-                              </div>
-                              {/* Realizado mini-card */}
-                              <div className="rounded-xl border border-purple-100 bg-purple-50/50 px-4 py-3 text-center">
-                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Realizado</span>
-                                <span className="text-base font-semibold text-slate-900 tabular-nums">{fmt(actualTotal)}</span>
-                              </div>
-                              {/* Diferença mini-card */}
-                              <div className={`rounded-xl border px-4 py-3 text-center ${
-                                diff === 0 ? 'border-slate-100 bg-slate-50' :
-                                diff < 0 ? 'border-emerald-100 bg-emerald-50' :
-                                'border-red-100 bg-red-50'
-                              }`}>
-                                <span className="text-[9px] uppercase text-slate-500 font-medium tracking-widest block mb-1.5">Diferença</span>
-                                <span className={`text-base font-semibold tabular-nums ${
-                                  diff === 0 ? 'text-slate-400' : diff < 0 ? 'text-emerald-700' : 'text-red-600'
-                                }`}>
-                                  {diff > 0 ? '+' : diff < 0 ? '−' : ''}{fmt(Math.abs(diff))}
-                                </span>
-                                {hasDiff && plannedTotal > 0 && (
-                                  <span className={`inline-flex items-center mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded-full ${
-                                    diff > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                                  }`}>
-                                    {diff > 0 ? 'Estouro' : 'Economia'} {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
-                                  </span>
-                                )}
+                            <div className="rounded-xl border border-slate-100 overflow-hidden">
+                              <div className="grid grid-cols-3 divide-x divide-slate-100">
+                                {/* Planejado — referência apagada */}
+                                <div className="px-4 py-3 text-center bg-white">
+                                  <span className="text-[9px] uppercase text-slate-400 font-normal tracking-widest block mb-1.5">Planejado</span>
+                                  <span className="text-base text-slate-500 font-medium tabular-nums">{fmt(plannedTotal)}</span>
+                                </div>
+                                {/* Realizado — protagonista */}
+                                <div className="px-4 py-3 text-center" style={{background:'#F5F3FF'}}>
+                                  <span className="text-[9px] uppercase text-slate-900 font-bold tracking-widest block mb-1.5">Realizado</span>
+                                  <span className="text-xl text-purple-700 font-extrabold tabular-nums">{fmt(actualTotal)}</span>
+                                </div>
+                                {/* Diferença — alerta */}
+                                <div className={`px-4 py-3 text-center ${diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+                                  <span className="text-[9px] uppercase text-slate-400 font-normal tracking-widest block mb-1.5">Diferença</span>
+                                  {diff === 0 ? (
+                                    <span className="text-base text-slate-400 font-medium tabular-nums">—</span>
+                                  ) : (
+                                    <>
+                                      <span className={`text-base font-bold tabular-nums ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
+                                      </span>
+                                      {plannedTotal > 0 && (
+                                        <span className={`inline-flex items-center mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded ${
+                                          diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                                        }`}>
+                                          {diff > 0 ? 'Estouro' : 'Economia'} {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
