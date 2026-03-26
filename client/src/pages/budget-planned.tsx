@@ -1935,7 +1935,8 @@ export default function BudgetPlannedPage() {
 
               {/* ── Corpo (aba Custos) ── */}
               {modalTab === 'custos' && (
-              <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4 space-y-3" style={{background:'#F8FAFC', ...(modalViewMode ? {pointerEvents:'none', opacity:0.72, userSelect:'none'} : {})}}>
+              <div className="flex-1 overflow-y-auto min-h-0" style={{background:'#F8FAFC'}}>
+              <div className="px-5 py-4 space-y-3" style={modalViewMode ? {pointerEvents:'none', opacity:0.72, userSelect:'none'} : {}}>
 
                 {/* ── BLOCO: Diárias ── */}
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -2140,6 +2141,7 @@ export default function BudgetPlannedPage() {
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
               )}
 
