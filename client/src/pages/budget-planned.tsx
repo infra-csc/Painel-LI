@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Zap } from "lucide-react";
+import { Calculator, Users, Calendar, RefreshCw, Edit, Send, CheckCheck, Check, Car, Utensils, Coffee, Moon, Sun, Search, ArrowUpDown, Home, UserCheck, TrendingUp, DollarSign, Briefcase, ChevronDown, ChevronUp, BarChart3, RotateCcw, Lock, UserX, Undo2, Zap, Eye } from "lucide-react";
 import { isRhOrAdmin } from "@/lib/permissions";
 import { Textarea } from "@/components/ui/textarea";
 import { EventSearchSelect } from "@/components/event-select";
@@ -106,6 +106,7 @@ export default function BudgetPlannedPage() {
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
   const [modalTab, setModalTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
+  const [modalViewMode, setModalViewMode] = useState(false);
   const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
@@ -592,7 +593,7 @@ export default function BudgetPlannedPage() {
   const [originalModalTotal, setOriginalModalTotal] = useState<number>(0);
   const [defaultBudgetValues, setDefaultBudgetValues] = useState<BudgetEdit | null>(null);
 
-  const openEditModal = (budget: typeof calculatedBudgets[0]) => {
+  const openEditModal = (budget: typeof calculatedBudgets[0], viewMode = false) => {
     const startDate = budget.inclusion.scheduleStartDate;
     const endDate = budget.inclusion.scheduleEndDate;
     const formatDate = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
@@ -646,7 +647,8 @@ export default function BudgetPlannedPage() {
       (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
-    setModalTab('custos');
+    setModalViewMode(viewMode);
+    setModalTab(viewMode ? 'observacoes' : 'custos');
   };
 
   const saveEdit = () => {
@@ -1419,6 +1421,18 @@ export default function BudgetPlannedPage() {
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
                           )}
+                          {isSent && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" onClick={() => openEditModal(budget, true)}>
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">Visualizar detalhes e observações</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {!isSent && (
                             <Button 
                               variant="ghost" size="icon" 
@@ -1811,7 +1825,7 @@ export default function BudgetPlannedPage() {
         )}
 
       {/* Modal de Edição */}
-      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); }}>
+      <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); setModalViewMode(false); }}>
         <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Orçamento Planejado</DialogTitle>
@@ -1848,13 +1862,15 @@ export default function BudgetPlannedPage() {
               {/* ── Header ── */}
               <div className="px-6 pt-5 pb-5 relative" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
                 {/* botão restaurar */}
-                <button
-                  onClick={restoreDefaults}
-                  className="absolute top-4 right-10 flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white/90 transition-colors"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Restaurar
-                </button>
+                {!modalViewMode && (
+                  <button
+                    onClick={restoreDefaults}
+                    className="absolute top-4 right-10 flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white/90 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Restaurar
+                  </button>
+                )}
 
                 <div className="flex items-center gap-4">
                   {/* Avatar branco */}
@@ -1885,6 +1901,16 @@ export default function BudgetPlannedPage() {
                 </div>
               </div>
 
+              {/* ── Banner modo visualização ── */}
+              {modalViewMode && (
+                <div className="flex items-center gap-2.5 px-5 py-2.5 bg-amber-50 border-b border-amber-200">
+                  <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <p className="text-[11px] font-semibold text-amber-700">
+                    Modo de Visualização — Edição de valores bloqueada para esta fase
+                  </p>
+                </div>
+              )}
+
               {/* ── Barra de Abas ── */}
               <div className="flex border-b border-slate-200 bg-white shrink-0">
                 {([
@@ -1909,7 +1935,7 @@ export default function BudgetPlannedPage() {
 
               {/* ── Corpo (aba Custos) ── */}
               {modalTab === 'custos' && (
-              <div className="max-h-[55vh] overflow-y-auto px-5 py-4 space-y-3" style={{background:'#F8FAFC'}}>
+              <div className="max-h-[55vh] overflow-y-auto px-5 py-4 space-y-3" style={{background:'#F8FAFC', ...(modalViewMode ? {pointerEvents:'none', opacity:0.72, userSelect:'none'} : {})}}>
 
                 {/* ── BLOCO: Diárias ── */}
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -2181,15 +2207,17 @@ export default function BudgetPlannedPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button
-                    onClick={saveEdit}
-                    disabled={!hasChanges}
-                    className="h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm"
-                    style={{background:'#0033CC', boxShadow: hasChanges ? '0 4px 12px #0033CC40' : 'none'}}
-                  >
-                    <CheckCheck className="w-4 h-4" />
-                    {hasChanges ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
-                  </Button>
+                  {!modalViewMode && (
+                    <Button
+                      onClick={saveEdit}
+                      disabled={!hasChanges}
+                      className="h-9 px-5 text-white font-semibold rounded-lg gap-2 text-sm"
+                      style={{background:'#0033CC', boxShadow: hasChanges ? '0 4px 12px #0033CC40' : 'none'}}
+                    >
+                      <CheckCheck className="w-4 h-4" />
+                      {hasChanges ? `Salvar (${diff > 0 ? '+' : ''}${formatCurrency(diff)})` : 'Salvar'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </>

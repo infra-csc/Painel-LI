@@ -2769,6 +2769,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
     try {
       const [note] = await db.insert(budgetNotes).values(parsed.data).returning();
+
+      // Se nota em budget_planned que já foi enviado → log automático pós-planejamento
+      if (parsed.data.entityType === 'planned') {
+        try {
+          const sentCheck = await db.execute(drizzleSql`
+            SELECT id FROM budget_actual WHERE planned_id = ${parsed.data.entityId} LIMIT 1`
+          );
+          const rows = Array.isArray(sentCheck) ? sentCheck : (sentCheck as any).rows || [];
+          if (rows.length > 0) {
+            await storage.createSystemLog({
+              action: 'note',
+              entityType: 'budget_planned',
+              entityId: parsed.data.entityId,
+              entityName: user.name,
+              details: `Nota adicionada pós-planejamento por ${user.name}`,
+              userId,
+              userName: user.name,
+              previousData: null,
+              newData: JSON.stringify({ content: parsed.data.content }),
+            });
+          }
+        } catch (_) {}
+      }
+
       res.status(201).json(note);
     } catch (error) {
       console.error("Error creating budget note:", error);
