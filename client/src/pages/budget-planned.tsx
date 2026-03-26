@@ -648,7 +648,7 @@ export default function BudgetPlannedPage() {
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
     setModalViewMode(viewMode);
-    setModalTab(viewMode ? 'observacoes' : 'custos');
+    setModalTab('custos');
   };
 
   const saveEdit = () => {
