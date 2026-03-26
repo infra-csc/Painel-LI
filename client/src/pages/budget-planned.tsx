@@ -1826,7 +1826,7 @@ export default function BudgetPlannedPage() {
 
       {/* Modal de Edição */}
       <Dialog open={!!editingBudget} onOpenChange={() => { setEditingBudget(null); setEditingBudgetInfo(null); setEditingBudgetPlannedId(null); setModalViewMode(false); }}>
-        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl">
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl" style={{display:'flex', flexDirection:'column', maxHeight:'90vh'}}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Orçamento Planejado</DialogTitle>
           </DialogHeader>
@@ -1858,7 +1858,7 @@ export default function BudgetPlannedPage() {
             const inputCls = "h-9 text-sm w-[88px] text-right font-semibold border-slate-200 focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10 rounded-lg bg-white";
 
             return (
-            <div className="flex flex-col" style={{maxHeight:'88vh'}}>
+            <>
               {/* ── Header ── */}
               <div className="px-6 pt-5 pb-5 relative shrink-0" style={{background:'linear-gradient(135deg, #0033CC 0%, #1a4fd8 100%)'}}>
                 {/* botão restaurar */}
@@ -2220,7 +2220,7 @@ export default function BudgetPlannedPage() {
                   )}
                 </div>
               </div>
-            </div>
+            </>
           );})()}
         </DialogContent>
       </Dialog>
