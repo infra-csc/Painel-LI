@@ -8,6 +8,10 @@ import type { BudgetNote } from "@shared/schema";
 interface BudgetChatProps {
   entityType: "planned" | "actual";
   entityId: string;
+  eventId?: string;
+  // When provided, notes from this secondary entity are merged into the thread (read-only)
+  linkedEntityType?: "planned" | "actual";
+  linkedEntityId?: string;
 }
 
 function avatarColor(name: string) {
@@ -29,13 +33,13 @@ function formatDateTime(dt: string | Date) {
     " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
+export function BudgetChat({ entityType, entityId, eventId, linkedEntityType, linkedEntityId }: BudgetChatProps) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data: notes = [], isLoading } = useQuery<BudgetNote[]>({
+  const { data: primaryNotes = [], isLoading } = useQuery<BudgetNote[]>({
     queryKey: ["/api/budget-notes", entityType, entityId],
     queryFn: async () => {
       const res = await fetch(`/api/budget-notes?entityType=${entityType}&entityId=${entityId}`, { credentials: "include" });
@@ -45,6 +49,23 @@ export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
     enabled: !!entityId,
     staleTime: 10000,
   });
+
+  const { data: linkedNotes = [] } = useQuery<BudgetNote[]>({
+    queryKey: ["/api/budget-notes", linkedEntityType, linkedEntityId],
+    queryFn: async () => {
+      const res = await fetch(`/api/budget-notes?entityType=${linkedEntityType}&entityId=${linkedEntityId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!linkedEntityId && !!linkedEntityType,
+    staleTime: 10000,
+  });
+
+  // Merge and sort notes from both entities chronologically
+  const allNotes: (BudgetNote & { isLinked?: boolean })[] = [
+    ...primaryNotes.map(n => ({ ...n, isLinked: false })),
+    ...linkedNotes.map(n => ({ ...n, isLinked: true })),
+  ].sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
 
   const createMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -65,7 +86,7 @@ export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [notes.length]);
+  }, [allNotes.length]);
 
   const send = () => {
     const trimmed = text.trim();
@@ -83,9 +104,9 @@ export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
         <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">
           Observações
         </span>
-        {notes.length > 0 && (
+        {allNotes.length > 0 && (
           <span className="ml-auto text-[10px] bg-blue-100 text-blue-600 font-semibold px-1.5 py-0.5 rounded-full">
-            {notes.length}
+            {allNotes.length}
           </span>
         )}
       </div>
@@ -96,14 +117,14 @@ export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
           </div>
-        ) : notes.length === 0 ? (
+        ) : allNotes.length === 0 ? (
           <div className="text-center py-6">
             <MessageSquare className="w-5 h-5 text-slate-300 mx-auto mb-1" />
             <p className="text-[11px] text-slate-400">Nenhuma observação ainda</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {notes.map((note) => {
+            {allNotes.map((note) => {
               const isMe = note.authorId === user?.id;
               return (
                 <div key={note.id} className={`px-3 py-2.5 flex gap-2.5 ${isMe ? "bg-blue-50/60" : ""}`}>
@@ -111,11 +132,16 @@ export function BudgetChat({ entityType, entityId }: BudgetChatProps) {
                     {initials(note.authorName)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5 mb-0.5">
+                    <div className="flex items-baseline gap-1.5 mb-0.5 flex-wrap">
                       <span className="text-[11px] font-semibold text-slate-700 truncate">{note.authorName}</span>
                       <span className="text-[9px] text-slate-400 flex-shrink-0">
                         {formatDateTime(note.createdAt!)}
                       </span>
+                      {note.isLinked && (
+                        <span className="text-[9px] font-semibold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          Planejado
+                        </span>
+                      )}
                     </div>
                     <p className="text-[12px] text-slate-600 leading-relaxed break-words">{note.content}</p>
                   </div>

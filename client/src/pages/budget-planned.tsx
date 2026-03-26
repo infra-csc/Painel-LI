@@ -105,6 +105,7 @@ export default function BudgetPlannedPage() {
   const [notAttendedModal, setNotAttendedModal] = useState<{ id?: string; budget?: any; name: string; functionName: string } | null>(null);
   const [notAttendedReason, setNotAttendedReason] = useState("");
   const [activeTab, setActiveTab] = useState<'overview' | 'sheet'>('overview');
+  const [modalTab, setModalTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
@@ -645,6 +646,7 @@ export default function BudgetPlannedPage() {
       (p: any) => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
+    setModalTab('custos');
   };
 
   const saveEdit = () => {
@@ -1883,7 +1885,30 @@ export default function BudgetPlannedPage() {
                 </div>
               </div>
 
-              {/* ── Corpo ── */}
+              {/* ── Barra de Abas ── */}
+              <div className="flex border-b border-slate-200 bg-white shrink-0">
+                {([
+                  { id: 'custos',      label: 'Custos' },
+                  { id: 'observacoes', label: 'Observações' },
+                  { id: 'historico',   label: 'Histórico' },
+                ] as const).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setModalTab(id)}
+                    className={[
+                      'flex-1 py-3 text-[12px] font-semibold transition-colors',
+                      modalTab === id
+                        ? 'text-[#0033CC] border-b-2 border-[#0033CC] bg-blue-50/40'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Corpo (aba Custos) ── */}
+              {modalTab === 'custos' && (
               <div className="max-h-[55vh] overflow-y-auto px-5 py-4 space-y-3" style={{background:'#F8FAFC'}}>
 
                 {/* ── BLOCO: Diárias ── */}
@@ -2090,19 +2115,36 @@ export default function BudgetPlannedPage() {
                   </div>
                 </div>
               </div>
-
-              {/* ── Chat ── */}
-              {editingBudgetPlannedId && (
-                <BudgetChat
-                  entityType="planned"
-                  entityId={editingBudgetPlannedId}
-                  eventId={selectedEventId}
-                />
               )}
 
-              {/* ── Histórico de alterações ── */}
-              {editingBudgetPlannedId && (
-                <ActivityTimeline entityType="budget_planned" entityId={editingBudgetPlannedId} />
+              {/* ── Aba: Observações ── */}
+              {modalTab === 'observacoes' && (
+                <div className="min-h-[300px]" style={{background:'#F8FAFC'}}>
+                  {editingBudgetPlannedId ? (
+                    <BudgetChat
+                      entityType="planned"
+                      entityId={editingBudgetPlannedId}
+                      eventId={selectedEventId}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-[12px]">
+                      Salve o planejamento primeiro para habilitar observações.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Aba: Histórico ── */}
+              {modalTab === 'historico' && (
+                <div className="min-h-[300px]" style={{background:'#F8FAFC'}}>
+                  {editingBudgetPlannedId ? (
+                    <ActivityTimeline entityType="budget_planned" entityId={editingBudgetPlannedId} defaultOpen={true} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-[12px]">
+                      Salve o planejamento primeiro para ver o histórico.
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* ── Footer ── */}

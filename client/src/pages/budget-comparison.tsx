@@ -1178,6 +1178,8 @@ export default function BudgetComparisonPage() {
                               entityType="actual"
                               entityId={a.id}
                               eventId={a.eventId}
+                              linkedEntityType={a.plannedId ? "planned" : undefined}
+                              linkedEntityId={a.plannedId || undefined}
                             />
 
                             {/* ── Histórico de alterações ── */}

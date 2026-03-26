@@ -1772,7 +1772,14 @@ export default function BudgetActualPage() {
                 </div>
 
                 {/* ── Observações (Chat) ── */}
-                {editingItem && <BudgetChat entityType="actual" entityId={editingItem.id} />}
+                {editingItem && (
+                  <BudgetChat
+                    entityType="actual"
+                    entityId={editingItem.id}
+                    linkedEntityType={editingItem.plannedId ? "planned" : undefined}
+                    linkedEntityId={editingItem.plannedId || undefined}
+                  />
+                )}
 
                 {/* ── Histórico de alterações ── */}
                 {editingItem && <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} />}
