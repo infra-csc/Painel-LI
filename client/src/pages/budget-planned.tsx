@@ -2145,7 +2145,7 @@ export default function BudgetPlannedPage() {
 
               {/* ── Aba: Observações ── */}
               {modalTab === 'observacoes' && (
-                <div className="min-h-[300px]" style={{background:'#F8FAFC'}}>
+                <div className="max-h-[55vh] overflow-y-auto" style={{background:'#F8FAFC'}}>
                   {editingBudgetPlannedId ? (
                     <BudgetChat
                       entityType="planned"
@@ -2162,7 +2162,7 @@ export default function BudgetPlannedPage() {
 
               {/* ── Aba: Histórico ── */}
               {modalTab === 'historico' && (
-                <div className="min-h-[300px]" style={{background:'#F8FAFC'}}>
+                <div className="max-h-[55vh] overflow-y-auto" style={{background:'#F8FAFC'}}>
                   {editingBudgetPlannedId ? (
                     <ActivityTimeline entityType="budget_planned" entityId={editingBudgetPlannedId} defaultOpen={true} />
                   ) : (

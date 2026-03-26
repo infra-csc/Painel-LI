@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Plus, Edit2, Trash2, CheckCircle, RotateCcw, XCircle,
-  Clock, Send, ChevronDown, ChevronUp, History, User
+  Clock, Send, ChevronDown, ChevronUp, History, User, FileText
 } from "lucide-react";
 
 interface ActivityLog {
@@ -21,7 +21,7 @@ interface ActivityLog {
 
 const ACTION_CONFIG: Record<string, { dotColor: string; bg: string; text: string; Icon: any; label: string }> = {
   create:      { dotColor: 'bg-blue-500',    bg: 'bg-blue-50',    text: 'text-blue-700',    Icon: Plus,         label: 'Criado' },
-  update:      { dotColor: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Edit2,        label: 'Editado' },
+  update:      { dotColor: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Edit2,        label: 'Atualizado' },
   edit:        { dotColor: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700',   Icon: Edit2,        label: 'Editado' },
   delete:      { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: Trash2,       label: 'Excluído' },
   approve:     { dotColor: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', Icon: CheckCircle,  label: 'Aprovado' },
@@ -31,25 +31,7 @@ const ACTION_CONFIG: Record<string, { dotColor: string; bg: string; text: string
   reject:      { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: XCircle,      label: 'Recusado' },
   rejeitado:   { dotColor: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700',     Icon: XCircle,      label: 'Recusado' },
   send_review: { dotColor: 'bg-violet-500',  bg: 'bg-violet-50',  text: 'text-violet-700',  Icon: Send,         label: 'Enviado para revisão' },
-};
-
-const FIELD_LABELS: Record<string, string> = {
-  dailyValue: 'Valor Diária',
-  dailyQuantity: 'Qtd Diárias',
-  mobility: 'Mobilidade',
-  transport: 'Translado',
-  weekdayLunch: 'Almoço (semana)',
-  weekdayDinner: 'Jantar (semana)',
-  weekendLunch: 'Almoço (fds)',
-  weekendDinner: 'Jantar (fds)',
-  totalValue: 'Valor Total',
-  sentForReview: 'Enviado para revisão',
-  rhStatus: 'Status RH',
-  rhComment: 'Comentário RH',
-  changeReason: 'Justificativa',
-  didNotAttend: 'Não participou',
-  didNotAttendReason: 'Motivo ausência',
-  resubmitted: 'Reenviado',
+  note:        { dotColor: 'bg-sky-500',     bg: 'bg-sky-50',     text: 'text-sky-700',     Icon: FileText,     label: 'Observação' },
 };
 
 const MONETARY_FIELDS = new Set([
@@ -58,12 +40,35 @@ const MONETARY_FIELDS = new Set([
   'costAssistance',
 ]);
 
+const FIELD_LABELS: Record<string, string> = {
+  dailyValue:     'Valor da diária',
+  dailyQuantity:  'Quantidade de diárias',
+  mobility:       'Mobilidade',
+  transport:      'Translado',
+  weekdayLunch:   'Almoço (dias úteis)',
+  weekdayDinner:  'Jantar (dias úteis)',
+  weekendLunch:   'Almoço (fim de semana)',
+  weekendDinner:  'Jantar (fim de semana)',
+  totalValue:     'Valor total',
+  sentForReview:  'Enviado para análise',
+  rhStatus:       'Status',
+  rhComment:      'Comentário do RH',
+  changeReason:   'Justificativa',
+  didNotAttend:   'Não participou',
+  didNotAttendReason: 'Motivo da ausência',
+  resubmitted:    'Reenviado',
+  status:         'Status',
+  collaboratorType: 'Tipo de colaborador',
+};
+
+function fmtMoney(cents: number): string {
+  return `R$ ${(cents / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
+}
+
 function fmt(field: string, value: any): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
-  if (MONETARY_FIELDS.has(field) && typeof value === 'number') {
-    return `R$ ${(value / 100).toFixed(2).replace('.', ',')}`;
-  }
+  if (MONETARY_FIELDS.has(field) && typeof value === 'number') return fmtMoney(value);
   return String(value);
 }
 
@@ -77,6 +82,67 @@ function formatDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) +
     ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+const SKIP_FIELDS = new Set([
+  'id', 'createdAt', 'updatedAt', 'eventId', 'collaboratorId', 'functionId',
+  'collaboratorType', 'splitParentId', 'workedDays',
+]);
+
+function buildNarrativeBullets(action: string, prev: Record<string, any> | null, next: Record<string, any> | null, details?: string): string[] {
+  const bullets: string[] = [];
+
+  if (action === 'note') {
+    if (details) bullets.push(details);
+    return bullets;
+  }
+
+  if (action === 'create' && next) {
+    if (next.dailyQuantity && next.dailyValue) {
+      bullets.push(`Diária: ${fmtMoney(next.dailyValue)} por dia × ${next.dailyQuantity} diárias`);
+    }
+    const hasWeekday = next.weekdayLunch || next.weekdayDinner;
+    const hasWeekend = next.weekendLunch || next.weekendDinner;
+    if (hasWeekday) {
+      const parts: string[] = [];
+      if (next.weekdayLunch) parts.push(`Almoço ${fmtMoney(next.weekdayLunch)}`);
+      if (next.weekdayDinner) parts.push(`Jantar ${fmtMoney(next.weekdayDinner)}`);
+      bullets.push(`Alimentação (dias úteis): ${parts.join(' | ')}`);
+    }
+    if (hasWeekend) {
+      const parts: string[] = [];
+      if (next.weekendLunch) parts.push(`Almoço ${fmtMoney(next.weekendLunch)}`);
+      if (next.weekendDinner) parts.push(`Jantar ${fmtMoney(next.weekendDinner)}`);
+      bullets.push(`Alimentação (fim de semana): ${parts.join(' | ')}`);
+    }
+    if (next.mobility) {
+      bullets.push(`Mobilidade: ${fmtMoney(next.mobility)} total`);
+    }
+    if (next.status) {
+      bullets.push(`Status: ${next.status}`);
+    }
+    if (bullets.length === 0 && details) bullets.push(details);
+    return bullets;
+  }
+
+  if ((action === 'update' || action === 'edit') && prev && next) {
+    const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+    allKeys.forEach(field => {
+      if (SKIP_FIELDS.has(field)) return;
+      const oldVal = prev[field];
+      const newVal = next[field];
+      if (oldVal === newVal) return;
+      const label = FIELD_LABELS[field] || field;
+      const oldStr = fmt(field, oldVal);
+      const newStr = fmt(field, newVal);
+      bullets.push(`${label}: ${oldStr} → ${newStr}`);
+    });
+    if (bullets.length === 0 && details) bullets.push(details);
+    return bullets;
+  }
+
+  if (details) bullets.push(details);
+  return bullets;
 }
 
 interface Props {
@@ -137,7 +203,6 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
 
           {!isLoading && logs.length > 0 && (
             <div className="relative">
-              {/* Vertical line */}
               <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-slate-100" />
 
               <div className="space-y-4">
@@ -146,10 +211,7 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                   const { Icon } = cfg;
                   const prev = parseJson(log.previous_data);
                   const next = parseJson(log.new_data);
-
-                  const changedFields: string[] = prev
-                    ? Object.keys({ ...prev, ...(next || {}) })
-                    : [];
+                  const bullets = buildNarrativeBullets(log.action, prev, next, log.details);
 
                   return (
                     <div key={log.id} className="flex gap-3 pl-1">
@@ -160,7 +222,7 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        {/* Header */}
+                        {/* Header: badge + data */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
                             {cfg.label}
@@ -170,40 +232,24 @@ export function ActivityTimeline({ entityType, entityId, defaultOpen = false }: 
                           </span>
                         </div>
 
-                        {/* Actor */}
+                        {/* Autor */}
                         {log.user_name && (
                           <div className="flex items-center gap-1 mt-0.5">
                             <User className="w-2.5 h-2.5 text-slate-400" />
-                            <span className="text-[11px] text-slate-500">{log.user_name}</span>
+                            <span className="text-[11px] font-semibold text-slate-600">{log.user_name}</span>
                           </div>
                         )}
 
-                        {/* Field changes (De → Para) */}
-                        {changedFields.length > 0 && prev && next && (
-                          <div className="mt-1.5 space-y-1">
-                            {changedFields
-                              .filter(f => !['id', 'createdAt', 'updatedAt', 'eventId', 'collaboratorId', 'functionId'].includes(f))
-                              .map(field => {
-                                const oldVal = prev?.[field];
-                                const newVal = next?.[field];
-                                if (oldVal === newVal) return null;
-                                const label = FIELD_LABELS[field] || field;
-                                return (
-                                  <div key={field} className="text-[11px] flex items-center gap-1.5 flex-wrap bg-slate-50 rounded-md px-2 py-1">
-                                    <span className="text-slate-500 font-medium">{label}:</span>
-                                    <span className="text-red-500 line-through font-mono">{fmt(field, oldVal)}</span>
-                                    <span className="text-slate-400">→</span>
-                                    <span className="text-emerald-600 font-mono font-semibold">{fmt(field, newVal)}</span>
-                                  </div>
-                                );
-                              })
-                              .filter(Boolean)}
-                          </div>
-                        )}
-
-                        {/* Details text fallback */}
-                        {(!prev || changedFields.length === 0) && log.details && (
-                          <p className="text-[11px] text-slate-500 mt-0.5">{log.details}</p>
+                        {/* Bullets narrativos */}
+                        {bullets.length > 0 && (
+                          <ul className="mt-1.5 space-y-0.5">
+                            {bullets.map((b, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-600">
+                                <span className="mt-[3px] w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+                                {b}
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
                     </div>
