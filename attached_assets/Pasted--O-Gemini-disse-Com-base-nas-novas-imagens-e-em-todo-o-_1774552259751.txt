@@ -1,0 +1,42 @@
+
+O Gemini disse
+Com base nas novas imagens e em todo o fluxo que construímos, o foco agora é a consolidação da etapa de Notas Fiscais e o Check-in do RH. Analisando as telas de "Lançamento" e "Aprovação RH", notei que o layout pode ser mais direto para evitar cliques excessivos.
+
+Aqui estão as sugestões de melhoria de layout para as telas atuais e a estruturação da nova aba de Check-in:
+
+1. Melhoria nas Telas de Notas Fiscais (Imagens 7 e 8)
+Atualmente, as informações estão muito espalhadas. Para a Aprovação do RH, precisamos de uma visão de "tomada de decisão".
+
+Coluna "Ações" Inteligente: Em vez de apenas ver a nota, o RH deve ter os botões de ação rápida diretamente na linha: Aprovar, Devolver e o novo botão Fazer Check-in.
+
+Destaque da OC: A Ordem de Compra (OC) é fundamental. Ela deve ter um destaque visual (talvez um badge cinza) para garantir que o RH está aprovando o valor correto contra a nota certa.
+
+Status de Pagamento: Na Imagem 7, já aparece "Prev. 20/10/2026". Esse campo deve ser transformado em um botão clicável caso o RH precise editar a data antes do check-in final.
+
+2. Nova Aba: "Check-in e Pagamento" (O Futuro do Fluxo)
+Esta aba será o destino final de toda nota aprovada. Em vez de sumir do sistema, ela fica aqui até o RH confirmar que "está tudo ok para o financeiro".
+
+Layout Sugerido para a Aba de Check-in:
+Uma tabela simplificada com foco em Agendamento:
+
+Colaborador	Valor	Nota Fiscal	Data Prevista Pagto	Ação
+Ana Claudia	R$ 945,00	[Ver PDF]	[ 20/10/2026 ] (Input)	[ Confirmar Check-in ]
+O Diferencial: O campo de data deve vir pré-preenchido se já foi colocado antes, mas permitir alteração rápida.
+
+Ação em Massa: Adicionar um botão no topo: "Confirmar Check-in de todos os selecionados". Isso economiza horas de trabalho manual.
+
+3. Melhoria na Timeline (Imagem 2)
+Para refletir a nova lógica onde o RH é quem "finaliza" o processo:
+
+Estado de Espera: Enquanto o RH não fizer o check-in, a bolinha "Nota Fiscal" pode ficar com um ícone de relógio laranja.
+
+Estado Concluído: Após o check-in na nova aba, a bolinha fica verde com um check (✓) e, logo abaixo, o sistema escreve: "Check-in: 26/03 | Pagto: 10/04".
+
+4. Resumo Visual do Painel Principal (Imagem 1)
+O card de "Aguardando RH" (atualmente com 29 itens) precisa ser mais específico para o seu novo fluxo:
+
+Em vez de apenas "1 Nota Fiscal", detalhar:
+
+1 para Aprovação
+
+1 para Check-in (Data de Pagto)

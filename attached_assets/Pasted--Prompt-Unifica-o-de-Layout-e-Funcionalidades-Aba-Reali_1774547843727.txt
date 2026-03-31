@@ -1,0 +1,47 @@
+🎨 Prompt: Unificação de Layout e Funcionalidades — Aba "Realizado"
+Atue como UI/UX Designer e Desenvolvedor Front-end.
+
+1. Padronização do Modal "Realizado":
+
+Aplique o mesmo sistema de abas (Custos, Observações, Histórico) utilizado no modal de Planejado para o modal de Realizado.
+
+O cabeçalho deve manter a identidade visual azul com as informações do colaborador.
+
+2. Correção de Scroll e Estrutura:
+
+Assim como no Planejado, garanta que a área de conteúdo (abaixo das abas e acima do rodapé de totais) tenha um scroll vertical funcional.
+
+O rodapé com o "Total Planejado", "Realizado" e "Diferença" deve permanecer fixo na base do modal para consulta rápida.
+
+3. Histórico Narrativo e Simplificado (Log):
+
+Remova a exibição de códigos técnicos (ex: collaboratorType: - -> casa).
+
+Implemente o log em formato de texto simples e humano.
+
+Exemplos de formato:
+
+"O usuário [Nome] alterou o valor da Diária de R$ 50,00 para R$ 100,00."
+
+"Alimentação ajustada por [Nome] às 14:00."
+
+"Observação adicionada: [Texto da observação]."
+
+4. Chat de Observações:
+
+A aba de Observações deve ser idêntica em layout e funcionamento à do Planejado, permitindo que o gestor do Realizado veja o que foi escrito anteriormente e adicione novas notas.
+
+5. Regra de Edição no Realizado:
+
+Diferente do Planejado (que pode estar em modo de visualização), os campos de input na aba "Custos" do Realizado devem estar habilitados para edição.
+
+Caso o RH tenha alterado algo no planejamento, exiba o aviso visual de alteração conforme solicitado anteriormente.
+
+Gere o código para que a experiência de abrir um card no Planejado ou no Realizado seja visualmente consistente, mudando apenas a permissão de edição dos campos.
+
+O que você ganha com essa unificação:
+Curva de Aprendizado Zero: O usuário que aprendeu a usar o modal no Planejado saberá usar exatamente da mesma forma no Realizado e na Decisão do RH.
+
+Histórico Amigável: Em vez de ler variáveis de programação, o RH lerá frases diretas: "Fulano mudou a Diária para R$ 150".
+
+Fim dos Erros de Visualização: Com o scroll fixo, você nunca mais perderá de vista o botão "Salvar" ou os valores de Alimentação que ficavam "escondidos" no final da página.

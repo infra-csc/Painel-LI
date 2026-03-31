@@ -1,0 +1,38 @@
+🚀 Prompt: Redesign de Notas Fiscais e Flow de "Check-in Financeiro"
+Atue como Lead UI/UX e Desenvolvedor Full-stack.
+
+1. Reestruturação do Layout (Cards Visuais):
+
+Substitua a tabela antiga por uma lista de Cards de Notas, seguindo o estilo visual dos cards de Planejamento.
+
+Cada card deve ser limpo e focado, destacando: Avatar do Colaborador, Valor da Nota (em roxo bold), Número da OC, e Status (Aprovada - green badge).
+
+2. Novo Flow de Pagamento (Check-in):
+
+Implemente um "Stepper" no topo da página (como em image_b57822.png) com as fases: Lançamento, Aprovação RH, Check-in Financeiro (Ativa para o exemplo).
+
+A Lógica da Data: A data de pagamento previsto não é mais colocada na aprovação.
+
+3. O Botão de "Check-in":
+
+Nas notas com status "Aprovada", adicione um botão de ação rápida: 📅 Realizar Check-in (Blue button com ícone de checklist ou calendário).
+
+4. O Modal de Data (A Interação):
+
+Ação do Usuário: Quando o usuário clica em "Realizar Check-in", o sistema não deve enviar a nota para lugar nenhum. Em vez disso, abre-se um popover ou pequeno modal diretamente sobre o card.
+
+Conteúdo do Modal: Este modal deve conter um seletor de data (DatePicker) e o título: "Check-in Financeiro - Definir Data de Pagamento Prevista".
+
+Exemplo Visual (Ana Claudia): No card de Ana Claudia Motta Alves de Souza, o botão "Realizar Check-in" está aberto. Sobre ele, um popover com bordas azuis e um DatePicker completo está visível. O usuário selecionou a data: "20/10/2026". Um botão "Salvar Data" está abaixo do calendário.
+
+5. O Resultado (Pós Check-in):
+
+Após o check-in, o card muda visualmente. O botão desaparece e o card agora exibe o texto estático: ✅ Check-in Realizado - Pagamento Prevista em 20/10/2026.
+
+6. Filtros e Banners:
+
+Melhore os filtros (Todos, Pendente, Aprovada, etc.) transformando-os em "Pills" coloridas.
+
+Mantenha os banners de informações (blue e green banners) no topo.
+
+Gere o código para que o usuário sinta que está fazendo o controle fino de cada nota, confirmando os dados técnicos primeiro (aprovação) e depois o fluxo de caixa (check-in de data).

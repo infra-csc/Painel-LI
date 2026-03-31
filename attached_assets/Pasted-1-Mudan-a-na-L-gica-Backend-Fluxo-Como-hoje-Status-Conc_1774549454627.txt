@@ -1,0 +1,46 @@
+1. Mudança na Lógica (Backend / Fluxo)
+Como é hoje: Status = Concluído e Cor da NF = Verde APENAS SE Status da NF = Aprovada.
+
+Como deve ficar: Status = Concluído e Cor da NF = Verde SE Ação de Check-in = Realizada E Data Prevista de Pagamento = Preenchida.
+
+Nota: É importante definir com a sua equipe técnica se a "Aprovação" continuará existindo como um status oculto/posterior no sistema ou se ela deixa de existir completamente nesse fluxo.
+
+2. Melhorias no Layout e UI (Interface)
+Analisando a segunda imagem (o card expandido de "Wagner Da Silva Paulo"), veja como podemos adaptar a interface para essa nova regra:
+
+A. Na Etapa "Nota Fiscal" (Timeline)
+
+O problema atual: A bolinha de "Nota Fiscal" parece ser um estado passivo (fica ali esperando algo acontecer no sistema).
+
+A solução: Transformá-la em uma etapa ativa. Quando o fluxo chegar nesta fase, o botão principal de ação (onde na foto está "Ir para Planejado") deve mudar para "Fazer Check-in da NF".
+
+B. O Momento do "Check-in"
+
+Ao clicar no botão de Check-in, você pode abrir um pequeno modal, um drawer lateral ou expandir uma área logo abaixo da timeline contendo:
+
+Um checkbox de confirmação (ex: "Confirmo o recebimento da Nota Fiscal").
+
+Um campo de calendário obrigatório: "Data Prevista de Pagamento".
+
+Um botão de salvar/concluir.
+
+C. Feedback Visual após o Check-in (O Estado "Verde")
+
+Assim que o RH salvar a data, a bolinha "Nota Fiscal" ganha o ícone de check (✓) e a cor verde.
+
+Crucial para o Layout: Abaixo da bolinha "Nota Fiscal", onde geralmente fica a data da ação (ex: 09/09 embaixo de Escalação), o sistema deve exibir a informação preenchida. Por exemplo:
+
+Nota Fiscal
+
+Check-in realizado
+
+Pagamento: 15/10/2021
+
+Isso dá transparência e mostra exatamente por que o item está concluído.
+
+3. Impacto nos Cards do Topo (Dashboard)
+Na sua primeira imagem, temos o resumo (29 Aguardando RH, 6 Aguardando Colaborador, 1 Concluído).
+
+É importante garantir que, ao fazer o check-in e colocar a data, o item saia imediatamente da coluna vermelha ("Aguardando RH") e vá para a verde ("Concluídos").
+
+Como a definição de "Concluído" mudou (não significa mais que o dinheiro saiu da conta, mas sim que o RH terminou o trabalho administrativo dele), talvez valha a pena adicionar um tooltip (um balãozinho de informação que aparece ao passar o mouse) no card de "Concluídos" explicando: "Pendências com check-in de NF realizado e data de pagamento agendada."
