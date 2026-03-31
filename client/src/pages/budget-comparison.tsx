@@ -16,7 +16,7 @@ import {
   Calendar, MessageSquare, Info,
   ChevronDown, ChevronUp, AlertTriangle, Search, CheckSquare, Square,
   Send, Clock, ListChecks, Briefcase, Utensils, Car, Users,
-  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX
+  AlertCircle, Check, Minus, GitFork, ClipboardList, X, UserX, Pencil
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EventSearchSelect } from "@/components/event-select";
@@ -67,6 +67,8 @@ export default function BudgetComparisonPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [confirmAdjustOpen, setConfirmAdjustOpen] = useState(false);
+  const [editingActual, setEditingActual] = useState<BudgetActual | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [splitDetail, setSplitDetail] = useState<{
     actual: BudgetActual;
     planned: BudgetPlanned | null;
@@ -175,6 +177,53 @@ export default function BudgetComparisonPage() {
       setSelectedItems(new Set());
     },
   });
+
+  const isRhOrAdmin = user?.role === 'admin' || user?.role === 'financial';
+
+  const patchActualMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, number> }) => {
+      const res = await apiRequest("PATCH", `/api/budget-actual/${id}`, { ...data, _userId: user?.id });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      setEditingActual(null);
+      toast({ title: "Realizado atualizado pelo RH", className: "bg-amber-50 border-amber-200 text-amber-800" });
+    },
+    onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
+  });
+
+  const openEditModal = (actual: BudgetActual) => {
+    setEditingActual(actual);
+    setEditForm({
+      dailyQuantity: String(actual.dailyQuantity),
+      dailyValue: (actual.dailyValue / 100).toFixed(2),
+      weekdayLunch: (actual.weekdayLunch / 100).toFixed(2),
+      weekdayDinner: (actual.weekdayDinner / 100).toFixed(2),
+      weekendLunch: (actual.weekendLunch / 100).toFixed(2),
+      weekendDinner: (actual.weekendDinner / 100).toFixed(2),
+      mobility: (actual.mobility / 100).toFixed(2),
+    });
+  };
+
+  const saveEditModal = () => {
+    if (!editingActual) return;
+    const toCents = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100) || 0;
+    const data: Record<string, number> = {
+      dailyQuantity: parseInt(editForm.dailyQuantity) || 0,
+      dailyValue: toCents(editForm.dailyValue),
+      weekdayLunch: toCents(editForm.weekdayLunch),
+      weekdayDinner: toCents(editForm.weekdayDinner),
+      weekendLunch: toCents(editForm.weekendLunch),
+      weekendDinner: toCents(editForm.weekendDinner),
+      mobility: toCents(editForm.mobility),
+    };
+    const dailyTotal = data.dailyQuantity * data.dailyValue;
+    const mealTotal = data.weekdayLunch + data.weekdayDinner + data.weekendLunch + data.weekendDinner;
+    data.totalValue = dailyTotal + mealTotal + data.mobility;
+    patchActualMutation.mutate({ id: editingActual.id, data });
+  };
 
   const handleAction = () => {
     if (!actionModal) return;
@@ -917,6 +966,22 @@ export default function BudgetComparisonPage() {
                               )}
                             </div>
                           </div>
+                          {isRhOrAdmin && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-amber-50 transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); openEditModal(a); }}
+                                    title="Editar realizado (RH)"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-amber-500" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">Editar realizado (RH)</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           <ChevronDown className={`w-4 h-4 text-slate-400 hover:text-slate-700 transition-all duration-200 cursor-pointer ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </div>
@@ -1285,6 +1350,103 @@ export default function BudgetComparisonPage() {
           </div>
         </div>
       )}
+
+      {/* ── Modal edição do realizado pelo RH ── */}
+      <Dialog open={!!editingActual} onOpenChange={(open) => { if (!open) setEditingActual(null); }}>
+        <DialogContent style={{display:'flex', flexDirection:'column', maxHeight:'90vh', maxWidth:'480px'}} className="rounded-2xl p-0 gap-0">
+          {editingActual && (
+            <>
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                    <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-bold text-slate-900">Editar Realizado</h3>
+                    <p className="text-[11px] text-amber-600 font-medium">Ajuste do RH — ficará registrado no histórico</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4 space-y-4">
+                {/* Diárias */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Diárias</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-slate-500 font-medium block mb-1">Quantidade</label>
+                      <Input
+                        type="number" min={0}
+                        value={editForm.dailyQuantity}
+                        onChange={e => setEditForm(f => ({...f, dailyQuantity: e.target.value}))}
+                        className="h-8 text-sm text-right tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-500 font-medium block mb-1">Valor/dia (R$)</label>
+                      <Input
+                        type="text" inputMode="decimal"
+                        value={editForm.dailyValue}
+                        onChange={e => setEditForm(f => ({...f, dailyValue: e.target.value}))}
+                        onFocus={e => e.target.select()}
+                        className="h-8 text-sm text-right tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Alimentação */}
+                <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-orange-600">Alimentação</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { key: 'weekdayLunch', label: 'Almoço (Sem.)' },
+                      { key: 'weekdayDinner', label: 'Jantar (Sem.)' },
+                      { key: 'weekendLunch', label: 'Almoço (FdS)' },
+                      { key: 'weekendDinner', label: 'Jantar (FdS)' },
+                    ].map(({ key, label }) => (
+                      <div key={key}>
+                        <label className="text-[11px] text-slate-500 font-medium block mb-1">{label}</label>
+                        <Input
+                          type="text" inputMode="decimal"
+                          value={editForm[key]}
+                          onChange={e => setEditForm(f => ({...f, [key]: e.target.value}))}
+                          onFocus={e => e.target.select()}
+                          className="h-8 text-sm text-right tabular-nums"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Mobilidade */}
+                <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-violet-600">Mobilidade</span>
+                  <div>
+                    <label className="text-[11px] text-slate-500 font-medium block mb-1">Total (R$)</label>
+                    <Input
+                      type="text" inputMode="decimal"
+                      value={editForm.mobility}
+                      onChange={e => setEditForm(f => ({...f, mobility: e.target.value}))}
+                      onFocus={e => e.target.select()}
+                      className="h-8 text-sm text-right tabular-nums"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 shrink-0">
+                <Button variant="outline" className="flex-1 rounded-xl h-9 text-sm" onClick={() => setEditingActual(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 rounded-xl h-9 text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white"
+                  onClick={saveEditModal}
+                  disabled={patchActualMutation.isPending}
+                >
+                  {patchActualMutation.isPending ? 'Salvando...' : 'Salvar ajuste'}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Modal confirmação de aprovação com ajustes ── */}
       <Dialog open={confirmAdjustOpen} onOpenChange={setConfirmAdjustOpen}>
