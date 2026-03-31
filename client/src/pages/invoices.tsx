@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, XCircle, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X
+  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X, CheckCheck
 } from "lucide-react";
 import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
@@ -20,7 +20,6 @@ function toTitleCase(str: string) {
   if (!str || str === "—") return str;
   return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
-
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
 }
@@ -30,24 +29,60 @@ function fmtDate(d?: string | null) {
   return `${day}/${m}/${y}`;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; cls: string; border: string; icon: any }> = {
-  pendente:  { label: "Pendente",      cls: "bg-gray-100 text-gray-600",                              border: "border-gray-100 dark:border-gray-700",       icon: Clock },
-  enviada:   { label: "Aguardando RH", cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "border-amber-200 dark:border-amber-700",     icon: Send },
-  aprovada:  { label: "Aprovada",      cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "border-emerald-200 dark:border-emerald-700", icon: CheckCircle2 },
-  devolvida: { label: "Devolvida",     cls: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "border-orange-300 dark:border-orange-700",   icon: RotateCcw },
-  recusada:  { label: "Recusada",      cls: "bg-red-50 text-red-600 ring-1 ring-red-200",             border: "border-red-200 dark:border-red-700",         icon: XCircle },
-};
-
-const ROW_LEFT_BORDER: Record<string, string> = {
-  pendente:  "border-l-4 border-l-gray-200",
-  enviada:   "border-l-4 border-l-amber-400",
-  aprovada:  "border-l-4 border-l-emerald-400",
-  devolvida: "border-l-4 border-l-orange-400",
-  recusada:  "border-l-4 border-l-red-400",
+const STATUS_CONFIG: Record<string, { label: string; pill: string; border: string }> = {
+  pendente:  { label: "Pendente",       pill: "bg-gray-100 text-gray-500",                              border: "#e5e7eb" },
+  enviada:   { label: "Aguardando RH",  pill: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "#f59e0b" },
+  aprovada:  { label: "Aprovada",       pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981" },
+  devolvida: { label: "Devolvida",      pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316" },
+  recusada:  { label: "Recusada",       pill: "bg-red-50 text-red-600 ring-1 ring-red-200",             border: "#ef4444" },
 };
 
 type ActionType = "approve" | "return" | "reject";
 type ActiveAction = { invId: string; type: ActionType } | null;
+
+// ── Stepper ─────────────────────────────────────────────────────────────────
+const STEPS = [
+  { id: "lancamento", label: "Lançamento",           icon: Send },
+  { id: "aprovacao",  label: "Aprovação RH",          icon: FileCheck },
+  { id: "checkin",    label: "Check-in Financeiro",   icon: CheckCheck },
+];
+
+function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovacao" | "checkin" }) {
+  const stepIdx = STEPS.findIndex(s => s.id === currentStep);
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4">
+      <div className="flex items-center gap-0">
+        {STEPS.map((step, i) => {
+          const Icon = step.icon;
+          const done    = i < stepIdx;
+          const active  = i === stepIdx;
+          const pending = i > stepIdx;
+          return (
+            <div key={step.id} className="flex items-center flex-1 min-w-0">
+              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
+                  ${done    ? "bg-emerald-500 text-white" :
+                    active  ? "bg-[#0033CC] text-white ring-4 ring-blue-100" :
+                              "bg-slate-100 text-slate-400"}`}
+                >
+                  {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-3.5 h-3.5" />}
+                </div>
+                <span className={`text-[11px] font-semibold whitespace-nowrap
+                  ${done ? "text-emerald-600" : active ? "text-[#0033CC]" : "text-slate-400"}`}>
+                  {step.label}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-3 mb-5 rounded-full transition-colors
+                  ${i < stepIdx ? "bg-emerald-400" : "bg-slate-200"}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InvoicesPage() {
@@ -101,14 +136,17 @@ export default function InvoicesPage() {
     ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-orange-100 text-orange-700" }] : []),
   ];
 
+  // Determine stepper step
+  const stepperStep = activeTab === "aprovacao" ? "aprovacao" : "lancamento";
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
+    <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
                 <FileText className="w-4 h-4 text-emerald-600" />
               </div>
               Notas Fiscais
@@ -126,9 +164,9 @@ export default function InvoicesPage() {
         </div>
 
         {/* Banner */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2 flex items-center gap-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2">
           <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <p className="text-xs text-blue-700 dark:text-blue-300">
+          <p className="text-xs text-blue-700">
             Apenas eventos com empresa pagadora aparecem aqui.{" "}
             <Link href="/events">
               <a className="font-semibold underline underline-offset-2 hover:text-blue-800 transition-colors">Cadastre no evento</a>
@@ -138,11 +176,11 @@ export default function InvoicesPage() {
         </div>
 
         {eventsWithCnpj.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-7 h-7 text-gray-300 dark:text-gray-500" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-7 h-7 text-gray-300" />
             </div>
-            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">Nenhum evento com empresa pagadora cadastrada</p>
+            <p className="text-sm font-semibold text-gray-600">Nenhum evento com empresa pagadora cadastrada</p>
             <p className="text-xs text-gray-400 mt-1.5 max-w-xs mx-auto">Para usar Notas Fiscais, cadastre a empresa responsável pelo pagamento no evento desejado.</p>
             <Link href="/events">
               <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
@@ -151,16 +189,16 @@ export default function InvoicesPage() {
             </Link>
           </div>
         ) : !selectedEventId ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
+          <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
             <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
         ) : (
           <>
             {selectedEvent?.paymentCompanyName && (
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl px-3 py-2 flex items-center gap-2">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
                 <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                <p className="text-xs text-emerald-700">
                   <span className="font-semibold">Empresa pagadora:</span>{" "}
                   {selectedEvent.paymentCompanyName}
                   {selectedEvent.paymentCompanyCnpj && (
@@ -170,15 +208,19 @@ export default function InvoicesPage() {
               </div>
             )}
 
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-fit">
+            {/* Stepper */}
+            <InvoiceStepper currentStep={stepperStep} />
+
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     activeTab === tab.id
-                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {tab.label}
@@ -222,30 +264,48 @@ export default function InvoicesPage() {
   );
 }
 
-// ── Lançamento Tab ────────────────────────────────────────────────────────────
-const LANC_DOT: Record<string, string> = {
-  pendente:  "bg-gray-400",
-  enviada:   "bg-amber-400",
-  aprovada:  "bg-emerald-500",
-  devolvida: "bg-orange-400",
-  recusada:  "bg-red-500",
-};
-const LANC_LEFT_BORDER: Record<string, string> = {
-  enviada:   "border-l-4 border-l-amber-400",
-  aprovada:  "border-l-4 border-l-emerald-400",
-  devolvida: "border-l-4 border-l-orange-400",
-  recusada:  "border-l-4 border-l-red-400",
-};
-
+// ── Filter Pills (shared) ──────────────────────────────────────────────────
 const LANC_FILTERS = [
-  { id: "all",      label: "Todos",        activeBg: "bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900" },
-  { id: "pendente", label: "Pendente",     activeBg: "bg-gray-500 text-white" },
-  { id: "enviada",  label: "Aguardando RH",activeBg: "bg-amber-400 text-white" },
-  { id: "devolvida",label: "Devolvida",    activeBg: "bg-orange-400 text-white" },
-  { id: "recusada", label: "Recusada",     activeBg: "bg-red-500 text-white" },
-  { id: "aprovada", label: "Aprovada",     activeBg: "bg-emerald-500 text-white" },
+  { id: "all",      label: "Todos",         activeBg: "bg-slate-700 text-white" },
+  { id: "pendente", label: "Pendente",      activeBg: "bg-gray-500 text-white" },
+  { id: "enviada",  label: "Aguardando RH", activeBg: "bg-amber-500 text-white" },
+  { id: "devolvida",label: "Devolvida",     activeBg: "bg-orange-500 text-white" },
+  { id: "recusada", label: "Recusada",      activeBg: "bg-red-500 text-white" },
+  { id: "aprovada", label: "Aprovada",      activeBg: "bg-emerald-500 text-white" },
 ];
 
+function FilterPills({
+  filters, active, countFor, onChange
+}: { filters: typeof LANC_FILTERS; active: string; countFor: (id: string) => number; onChange: (id: string) => void }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {filters.map(({ id, label, activeBg }) => {
+        const cnt = countFor(id);
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+              isActive
+                ? `${activeBg} border-transparent shadow-sm`
+                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+            }`}
+          >
+            {label}
+            {cnt > 0 && (
+              <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                {cnt}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Lançamento Tab ────────────────────────────────────────────────────────────
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const [filterStatus, setFilterStatus] = useState("all");
 
@@ -263,7 +323,7 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
 
   if (approvedActuals.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
+      <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
         <AlertCircle className="w-10 h-10 text-gray-200 mx-auto mb-3" />
         <p className="text-sm text-gray-400">Nenhum colaborador aprovado no Comparativo para este evento.</p>
         <p className="text-xs text-gray-300 mt-1">A aprovação no Comparativo é necessária para habilitar o lançamento de notas.</p>
@@ -272,88 +332,54 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div className="space-y-3">
       {/* Filter pills */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
-        {LANC_FILTERS.map(({ id, label, activeBg }) => {
-          const cnt = countFor(id);
-          const active = filterStatus === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setFilterStatus(id)}
-              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full border transition-colors whitespace-nowrap ${
-                active
-                  ? `${activeBg} border-transparent`
-                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              }`}
-            >
-              {label}{cnt > 0 ? <span className="opacity-75 ml-0.5">({cnt})</span> : null}
-            </button>
-          );
-        })}
-      </div>
+      <FilterPills
+        filters={LANC_FILTERS}
+        active={filterStatus}
+        countFor={countFor}
+        onChange={setFilterStatus}
+      />
 
-      <table className="w-full" style={{ tableLayout: "fixed" }}>
-        <colgroup>
-          <col style={{ width: "240px" }} />
-          <col style={{ width: "110px" }} />
-          <col style={{ width: "150px" }} />
-          <col style={{ width: "130px" }} />
-          <col />
-        </colgroup>
-        <thead>
-          <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colaborador</th>
-            <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
-            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">OC <span className="text-red-400 normal-case font-normal">*</span></th>
-            <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Nota <span className="text-red-400 normal-case font-normal">*</span></th>
-            <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
-                Nenhum item com status "{LANC_FILTERS.find(f => f.id === filterStatus)?.label}".
-              </td>
-            </tr>
-          ) : (
-            filtered.map((actual: any) => (
-              <LancamentoRow
-                key={actual.id}
-                actual={actual}
-                invoice={getInvoice(actual.id)}
-                getName={getName}
-                getFuncName={getFuncName}
-                selectedEvent={selectedEvent}
-                selectedEventId={selectedEventId}
-                qc={qc}
-                toast={toast}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+          <p className="text-sm text-gray-400">Nenhum item com status "{LANC_FILTERS.find(f => f.id === filterStatus)?.label}".</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3">
+          {filtered.map((actual: any) => (
+            <InvoiceCard
+              key={actual.id}
+              actual={actual}
+              invoice={getInvoice(actual.id)}
+              getName={getName}
+              getFuncName={getFuncName}
+              selectedEvent={selectedEvent}
+              selectedEventId={selectedEventId}
+              qc={qc}
+              toast={toast}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Lançamento Row (one per collaborator) ─────────────────────────────────────
-function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
+// ── Invoice Card (replaces LancamentoRow) ─────────────────────────────────────
+function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const status = invoice?.status || "pendente";
-  const [expanded, setExpanded] = useState(status === "devolvida" || status === "recusada");
   const [oc, setOc] = useState(invoice?.oc || "");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // new-send mode: recusada → user starts a fresh submission
   const [newSendMode, setNewSendMode] = useState(false);
   const newFileRef = useRef<HTMLInputElement>(null);
-
-  // clearedAttachment: user explicitly removed the existing attached URL (canEdit rows)
   const [clearedAttachment, setClearedAttachment] = useState(false);
+  const [showCheckin, setShowCheckin] = useState(false);
+  const [checkinDate, setCheckinDate] = useState("");
+  const [expanded, setExpanded] = useState(status === "devolvida" || status === "recusada");
+
   function removeAttachment() {
     setFile(null);
     setClearedAttachment(true);
@@ -364,14 +390,23 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
   const name = getName(actual.collaboratorId);
   const funcName = getFuncName(actual.functionId);
   const displayName = toTitleCase(name);
+  const initial = displayName && displayName !== "—" ? displayName.charAt(0) : "?";
 
   const paymentText = (selectedEvent?.paymentCompanyName && actual.collaboratorId)
     ? `Este pagamento deve ser realizado de ${name} para ${selectedEvent.paymentCompanyName}${selectedEvent.paymentCompanyCnpj ? ` / CNPJ: ${selectedEvent.paymentCompanyCnpj}` : ""}.`
     : "";
 
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pendente;
+
+  const avatarCls =
+    status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
+    status === "devolvida" ? "bg-orange-100 text-orange-600" :
+    status === "enviada"   ? "bg-amber-100 text-amber-700" :
+    status === "recusada"  ? "bg-red-100 text-red-600" :
+    "bg-slate-100 text-slate-500";
+
   const submitMutation = useMutation({
     mutationFn: async () => {
-      // For newSendMode or clearedAttachment, start with empty URL to force new upload
       const forceClear = (status === "recusada" && newSendMode) || clearedAttachment;
       let attachmentUrl = forceClear ? "" : (invoice?.attachmentUrl || "");
       let attachmentName = forceClear ? "" : (invoice?.attachmentName || "");
@@ -405,7 +440,6 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       setFile(null);
       setNewSendMode(false);
-      setExpanded(false);
       toast({ title: "Nota enviada!", description: "Aguardando aprovação do RH." });
     },
     onError: (e: any) => {
@@ -414,86 +448,83 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
     },
   });
 
-  function enterNewSendMode() {
-    setOc("");
-    setFile(null);
-    setNewSendMode(true);
-    setExpanded(true);
-  }
+  const checkinMutation = useMutation({
+    mutationFn: (date: string) =>
+      apiRequest("PATCH", `/api/invoices/${invoice.id}`, { paymentDate: date }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      setShowCheckin(false);
+      setCheckinDate("");
+      toast({ title: "Check-in realizado!", description: "Data de pagamento registrada com sucesso." });
+    },
+    onError: () => toast({ title: "Erro", description: "Erro ao registrar check-in", variant: "destructive" }),
+  });
 
-  const dotCls = LANC_DOT[status] || "bg-gray-300";
-  const rowBorderCls = LANC_LEFT_BORDER[status] || "";
-
-  const avatarCls =
-    status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
-    status === "devolvida" ? "bg-orange-100 text-orange-600" :
-    status === "enviada"   ? "bg-amber-100 text-amber-700" :
-    status === "recusada"  ? "bg-red-100 text-red-600" :
-    "bg-gray-100 dark:bg-gray-700 text-gray-500";
-
-  const initial = displayName && displayName !== "—" ? displayName.charAt(0) : "?";
-  const showExpandToggle = status === "devolvida" || status === "recusada";
+  const hasCheckin = status === "aprovada" && !!invoice?.paymentDate;
+  const today = new Date().toISOString().split("T")[0];
 
   return (
-    <>
-      {/* ── Main row ── */}
-      <tr className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/40 dark:hover:bg-gray-900/20 transition-colors ${rowBorderCls}`}>
-
-        {/* Colaborador */}
-        <td className="px-4 py-4 overflow-hidden">
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotCls}`} title={STATUS_CONFIG[status]?.label} />
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
-              {initial}
-            </div>
-            <div className="min-w-0">
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">{displayName}</span>
-              <span className="text-[10px] text-gray-400 truncate block">{funcName}</span>
-            </div>
-            {showExpandToggle && (
-              <button
-                onClick={() => setExpanded(e => !e)}
-                className="ml-auto shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
-                title={expanded ? "Recolher" : "Ver detalhes"}
-              >
-                {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-            )}
+    <div
+      className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow hover:shadow-md"
+      style={{ borderLeft: `3px solid ${cfg.border}` }}
+    >
+      {/* Card header */}
+      <div className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Avatar */}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${avatarCls}`}>
+            {initial}
           </div>
-        </td>
+          {/* Name + function */}
+          <div className="min-w-0">
+            <div className="text-[14px] font-semibold text-slate-800 truncate">{displayName}</div>
+            <div className="text-[11px] text-slate-400 truncate">{funcName}</div>
+          </div>
+        </div>
 
-        {/* Valor */}
-        <td className="px-4 py-4 text-right">
-          <span className="text-sm font-semibold text-violet-600 dark:text-violet-400 tabular-nums whitespace-nowrap">
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Value */}
+          <span className="text-[18px] font-bold text-violet-600 tabular-nums font-mono">
             {formatCurrency(actual.totalValue)}
           </span>
-        </td>
-
-        {/* OC — editable for pendente/devolvida; read-only otherwise */}
-        <td className="px-4 py-4">
-          {canEdit ? (
-            <Input
-              value={oc}
-              onChange={e => setOc(e.target.value)}
-              placeholder="OC-0000"
-              className="h-8 text-xs rounded-lg border-gray-200 w-full"
-            />
-          ) : (
-            <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate block">
-              {invoice?.oc || "—"}
-            </span>
+          {/* Status pill */}
+          <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
+            {cfg.label}
+          </span>
+          {/* Expand toggle for devolvida/recusada */}
+          {(status === "devolvida" || status === "recusada") && (
+            <button onClick={() => setExpanded(e => !e)} className="text-slate-400 hover:text-slate-600 transition-colors">
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
           )}
-        </td>
+        </div>
+      </div>
 
-        {/* Nota — upload for pendente/devolvida; link otherwise */}
-        <td className="px-4 py-4">
-          {canEdit ? (
-            <div>
-              <div className="flex items-center gap-1">
+      {/* Card body — meta row (OC + attachment link) */}
+      <div className="px-5 pb-4">
+        {/* OC + nota row */}
+        {canEdit ? (
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+                Número OC <span className="text-red-400">*</span>
+              </label>
+              <Input
+                value={oc}
+                onChange={e => setOc(e.target.value)}
+                placeholder="OC-0000"
+                className="h-9 text-sm rounded-xl border-[#e5e7eb] focus:border-[#3B4FE4]"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+                Nota em anexo <span className="text-red-400">*</span>
+              </label>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
+                  className="flex-1 h-9 flex items-center gap-1.5 px-3 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
                 >
                   {file ? (
                     <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
@@ -503,13 +534,11 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
                     <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Anexar nota</span></>
                   )}
                 </button>
-                {/* ✕ remove — only when there's something to remove */}
                 {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
                   <button
                     type="button"
                     onClick={removeAttachment}
-                    title="Remover arquivo"
-                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -523,207 +552,213 @@ function LancamentoRow({ actual, invoice, getName, getFuncName, selectedEvent, s
                 </a>
               )}
             </div>
-          ) : (
-            invoice?.attachmentUrl ? (
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 mb-3">
+            {invoice?.oc && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
+                <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+              </div>
+            )}
+            {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                <FileText className="w-3.5 h-3.5" /> Ver anexo
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
+                <FileText className="w-3.5 h-3.5" /> Ver nota
               </a>
-            ) : <span className="text-gray-300 text-xs">—</span>
-          )}
-        </td>
+            )}
+          </div>
+        )}
 
-        {/* Ações */}
-        <td className="px-4 py-4">
+        {/* Action row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1" />
+
+          {/* Submit button */}
           {canEdit && (
-            <div className="flex items-center justify-end gap-2">
-              {paymentText && (
-                <span title={paymentText} className="text-gray-300 hover:text-gray-400 cursor-help shrink-0">
-                  <Info className="w-3.5 h-3.5" />
-                </span>
-              )}
-              <Button
-                size="sm"
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 h-8 text-xs shadow-sm whitespace-nowrap"
-                onClick={() => submitMutation.mutate()}
-                disabled={submitMutation.isPending || uploading}
-              >
-                <Send className="w-3 h-3 mr-1.5" />
-                {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar" : "Enviar nota"}
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              className="rounded-xl text-white px-5 h-9 text-sm shadow-sm"
+              style={{ background: "#059669" }}
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending || uploading}
+            >
+              <Send className="w-3.5 h-3.5 mr-1.5" />
+              {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar nota" : "Enviar nota"}
+            </Button>
           )}
-          {status === "recusada" && !newSendMode && (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-lg border-red-200 text-red-600 hover:bg-red-50 px-3 h-8 text-xs whitespace-nowrap"
-                onClick={enterNewSendMode}
-              >
-                <Send className="w-3 h-3 mr-1.5" /> Enviar nova nota
-              </Button>
-            </div>
-          )}
-          {status === "aprovada" && (() => {
-            const pd = invoice?.paymentDate;
-            if (!pd) return (
-              <div className="flex items-center justify-end">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Aprovada
-                </span>
-              </div>
-            );
-            const today = new Date().toISOString().split("T")[0];
-            const past = pd < today;
-            return (
-              <div className="flex items-center justify-end">
-                {past ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                    <AlertCircle className="w-3.5 h-3.5" /> Prev. {fmtDate(pd)}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 px-2.5 py-1 rounded-lg whitespace-nowrap">
-                    <Calendar className="w-3.5 h-3.5" /> Prev. {fmtDate(pd)}
-                  </span>
-                )}
-              </div>
-            );
-          })()}
-        </td>
-      </tr>
 
-      {/* ── Expansion row: devolvida ── */}
-      {expanded && status === "devolvida" && (
-        <tr className={`border-b border-gray-50 dark:border-gray-800 ${rowBorderCls}`}>
-          <td colSpan={5} className="px-5 pt-0 pb-3">
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
-              <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
+          {/* Recusada: enviar nova */}
+          {status === "recusada" && !newSendMode && !canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 px-4 h-9 text-xs"
+              onClick={() => { setOc(""); setFile(null); setNewSendMode(true); }}
+            >
+              <Send className="w-3 h-3 mr-1.5" /> Enviar nova nota
+            </Button>
+          )}
+
+          {/* Check-in financeiro */}
+          {status === "aprovada" && !hasCheckin && !showCheckin && (
+            <button
+              onClick={() => setShowCheckin(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold text-white shadow-sm transition-colors"
+              style={{ background: "#0033CC" }}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Realizar Check-in
+            </button>
+          )}
+
+          {/* Check-in realizado */}
+          {hasCheckin && (
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-semibold
+              ${invoice.paymentDate < today ? "bg-orange-50 text-orange-700 border border-orange-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Check-in Realizado · Pagamento Previsto em {fmtDate(invoice.paymentDate)}
+            </div>
+          )}
+        </div>
+
+        {/* Check-in Popover */}
+        {showCheckin && (
+          <div className="mt-3 border-2 border-[#0033CC] rounded-2xl p-4 bg-blue-50/40">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-[#0033CC] flex items-center justify-center">
+                <Calendar className="w-3.5 h-3.5 text-white" />
+              </div>
               <div>
-                <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
-                <p className="text-xs text-orange-700 dark:text-orange-300">{invoice?.returnComment || "Sem comentário."}</p>
+                <div className="text-[13px] font-bold text-[#0033CC]">Check-in Financeiro</div>
+                <div className="text-[11px] text-slate-500">Definir Data de Pagamento Prevista</div>
               </div>
             </div>
-          </td>
-        </tr>
-      )}
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={checkinDate}
+                onChange={e => setCheckinDate(e.target.value)}
+                autoFocus
+                className="h-9 text-sm border-2 border-[#0033CC]/30 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10 flex-1"
+              />
+              <button
+                onClick={() => setShowCheckin(false)}
+                className="h-9 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => checkinDate && checkinMutation.mutate(checkinDate)}
+                disabled={!checkinDate || checkinMutation.isPending}
+                className="h-9 px-4 text-xs font-semibold text-white rounded-xl disabled:opacity-40 transition-colors shadow-sm"
+                style={{ background: "#0033CC" }}
+              >
+                {checkinMutation.isPending ? "Salvando..." : "Salvar Data"}
+              </button>
+            </div>
+          </div>
+        )}
 
-      {/* ── Expansion row: recusada ── */}
-      {expanded && status === "recusada" && (
-        <tr className={`border-b border-gray-50 dark:border-gray-800 ${rowBorderCls}`}>
-          <td colSpan={5} className="px-5 pt-0 pb-4 space-y-3">
+        {/* New send mode (recusada) */}
+        {status === "recusada" && newSendMode && (
+          <div className="mt-3 border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs text-slate-500">Preencha os dados da nova nota fiscal para reenvio.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+                  Nova OC <span className="text-red-400">*</span>
+                </label>
+                <Input value={oc} onChange={e => setOc(e.target.value)} placeholder="OC-0000" className="h-8 text-xs rounded-lg border-slate-200" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+                  Nova nota em anexo <span className="text-red-400">*</span>
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => newFileRef.current?.click()}
+                    className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
+                  >
+                    {file ? (
+                      <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600">{file.name}</span></>
+                    ) : (
+                      <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
+                    )}
+                  </button>
+                  {file && (
+                    <button type="button" onClick={() => { setFile(null); if (newFileRef.current) newFileRef.current.value = ""; }}
+                      className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-0.5">
+              <button className="text-xs text-slate-400 hover:text-slate-600" onClick={() => { setNewSendMode(false); setOc(""); setFile(null); }}>
+                Cancelar
+              </button>
+              <Button size="sm" style={{ background: "#059669" }} className="rounded-lg text-white px-4 h-8 text-xs"
+                onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending || uploading}>
+                <Send className="w-3 h-3 mr-1.5" />
+                {submitMutation.isPending || uploading ? "Enviando..." : "Enviar nota fiscal"}
+              </Button>
+            </div>
+          </div>
+        )}
 
-            {/* Motivo da recusa */}
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
+        {/* Expansion: devolvida */}
+        {expanded && status === "devolvida" && (
+          <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-2">
+            <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
+              <p className="text-xs text-orange-700">{invoice?.returnComment || "Sem comentário."}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Expansion: recusada */}
+        {expanded && status === "recusada" && !newSendMode && (
+          <div className="mt-3 space-y-2">
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
               <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Nota recusada pelo RH</p>
-                <p className="text-xs text-red-700 dark:text-red-300">{invoice?.returnComment || "Sem comentário."}</p>
+                <p className="text-xs text-red-700">{invoice?.returnComment || "Sem comentário."}</p>
               </div>
             </div>
-
-            {/* Histórico da nota recusada */}
-            <div className="flex items-center gap-4 px-1">
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide shrink-0">Nota anterior:</p>
-              {invoice?.oc && (
-                <span className="text-[10px] font-mono text-gray-400 line-through">{invoice.oc}</span>
-              )}
+            <div className="flex items-center gap-3 px-1">
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide shrink-0">Nota anterior:</p>
+              {invoice?.oc && <span className="text-[10px] font-mono text-slate-400 line-through">{invoice.oc}</span>}
               {invoice?.attachmentUrl && (
                 <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-blue-500 hover:underline line-through">
+                  className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-blue-500 hover:underline line-through">
                   <Paperclip className="w-2.5 h-2.5" /> Ver nota recusada
                 </a>
               )}
             </div>
-
-            {/* Instrução + formulário de novo envio */}
-            {newSendMode ? (
-              <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
-                <p className="text-xs text-gray-500">Preencha os dados da nova nota fiscal para reenvio.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
-                      Nova OC <span className="text-red-400">*</span>
-                    </label>
-                    <Input
-                      value={oc}
-                      onChange={e => setOc(e.target.value)}
-                      placeholder="OC-0000"
-                      className="h-8 text-xs rounded-lg border-gray-200 w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">
-                      Nova nota em anexo <span className="text-red-400">*</span>
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => newFileRef.current?.click()}
-                        className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
-                      >
-                        {file ? (
-                          <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600 font-medium">{file.name}</span></>
-                        ) : (
-                          <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
-                        )}
-                      </button>
-                      {file && (
-                        <button
-                          type="button"
-                          onClick={() => { setFile(null); if (newFileRef.current) newFileRef.current.value = ""; }}
-                          title="Remover arquivo"
-                          className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                    <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-0.5">
-                  <button
-                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                    onClick={() => { setNewSendMode(false); setOc(""); setFile(null); }}
-                  >
-                    Cancelar
-                  </button>
-                  <Button
-                    size="sm"
-                    className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 h-8 text-xs shadow-sm"
-                    onClick={() => submitMutation.mutate()}
-                    disabled={submitMutation.isPending || uploading}
-                  >
-                    <Send className="w-3 h-3 mr-1.5" />
-                    {submitMutation.isPending || uploading ? "Enviando..." : "Enviar nota fiscal"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic px-1">
-                Esta nota foi recusada definitivamente. Para continuar, clique em "Enviar nova nota" para iniciar um novo envio.
-              </p>
-            )}
-          </td>
-        </tr>
-      )}
-    </>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
+// ── Aprovação Tab ─────────────────────────────────────────────────────────────
 const APROV_FILTERS = [
-  { id: "all",      label: "Todos",     activeBg: "bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900" },
-  { id: "enviada",  label: "Aguardando",activeBg: "bg-amber-400 text-white" },
+  { id: "all",      label: "Todos",     activeBg: "bg-slate-700 text-white" },
+  { id: "enviada",  label: "Aguardando",activeBg: "bg-amber-500 text-white" },
   { id: "aprovada", label: "Aprovada",  activeBg: "bg-emerald-500 text-white" },
-  { id: "devolvida",label: "Devolvida", activeBg: "bg-orange-400 text-white" },
+  { id: "devolvida",label: "Devolvida", activeBg: "bg-orange-500 text-white" },
   { id: "recusada", label: "Recusada",  activeBg: "bg-red-500 text-white" },
 ];
 
-// ── Aprovação Tab ─────────────────────────────────────────────────────────────
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
   const [active, setActive] = useState<ActiveAction>(null);
-  const [paymentDate, setPaymentDate] = useState("");
   const [comment, setComment] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
@@ -732,7 +767,6 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       setActive(null);
     } else {
       setActive({ invId: inv.id, type });
-      setPaymentDate("");
       setComment("");
     }
   }
@@ -740,11 +774,11 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const approveMutation = useMutation({
     mutationFn: (id: string) =>
-      apiRequest("POST", `/api/invoices/${id}/approve`, { paymentDate }).then(r => r.json()),
+      apiRequest("POST", `/api/invoices/${id}/approve`, {}).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       closeAction();
-      toast({ title: "Nota aprovada!", description: "Colaborador notificado." });
+      toast({ title: "Nota aprovada!", description: "Colaborador poderá realizar o check-in financeiro." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao aprovar nota", variant: "destructive" }),
   });
@@ -773,7 +807,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   if (invoices.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
+      <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
         <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
         <p className="text-sm text-gray-400">Nenhuma nota enviada ainda para este evento.</p>
       </div>
@@ -781,14 +815,6 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
   }
 
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
-
-  const STATUS_DOT: Record<string, string> = {
-    enviada:   "bg-amber-400",
-    aprovada:  "bg-emerald-500",
-    devolvida: "bg-orange-400",
-    recusada:  "bg-red-500",
-    pendente:  "bg-gray-300",
-  };
 
   const aprovCountFor = (id: string) =>
     id === "all" ? invoices.length : invoices.filter((i: any) => i.status === id).length;
@@ -798,51 +824,39 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     : invoices.filter((i: any) => i.status === filterStatus);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div className="space-y-3">
       {/* Filter pills */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 flex-wrap">
-        {APROV_FILTERS.map(({ id, label, activeBg }) => {
-          const cnt = aprovCountFor(id);
-          const active = filterStatus === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setFilterStatus(id)}
-              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full border transition-colors whitespace-nowrap ${
-                active
-                  ? `${activeBg} border-transparent`
-                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              }`}
-            >
-              {label}{cnt > 0 ? <span className="opacity-75 ml-0.5">({cnt})</span> : null}
-            </button>
-          );
-        })}
-      </div>
+      <FilterPills
+        filters={APROV_FILTERS}
+        active={filterStatus}
+        countFor={aprovCountFor}
+        onChange={setFilterStatus}
+      />
 
-      <table className="w-full" style={{ tableLayout: "fixed" }}>
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <table className="w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "250px" }} />   {/* Colaborador */}
-            <col style={{ width: "150px" }} />   {/* Função */}
-            <col style={{ width: "120px" }} />   {/* Valor */}
-            <col style={{ width: "130px" }} />   {/* OC */}
-            <col style={{ width: "130px" }} />   {/* Nota */}
-            <col />                              {/* Ações — toma o restante */}
+            <col style={{ width: "240px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "110px" }} />
+            <col style={{ width: "110px" }} />
+            <col style={{ width: "110px" }} />
+            <col />
           </colgroup>
           <thead>
-            <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colaborador</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Função</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">OC</th>
-              <th className="text-left px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Nota</th>
-              <th className="text-right px-4 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
+            <tr className="border-b border-gray-100 bg-slate-50/60">
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Colaborador</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Função</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Valor</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">OC</th>
+              <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Nota</th>
+              <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                   Nenhum item com status "{APROV_FILTERS.find(f => f.id === filterStatus)?.label}".
                 </td>
               </tr>
@@ -852,120 +866,95 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               const name = getName(inv.collaboratorId);
               const isActiveRow = active?.invId === inv.id;
               const initial = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
-              const dotCls = STATUS_DOT[inv.status] || "bg-gray-300";
+              const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pendente;
 
               const avatarCls =
                 inv.status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
                 inv.status === "enviada"   ? "bg-amber-100 text-amber-700" :
                 inv.status === "devolvida" ? "bg-orange-100 text-orange-600" :
                 inv.status === "recusada"  ? "bg-red-100 text-red-600" :
-                "bg-gray-100 dark:bg-gray-700 text-gray-500";
-
-              const approvedDate = inv.status === "aprovada" && inv.paymentDate
-                ? `Aprovada · Pgto ${fmtDate(inv.paymentDate)}`
-                : STATUS_CONFIG[inv.status]?.label;
+                "bg-slate-100 text-slate-500";
 
               return (
                 <>
                   <tr
                     key={inv.id}
-                    className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/60 dark:hover:bg-gray-900/30 transition-colors ${isActiveRow ? "bg-gray-50 dark:bg-gray-900/20" : ""}`}
+                    className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${isActiveRow ? "bg-gray-50" : ""}`}
+                    style={{ borderLeft: `3px solid ${cfg.border}` }}
                   >
-                    {/* Colaborador — bolinha de status + avatar + nome */}
                     <td className="px-4 py-4 overflow-hidden">
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotCls}`}
-                          title={approvedDate}
-                        />
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
                           {initial}
                         </div>
                         <div className="min-w-0">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate block">
-                            {toTitleCase(name)}
-                          </span>
-                          {inv.status === "aprovada" && inv.paymentDate && (
-                            <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
-                              <Calendar className="w-2.5 h-2.5 shrink-0" /> {fmtDate(inv.paymentDate)}
-                            </span>
-                          )}
+                          <span className="text-[13px] font-medium text-slate-800 truncate block">{toTitleCase(name)}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
                         </div>
                       </div>
                     </td>
-
-                    {/* Função */}
                     <td className="px-4 py-4 overflow-hidden">
-                      <span className="text-xs text-gray-500 truncate block">{getFuncName(inv.functionId)}</span>
+                      <span className="text-xs text-slate-500 truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
-
-                    {/* Valor */}
                     <td className="px-4 py-4 text-right">
-                      <span className="text-sm font-semibold text-violet-600 dark:text-violet-400 tabular-nums whitespace-nowrap">
+                      <span className="text-[13px] font-bold text-violet-600 tabular-nums font-mono">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
-
-                    {/* OC */}
                     <td className="px-4 py-4 overflow-hidden">
-                      <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate block">
-                        {inv.oc || "—"}
-                      </span>
+                      <span className="text-xs font-mono text-slate-600 truncate block">{inv.oc || "—"}</span>
                     </td>
-
-                    {/* Nota */}
                     <td className="px-4 py-4">
                       {inv.attachmentUrl ? (
-                        <a
-                          href={inv.attachmentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-                        >
+                        <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                           <FileText className="w-3.5 h-3.5" /> Ver nota
                         </a>
                       ) : (
-                        <span className="text-gray-300 text-xs">—</span>
+                        <span className="text-slate-300 text-xs">—</span>
                       )}
                     </td>
-
-                    {/* Ações — ícone + texto curto */}
                     <td className="px-4 py-4">
                       {inv.status === "enviada" && (
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openAction(inv, "approve")}
-                            title="Aprovar nota"
                             className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "approve"
                                 ? "bg-emerald-600 text-white"
-                                : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                : "text-emerald-600 hover:bg-emerald-50"
                             }`}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
                           </button>
                           <button
                             onClick={() => openAction(inv, "return")}
-                            title="Devolver para ajuste"
                             className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "return"
                                 ? "bg-orange-500 text-white"
-                                : "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                : "text-orange-500 hover:bg-orange-50"
                             }`}
                           >
                             <RotateCcw className="w-3.5 h-3.5" /> Devolver
                           </button>
                           <button
                             onClick={() => openAction(inv, "reject")}
-                            title="Recusar nota"
                             className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
                               isActiveRow && active?.type === "reject"
                                 ? "bg-red-500 text-white"
-                                : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                : "text-red-500 hover:bg-red-50"
                             }`}
                           >
                             <XCircle className="w-3.5 h-3.5" /> Recusar
                           </button>
+                        </div>
+                      )}
+                      {inv.status === "aprovada" && (
+                        <div className="flex justify-end">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {inv.paymentDate ? `Check-in · ${fmtDate(inv.paymentDate)}` : "Aprovada"}
+                          </span>
                         </div>
                       )}
                     </td>
@@ -973,29 +962,21 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
                   {/* Inline action panel */}
                   {isActiveRow && active && (
-                    <tr key={`${inv.id}-action`} className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
+                    <tr key={`${inv.id}-action`} className="bg-slate-50 border-b border-slate-100">
                       <td colSpan={6} className="px-5 py-3">
                         {active.type === "approve" && (
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar aprovação
                             </span>
-                            <div className="flex items-center gap-2">
-                              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                                Data de pagamento <span className="text-red-400">*</span>
-                              </label>
-                              <div className="relative">
-                                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                                <Input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="pl-7 h-8 text-xs rounded-lg border-gray-200 w-40" autoFocus />
-                              </div>
-                            </div>
+                            <p className="text-xs text-slate-500">Após aprovar, o colaborador poderá definir a data de pagamento via Check-in Financeiro.</p>
                             <div className="flex items-center gap-2 ml-auto">
-                              <button onClick={closeAction} className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1">
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
                                 <X className="w-3 h-3" /> Cancelar
                               </button>
                               <button
                                 onClick={() => approveMutation.mutate(inv.id)}
-                                disabled={!paymentDate || approveMutation.isPending}
+                                disabled={approveMutation.isPending}
                                 className="h-8 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors"
                               >
                                 {approveMutation.isPending ? "Aprovando..." : "Confirmar"}
@@ -1010,9 +991,9 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                               <RotateCcw className="w-3.5 h-3.5" /> Devolver para ajuste
                             </span>
                             <div className="flex items-end gap-2">
-                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Explique o que precisa ser corrigido (opcional)..." className="text-xs rounded-lg border-gray-200 resize-none flex-1" autoFocus />
+                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Explique o que precisa ser corrigido (opcional)..." className="text-xs rounded-lg border-slate-200 resize-none flex-1" autoFocus />
                               <div className="flex items-center gap-2 shrink-0">
-                                <button onClick={closeAction} className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1">
+                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
                                   <X className="w-3 h-3" /> Cancelar
                                 </button>
                                 <button onClick={() => returnMutation.mutate(inv.id)} disabled={returnMutation.isPending} className="h-8 px-4 text-xs font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors">
@@ -1029,13 +1010,13 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                               <XCircle className="w-3.5 h-3.5" /> Recusar nota
                             </span>
                             <div className="flex items-end gap-2">
-                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Motivo da recusa (opcional)..." className="text-xs rounded-lg border-gray-200 resize-none flex-1" autoFocus />
+                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Motivo da recusa (opcional)..." className="text-xs rounded-lg border-slate-200 resize-none flex-1" autoFocus />
                               <div className="flex items-center gap-2 shrink-0">
-                                <button onClick={closeAction} className="h-8 px-3 text-xs text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1">
+                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
                                   <X className="w-3 h-3" /> Cancelar
                                 </button>
-                                <button onClick={() => rejectMutation.mutate(inv.id)} disabled={rejectMutation.isPending} className="h-8 px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg transition-colors">
-                                  {rejectMutation.isPending ? "Recusando..." : "Confirmar recusa"}
+                                <button onClick={() => rejectMutation.mutate(inv.id)} disabled={rejectMutation.isPending} className="h-8 px-4 text-xs font-semibold bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors">
+                                  {rejectMutation.isPending ? "Recusando..." : "Recusar"}
                                 </button>
                               </div>
                             </div>
@@ -1049,6 +1030,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             })}
           </tbody>
         </table>
+      </div>
     </div>
   );
 }

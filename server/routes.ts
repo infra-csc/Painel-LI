@@ -2641,10 +2641,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     try {
       const { paymentDate } = req.body;
-      if (!paymentDate) return res.status(400).json({ message: "Data de pagamento obrigatória" });
       const invoice = await storage.updateInvoice(req.params.id, {
         status: "aprovada",
-        paymentDate,
+        ...(paymentDate ? { paymentDate } : {}),
         approvedAt: new Date(),
         returnComment: null,
       });
