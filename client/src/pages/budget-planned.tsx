@@ -108,6 +108,7 @@ export default function BudgetPlannedPage() {
   const [modalTab, setModalTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [modalViewMode, setModalViewMode] = useState(false);
   const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
+  const [confirmReset, setConfirmReset] = useState(false);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -1597,18 +1598,39 @@ export default function BudgetPlannedPage() {
               {/* ── Planilha de Edição ── */}
               {/* Toolbar */}
               <div className="flex items-center justify-between px-1 py-1">
-                <span className="text-xs text-slate-400 font-medium">{filteredBudgets.length} colaborador{filteredBudgets.length !== 1 ? 'es' : ''}</span>
-                <button
-                  onClick={() => setBudgetOverrides(prev => {
-                    const updated = { ...prev };
-                    filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
-                    return updated;
-                  })}
-                  className="text-xs px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
-                >
-                  <Zap className="w-3 h-3" />
-                  Aplicar Valor Padrão em Todos
-                </button>
+                <span className="text-[11px] text-slate-400 font-medium">{filteredBudgets.length} colaborador{filteredBudgets.length !== 1 ? 'es' : ''}</span>
+                {confirmReset ? (
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-slate-500">Isso substituirá todos os valores. Confirmar?</span>
+                    <button
+                      onClick={() => {
+                        setBudgetOverrides(prev => {
+                          const updated = { ...prev };
+                          filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
+                          return updated;
+                        });
+                        setConfirmReset(false);
+                      }}
+                      className="px-2.5 py-1 rounded-md bg-[#0033CC] text-white font-semibold text-[11px] hover:bg-[#0022aa] transition-colors"
+                    >
+                      Sim, aplicar
+                    </button>
+                    <button
+                      onClick={() => setConfirmReset(false)}
+                      className="px-2.5 py-1 rounded-md border border-slate-200 text-slate-500 font-medium text-[11px] hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmReset(true)}
+                    className="text-[11px] px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
+                  >
+                    <Zap className="w-3 h-3" />
+                    Aplicar Valor Padrão em Todos
+                  </button>
+                )}
               </div>
 
               {/* Tabela */}
@@ -1617,15 +1639,15 @@ export default function BudgetPlannedPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/80">
-                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Colaborador</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-20">Diárias</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Valor/dia</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Alimentação</th>
-                        <th className="text-right px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-32">Mobilidade</th>
-                        <th className="text-right px-4 py-2.5 text-[10px] font-bold text-blue-600 uppercase tracking-wider w-32 bg-blue-50/60">Subtotal</th>
+                        <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px]" style={{color:'#888'}}>Colaborador</th>
+                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>Diárias</th>
+                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>R$ / dia</th>
+                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Alimentação</th>
+                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Mobilidade</th>
+                        <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100">
                       {filteredBudgets.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
@@ -1637,8 +1659,6 @@ export default function BudgetPlannedPage() {
                         const name = getCollaboratorName(budget.inclusion.collaboratorId);
                         const funcName = getFunctionName(budget.inclusion.functionId);
                         const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
-                        const cellCls = "bg-slate-50 rounded-md px-2 py-1 border border-transparent hover:border-slate-200 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-sm transition-all flex items-center gap-1";
-                        const inputCls = "w-full text-right bg-transparent border-none outline-none text-sm font-mono tabular-nums py-0.5";
                         const disabled = isSent || isNotAttended;
                         const sid = budget.inclusion.id;
                         const buf = (field: string, fallback: string) =>
@@ -1651,26 +1671,38 @@ export default function BudgetPlannedPage() {
                           handleSheetEdit(budget, field, e.target.value);
                           clearbuf(key);
                         };
+                        const inputBase = `h-8 w-[76px] text-right font-mono tabular-nums text-[12px] border rounded px-2 outline-none transition-all
+                          ${disabled
+                            ? 'border-transparent bg-transparent text-slate-400 cursor-default'
+                            : 'border-[#e5e7eb] bg-[#FAFAFA] text-slate-700 hover:border-slate-300 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
                         return (
                           <tr
                             key={budget.inclusion.id}
-                            className={`group transition-colors ${isSent ? 'bg-emerald-50/30' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
+                            style={{height:'52px'}}
+                            className={`group transition-colors ${isSent ? 'bg-emerald-50/20' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                           >
                             {/* Colaborador */}
-                            <td className="px-4 py-2">
-                              <div className="flex flex-col leading-tight">
-                                <span className={`text-sm font-semibold ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-900'}`}>{name}</span>
-                                <span className="text-[10px] text-slate-400">{funcName}</span>
+                            <td className="px-4" style={{minWidth:'260px'}}>
+                              <div className="flex items-center gap-2 leading-tight flex-wrap">
+                                <span className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-900'}`}>{name}</span>
+                                {isSent ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:'#DCFCE7', color:'#16A34A'}}>
+                                    <Check className="w-2.5 h-2.5" />Enviado
+                                  </span>
+                                ) : !isNotAttended ? (
+                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:'#FEF3C7', color:'#D97706'}}>
+                                    Pendente
+                                  </span>
+                                ) : null}
                               </div>
-                              {isSent && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full mt-0.5">
-                                  <Check className="w-2.5 h-2.5" />Enviado
-                                </span>
-                              )}
+                              <div className="text-[11px] text-slate-400 mt-0.5">{funcName}</div>
                             </td>
                             {/* Diárias qty */}
-                            <td className="px-3 py-2">
-                              <div className={cellCls}>
+                            <td className="px-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {hasOvr && !disabled && (
+                                  <span className="text-[10px] text-[#3B4FE4]" title="Editado">✏</span>
+                                )}
                                 <input
                                   type="text" inputMode="numeric"
                                   tabIndex={rowIdx * 4 + 1}
@@ -1679,86 +1711,96 @@ export default function BudgetPlannedPage() {
                                   onChange={e => setbuf('qty', e.target.value)}
                                   onBlur={commitBlur('qtdDiarias', 'qty')}
                                   onFocus={e => e.target.select()}
-                                  className={`${inputCls} text-slate-700 w-14 ${disabled ? 'cursor-default opacity-60' : ''}`}
+                                  className={inputBase}
                                 />
                               </div>
                             </td>
                             {/* Valor/dia */}
-                            <td className="px-3 py-2">
-                              <div className={cellCls}>
-                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
-                                <input
-                                  type="text" inputMode="decimal"
-                                  tabIndex={rowIdx * 4 + 2}
-                                  disabled={disabled}
-                                  value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
-                                  onChange={e => setbuf('vdia', e.target.value)}
-                                  onBlur={commitBlur('valorDia', 'vdia')}
-                                  onFocus={e => e.target.select()}
-                                  className={`${inputCls} text-blue-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
-                                />
-                              </div>
+                            <td className="px-3 text-right">
+                              <input
+                                type="text" inputMode="decimal"
+                                tabIndex={rowIdx * 4 + 2}
+                                disabled={disabled}
+                                value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                                onChange={e => setbuf('vdia', e.target.value)}
+                                onBlur={commitBlur('valorDia', 'vdia')}
+                                onFocus={e => e.target.select()}
+                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
+                              />
                             </td>
                             {/* Alimentação */}
-                            <td className="px-3 py-2">
-                              <div className={cellCls}>
-                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
-                                <input
-                                  type="text" inputMode="decimal"
-                                  tabIndex={rowIdx * 4 + 3}
-                                  disabled={disabled}
-                                  value={buf('alim', foodTotal.toFixed(2))}
-                                  onChange={e => setbuf('alim', e.target.value)}
-                                  onBlur={commitBlur('alimentacao', 'alim')}
-                                  onFocus={e => e.target.select()}
-                                  className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
-                                />
-                              </div>
+                            <td className="px-3 text-right">
+                              <input
+                                type="text" inputMode="decimal"
+                                tabIndex={rowIdx * 4 + 3}
+                                disabled={disabled}
+                                value={buf('alim', foodTotal.toFixed(2))}
+                                onChange={e => setbuf('alim', e.target.value)}
+                                onBlur={commitBlur('alimentacao', 'alim')}
+                                onFocus={e => e.target.select()}
+                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
+                              />
                             </td>
                             {/* Mobilidade */}
-                            <td className="px-3 py-2">
-                              <div className={cellCls}>
-                                <span className="text-[10px] text-slate-300 shrink-0">R$</span>
-                                <input
-                                  type="text" inputMode="decimal"
-                                  tabIndex={rowIdx * 4 + 4}
-                                  disabled={disabled}
-                                  value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
-                                  onChange={e => setbuf('mob', e.target.value)}
-                                  onBlur={commitBlur('mobilidade', 'mob')}
-                                  onFocus={e => e.target.select()}
-                                  className={`${inputCls} text-slate-700 w-20 ${disabled ? 'cursor-default opacity-60' : ''}`}
-                                />
-                              </div>
+                            <td className="px-3 text-right">
+                              <input
+                                type="text" inputMode="decimal"
+                                tabIndex={rowIdx * 4 + 4}
+                                disabled={disabled}
+                                value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
+                                onChange={e => setbuf('mob', e.target.value)}
+                                onBlur={commitBlur('mobilidade', 'mob')}
+                                onFocus={e => e.target.select()}
+                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
+                              />
                             </td>
                             {/* Subtotal */}
-                            <td className="px-4 py-2 text-right bg-blue-50/30">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {hasOvr && !isSent && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Valor editado" />
-                                )}
-                                <span className={`text-sm font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-blue-700'}`}>
-                                  {formatCurrency(budget.totalFinal)}
-                                </span>
-                              </div>
+                            <td className="px-4 text-right bg-blue-50/20">
+                              <span className={`text-[13px] font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-[#3B4FE4]'}`}>
+                                {formatCurrency(budget.totalFinal)}
+                              </span>
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
-                    {filteredBudgets.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t-2 border-slate-100 bg-blue-50/50">
-                          <td className="px-4 py-2.5">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total ({filteredBudgets.length})</span>
-                          </td>
-                          <td colSpan={4} className="px-3 py-2.5" />
-                          <td className="px-4 py-2.5 text-right">
-                            <span className="text-base font-bold font-mono text-blue-700 tabular-nums">{formatCurrency(totalGeral)}</span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
+                    {filteredBudgets.length > 0 && (() => {
+                      const totalDiariasCols = filteredBudgets.reduce((s, b) => s + b.subtotalDiarias, 0);
+                      const totalAlimCols = filteredBudgets.reduce((s, b) => s + b.almocoSemana + b.jantarSemana + b.almocoFds + b.jantarFds, 0);
+                      const totalMobCols = filteredBudgets.reduce((s, b) => s + b.mobilidade, 0);
+                      return (
+                        <tfoot>
+                          <tr style={{background:'#F8FAFC', borderTop:'2px solid #3B4FE4'}}>
+                            <td className="px-4 py-2.5">
+                              <span className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider">Total ({filteredBudgets.length})</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                {filteredBudgets.reduce((s, b) => s + b.qtdDiarias, 0)} dias
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                {formatCurrency(totalDiariasCols)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                {formatCurrency(totalAlimCols)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                {formatCurrency(totalMobCols)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <span className="text-[16px] font-bold font-mono tabular-nums" style={{color:'#3B4FE4'}}>{formatCurrency(totalGeral)}</span>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
                   </table>
                 </div>
               </div>
@@ -1773,8 +1815,8 @@ export default function BudgetPlannedPage() {
                   <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
                     <div className="flex items-center gap-2">
                       {hasPending && (
-                        <span className="text-xs text-slate-400">
-                          {pendingSheet.length} {pendingSheet.length === 1 ? 'colaborador pendente' : 'colaboradores pendentes'}
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border" style={{background:'#FEF3C7', color:'#D97706', borderColor:'#FDE68A'}}>
+                          ⏱ {pendingSheet.length} {pendingSheet.length === 1 ? 'pendente' : 'pendentes'}
                         </span>
                       )}
                       {hasEdits && (
@@ -1793,7 +1835,7 @@ export default function BudgetPlannedPage() {
                               filteredBudgets.forEach(b => { delete updated[b.inclusion.id]; });
                               return updated;
                             })}
-                            className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors"
+                            className="text-[12px] font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-3 py-2 rounded-lg transition-colors"
                           >
                             Descartar Alterações
                           </button>
@@ -1805,14 +1847,19 @@ export default function BudgetPlannedPage() {
                             setSelectedCards(new Set(pendingSheet.map(b => b.inclusion.id)));
                             setConfirmSendOpen(true);
                           }}
-                          className={`flex items-center gap-2 text-sm font-semibold text-white px-6 py-2.5 rounded-lg shadow-md transition-all
+                          className={`h-10 flex items-center gap-2 text-[13px] font-semibold text-white px-5 rounded-lg shadow-md transition-all
                             ${hasPending
-                              ? `bg-blue-600 hover:bg-blue-700 ${hasEdits ? 'shadow-blue-300 ring-2 ring-blue-400 ring-offset-1' : 'shadow-blue-100'}`
+                              ? `bg-[#059669] hover:bg-[#047857] ${hasEdits ? 'shadow-emerald-200 ring-2 ring-emerald-400 ring-offset-1' : 'shadow-emerald-100'}`
                               : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
                           `}
                         >
                           <Send className="w-4 h-4" />
-                          {hasPending ? `Enviar Planejamento (${pendingSheet.length})` : 'Nenhum pendente'}
+                          Enviar Planejamento
+                          {hasPending && (
+                            <span className="ml-1 w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold leading-none">
+                              {pendingSheet.length}
+                            </span>
+                          )}
                         </button>
                       </div>
                     )}

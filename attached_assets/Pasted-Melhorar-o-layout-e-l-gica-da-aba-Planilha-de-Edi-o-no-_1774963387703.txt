@@ -1,0 +1,91 @@
+Melhorar o layout e lógica da aba "Planilha de Edição" 
+no módulo de Planejamento de Escalações:
+
+═══════════════════════════════════════
+1. TABELA — layout geral
+═══════════════════════════════════════
+- Altura de cada linha: 52px (compactar, está alto)
+- Headers: 11px uppercase cinza #888, 
+  letter-spacing 0.07em
+- Alinhar colunas numéricas à direita 
+  (Diárias, Valor/Dia, Alimentação, Mobilidade, Subtotal)
+- Coluna COLABORADOR: largura ~260px, 
+  nome 13px peso 600, função 11px cinza abaixo
+- Remover o "R$" repetido em cada célula —
+  colocar apenas no header da coluna 
+  ou uma vez só no lado esquerdo da linha
+
+═══════════════════════════════════════
+2. BADGE "ENVIADO"
+═══════════════════════════════════════
+- Mover o badge de status para dentro 
+  da própria linha, na mesma linha do nome —
+  não ocupar linha extra abaixo da função
+- Layout: [AROLDO FRANCISCO BRITO] [• Enviado]
+  badge inline à direita do nome, 
+  ou como coluna STATUS separada
+- Badge ENVIADO: fundo #DCFCE7, texto #16A34A, 
+  10px, border-radius 4px
+- Badge PENDENTE: fundo #FEF3C7, texto #D97706
+
+═══════════════════════════════════════
+3. INPUTS DE EDIÇÃO
+═══════════════════════════════════════
+- Os valores (50.00, 75.00, 25.00) parecem 
+  estáticos — deixar visualmente claro que 
+  são editáveis: borda levíssima #e5e7eb, 
+  background #FAFAFA, border-radius 4px
+- Ao focar: borda azul #3B4FE4, fundo branco
+- Largura dos inputs: 80px máximo
+- Se o valor foi alterado em relação ao padrão: 
+  texto azul #3B4FE4 peso 600 (já está, manter)
+  + pequeno ícone ✏ 10px ao lado
+
+═══════════════════════════════════════
+4. COLUNA DIÁRIAS
+═══════════════════════════════════════
+- O número "1" solto está ambíguo — 
+  adicionar seta ▲▼ ou input tipo spinner 
+  para deixar claro que é editável
+- Ou mostrar como "1 dia" em 12px cinza
+
+═══════════════════════════════════════
+5. FOOTER DA TABELA
+═══════════════════════════════════════
+- Linha TOTAL: fundo #F8FAFC, 
+  border-top 2px #3B4FE4
+- "TOTAL (4)": 12px peso 600 cinza
+- Valor total: 16px peso 800 azul #3B4FE4
+
+═══════════════════════════════════════
+6. BARRA INFERIOR
+═══════════════════════════════════════
+- "1 colaborador pendente": badge laranja 
+  ao invés de texto simples — 
+  ⏱ 1 pendente em #FEF3C7 com borda
+- Botão "Enviar Planejamento (1)": 
+  height 40px, font 13px, 
+  mostrar o número como badge branco 
+  circular dentro do botão: 
+  [✈ Enviar Planejamento] [1]
+- Desabilitar o botão (cinza) se não 
+  houver nenhum pendente
+
+═══════════════════════════════════════
+7. LÓGICA — sugestões
+═══════════════════════════════════════
+- Ao editar qualquer valor de uma linha 
+  que já foi "Enviado", mostrar alerta inline:
+  "⚠ Este planejamento já foi enviado. 
+  Editar irá requerer reenvio."
+  e mudar o badge de volta para PENDENTE
+- Botão "Aplicar Valor Padrão em Todos": 
+  ao clicar, mostrar confirmação rápida 
+  (toast ou inline) antes de sobrescrever —
+  "Isso substituirá todos os valores. Confirmar?"
+- Adicionar uma linha de totais por coluna 
+  no footer: total de Diárias, 
+  total de Alimentação, total de Mobilidade
+  além do subtotal já existente
+
+Não alterar cálculos nem regras de negócio.
