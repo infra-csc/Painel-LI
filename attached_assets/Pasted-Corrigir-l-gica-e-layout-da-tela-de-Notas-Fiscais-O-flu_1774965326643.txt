@@ -1,0 +1,96 @@
+Corrigir lógica e layout da tela de Notas Fiscais. 
+O fluxo correto é:
+
+FLUXO CORRETO:
+Colaborador envia nota (OC + arquivo)
+       ↓
+RH analisa → Aprovar ou Devolver (com motivo)
+       ↓
+RH faz Check-in Financeiro (botão + data prevista)
+       ↓
+Colaborador é notificado em cada etapa
+
+═══════════════════════════════════════
+1. REMOVER / CORRIGIR AÇÕES DO RH
+═══════════════════════════════════════
+- REMOVER completamente o botão "Recusar" — 
+  não existe mais essa ação
+- Manter apenas 2 ações para o RH:
+  [✓ Aprovar]  [↩ Devolver]
+- Botão Aprovar: verde #16A34A, fundo #DCFCE7
+- Botão Devolver: laranja #D97706, fundo #FEF3C7
+
+═══════════════════════════════════════
+2. AÇÃO "DEVOLVER" — motivo obrigatório
+═══════════════════════════════════════
+- Ao clicar em Devolver, abrir inline (não modal)
+  um campo de texto obrigatório:
+  "Motivo da devolução *"
+  textarea 3 linhas, placeholder: 
+  "Descreva o que precisa ser corrigido 
+  (nota fiscal ou número OC)..."
+- Botões: [Cancelar] [↩ Confirmar Devolução]
+- Não permitir confirmar sem preencher o motivo
+- Badge resultante: "Devolvida" em laranja 
+  com o motivo visível ao expandir a linha
+
+═══════════════════════════════════════
+3. CHECK-IN FINANCEIRO — feito pelo RH
+═══════════════════════════════════════
+- Após aprovar, a nota fica com status 
+  "Aguardando Check-in" — badge roxo/azul
+- Botão para o RH: [⊙ Fazer Check-in]
+  ao clicar, abrir inline:
+  "Data prevista de pagamento *" — input de data
+  + [Confirmar Check-in]
+- Após confirmar: badge "Check-in Realizado" verde
+  exibir data: "Pagamento previsto: 20/10/2026"
+
+═══════════════════════════════════════
+4. NOTIFICAÇÕES PARA O COLABORADOR
+═══════════════════════════════════════
+- Quando RH aprovar → colaborador vê badge 
+  "✓ Aprovada" verde na sua visão da nota
+- Quando RH devolver → colaborador vê badge 
+  "↩ Devolvida" laranja + motivo visível + 
+  botão "Reenviar nota" habilitado
+- Quando Check-in for feito → colaborador vê
+  "✓ Check-in Realizado · Pagamento em DD/MM/AAAA"
+  em destaque verde na linha da nota
+
+═══════════════════════════════════════
+5. VISÃO DO COLABORADOR (aba Lançamento)
+═══════════════════════════════════════
+- O colaborador só vê e interage com:
+  • Campo OC (número)
+  • Upload da nota fiscal
+  • Botão "Enviar"
+  • Status atual da nota (badge)
+  • Se devolvida: motivo + botão "Reenviar"
+  • Se aprovada: data de pagamento prevista
+- Sem botões de Aprovar/Devolver/Check-in 
+  visíveis para o colaborador
+
+═══════════════════════════════════════
+6. FILTROS DE STATUS — atualizar
+═══════════════════════════════════════
+Substituir filtros por:
+[Todos] [Pendente] [Aguardando RH] 
+[Devolvida] [Aprovada] [Aguard. Check-in] 
+[Check-in Realizado]
+
+═══════════════════════════════════════
+7. STEPPER (barra de progresso no topo)
+═══════════════════════════════════════
+3 etapas:
+1. Lançamento (colaborador envia)
+2. Aprovação RH (RH aprova ou devolve)
+3. Check-in Financeiro (RH confirma + data)
+
+- Etapa concluída: ícone ✓ verde preenchido
+- Etapa atual: ícone azul preenchido
+- Etapa futura: ícone cinza vazio
+- Linha conectora: verde se concluída, 
+  cinza se pendente
+
+Não alterar estrutura de dados nem outros módulos.

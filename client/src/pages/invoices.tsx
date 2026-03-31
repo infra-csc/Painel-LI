@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  FileText, Upload, CheckCircle2, RotateCcw, XCircle, Clock,
+  FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X, CheckCheck
+  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot
 } from "lucide-react";
 import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
@@ -29,22 +29,31 @@ function fmtDate(d?: string | null) {
   return `${day}/${m}/${y}`;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; pill: string; border: string }> = {
-  pendente:  { label: "Pendente",       pill: "bg-gray-100 text-gray-500",                              border: "#e5e7eb" },
-  enviada:   { label: "Aguardando RH",  pill: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "#f59e0b" },
-  aprovada:  { label: "Aprovada",       pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981" },
-  devolvida: { label: "Devolvida",      pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316" },
-  recusada:  { label: "Recusada",       pill: "bg-red-50 text-red-600 ring-1 ring-red-200",             border: "#ef4444" },
-};
+// Effective status for display (aprovada splits into checkin-pendente / checkin-realizado)
+type EffStatus = "pendente" | "enviada" | "devolvida" | "aprovada" | "checkin-pendente" | "checkin-realizado";
 
-type ActionType = "approve" | "return" | "reject";
-type ActiveAction = { invId: string; type: ActionType } | null;
+function getEffectiveStatus(inv: any): EffStatus {
+  if (!inv) return "pendente";
+  if (inv.status === "aprovada") {
+    return inv.paymentDate ? "checkin-realizado" : "checkin-pendente";
+  }
+  return inv.status as EffStatus;
+}
+
+const STATUS_CFG: Record<EffStatus, { label: string; pill: string; border: string; avatarCls: string }> = {
+  pendente:          { label: "Pendente",            pill: "bg-gray-100 text-gray-500",                              border: "#e5e7eb", avatarCls: "bg-slate-100 text-slate-500" },
+  enviada:           { label: "Aguardando RH",        pill: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",       border: "#f59e0b", avatarCls: "bg-amber-100 text-amber-700" },
+  devolvida:         { label: "Devolvida",            pill: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",    border: "#f97316", avatarCls: "bg-orange-100 text-orange-600" },
+  aprovada:          { label: "Aprovada",             pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", border: "#10b981", avatarCls: "bg-emerald-100 text-emerald-700" },
+  "checkin-pendente":{ label: "Aguard. Check-in",    pill: "bg-blue-50 text-[#0033CC] ring-1 ring-blue-200",         border: "#0033CC", avatarCls: "bg-blue-100 text-[#0033CC]" },
+  "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
+};
 
 // ── Stepper ─────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: "lancamento", label: "Lançamento",           icon: Send },
-  { id: "aprovacao",  label: "Aprovação RH",          icon: FileCheck },
-  { id: "checkin",    label: "Check-in Financeiro",   icon: CheckCheck },
+  { id: "lancamento", label: "Lançamento",          icon: Send },
+  { id: "aprovacao",  label: "Aprovação RH",         icon: FileCheck },
+  { id: "checkin",    label: "Check-in Financeiro",  icon: CheckCheck },
 ];
 
 function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovacao" | "checkin" }) {
@@ -54,17 +63,15 @@ function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovaca
       <div className="flex items-center gap-0">
         {STEPS.map((step, i) => {
           const Icon = step.icon;
-          const done    = i < stepIdx;
-          const active  = i === stepIdx;
-          const pending = i > stepIdx;
+          const done   = i < stepIdx;
+          const active = i === stepIdx;
           return (
             <div key={step.id} className="flex items-center flex-1 min-w-0">
               <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
                   ${done    ? "bg-emerald-500 text-white" :
                     active  ? "bg-[#0033CC] text-white ring-4 ring-blue-100" :
-                              "bg-slate-100 text-slate-400"}`}
-                >
+                              "bg-slate-100 text-slate-400"}`}>
                   {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-3.5 h-3.5" />}
                 </div>
                 <span className={`text-[11px] font-semibold whitespace-nowrap
@@ -80,6 +87,41 @@ function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovaca
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Filter Pills ─────────────────────────────────────────────────────────────
+function FilterPills({ filters, active, countFor, onChange }: {
+  filters: { id: string; label: string; activeBg: string }[];
+  active: string;
+  countFor: (id: string) => number;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {filters.map(({ id, label, activeBg }) => {
+        const cnt = countFor(id);
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+              isActive
+                ? `${activeBg} border-transparent shadow-sm`
+                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+            }`}
+          >
+            {label}
+            {cnt > 0 && (
+              <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                {cnt}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -113,10 +155,10 @@ export default function InvoicesPage() {
   });
 
   const { data: collaborators = [] } = useQuery<any[]>({ queryKey: ["/api/collaborators"] });
-  const { data: functions = [] } = useQuery<any[]>({ queryKey: ["/api/functions"] });
+  const { data: functions   = [] }   = useQuery<any[]>({ queryKey: ["/api/functions"] });
 
-  const getName = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
-  const getFuncName = (id?: string | null) => (functions as any[]).find(f => f.id === id)?.name || "—";
+  const getName     = (id?: string | null) => (collaborators as any[]).find(c => c.id === id)?.fullName || "—";
+  const getFuncName = (id?: string | null) => (functions     as any[]).find(f => f.id === id)?.name     || "—";
 
   const approvedActuals = (budgetActuals as any[]).filter(
     a => a.rhStatus === "aprovado" && !a.splitParentId
@@ -125,18 +167,17 @@ export default function InvoicesPage() {
   const getInvoice = (actualId: string) =>
     (invoices as any[]).find(inv => inv.budgetActualId === actualId);
 
-  const pendingCount = approvedActuals.filter(a => {
+  const pendingCount  = approvedActuals.filter(a => {
     const inv = getInvoice(a.id);
     return !inv || inv.status === "pendente" || inv.status === "devolvida";
   }).length;
   const rhPendingCount = (invoices as any[]).filter(i => i.status === "enviada").length;
 
   const tabs = [
-    { id: "lancamento" as const, label: "Lançamento", count: pendingCount, countCls: "bg-amber-100 text-amber-700" },
+    { id: "lancamento" as const, label: "Lançamento",   count: pendingCount,   countCls: "bg-amber-100 text-amber-700" },
     ...(canRH ? [{ id: "aprovacao" as const, label: "Aprovação RH", count: rhPendingCount, countCls: "bg-orange-100 text-orange-700" }] : []),
   ];
 
-  // Determine stepper step
   const stepperStep = activeTab === "aprovacao" ? "aprovacao" : "lancamento";
 
   return (
@@ -264,62 +305,31 @@ export default function InvoicesPage() {
   );
 }
 
-// ── Filter Pills (shared) ──────────────────────────────────────────────────
+// ── Lançamento Tab ────────────────────────────────────────────────────────────
 const LANC_FILTERS = [
-  { id: "all",      label: "Todos",         activeBg: "bg-slate-700 text-white" },
-  { id: "pendente", label: "Pendente",      activeBg: "bg-gray-500 text-white" },
-  { id: "enviada",  label: "Aguardando RH", activeBg: "bg-amber-500 text-white" },
-  { id: "devolvida",label: "Devolvida",     activeBg: "bg-orange-500 text-white" },
-  { id: "recusada", label: "Recusada",      activeBg: "bg-red-500 text-white" },
-  { id: "aprovada", label: "Aprovada",      activeBg: "bg-emerald-500 text-white" },
+  { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
+  { id: "pendente",          label: "Pendente",           activeBg: "bg-gray-500 text-white" },
+  { id: "enviada",           label: "Aguardando RH",      activeBg: "bg-amber-500 text-white" },
+  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
+  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
 ];
 
-function FilterPills({
-  filters, active, countFor, onChange
-}: { filters: typeof LANC_FILTERS; active: string; countFor: (id: string) => number; onChange: (id: string) => void }) {
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {filters.map(({ id, label, activeBg }) => {
-        const cnt = countFor(id);
-        const isActive = active === id;
-        return (
-          <button
-            key={id}
-            onClick={() => onChange(id)}
-            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
-              isActive
-                ? `${activeBg} border-transparent shadow-sm`
-                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
-            }`}
-          >
-            {label}
-            {cnt > 0 && (
-              <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
-                {cnt}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Lançamento Tab ────────────────────────────────────────────────────────────
 function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const [filterStatus, setFilterStatus] = useState("all");
 
-  function getInvStatus(actual: any) {
-    const inv = getInvoice(actual.id);
-    return inv?.status || "pendente";
+  function getEffStatus(actual: any) {
+    return getEffectiveStatus(getInvoice(actual.id));
   }
 
   const countFor = (id: string) =>
-    id === "all" ? approvedActuals.length : approvedActuals.filter((a: any) => getInvStatus(a) === id).length;
+    id === "all"
+      ? approvedActuals.length
+      : approvedActuals.filter((a: any) => getEffStatus(a) === id).length;
 
   const filtered = filterStatus === "all"
     ? approvedActuals
-    : approvedActuals.filter((a: any) => getInvStatus(a) === filterStatus);
+    : approvedActuals.filter((a: any) => getEffStatus(a) === filterStatus);
 
   if (approvedActuals.length === 0) {
     return (
@@ -333,17 +343,11 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
 
   return (
     <div className="space-y-3">
-      {/* Filter pills */}
-      <FilterPills
-        filters={LANC_FILTERS}
-        active={filterStatus}
-        countFor={countFor}
-        onChange={setFilterStatus}
-      />
+      <FilterPills filters={LANC_FILTERS} active={filterStatus} countFor={countFor} onChange={setFilterStatus} />
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-          <p className="text-sm text-gray-400">Nenhum item com status "{LANC_FILTERS.find(f => f.id === filterStatus)?.label}".</p>
+          <p className="text-sm text-gray-400">Nenhum item com este status.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
@@ -366,25 +370,17 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
   );
 }
 
-// ── Invoice Card (replaces LancamentoRow) ─────────────────────────────────────
+// ── Invoice Card (collaborator view) ─────────────────────────────────────────
 function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
-  const status = invoice?.status || "pendente";
+  const effStatus = getEffectiveStatus(invoice);
+  const cfg = STATUS_CFG[effStatus];
+
   const [oc, setOc] = useState(invoice?.oc || "");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [newSendMode, setNewSendMode] = useState(false);
-  const newFileRef = useRef<HTMLInputElement>(null);
   const [clearedAttachment, setClearedAttachment] = useState(false);
-  const [showCheckin, setShowCheckin] = useState(false);
-  const [checkinDate, setCheckinDate] = useState("");
-  const [expanded, setExpanded] = useState(status === "devolvida" || status === "recusada");
-
-  function removeAttachment() {
-    setFile(null);
-    setClearedAttachment(true);
-    if (fileRef.current) fileRef.current.value = "";
-  }
+  const [expanded, setExpanded] = useState(effStatus === "devolvida");
 
   const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
   const name = getName(actual.collaboratorId);
@@ -396,18 +392,15 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     ? `Este pagamento deve ser realizado de ${name} para ${selectedEvent.paymentCompanyName}${selectedEvent.paymentCompanyCnpj ? ` / CNPJ: ${selectedEvent.paymentCompanyCnpj}` : ""}.`
     : "";
 
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pendente;
-
-  const avatarCls =
-    status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
-    status === "devolvida" ? "bg-orange-100 text-orange-600" :
-    status === "enviada"   ? "bg-amber-100 text-amber-700" :
-    status === "recusada"  ? "bg-red-100 text-red-600" :
-    "bg-slate-100 text-slate-500";
+  function removeAttachment() {
+    setFile(null);
+    setClearedAttachment(true);
+    if (fileRef.current) fileRef.current.value = "";
+  }
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const forceClear = (status === "recusada" && newSendMode) || clearedAttachment;
+      const forceClear = clearedAttachment;
       let attachmentUrl = forceClear ? "" : (invoice?.attachmentUrl || "");
       let attachmentName = forceClear ? "" : (invoice?.attachmentName || "");
 
@@ -417,10 +410,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         fd.append("files", file);
         const resp = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
         const uploaded = await resp.json();
-        if (uploaded?.[0]?.url) {
-          attachmentUrl = uploaded[0].url;
-          attachmentName = file.name;
-        }
+        if (uploaded?.[0]?.url) { attachmentUrl = uploaded[0].url; attachmentName = file.name; }
         setUploading(false);
       }
 
@@ -439,8 +429,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       setFile(null);
-      setNewSendMode(false);
-      toast({ title: "Nota enviada!", description: "Aguardando aprovação do RH." });
+      toast({ title: "Nota enviada!", description: "Aguardando análise do RH." });
     },
     onError: (e: any) => {
       setUploading(false);
@@ -448,51 +437,30 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
     },
   });
 
-  const checkinMutation = useMutation({
-    mutationFn: (date: string) =>
-      apiRequest("PATCH", `/api/invoices/${invoice.id}`, { paymentDate: date }).then(r => r.json()),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
-      setShowCheckin(false);
-      setCheckinDate("");
-      toast({ title: "Check-in realizado!", description: "Data de pagamento registrada com sucesso." });
-    },
-    onError: () => toast({ title: "Erro", description: "Erro ao registrar check-in", variant: "destructive" }),
-  });
-
-  const hasCheckin = status === "aprovada" && !!invoice?.paymentDate;
-  const today = new Date().toISOString().split("T")[0];
-
   return (
     <div
       className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow hover:shadow-md"
       style={{ borderLeft: `3px solid ${cfg.border}` }}
     >
-      {/* Card header */}
+      {/* Header row */}
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar */}
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${avatarCls}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${cfg.avatarCls}`}>
             {initial}
           </div>
-          {/* Name + function */}
           <div className="min-w-0">
             <div className="text-[14px] font-semibold text-slate-800 truncate">{displayName}</div>
             <div className="text-[11px] text-slate-400 truncate">{funcName}</div>
           </div>
         </div>
-
         <div className="flex items-center gap-3 shrink-0">
-          {/* Value */}
           <span className="text-[18px] font-bold text-violet-600 tabular-nums font-mono">
             {formatCurrency(actual.totalValue)}
           </span>
-          {/* Status pill */}
           <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
             {cfg.label}
           </span>
-          {/* Expand toggle for devolvida/recusada */}
-          {(status === "devolvida" || status === "recusada") && (
+          {effStatus === "devolvida" && (
             <button onClick={() => setExpanded(e => !e)} className="text-slate-400 hover:text-slate-600 transition-colors">
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -500,11 +468,11 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
         </div>
       </div>
 
-      {/* Card body — meta row (OC + attachment link) */}
+      {/* Body */}
       <div className="px-5 pb-4">
-        {/* OC + nota row */}
-        {canEdit ? (
-          <div className="flex items-center gap-3 mb-3">
+        {/* Editable (pendente / devolvida) */}
+        {canEdit && (
+          <div className="flex items-end gap-3 mb-3">
             <div className="flex-1">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
                 Número OC <span className="text-red-400">*</span>
@@ -518,7 +486,7 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             </div>
             <div className="flex-1">
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
-                Nota em anexo <span className="text-red-400">*</span>
+                Nota fiscal <span className="text-red-400">*</span>
               </label>
               <div className="flex items-center gap-1.5">
                 <button
@@ -535,11 +503,8 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                   )}
                 </button>
                 {(file || (invoice?.attachmentUrl && !clearedAttachment)) && (
-                  <button
-                    type="button"
-                    onClick={removeAttachment}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                  >
+                  <button type="button" onClick={removeAttachment}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
                     <X className="w-3 h-3" />
                   </button>
                 )}
@@ -552,9 +517,38 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
                 </a>
               )}
             </div>
+            <Button
+              size="sm"
+              className="rounded-xl text-white px-5 h-9 text-sm shadow-sm shrink-0"
+              style={{ background: "#059669" }}
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending || uploading}
+            >
+              <Send className="w-3.5 h-3.5 mr-1.5" />
+              {submitMutation.isPending || uploading ? "Enviando..." : effStatus === "devolvida" ? "Reenviar" : "Enviar nota"}
+            </Button>
           </div>
-        ) : (
-          <div className="flex items-center gap-4 mb-3">
+        )}
+
+        {/* Read-only (enviada) */}
+        {!canEdit && effStatus === "enviada" && invoice?.oc && (
+          <div className="flex items-center gap-4 mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
+              <span className="text-[13px] font-mono font-semibold text-slate-700">{invoice.oc}</span>
+            </div>
+            {invoice?.attachmentUrl && (
+              <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
+                <FileText className="w-3.5 h-3.5" /> Ver nota
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Check-in pendente — aguardando RH fazer o check-in */}
+        {(effStatus === "checkin-pendente" || effStatus === "checkin-realizado") && (
+          <div className="flex items-center gap-4 mb-2">
             {invoice?.oc && (
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">OC</span>
@@ -563,183 +557,36 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             )}
             {invoice?.attachmentUrl && (
               <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors">
                 <FileText className="w-3.5 h-3.5" /> Ver nota
               </a>
             )}
           </div>
         )}
 
-        {/* Action row */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1" />
-
-          {/* Submit button */}
-          {canEdit && (
-            <Button
-              size="sm"
-              className="rounded-xl text-white px-5 h-9 text-sm shadow-sm"
-              style={{ background: "#059669" }}
-              onClick={() => submitMutation.mutate()}
-              disabled={submitMutation.isPending || uploading}
-            >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              {submitMutation.isPending || uploading ? "Enviando..." : status === "devolvida" ? "Reenviar nota" : "Enviar nota"}
-            </Button>
-          )}
-
-          {/* Recusada: enviar nova */}
-          {status === "recusada" && !newSendMode && !canEdit && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 px-4 h-9 text-xs"
-              onClick={() => { setOc(""); setFile(null); setNewSendMode(true); }}
-            >
-              <Send className="w-3 h-3 mr-1.5" /> Enviar nova nota
-            </Button>
-          )}
-
-          {/* Check-in financeiro */}
-          {status === "aprovada" && !hasCheckin && !showCheckin && (
-            <button
-              onClick={() => setShowCheckin(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-semibold text-white shadow-sm transition-colors"
-              style={{ background: "#0033CC" }}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Realizar Check-in
-            </button>
-          )}
-
-          {/* Check-in realizado */}
-          {hasCheckin && (
-            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-semibold
-              ${invoice.paymentDate < today ? "bg-orange-50 text-orange-700 border border-orange-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Check-in Realizado · Pagamento Previsto em {fmtDate(invoice.paymentDate)}
-            </div>
-          )}
-        </div>
-
-        {/* Check-in Popover */}
-        {showCheckin && (
-          <div className="mt-3 border-2 border-[#0033CC] rounded-2xl p-4 bg-blue-50/40">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-[#0033CC] flex items-center justify-center">
-                <Calendar className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div>
-                <div className="text-[13px] font-bold text-[#0033CC]">Check-in Financeiro</div>
-                <div className="text-[11px] text-slate-500">Definir Data de Pagamento Prevista</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="date"
-                value={checkinDate}
-                onChange={e => setCheckinDate(e.target.value)}
-                autoFocus
-                className="h-9 text-sm border-2 border-[#0033CC]/30 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-[#0033CC] focus:ring-2 focus:ring-[#0033CC]/10 flex-1"
-              />
-              <button
-                onClick={() => setShowCheckin(false)}
-                className="h-9 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => checkinDate && checkinMutation.mutate(checkinDate)}
-                disabled={!checkinDate || checkinMutation.isPending}
-                className="h-9 px-4 text-xs font-semibold text-white rounded-xl disabled:opacity-40 transition-colors shadow-sm"
-                style={{ background: "#0033CC" }}
-              >
-                {checkinMutation.isPending ? "Salvando..." : "Salvar Data"}
-              </button>
-            </div>
+        {/* Check-in realizado — data de pagamento */}
+        {effStatus === "checkin-realizado" && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Check-in Realizado · Pagamento Previsto em {fmtDate(invoice?.paymentDate)}
           </div>
         )}
 
-        {/* New send mode (recusada) */}
-        {status === "recusada" && newSendMode && (
-          <div className="mt-3 border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-slate-500">Preencha os dados da nova nota fiscal para reenvio.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
-                  Nova OC <span className="text-red-400">*</span>
-                </label>
-                <Input value={oc} onChange={e => setOc(e.target.value)} placeholder="OC-0000" className="h-8 text-xs rounded-lg border-slate-200" />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
-                  Nova nota em anexo <span className="text-red-400">*</span>
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => newFileRef.current?.click()}
-                    className="flex-1 h-8 flex items-center gap-1.5 px-2.5 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all min-w-0"
-                  >
-                    {file ? (
-                      <><FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate text-emerald-600">{file.name}</span></>
-                    ) : (
-                      <><Upload className="w-3.5 h-3.5 shrink-0" /><span>Selecionar arquivo</span></>
-                    )}
-                  </button>
-                  {file && (
-                    <button type="button" onClick={() => { setFile(null); if (newFileRef.current) newFileRef.current.value = ""; }}
-                      className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-                <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-              </div>
-            </div>
-            <div className="flex items-center justify-between pt-0.5">
-              <button className="text-xs text-slate-400 hover:text-slate-600" onClick={() => { setNewSendMode(false); setOc(""); setFile(null); }}>
-                Cancelar
-              </button>
-              <Button size="sm" style={{ background: "#059669" }} className="rounded-lg text-white px-4 h-8 text-xs"
-                onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending || uploading}>
-                <Send className="w-3 h-3 mr-1.5" />
-                {submitMutation.isPending || uploading ? "Enviando..." : "Enviar nota fiscal"}
-              </Button>
-            </div>
+        {/* Aguardando Check-in — colaborador apenas aguarda */}
+        {effStatus === "checkin-pendente" && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
+            <Clock className="w-3.5 h-3.5" />
+            Aprovada · Aguardando Check-in Financeiro pelo RH
           </div>
         )}
 
-        {/* Expansion: devolvida */}
-        {expanded && status === "devolvida" && (
+        {/* Devolvida — motivo */}
+        {expanded && effStatus === "devolvida" && (
           <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-2">
             <RotateCcw className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-[10px] font-semibold text-orange-600 mb-0.5 uppercase tracking-wide">Devolvida para ajuste</p>
               <p className="text-xs text-orange-700">{invoice?.returnComment || "Sem comentário."}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Expansion: recusada */}
-        {expanded && status === "recusada" && !newSendMode && (
-          <div className="mt-3 space-y-2">
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
-              <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Nota recusada pelo RH</p>
-                <p className="text-xs text-red-700">{invoice?.returnComment || "Sem comentário."}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 px-1">
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide shrink-0">Nota anterior:</p>
-              {invoice?.oc && <span className="text-[10px] font-mono text-slate-400 line-through">{invoice.oc}</span>}
-              {invoice?.attachmentUrl && (
-                <a href={invoice.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-blue-500 hover:underline line-through">
-                  <Paperclip className="w-2.5 h-2.5" /> Ver nota recusada
-                </a>
-              )}
             </div>
           </div>
         )}
@@ -750,24 +597,29 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
 
 // ── Aprovação Tab ─────────────────────────────────────────────────────────────
 const APROV_FILTERS = [
-  { id: "all",      label: "Todos",     activeBg: "bg-slate-700 text-white" },
-  { id: "enviada",  label: "Aguardando",activeBg: "bg-amber-500 text-white" },
-  { id: "aprovada", label: "Aprovada",  activeBg: "bg-emerald-500 text-white" },
-  { id: "devolvida",label: "Devolvida", activeBg: "bg-orange-500 text-white" },
-  { id: "recusada", label: "Recusada",  activeBg: "bg-red-500 text-white" },
+  { id: "all",               label: "Todos",              activeBg: "bg-slate-700 text-white" },
+  { id: "enviada",           label: "Aguardando",         activeBg: "bg-amber-500 text-white" },
+  { id: "checkin-pendente",  label: "Aguard. Check-in",   activeBg: "bg-[#0033CC] text-white" },
+  { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
+  { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
 ];
 
+type AprovAction = "approve" | "return" | "checkin";
+type ActiveAprovAction = { invId: string; type: AprovAction } | null;
+
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
-  const [active, setActive] = useState<ActiveAction>(null);
-  const [comment, setComment] = useState("");
+  const [active, setActive]         = useState<ActiveAprovAction>(null);
+  const [comment, setComment]       = useState("");
+  const [checkinDate, setCheckinDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  function openAction(inv: any, type: ActionType) {
-    if (active?.invId === inv.id && active.type === type) {
+  function openAction(invId: string, type: AprovAction) {
+    if (active?.invId === invId && active.type === type) {
       setActive(null);
     } else {
-      setActive({ invId: inv.id, type });
+      setActive({ invId, type });
       setComment("");
+      setCheckinDate("");
     }
   }
   function closeAction() { setActive(null); }
@@ -778,7 +630,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       closeAction();
-      toast({ title: "Nota aprovada!", description: "Colaborador poderá realizar o check-in financeiro." });
+      toast({ title: "Nota aprovada!", description: "Faça o Check-in Financeiro para definir a data de pagamento." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao aprovar nota", variant: "destructive" }),
   });
@@ -789,20 +641,20 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       closeAction();
-      toast({ title: "Nota devolvida" });
+      toast({ title: "Nota devolvida para ajuste." });
     },
     onError: () => toast({ title: "Erro", description: "Erro ao devolver nota", variant: "destructive" }),
   });
 
-  const rejectMutation = useMutation({
+  const checkinMutation = useMutation({
     mutationFn: (id: string) =>
-      apiRequest("POST", `/api/invoices/${id}/reject`, { comment }).then(r => r.json()),
+      apiRequest("PATCH", `/api/invoices/${id}`, { paymentDate: checkinDate }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       closeAction();
-      toast({ title: "Nota recusada" });
+      toast({ title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
-    onError: () => toast({ title: "Erro", description: "Erro ao recusar nota", variant: "destructive" }),
+    onError: () => toast({ title: "Erro", description: "Erro ao realizar check-in", variant: "destructive" }),
   });
 
   if (invoices.length === 0) {
@@ -816,30 +668,26 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
 
-  const aprovCountFor = (id: string) =>
-    id === "all" ? invoices.length : invoices.filter((i: any) => i.status === id).length;
+  const aprovCountFor = (id: string) => {
+    if (id === "all") return invoices.length;
+    return invoices.filter((i: any) => getEffectiveStatus(i) === id).length;
+  };
 
   const filteredInvoices = filterStatus === "all"
     ? invoices
-    : invoices.filter((i: any) => i.status === filterStatus);
+    : invoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
 
   return (
     <div className="space-y-3">
-      {/* Filter pills */}
-      <FilterPills
-        filters={APROV_FILTERS}
-        active={filterStatus}
-        countFor={aprovCountFor}
-        onChange={setFilterStatus}
-      />
+      <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} />
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <table className="w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "240px" }} />
-            <col style={{ width: "140px" }} />
-            <col style={{ width: "110px" }} />
-            <col style={{ width: "110px" }} />
+            <col style={{ width: "220px" }} />
+            <col style={{ width: "130px" }} />
+            <col style={{ width: "100px" }} />
+            <col style={{ width: "100px" }} />
             <col style={{ width: "110px" }} />
             <col />
           </colgroup>
@@ -857,121 +705,125 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             {filteredInvoices.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
-                  Nenhum item com status "{APROV_FILTERS.find(f => f.id === filterStatus)?.label}".
+                  Nenhum item com este status.
                 </td>
               </tr>
             ) : null}
             {filteredInvoices.map((inv: any) => {
-              const actual = getActual(inv.budgetActualId);
-              const name = getName(inv.collaboratorId);
-              const isActiveRow = active?.invId === inv.id;
-              const initial = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
-              const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pendente;
-
-              const avatarCls =
-                inv.status === "aprovada"  ? "bg-emerald-100 text-emerald-700" :
-                inv.status === "enviada"   ? "bg-amber-100 text-amber-700" :
-                inv.status === "devolvida" ? "bg-orange-100 text-orange-600" :
-                inv.status === "recusada"  ? "bg-red-100 text-red-600" :
-                "bg-slate-100 text-slate-500";
+              const actual   = getActual(inv.budgetActualId);
+              const name     = getName(inv.collaboratorId);
+              const effSt    = getEffectiveStatus(inv);
+              const cfg      = STATUS_CFG[effSt];
+              const isActive = active?.invId === inv.id;
+              const initial  = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
 
               return (
                 <>
                   <tr
                     key={inv.id}
-                    className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${isActiveRow ? "bg-gray-50" : ""}`}
+                    className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${isActive ? "bg-gray-50" : ""}`}
                     style={{ borderLeft: `3px solid ${cfg.border}` }}
                   >
-                    <td className="px-4 py-4 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${avatarCls}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${cfg.avatarCls}`}>
                           {initial}
                         </div>
                         <div className="min-w-0">
                           <span className="text-[13px] font-medium text-slate-800 truncate block">{toTitleCase(name)}</span>
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs text-slate-500 truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-3.5 text-right">
                       <span className="text-[13px] font-bold text-violet-600 tabular-nums font-mono">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-4 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs font-mono text-slate-600 truncate block">{inv.oc || "—"}</span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3.5">
                       {inv.attachmentUrl ? (
                         <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                           <FileText className="w-3.5 h-3.5" /> Ver nota
                         </a>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )}
+                      ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-4">
-                      {inv.status === "enviada" && (
-                        <div className="flex items-center justify-end gap-1.5">
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Aguardando RH: Aprovar + Devolver */}
+                        {effSt === "enviada" && (
+                          <>
+                            <button
+                              onClick={() => openAction(inv.id, "approve")}
+                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
+                                isActive && active?.type === "approve"
+                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                  : "text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
+                            </button>
+                            <button
+                              onClick={() => openAction(inv.id, "return")}
+                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
+                                isActive && active?.type === "return"
+                                  ? "bg-amber-600 text-white border-amber-600"
+                                  : "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                              }`}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" /> Devolver
+                            </button>
+                          </>
+                        )}
+                        {/* Aprovada sem check-in: botão fazer check-in */}
+                        {effSt === "checkin-pendente" && (
                           <button
-                            onClick={() => openAction(inv, "approve")}
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                              isActiveRow && active?.type === "approve"
-                                ? "bg-emerald-600 text-white"
-                                : "text-emerald-600 hover:bg-emerald-50"
+                            onClick={() => openAction(inv.id, "checkin")}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap border ${
+                              isActive && active?.type === "checkin"
+                                ? "bg-[#0033CC] text-white border-[#0033CC]"
+                                : "text-[#0033CC] bg-blue-50 border-blue-200 hover:bg-blue-100"
                             }`}
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
+                            <CircleDot className="w-3.5 h-3.5" /> Fazer Check-in
                           </button>
-                          <button
-                            onClick={() => openAction(inv, "return")}
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                              isActiveRow && active?.type === "return"
-                                ? "bg-orange-500 text-white"
-                                : "text-orange-500 hover:bg-orange-50"
-                            }`}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" /> Devolver
-                          </button>
-                          <button
-                            onClick={() => openAction(inv, "reject")}
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                              isActiveRow && active?.type === "reject"
-                                ? "bg-red-500 text-white"
-                                : "text-red-500 hover:bg-red-50"
-                            }`}
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Recusar
-                          </button>
-                        </div>
-                      )}
-                      {inv.status === "aprovada" && (
-                        <div className="flex justify-end">
+                        )}
+                        {/* Check-in realizado */}
+                        {effSt === "checkin-realizado" && (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            {inv.paymentDate ? `Check-in · ${fmtDate(inv.paymentDate)}` : "Aprovada"}
+                            <CheckCircle2 className="w-3.5 h-3.5" /> {fmtDate(inv.paymentDate)}
                           </span>
-                        </div>
-                      )}
+                        )}
+                        {/* Devolvida — info */}
+                        {effSt === "devolvida" && (
+                          <span className="text-[11px] text-slate-400 italic truncate max-w-[180px]">
+                            {inv.returnComment || "Devolvida"}
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
 
                   {/* Inline action panel */}
-                  {isActiveRow && active && (
-                    <tr key={`${inv.id}-action`} className="bg-slate-50 border-b border-slate-100">
+                  {isActive && active && (
+                    <tr key={`${inv.id}-panel`} className="bg-slate-50 border-b border-slate-100">
                       <td colSpan={6} className="px-5 py-3">
+
+                        {/* ── Aprovar ── */}
                         {active.type === "approve" && (
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar aprovação
                             </span>
-                            <p className="text-xs text-slate-500">Após aprovar, o colaborador poderá definir a data de pagamento via Check-in Financeiro.</p>
-                            <div className="flex items-center gap-2 ml-auto">
-                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
+                            <p className="text-xs text-slate-500 flex-1">Após aprovar, faça o Check-in Financeiro para definir a data de pagamento.</p>
+                            <div className="flex items-center gap-2">
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
                                 <X className="w-3 h-3" /> Cancelar
                               </button>
                               <button
@@ -985,38 +837,70 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                           </div>
                         )}
 
+                        {/* ── Devolver ── */}
                         {active.type === "return" && (
-                          <div className="space-y-2">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1.5 rounded-lg">
+                          <div className="space-y-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
                               <RotateCcw className="w-3.5 h-3.5" /> Devolver para ajuste
                             </span>
-                            <div className="flex items-end gap-2">
-                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Explique o que precisa ser corrigido (opcional)..." className="text-xs rounded-lg border-slate-200 resize-none flex-1" autoFocus />
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
-                                  <X className="w-3 h-3" /> Cancelar
-                                </button>
-                                <button onClick={() => returnMutation.mutate(inv.id)} disabled={returnMutation.isPending} className="h-8 px-4 text-xs font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg transition-colors">
-                                  {returnMutation.isPending ? "Devolvendo..." : "Devolver"}
-                                </button>
-                              </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                                Motivo da devolução <span className="text-red-400">*</span>
+                              </label>
+                              <Textarea
+                                rows={3}
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                placeholder="Descreva o que precisa ser corrigido (nota fiscal ou número OC)..."
+                                className="text-xs rounded-xl border-slate-200 resize-none w-full"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
+                                <X className="w-3 h-3" /> Cancelar
+                              </button>
+                              <button
+                                onClick={() => returnMutation.mutate(inv.id)}
+                                disabled={!comment.trim() || returnMutation.isPending}
+                                className="h-8 px-4 text-xs font-semibold bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                              >
+                                {returnMutation.isPending ? "Devolvendo..." : "↩ Confirmar Devolução"}
+                              </button>
                             </div>
                           </div>
                         )}
 
-                        {active.type === "reject" && (
-                          <div className="space-y-2">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg">
-                              <XCircle className="w-3.5 h-3.5" /> Recusar nota
+                        {/* ── Check-in ── */}
+                        {active.type === "checkin" && (
+                          <div className="space-y-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0033CC] bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg">
+                              <CircleDot className="w-3.5 h-3.5" /> Check-in Financeiro
                             </span>
-                            <div className="flex items-end gap-2">
-                              <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Motivo da recusa (opcional)..." className="text-xs rounded-lg border-slate-200 resize-none flex-1" autoFocus />
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                                  Data prevista de pagamento <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={checkinDate}
+                                  onChange={e => setCheckinDate(e.target.value)}
+                                  autoFocus
+                                  className="h-9 text-sm border-2 border-blue-200 rounded-xl px-3 text-slate-700 bg-white focus:outline-none focus:border-[#0033CC] focus:ring-2 focus:ring-blue-100"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 mt-5">
+                                <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
                                   <X className="w-3 h-3" /> Cancelar
                                 </button>
-                                <button onClick={() => rejectMutation.mutate(inv.id)} disabled={rejectMutation.isPending} className="h-8 px-4 text-xs font-semibold bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors">
-                                  {rejectMutation.isPending ? "Recusando..." : "Recusar"}
+                                <button
+                                  onClick={() => checkinMutation.mutate(inv.id)}
+                                  disabled={!checkinDate || checkinMutation.isPending}
+                                  className="h-8 px-4 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                                  style={{ background: "#0033CC" }}
+                                >
+                                  {checkinMutation.isPending ? "Salvando..." : "Confirmar Check-in"}
                                 </button>
                               </div>
                             </div>
