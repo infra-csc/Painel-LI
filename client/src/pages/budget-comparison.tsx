@@ -381,18 +381,12 @@ export default function BudgetComparisonPage() {
     stripColor: string;
     rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
   }) => {
-    const [showZeros, setShowZeros] = useState(false);
     const currencyRows = rows.filter(r => !r.isQuantity);
     const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
     const subtotalActual  = currencyRows.reduce((s, r) => s + r.actual,  0);
     const subtotalDiff    = subtotalActual - subtotalPlanned;
     const hasAnyDiff      = rows.some(r => r.planned !== r.actual);
     const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
-
-    const visibleRows = showZeros
-      ? rows
-      : rows.filter(r => r.planned !== 0 || r.actual !== 0);
-    const hiddenZeroCount = rows.length - visibleRows.length;
 
     return (
       <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
@@ -409,22 +403,12 @@ export default function BudgetComparisonPage() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {hiddenZeroCount > 0 && (
-              <button
-                onClick={() => setShowZeros(v => !v)}
-                className="text-[9px] font-medium text-slate-400 hover:text-slate-600 border border-slate-200 bg-white px-1.5 py-0.5 rounded leading-none"
-              >
-                {showZeros ? 'Ocultar zeros' : `+${hiddenZeroCount} zero${hiddenZeroCount !== 1 ? 's' : ''}`}
-              </button>
-            )}
-            <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
-          </div>
+          <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
         </div>
 
         {/* Rows */}
         <div className="divide-y divide-slate-100 bg-white">
-          {visibleRows.map((row, i) => {
+          {rows.map((row, i) => {
             const diff  = row.actual - row.planned;
             const isDiff = diff !== 0;
             return (
@@ -1086,7 +1070,6 @@ export default function BudgetComparisonPage() {
                               stripColor="bg-violet-500"
                               rows={[
                                 { label: "Mobilidade", planned: p?.mobility || 0, actual: a.mobility },
-                                { label: "Translado", planned: p?.transport || 0, actual: a.transport },
                               ]}
                             />
                             </>}
