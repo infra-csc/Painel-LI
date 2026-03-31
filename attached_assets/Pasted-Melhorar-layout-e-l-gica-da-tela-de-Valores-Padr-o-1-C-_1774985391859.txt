@@ -1,0 +1,91 @@
+Melhorar layout e lógica da tela de Valores Padrão:
+
+═══════════════════════════════════════
+1. CARDS SUPERIORES — padronizar altura
+═══════════════════════════════════════
+- Alinhar os 3 cards (Diárias, Mobilidade, 
+  Alimentação) ao topo com altura igual
+- Usar align-items: flex-start no container
+- Reduzir padding interno: 16px
+- Labels (DIA ÚTIL, FIM DE SEMANA, IDA, VOLTA, 
+  DIAS ÚTEIS, FIM DE SEMANA): 
+  10px uppercase cinza #888, margin-bottom 4px
+- Inputs: altura 38px, font 14px peso 600
+- "Total mobilidade": 
+  linha separadora 1px #e5e7eb acima, 
+  label 11px cinza, valor laranja 14px peso 700
+
+═══════════════════════════════════════
+2. BOTÕES SALVAR — unificar
+═══════════════════════════════════════
+- Remover o botão "Salvar" solto 
+  no header da seção "Diária por Função" —
+  confuso e visualmente deslocado
+- Ter apenas 1 botão "Salvar Valores Padrão" 
+  fixo no rodapé da página, 
+  que salva tudo de uma vez
+- Cor única: azul #3B4FE4 (remover o roxo)
+- Botão desabilitado (cinza) enquanto 
+  não houver nenhuma alteração
+- Ao alterar qualquer campo: 
+  botão fica azul + aparece texto ao lado:
+  "X alterações não salvas"
+
+═══════════════════════════════════════
+3. BADGE "BASE" — explicar melhor
+═══════════════════════════════════════
+- Badge "Base" na função Coordenador:
+  trocar para tooltip ao hover:
+  "Função base: valor usado como referência 
+   quando a função do colaborador não possui 
+   valor personalizado cadastrado"
+- Valor R$ 0,00 em cinza com placeholder 
+  "Não definido" ao invés de 0,00
+
+═══════════════════════════════════════
+4. TABELA DE FUNÇÕES — diferenciar valores
+═══════════════════════════════════════
+- Funções com valor PERSONALIZADO 
+  (diferente do padrão global):
+  valor em azul #3B4FE4 peso 600 + 
+  pequeno badge "✎ Personalizado" 10px
+- Funções usando valor PADRÃO global:
+  valor em cinza #888 + 
+  badge "Padrão" 10px cinza
+- Isso deixa imediato saber quais 
+  têm exceção e quais seguem a regra geral
+
+- Reduzir altura das linhas: 44px (era ~56px)
+- Input de valor: aparece ao clicar na linha, 
+  não fica sempre visível — 
+  ao hover mostrar ícone ✏ e clicar para editar
+
+═══════════════════════════════════════
+5. HISTÓRICO DE ALTERAÇÕES
+═══════════════════════════════════════
+- Quando vazio: não mostrar a seção expandida —
+  exibir como linha colapsada:
+  "🕐 Histórico de alterações · Nenhuma alteração"
+  só expande quando houver registros
+- Quando houver registros, mostrar:
+  "25/03/2026 15h20 · Admin Sistema alterou:
+   · Diária (Dia útil): R$ 40,00 → R$ 50,00
+   · Alimentação Almoço (Sem.): R$ 30,00 → R$ 35,00"
+  mesmo padrão de histórico legível 
+  definido nas outras telas
+
+═══════════════════════════════════════
+6. EMPRESAS PAGADORAS — melhorar UX
+═══════════════════════════════════════
+- Formulário "Adicionar nova empresa" 
+  fica sempre aberto ocupando espaço — 
+  substituir por botão "+ Adicionar empresa"
+  que expande o formulário ao clicar
+- Validação de CNPJ em tempo real 
+  com máscara 00.000.000/0000-00 
+  e ícone ✓ verde quando válido
+- Empresa cadastrada: mostrar 
+  nome + CNPJ + botão 🗑 de remover, 
+  adicionar botão ✏ de editar inline
+
+Não alterar lógica de cálculo nem dados.
