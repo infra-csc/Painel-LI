@@ -318,6 +318,8 @@ export const budgetActual = pgTable("budget_actual", {
   workedDays: text("worked_days").array(), // dias específicos trabalhados [YYYY-MM-DD]
   didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
+  rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
+  rhAdjustedFields: text("rh_adjusted_fields"), // JSON: {field: {from, to, label}} dos campos alterados pelo RH
 });
 
 // Comparativo e aprovação do RH

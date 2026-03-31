@@ -791,6 +791,11 @@ export default function BudgetActualPage() {
                   <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md truncate shrink min-w-0">{getFunctionName(cardItem.functionId)}</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${isCasa ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{isCasa ? 'Casa' : 'Freela'}</span>
                   <span className="shrink-0">{statusBadge}</span>
+                  {cardItem.rhAdjusted && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap" style={{background:'#FEF3C7', color:'#D97706', border:'1px solid #FDE68A'}}>
+                      ⚠ Realizado ajustado pelo RH
+                    </span>
+                  )}
                   {diverges && <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0 whitespace-nowrap">Divergência</span>}
                   {isGParent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 shrink-0 whitespace-nowrap">Titular</span>}
                   {isGChild && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 flex items-center gap-0.5 shrink-0 whitespace-nowrap"><GitFork className="w-2.5 h-2.5" />Divisão</span>}
@@ -833,14 +838,31 @@ export default function BudgetActualPage() {
             const planned = cardPlanned;
             const plannedAlim = planned ? (planned.weekdayLunch + planned.weekdayDinner + planned.weekendLunch + planned.weekendDinner) : 0;
             const plannedDiarias = planned ? (planned.totalValue - plannedAlim - planned.mobility) : 0;
+            const rhFields: Record<string, {from: number; to: number; label: string}> =
+              cardItem.rhAdjustedFields ? JSON.parse(cardItem.rhAdjustedFields as string) : {};
             const diffInline = (actual: number, plan: number) => {
               if (!planned) return null;
               const d = actual - plan;
               if (Math.abs(d) <= 1) return null;
               return <span className={`text-[10px] tabular-nums font-bold ml-1 ${d < 0 ? 'text-emerald-600' : 'text-red-500'}`}>{d > 0 ? '+' : '−'}{formatCurrency(Math.abs(d))}</span>;
             };
+            const hasRhFields = Object.keys(rhFields).length > 0;
             return (
-              <div className="px-4 py-3 border-t border-slate-100">
+              <div className="px-4 py-3 border-t border-slate-100 space-y-3">
+                {/* Banner laranja para não-RH quando RH ajustou */}
+                {!isRhOrAdmin && cardItem.rhAdjusted && (
+                  <div className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-xl" style={{background:'#FFFBEB', border:'1px solid #FDE68A'}}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px]">⚠</span>
+                      <span className="text-[11px] font-medium" style={{color:'#92400E'}}>
+                        O RH ajustou alguns valores do seu realizado. Veja o histórico para detalhes.
+                      </span>
+                    </div>
+                    <a href="#historico" className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-lg whitespace-nowrap" style={{background:'#F59E0B', color:'white'}}>
+                      Ver alterações
+                    </a>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-2">
                   {/* Diárias */}
                   <div className="rounded-xl p-2.5 border border-blue-100 bg-blue-50/50">
@@ -892,6 +914,23 @@ export default function BudgetActualPage() {
                     })()}
                   </div>
                 </div>
+
+                {/* Campos ajustados pelo RH — inline */}
+                {hasRhFields && (
+                  <div className="rounded-xl px-3 py-2.5 space-y-1" style={{background:'#FFFBEB', border:'1px solid #FDE68A'}}>
+                    <span className="text-[9px] font-bold uppercase tracking-widest" style={{color:'#92400E'}}>Ajustes do RH</span>
+                    {Object.values(rhFields).map((f, i) => (
+                      <div key={i} className="flex items-center gap-1 text-[11px]" style={{color:'#6B7280'}}>
+                        <span>·</span>
+                        <span>{f.label}:</span>
+                        <span className="tabular-nums line-through" style={{color:'#9CA3AF'}}>{formatCurrency(f.from)}</span>
+                        <span>→</span>
+                        <span className="tabular-nums font-semibold" style={{color:'#D97706'}}>{formatCurrency(f.to)}</span>
+                        <span className="text-[9px]" style={{color:'#D97706'}}>(RH)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })()}

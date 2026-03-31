@@ -66,6 +66,7 @@ export default function BudgetComparisonPage() {
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [confirmAdjustOpen, setConfirmAdjustOpen] = useState(false);
   const [splitDetail, setSplitDetail] = useState<{
     actual: BudgetActual;
     planned: BudgetPlanned | null;
@@ -1241,29 +1242,89 @@ export default function BudgetComparisonPage() {
               {/* Divider */}
               <div className="w-px h-6 bg-slate-200 mx-1" />
               {/* Primary approve action */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-40"
-                      onClick={() => setActionModal({ type: 'approve' })}
-                      disabled={selectedItems.size === 0}
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1.5" />
-                      {selectedItems.size > 0 ? `Aprovar e Finalizar (${selectedItems.size})` : 'Aprovar e Finalizar'}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
-                    Aprova e envia para faturamento
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {(() => {
+                const selectedRhAdjustedFields = Array.from(selectedItems).reduce((total, idx) => {
+                  const row = sortedData[idx];
+                  if (!row) return total;
+                  const allActuals = [row.actual, ...(row.isSplit ? row.splitChildren : [])];
+                  return total + allActuals.reduce((n, a) => {
+                    const f = (a as any).rhAdjustedFields;
+                    return n + (f ? Object.keys(JSON.parse(f)).length : 0);
+                  }, 0);
+                }, 0);
+                const hasAdjusted = selectedRhAdjustedFields > 0;
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          className="h-9 text-sm px-5 rounded-xl text-white font-bold bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-40"
+                          onClick={() => {
+                            if (hasAdjusted) {
+                              setConfirmAdjustOpen(true);
+                            } else {
+                              setActionModal({ type: 'approve' });
+                            }
+                          }}
+                          disabled={selectedItems.size === 0}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1.5" />
+                          {hasAdjusted
+                            ? `Aprovar com ajustes (${selectedRhAdjustedFields} campo${selectedRhAdjustedFields !== 1 ? 's' : ''})`
+                            : selectedItems.size > 0 ? `Aprovar e Finalizar (${selectedItems.size})` : 'Aprovar e Finalizar'}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs max-w-[180px] text-center">
+                        Aprova e envia para faturamento
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              })()}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Split collaborator detail modal ── */}
+      {/* ── Modal confirmação de aprovação com ajustes ── */}
+      <Dialog open={confirmAdjustOpen} onOpenChange={setConfirmAdjustOpen}>
+        <DialogContent className="max-w-sm rounded-2xl p-6 gap-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <span className="text-lg">⚠</span>
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-slate-900">Aprovação com ajustes</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Revise antes de confirmar</p>
+              </div>
+            </div>
+            <p className="text-[13px] text-slate-600 leading-relaxed">
+              Você está aprovando itens com valores ajustados pelo RH em relação ao realizado do colaborador.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl h-9 text-sm"
+                onClick={() => setConfirmAdjustOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 rounded-xl h-9 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => {
+                  setConfirmAdjustOpen(false);
+                  setActionModal({ type: 'approve' });
+                }}
+              >
+                <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                Confirmar aprovação
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!splitDetail} onOpenChange={() => setSplitDetail(null)}>
         <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden gap-0">
           {splitDetail && (() => {

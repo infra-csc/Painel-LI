@@ -1262,6 +1262,11 @@ export default function BudgetPlannedPage() {
                     p => p.collaboratorId === budget.inclusion.collaboratorId && p.functionId === budget.inclusion.functionId
                   );
                   const isNotAttended = !!planRecord?.didNotAttend;
+                  const cardActual = existingActuals?.find((a: any) =>
+                    a.collaboratorId === budget.inclusion.collaboratorId &&
+                    a.functionId === budget.inclusion.functionId &&
+                    !a.splitParentId
+                  );
                   
                   return (
                     <div 
@@ -1369,6 +1374,16 @@ export default function BudgetPlannedPage() {
                               <span className="font-medium text-slate-800 text-[14px] truncate">{name}</span>
                               {budget.hasOverride && (
                                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Valores personalizados" />
+                              )}
+                              {cardActual?.rhAdjusted && (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-[12px] shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                             </div>
                             {/* Linha 2: badge de data */}
@@ -1660,6 +1675,11 @@ export default function BudgetPlannedPage() {
                         const funcName = getFunctionName(budget.inclusion.functionId);
                         const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
                         const disabled = isSent || isNotAttended;
+                        const matchingActual = existingActuals?.find((a: any) =>
+                          a.collaboratorId === budget.inclusion.collaboratorId &&
+                          a.functionId === budget.inclusion.functionId &&
+                          !a.splitParentId
+                        );
                         const sid = budget.inclusion.id;
                         const buf = (field: string, fallback: string) =>
                           sheetInputValues[`${sid}:${field}`] ?? fallback;
@@ -1685,6 +1705,18 @@ export default function BudgetPlannedPage() {
                             <td className="px-4" style={{minWidth:'260px'}}>
                               <div className="flex items-center gap-2 leading-tight flex-wrap">
                                 <span className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-900'}`}>{name}</span>
+                                {matchingActual?.rhAdjusted && (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>
+                                          ✏
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                                 {isSent ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:'#DCFCE7', color:'#16A34A'}}>
                                     <Check className="w-2.5 h-2.5" />Enviado
@@ -1747,6 +1779,11 @@ export default function BudgetPlannedPage() {
                               <span className={`text-[13px] font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-[#3B4FE4]'}`}>
                                 {formatCurrency(budget.totalFinal)}
                               </span>
+                              {matchingActual?.rhAdjusted && isSent && (
+                                <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
+                                  {formatCurrency(matchingActual.totalValue)} ✏
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );

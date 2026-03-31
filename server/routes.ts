@@ -2303,9 +2303,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/budget-actual/:id", async (req, res) => {
     try {
       const prev = await storage.getBudgetActualById(req.params.id);
-      const actual = await storage.updateBudgetActual(req.params.id, req.body);
-      const actorId = req.session?.userId;
+      const actorId = req.session?.userId || req.body?._userId;
       const actor = actorId ? await storage.getUser(actorId) : null;
+      const isRhAdmin = actor?.role === 'admin' || actor?.role === 'financial';
+
+      // Track which monetary fields the RH changed
+      const RH_FIELDS: Record<string, string> = {
+        dailyValue: 'Diária',
+        dailyQuantity: 'Qtd. Diárias',
+        weekdayLunch: 'Almoço (Sem.)',
+        weekdayDinner: 'Jantar (Sem.)',
+        weekendLunch: 'Almoço (FdS)',
+        weekendDinner: 'Jantar (FdS)',
+        mobility: 'Mobilidade',
+      };
+
+      let updatePayload = { ...req.body };
+
+      if (isRhAdmin && prev) {
+        const existingFields: Record<string, {from: number; to: number; label: string}> =
+          prev.rhAdjustedFields ? JSON.parse(prev.rhAdjustedFields) : {};
+
+        let changed = false;
+        for (const [field, label] of Object.entries(RH_FIELDS)) {
+          const newVal = req.body[field];
+          if (newVal === undefined) continue;
+          const prevVal = (prev as any)[field] ?? 0;
+          if (Number(newVal) !== Number(prevVal)) {
+            existingFields[field] = { from: prevVal, to: Number(newVal), label };
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          updatePayload.rhAdjusted = true;
+          updatePayload.rhAdjustedFields = JSON.stringify(existingFields);
+        }
+      }
+
+      const actual = await storage.updateBudgetActual(req.params.id, updatePayload);
       await createAuditLog('update', 'budget_actual', req.params.id, actual, actorId, actor?.name || 'Sistema', prev, req);
       res.json(actual);
     } catch (error) {
