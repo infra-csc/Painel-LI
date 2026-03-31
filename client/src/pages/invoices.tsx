@@ -604,16 +604,100 @@ const APROV_FILTERS = [
   { id: "devolvida",         label: "Devolvida",          activeBg: "bg-orange-500 text-white" },
 ];
 
+// ── History helpers ───────────────────────────────────────────────────────────
+function fmtDateTime(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yy} ${hh}:${mi}`;
+}
+
+type HistEvent = {
+  type: "enviado" | "devolvido" | "aprovado" | "checkin";
+  label: string;
+  color: string;
+  at: string | null;
+  by: string;
+  comment?: string;
+  paymentDate?: string;
+};
+
+function buildHistory(inv: any, collabName: string): HistEvent[] {
+  const events: HistEvent[] = [];
+  events.push({ type: "enviado",  label: "Enviado",   color: "#3B4FE4", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
+  if (inv.returnComment) {
+    events.push({ type: "devolvido", label: "Devolvido", color: "#D97706", at: null, by: "RH", comment: inv.returnComment });
+  }
+  if (inv.approvedAt) {
+    events.push({ type: "aprovado", label: "Aprovado", color: "#16A34A", at: fmtDateTime(inv.approvedAt), by: "RH" });
+  }
+  if (inv.paymentDate) {
+    events.push({ type: "checkin", label: "Check-in", color: "#7C3AED", at: null, by: "RH", paymentDate: inv.paymentDate });
+  }
+  return events;
+}
+
+function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName: string }) {
+  if (events.length === 0) return null;
+  if (events.length === 1) {
+    const e = events[0];
+    return (
+      <div className="text-[11px] text-slate-500 italic">
+        Enviado em {e.at || "—"} por {e.by}
+      </div>
+    );
+  }
+  return (
+    <div className="relative pl-4">
+      {/* vertical dotted line */}
+      <div className="absolute left-[7px] top-3 bottom-3 w-px border-l-2 border-dotted border-slate-200" />
+      <div className="space-y-3">
+        {events.map((ev, i) => (
+          <div key={i} className="relative flex items-start gap-3">
+            {/* dot */}
+            <div className="absolute -left-4 top-[5px] w-2 h-2 rounded-full ring-2 ring-white shrink-0" style={{ background: ev.color }} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[12px] font-semibold" style={{ color: ev.color }}>{ev.label}</span>
+                {ev.at && <span className="text-[11px] text-[#888]">{ev.at}</span>}
+                <span className="text-[11px] text-[#666] italic">por {ev.by}</span>
+              </div>
+              {ev.comment && (
+                <div className="mt-1 ml-4 text-[11px] text-amber-800"
+                  style={{ background: "#FEF3C7", borderLeft: "2px solid #D97706", padding: "4px 8px", borderRadius: "0 4px 4px 0" }}>
+                  {ev.comment}
+                </div>
+              )}
+              {ev.paymentDate && (
+                <div className="mt-1 ml-4 text-[11px] text-violet-700 italic">
+                  Pagamento previsto: {fmtDate(ev.paymentDate)}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type AprovAction = "approve" | "return" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
 function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
-  const [active, setActive]         = useState<ActiveAprovAction>(null);
-  const [comment, setComment]       = useState("");
-  const [checkinDate, setCheckinDate] = useState("");
+  const [active, setActive]             = useState<ActiveAprovAction>(null);
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
+  const [comment, setComment]           = useState("");
+  const [checkinDate, setCheckinDate]   = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
   function openAction(invId: string, type: AprovAction) {
+    setHistoryOpenId(null);
     if (active?.invId === invId && active.type === type) {
       setActive(null);
     } else {
@@ -623,6 +707,10 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
     }
   }
   function closeAction() { setActive(null); }
+  function toggleHistory(invId: string) {
+    setActive(null);
+    setHistoryOpenId(prev => prev === invId ? null : invId);
+  }
 
   const approveMutation = useMutation({
     mutationFn: (id: string) =>
@@ -684,11 +772,12 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <table className="w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "220px" }} />
-            <col style={{ width: "130px" }} />
+            <col style={{ width: "210px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "95px" }} />
+            <col style={{ width: "95px" }} />
             <col style={{ width: "100px" }} />
-            <col style={{ width: "100px" }} />
-            <col style={{ width: "110px" }} />
+            <col style={{ width: "52px" }} />
             <col />
           </colgroup>
           <thead>
@@ -698,13 +787,14 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Valor</th>
               <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">OC</th>
               <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Nota</th>
+              <th className="px-2 py-3" />
               <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
           <tbody>
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
                   Nenhum item com este status.
                 </td>
               </tr>
@@ -712,18 +802,31 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
             {filteredInvoices.map((inv: any) => {
               const actual   = getActual(inv.budgetActualId);
               const name     = getName(inv.collaboratorId);
-              const effSt    = getEffectiveStatus(inv);
-              const cfg      = STATUS_CFG[effSt];
-              const isActive = active?.invId === inv.id;
-              const initial  = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
+              const effSt        = getEffectiveStatus(inv);
+              const cfg          = STATUS_CFG[effSt];
+              const isActive     = active?.invId === inv.id;
+              const isHistOpen   = historyOpenId === inv.id;
+              const initial      = name && name !== "—" ? name.charAt(0).toUpperCase() : "?";
+              const history      = buildHistory(inv, name);
+              const hasReturn    = !!inv.returnComment;
+              const borderColor  = isHistOpen ? "#3B4FE4" : cfg.border;
 
               return (
                 <>
                   <tr
                     key={inv.id}
-                    className={`hover:bg-gray-50/60 transition-colors ${isActive && active?.type === "approve" ? "bg-white" : isActive ? "bg-gray-50" : "border-b border-gray-50"}`}
-                    style={{ borderLeft: `3px solid ${cfg.border}` }}
+                    className={`hover:bg-gray-50/60 transition-colors ${
+                      isActive && active?.type === "approve"
+                        ? "bg-white"
+                        : isHistOpen
+                        ? "bg-blue-50/30"
+                        : isActive
+                        ? "bg-gray-50"
+                        : "border-b border-gray-50"
+                    }`}
+                    style={{ borderLeft: `3px solid ${borderColor}` }}
                   >
+                    {/* Colaborador */}
                     <td className="px-4 py-3.5 overflow-hidden">
                       <div className="flex items-center gap-2">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${cfg.avatarCls}`}>
@@ -731,21 +834,30 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         </div>
                         <div className="min-w-0">
                           <span className="text-[13px] font-medium text-slate-800 truncate block">{toTitleCase(name)}</span>
-                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
+                            {hasReturn && (
+                              <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
+                    {/* Função */}
                     <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs text-slate-500 truncate block">{getFuncName(inv.functionId)}</span>
                     </td>
+                    {/* Valor */}
                     <td className="px-4 py-3.5 text-right">
                       <span className="text-[13px] font-bold text-violet-600 tabular-nums font-mono">
                         {actual ? formatCurrency(actual.totalValue) : "—"}
                       </span>
                     </td>
+                    {/* OC */}
                     <td className="px-4 py-3.5 overflow-hidden">
                       <span className="text-xs font-mono text-slate-600 truncate block">{inv.oc || "—"}</span>
                     </td>
+                    {/* Nota */}
                     <td className="px-4 py-3.5">
                       {inv.attachmentUrl ? (
                         <a href={inv.attachmentUrl} target="_blank" rel="noopener noreferrer"
@@ -754,9 +866,26 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                         </a>
                       ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
+                    {/* Histórico toggle */}
+                    <td className="px-2 py-3.5 text-center">
+                      <button
+                        onClick={() => toggleHistory(inv.id)}
+                        title={isHistOpen ? "Fechar histórico" : `${history.length} evento(s)`}
+                        className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
+                          isHistOpen
+                            ? "text-[#3B4FE4] bg-blue-100"
+                            : "text-slate-400 hover:text-[#3B4FE4] hover:bg-blue-50"
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        {!isHistOpen && (
+                          <span className="text-[9px] font-semibold leading-none tabular-nums">{history.length}</span>
+                        )}
+                      </button>
+                    </td>
+                    {/* Ações */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Aguardando RH: Aprovar + Devolver */}
                         {effSt === "enviada" && (
                           <>
                             <button
@@ -781,7 +910,6 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             </button>
                           </>
                         )}
-                        {/* Aprovada sem check-in: botão fazer check-in */}
                         {effSt === "checkin-pendente" && (
                           <button
                             onClick={() => openAction(inv.id, "checkin")}
@@ -794,13 +922,11 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             <CircleDot className="w-3.5 h-3.5" /> Fazer Check-in
                           </button>
                         )}
-                        {/* Check-in realizado */}
                         {effSt === "checkin-realizado" && (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
                             <CheckCircle2 className="w-3.5 h-3.5" /> {fmtDate(inv.paymentDate)}
                           </span>
                         )}
-                        {/* Devolvida — info */}
                         {effSt === "devolvida" && (
                           <span className="text-[11px] text-slate-400 italic truncate max-w-[180px]">
                             {inv.returnComment || "Devolvida"}
@@ -818,7 +944,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                       style={active.type === "approve" ? { borderLeft: `3px solid ${cfg.border}` } : {}}
                     >
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className={active.type === "approve" ? "" : "px-5 py-3"}
                         style={active.type === "approve" ? {
                           background: "#F0FDF4",
@@ -926,6 +1052,22 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                             </div>
                           </div>
                         )}
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* History panel */}
+                  {isHistOpen && (
+                    <tr key={`${inv.id}-history`} className="border-b border-blue-100">
+                      <td
+                        colSpan={7}
+                        style={{
+                          background: "#F8FAFC",
+                          borderTop: "1px solid #DBEAFE",
+                          padding: "12px 16px 12px 48px",
+                        }}
+                      >
+                        <HistoryPanel events={history} collabName={name} />
                       </td>
                     </tr>
                   )}

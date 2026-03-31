@@ -1,0 +1,68 @@
+Adicionar um mini histórico expandível em cada linha de nota fiscal
+na tela de Notas Fiscais.
+
+═══════════════════════════════════════
+1. GATILHO — como expandir
+═══════════════════════════════════════
+- Adicionar um ícone de histórico 🕐 ou ≡ 
+  discreto na linha, antes da coluna AÇÕES
+- Ao clicar: a linha expande para baixo 
+  mostrando o histórico inline
+- Linha com histórico: borda-left 3px azul #3B4FE4
+- Clicar novamente: recolhe
+
+═══════════════════════════════════════
+2. LAYOUT DO HISTÓRICO INLINE
+═══════════════════════════════════════
+- Fundo #F8FAFC, padding 12px 16px 12px 48px
+- Timeline vertical com linha pontilhada 
+  conectando os eventos:
+
+  • [ícone] [label evento]  [data hora]  [por quem]
+
+Exemplos de eventos e suas cores:
+
+  🟢 Enviado          25/03/2026 14:32   Aroldo Francisco Brito
+  🟡 Devolvido        26/03/2026 09:15   Admin RH
+      └ Motivo: "Número OC incorreto, favor corrigir"
+  🔵 Reenviado        26/03/2026 11:40   Aroldo Francisco Brito  
+  🟢 Aprovado         27/03/2026 10:00   Admin RH
+  🟣 Check-in         28/03/2026 15:00   Admin RH
+      └ Pagamento previsto: 20/10/2026
+
+═══════════════════════════════════════
+3. ESTILO DOS EVENTOS
+═══════════════════════════════════════
+- Ícone bolinha 8px colorida por tipo:
+  Enviado/Reenviado: azul #3B4FE4
+  Devolvido: laranja #D97706
+  Aprovado: verde #16A34A
+  Check-in: roxo #7C3AED
+- Label do evento: 12px peso 600, cor da bolinha
+- Data/hora: 11px cinza #888
+- "por quem": 11px cinza #666, itálico
+- Motivo de devolução: 
+  fundo #FEF3C7, border-left 2px #D97706,
+  padding 4px 8px, font 11px, 
+  border-radius 0 4px 4px 0,
+  margin-top 3px margin-left 16px
+
+═══════════════════════════════════════
+4. INDICADOR VISUAL NA LINHA
+═══════════════════════════════════════
+- Se a nota tem devolução no histórico: 
+  mostrar ícone ↩ laranja pequeno (10px) 
+  ao lado do badge de status — indica 
+  que houve devolução em algum momento
+- Contador de eventos: "3 eventos" em 
+  11px cinza ao lado do ícone de histórico,
+  ao expandir some o contador
+
+═══════════════════════════════════════
+5. ESTADO VAZIO
+═══════════════════════════════════════
+- Se só tem o envio inicial:
+  mostrar apenas "Enviado em DD/MM/AAAA por Nome"
+  sem timeline elaborada
+
+Não alterar lógica nem outras partes da tela.
