@@ -966,7 +966,7 @@ export default function BudgetComparisonPage() {
                               )}
                             </div>
                           </div>
-                          {isRhOrAdmin && (
+                          {isRhOrAdmin && !['aprovado', 'rejeitado'].includes(a.rhStatus || '') && (
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
