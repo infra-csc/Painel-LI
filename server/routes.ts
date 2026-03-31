@@ -2610,11 +2610,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper: append an event to the stored history JSON of an invoice
+  async function appendHistory(invoiceId: string, event: Record<string, any>): Promise<string> {
+    const existing = await storage.getInvoice(invoiceId);
+    let arr: any[] = [];
+    try { arr = JSON.parse(existing?.history || "[]"); } catch { arr = []; }
+    arr.push({ ...event, at: new Date().toISOString() });
+    return JSON.stringify(arr);
+  }
+
   app.post("/api/invoices", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
       const data = insertInvoiceSchema.parse(req.body);
-      const invoice = await storage.createInvoice(data);
+      const firstEvent = { type: "enviado", oc: data.oc || null, attachmentName: data.attachmentName || null, at: new Date().toISOString() };
+      const invoice = await storage.createInvoice({ ...data, history: JSON.stringify([firstEvent]) });
       res.json(invoice);
     } catch (error) {
       console.error("Error creating invoice:", error);
@@ -2625,7 +2635,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/invoices/:id", async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
     try {
-      const invoice = await storage.updateInvoice(req.params.id, req.body);
+      const body = req.body;
+      let historyStr: string | undefined;
+      // If resubmitting (setting status back to enviada), record a "reenviado" event
+      if (body.status === "enviada") {
+        historyStr = await appendHistory(req.params.id, {
+          type: "reenviado",
+          oc: body.oc || null,
+          attachmentName: body.attachmentName || null,
+        });
+      }
+      // If setting paymentDate (check-in), record a "checkin" event
+      if (body.paymentDate && !body.status) {
+        historyStr = await appendHistory(req.params.id, {
+          type: "checkin",
+          paymentDate: body.paymentDate,
+        });
+      }
+      const invoice = await storage.updateInvoice(req.params.id, {
+        ...body,
+        ...(historyStr !== undefined ? { history: historyStr } : {}),
+      });
       res.json(invoice);
     } catch (error) {
       console.error("Error updating invoice:", error);
@@ -2641,11 +2671,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     try {
       const { paymentDate } = req.body;
+      const historyStr = await appendHistory(req.params.id, { type: "aprovado" });
       const invoice = await storage.updateInvoice(req.params.id, {
         status: "aprovada",
         ...(paymentDate ? { paymentDate } : {}),
         approvedAt: new Date(),
         returnComment: null,
+        history: historyStr,
       });
       res.json(invoice);
     } catch (error) {
@@ -2662,9 +2694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     try {
       const { comment } = req.body;
+      const historyStr = await appendHistory(req.params.id, { type: "devolvido", comment: comment || null });
       const invoice = await storage.updateInvoice(req.params.id, {
         status: "devolvida",
         returnComment: comment ?? null,
+        history: historyStr,
       });
       res.json(invoice);
     } catch (error) {

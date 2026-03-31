@@ -1,0 +1,67 @@
+Melhorias de layout e lógica na tela de Notas Fiscais:
+
+═══════════════════════════════════════
+1. BANNERS DO TOPO — unificar e compactar
+═══════════════════════════════════════
+- Remover o banner azul fixo de aviso — 
+  substituir por ícone ⓘ discreto ao lado 
+  do título "Notas Fiscais", com tooltip ao hover:
+  "Apenas eventos com empresa pagadora aparecem. 
+   Cadastre no evento para habilitar."
+- Banner verde "Empresa pagadora": 
+  mover para dentro do header da página, 
+  ao lado do seletor de evento, em formato inline:
+  🏢 Tatica Marketing · CNPJ 06.103.531/0001-96
+  fonte 12px cinza, sem fundo verde ocupando 
+  toda a largura
+
+═══════════════════════════════════════
+2. STEPPER — mais compacto
+═══════════════════════════════════════
+- Reduzir altura do stepper de ~80px para 36px
+- Layout horizontal minimalista:
+  ✓ Lançamento  ──  ● Aprovação RH  ──  ○ Check-in
+  ícones 14px, labels 11px, linha 1px
+- Sem card/box em volta — só a linha fina
+
+═══════════════════════════════════════
+3. NOME CORTADO — tooltip
+═══════════════════════════════════════
+- Ao truncar nome com ellipsis, 
+  adicionar tooltip nativo (title=) com 
+  nome completo ao hover
+- Largura mínima da coluna COLABORADOR: 180px
+
+═══════════════════════════════════════
+4. INDICADOR DE TEMPO — notas aguardando
+═══════════════════════════════════════
+- Em cada linha com status "Aguardando RH",
+  mostrar há quantos dias está pendente:
+  abaixo do badge, em fonte 10px:
+  • Até 2 dias: "há X dias" cinza
+  • 3 a 5 dias: "há X dias" laranja #D97706
+  • Mais de 5 dias: "há X dias ⚠" vermelho #DC2626
+- No filtro "Aguardando 1", adicionar 
+  indicador se houver alguma com mais de 3 dias:
+  badge laranja com número
+
+
+
+═══════════════════════════════════════
+7. TOTAL FINANCEIRO DO EVENTO
+═══════════════════════════════════════
+- Adicionar no rodapé da tabela uma linha 
+  de totais fixos:
+  
+  TOTAL DO EVENTO:  
+  Aprovado: R$ 945,00  |  
+  Aguardando: R$ 565,00  |  
+  TOTAL: R$ 1.510,00
+
+- Fundo #F8FAFC, border-top 2px #e5e7eb
+- Labels: 10px uppercase cinza
+- Valores: 13px peso 700, 
+  Aprovado em verde, Aguardando em laranja, 
+  Total em azul #3B4FE4
+
+Não alterar lógica de aprovação nem histórico.

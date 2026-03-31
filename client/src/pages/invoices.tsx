@@ -643,18 +643,51 @@ function fmtDateTime(iso?: string | null) {
 }
 
 type HistEvent = {
-  type: "enviado" | "devolvido" | "aprovado" | "checkin";
+  type: "enviado" | "reenviado" | "devolvido" | "aprovado" | "checkin";
   label: string;
   color: string;
   at: string | null;
   by: string;
-  comment?: string;
+  oc?: string | null;
+  attachmentName?: string | null;
+  comment?: string | null;
   paymentDate?: string;
 };
 
+const HIST_CFG: Record<HistEvent["type"], { label: string; color: string; by: "colaborador" | "rh" }> = {
+  enviado:   { label: "Enviado",   color: "#3B4FE4", by: "colaborador" },
+  reenviado: { label: "Reenviado", color: "#3B4FE4", by: "colaborador" },
+  devolvido: { label: "Devolvido", color: "#D97706", by: "rh" },
+  aprovado:  { label: "Aprovado",  color: "#16A34A", by: "rh" },
+  checkin:   { label: "Check-in",  color: "#7C3AED", by: "rh" },
+};
+
 function buildHistory(inv: any, collabName: string): HistEvent[] {
+  // Use stored history if available
+  if (inv.history) {
+    try {
+      const stored: any[] = JSON.parse(inv.history);
+      if (stored.length > 0) {
+        return stored.map(e => {
+          const cfg = HIST_CFG[e.type as HistEvent["type"]] || HIST_CFG.enviado;
+          return {
+            type: e.type,
+            label: cfg.label,
+            color: cfg.color,
+            at: e.at ? fmtDateTime(e.at) : null,
+            by: cfg.by === "colaborador" ? toTitleCase(collabName) : "RH",
+            oc: e.oc || null,
+            attachmentName: e.attachmentName || null,
+            comment: e.comment || null,
+            paymentDate: e.paymentDate || undefined,
+          } as HistEvent;
+        });
+      }
+    } catch { /* fall through */ }
+  }
+  // Fallback reconstruction for old invoices without stored history
   const events: HistEvent[] = [];
-  events.push({ type: "enviado",  label: "Enviado",   color: "#3B4FE4", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
+  events.push({ type: "enviado", label: "Enviado", color: "#3B4FE4", at: fmtDateTime(inv.createdAt), by: toTitleCase(collabName) });
   if (inv.returnComment) {
     events.push({ type: "devolvido", label: "Devolvido", color: "#D97706", at: null, by: "RH", comment: inv.returnComment });
   }
@@ -674,6 +707,8 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
     return (
       <div className="text-[11px] text-slate-500 italic">
         Enviado em {e.at || "—"} por {e.by}
+        {e.oc && <span className="not-italic text-slate-600 ml-1">· OC: <span className="font-mono font-semibold">{e.oc}</span></span>}
+        {e.attachmentName && <span className="not-italic text-slate-500 ml-1">· Nota: {e.attachmentName}</span>}
       </div>
     );
   }
@@ -686,20 +721,35 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
           <div key={i} className="relative flex items-start gap-3">
             {/* dot */}
             <div className="absolute -left-4 top-[5px] w-2 h-2 rounded-full ring-2 ring-white shrink-0" style={{ background: ev.color }} />
-            <div className="min-w-0">
+            <div className="min-w-0 w-full">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[12px] font-semibold" style={{ color: ev.color }}>{ev.label}</span>
                 {ev.at && <span className="text-[11px] text-[#888]">{ev.at}</span>}
                 <span className="text-[11px] text-[#666] italic">por {ev.by}</span>
               </div>
+              {/* OC and attachment for sent/resent */}
+              {(ev.type === "enviado" || ev.type === "reenviado") && (ev.oc || ev.attachmentName) && (
+                <div className="mt-1 ml-0 flex items-center gap-3 flex-wrap">
+                  {ev.oc && (
+                    <span className="text-[11px] text-slate-600">
+                      OC: <span className="font-mono font-semibold text-slate-800">{ev.oc}</span>
+                    </span>
+                  )}
+                  {ev.attachmentName && (
+                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <Paperclip className="w-2.5 h-2.5" /> {ev.attachmentName}
+                    </span>
+                  )}
+                </div>
+              )}
               {ev.comment && (
-                <div className="mt-1 ml-4 text-[11px] text-amber-800"
+                <div className="mt-1 text-[11px] text-amber-800"
                   style={{ background: "#FEF3C7", borderLeft: "2px solid #D97706", padding: "4px 8px", borderRadius: "0 4px 4px 0" }}>
                   {ev.comment}
                 </div>
               )}
               {ev.paymentDate && (
-                <div className="mt-1 ml-4 text-[11px] text-violet-700 italic">
+                <div className="mt-1 text-[11px] text-violet-700 italic">
                   Pagamento previsto: {fmtDate(ev.paymentDate)}
                 </div>
               )}

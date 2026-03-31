@@ -495,6 +495,7 @@ export const invoices = pgTable("invoices", {
   returnComment: text("return_comment"),
   paymentDate: date("payment_date"),
   approvedAt: timestamp("approved_at"),
+  history: text("history").default("[]"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
