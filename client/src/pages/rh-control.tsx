@@ -115,6 +115,7 @@ const ACTIONABLE_STATUSES: PrestacaoStatus[] = ["planejamento_pendente", "aguard
 export default function RhControlPage() {
   const [filterEvent, setFilterEvent] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<PrestacaoStatus>("all");
+  const [filterCheckinOnly, setFilterCheckinOnly] = useState(false);
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterCollaborator, setFilterCollaborator] = useState<string>("all");
   const [filterInvoiceStatus, setFilterInvoiceStatus] = useState<string>("all");
@@ -380,9 +381,14 @@ export default function RhControlPage() {
         const name = getCollaboratorName(item.collaboratorId).toLowerCase();
         if (!name.includes(searchTerm.toLowerCase())) return false;
       }
+      if (filterCheckinOnly) {
+        const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+        const isCheckinPending = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
+        if (!isCheckinPending) return false;
+      }
       return true;
     });
-  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, collaborators, allInvoices]);
+  }, [prestacaoItems, filterEvent, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, searchTerm, showConcluded, filterCheckinOnly, collaborators, allInvoices]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -544,7 +550,7 @@ export default function RhControlPage() {
     },
   };
 
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || filterInvoiceStatus !== "all" || searchTerm !== "";
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || (filterStatus !== "all" && filterStatus !== "rh_action") || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
@@ -856,7 +862,9 @@ export default function RhControlPage() {
                     ? "bg-violet-50 text-violet-700 border-violet-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
-                  {hasCheckin ? "Concluído" : checkinPendingCard ? "Ag. Check-in" : "Ag. Nota Fiscal"}
+                  {hasCheckin ? "Concluído" : checkinPendingCard ? (
+                    <>Ag. Check-in{nfInvCard?.approvedAt ? ` · NF aprovada ${new Date(nfInvCard.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}` : ""}</>
+                  ) : "Ag. Nota Fiscal"}
                 </span>
               ) : (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
@@ -874,13 +882,42 @@ export default function RhControlPage() {
                   <span className="ml-1 text-slate-400">· {item.planned.collaboratorType === 'casa' ? 'Casa' : 'Freela'}</span>
                 )}
               </p>
-              {days > 30 ? (
-                <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
-                  <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
-                </span>
-              ) : days > 0 ? (
-                <span className="text-[10px] text-slate-400 shrink-0">{timeInStatus(item.lastActivityDate)}</span>
-              ) : null}
+              {(() => {
+                if (item.status === "aprovada_faturamento") return null;
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const evEnd = item.event.endDate ? new Date(item.event.endDate) : null;
+                const evStart = item.event.startDate ? new Date(item.event.startDate) : null;
+                const isPending = item.status === "planejamento_pendente" || item.status === "prestacao_recebida";
+                if (isPending) {
+                  if (evEnd && evEnd < today) {
+                    const dAgo = Math.floor((today.getTime() - evEnd.getTime()) / 864e5);
+                    return (
+                      <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
+                        <AlertTriangle className="w-2.5 h-2.5" /> Evento encerrado há {dAgo} dia{dAgo !== 1 ? 's' : ''}
+                      </span>
+                    );
+                  }
+                  if (evStart) {
+                    const dUntil = Math.floor((evStart.getTime() - today.getTime()) / 864e5);
+                    if (dUntil <= 14) {
+                      return (
+                        <span className="text-[10px] font-semibold text-orange-500 flex items-center gap-0.5 shrink-0">
+                          <AlertTriangle className="w-2.5 h-2.5" /> Evento em {dUntil <= 0 ? 'andamento' : `${dUntil} dia${dUntil !== 1 ? 's' : ''}`}
+                        </span>
+                      );
+                    }
+                  }
+                  return null;
+                }
+                if (days > 30) {
+                  return (
+                    <span className="text-[10px] font-semibold text-red-500 flex items-center gap-0.5 shrink-0">
+                      <AlertTriangle className="w-2.5 h-2.5" /> {timeInStatus(item.lastActivityDate)}
+                    </span>
+                  );
+                }
+                return days > 0 ? <span className="text-[10px] text-slate-400 shrink-0">{timeInStatus(item.lastActivityDate)}</span> : null;
+              })()}
             </div>
           </div>
 
@@ -988,8 +1025,8 @@ export default function RhControlPage() {
                 }
                 return (
                   <button
-                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors flex items-center gap-1.5"
-                    style={{ background: '#6d28d9' }}
+                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors flex items-center gap-1.5 shadow-sm"
+                    style={{ background: '#7C3AED' }}
                     onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(nfInvCard?.id || null); }}
                   >
                     <CircleDot className="w-3 h-3" />
@@ -1031,6 +1068,35 @@ export default function RhControlPage() {
                 ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1)
                 : "0";
 
+              if (isZero) {
+                return (
+                  <div className="space-y-3">
+                    <div className="rounded-lg px-4 py-2.5 flex items-center gap-2" style={{ background: '#F0FDF4', borderRadius: 6 }}>
+                      <CheckCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#16A34A' }} />
+                      <span style={{ fontSize: 12, color: '#16A34A' }}>
+                        Sem diferença apurada — Planejado e realizado idênticos ({fmt(item.planned.totalValue)})
+                      </span>
+                    </div>
+                    {/* Payment info after check-in — zero diff */}
+                    {(() => {
+                      const nfInvZ = item.actual ? getInvoiceForActual(item.actual.id) : null;
+                      if (!nfInvZ?.checkinAt) return null;
+                      const payDateZ = nfInvZ.paymentDate
+                        ? new Date(nfInvZ.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : null;
+                      return (
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 flex items-center justify-between">
+                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5" /> Check-in Financeiro Realizado
+                          </span>
+                          {payDateZ && <span className="text-[11px] text-emerald-600 font-medium">💳 Pagamento: {payDateZ}</span>}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              }
+
               return (
                 <div className="space-y-3">
                   {/* Diff strip */}
@@ -1038,15 +1104,13 @@ export default function RhControlPage() {
                     <span className="text-[11px] text-slate-400 font-medium">Diferença apurada</span>
                     <div className="text-right">
                       <span className={`text-sm font-bold tabular-nums ${
-                        isZero ? 'text-slate-400' : isNegative ? 'text-emerald-600' : 'text-red-600'
+                        isNegative ? 'text-emerald-600' : 'text-red-600'
                       }`}>
-                        {isZero ? 'R$ 0,00' : `${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
+                        {`${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
                       </span>
-                      {!isZero && (
-                        <p className="text-[9px] text-slate-400">
-                          {isNegative ? `economia de ${pct}%` : `+${pct}% do planejado`}
-                        </p>
-                      )}
+                      <p className="text-[9px] text-slate-400">
+                        {isNegative ? `economia de ${pct}%` : `+${pct}% do planejado`}
+                      </p>
                     </div>
                   </div>
 
@@ -1278,13 +1342,13 @@ export default function RhControlPage() {
 
         const emAndamento = (statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada;
         const recusada = statusCounts.recusada || 0;
+        const chk = invoiceCounts.checkinPending || 0;
 
-        const dot = <span className="text-slate-300 select-none"> ·</span>;
-        const metric = (label: string, val: number, accentCls: string, last = false) => (
-          <span key={label} className="whitespace-nowrap">
-            <span className={val > 0 ? accentCls : ""}>{val} {label}</span>
-            {!last && dot}
-          </span>
+        const MetricLine = ({ label, val, color }: { label: string; val: number; color: string }) => (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold tabular-nums w-7 text-right shrink-0" style={{ color: val > 0 ? color : '#ccc' }}>{val}</span>
+            <span className="text-xs" style={{ color: val > 0 ? '#475569' : '#ccc' }}>{label}</span>
+          </div>
         );
 
         const MetricCard = ({
@@ -1299,10 +1363,10 @@ export default function RhControlPage() {
                 <Icon className="w-4 h-4" style={{ color: iconColor }} />
                 <span className="text-xs font-semibold text-slate-600">{title}</span>
               </div>
-              <div className="text-4xl font-bold tabular-nums mt-1 mb-2" style={{ color: iconColor }}>
+              <div className="text-4xl font-bold tabular-nums mt-1 mb-3" style={{ color: iconColor }}>
                 {isLoading ? <span className="inline-block w-12 h-9 bg-gray-200 rounded animate-pulse" /> : value}
               </div>
-              <div className="flex flex-wrap gap-x-1 gap-y-0.5 text-xs text-slate-500 leading-relaxed">
+              <div className="space-y-1">
                 {children}
               </div>
             </div>
@@ -1311,31 +1375,29 @@ export default function RhControlPage() {
 
         return (
           <div className="grid grid-cols-4 gap-4">
-            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal + (invoiceCounts.checkinPending || 0)}>
-              {metric("Planejamento", rhPlan, "font-medium text-red-500")}
-              {metric("Comparativo", rhComp, "font-medium text-red-500")}
-              {metric("Nota Fiscal", rhNf, "font-medium text-red-500")}
-              {metric("Check-in", invoiceCounts.checkinPending || 0, "font-medium text-red-500", true)}
+            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal + chk}>
+              <MetricLine label="Planejamento" val={rhPlan} color="#ef4444" />
+              <MetricLine label="Comparativo"  val={rhComp} color="#ef4444" />
+              <MetricLine label="Nota Fiscal"  val={rhNf}   color="#ef4444" />
+              <MetricLine label="Check-in"     val={chk}    color="#ef4444" />
             </MetricCard>
 
             <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}>
-              {metric("Realizado", colReal, "font-medium")}
-              {metric("NF devolvida", colNfDev, "font-medium")}
-              {metric("Ag. NF", colNfPend, "font-medium", true)}
+              <MetricLine label="Realizado"    val={colReal}   color="#0033CC" />
+              <MetricLine label="NF devolvida" val={colNfDev}  color="#0033CC" />
+              <MetricLine label="Ag. NF"       val={colNfPend} color="#0033CC" />
             </MetricCard>
 
-            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={(statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada + (invoiceCounts.checkinPending || 0)}>
-              {metric("Ag. realização", statusCounts.aguardando_prestacao || 0, "font-medium text-amber-600")}
-              {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600")}
-              {metric("Ag. Check-in", invoiceCounts.checkinPending || 0, "font-medium text-amber-600", true)}
+            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={(statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada + chk}>
+              <MetricLine label="Ag. realização" val={statusCounts.aguardando_prestacao || 0} color="#d97706" />
+              <MetricLine label="NF em análise"  val={invoiceCounts.enviada} color="#d97706" />
+              <MetricLine label="Ag. Check-in"   val={chk} color="#d97706" />
             </MetricCard>
 
             <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
-              <span className="whitespace-nowrap">de {totalForProgress} total</span>
-              <span className="whitespace-nowrap text-slate-400">{dot}só após check-in</span>
-              {recusada > 0 && (
-                <span className="whitespace-nowrap text-red-400">{dot}{recusada} recusado{recusada !== 1 ? "s" : ""}</span>
-              )}
+              <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
+              {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
+              <div className="text-[10px] text-slate-300 mt-0.5">só conta após check-in</div>
             </MetricCard>
           </div>
         );
@@ -1357,9 +1419,27 @@ export default function RhControlPage() {
                 {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
               </p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {rhPlanPendingCount > 0 && <span className="text-[10px] text-slate-500">· {rhPlanPendingCount} planejamento{rhPlanPendingCount > 1 ? 's' : ''}</span>}
-                {rhReceivedCount > 0 && <span className="text-[10px] text-slate-500">· {rhReceivedCount} comparativo{rhReceivedCount > 1 ? 's' : ''}</span>}
-                {(invoiceCounts.checkinPending || 0) > 0 && <span className="text-[10px] text-violet-600 font-medium">· {invoiceCounts.checkinPending} check-in{(invoiceCounts.checkinPending || 0) > 1 ? 's' : ''}</span>}
+                {rhPlanPendingCount > 0 && (
+                  <button
+                    onClick={() => { setFilterStatus("planejamento_pendente"); setFilterCheckinOnly(false); }}
+                    className="text-[10px] text-slate-500 hover:text-slate-700 cursor-pointer"
+                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                  >· {rhPlanPendingCount} planejamento{rhPlanPendingCount > 1 ? 's' : ''}</button>
+                )}
+                {rhReceivedCount > 0 && (
+                  <button
+                    onClick={() => { setFilterStatus("prestacao_recebida"); setFilterCheckinOnly(false); }}
+                    className="text-[10px] text-slate-500 hover:text-slate-700 cursor-pointer"
+                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                  >· {rhReceivedCount} comparativo{rhReceivedCount > 1 ? 's' : ''}</button>
+                )}
+                {(invoiceCounts.checkinPending || 0) > 0 && (
+                  <button
+                    onClick={() => { setFilterCheckinOnly(true); setFilterStatus("all"); }}
+                    className="text-[10px] text-violet-600 font-medium hover:text-violet-800 cursor-pointer"
+                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                  >· {invoiceCounts.checkinPending} check-in{(invoiceCounts.checkinPending || 0) > 1 ? 's' : ''}</button>
+                )}
               </div>
               <div className="flex items-center gap-3 mt-1.5">
                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[240px]">
@@ -1380,6 +1460,7 @@ export default function RhControlPage() {
               style={{ background: '#f97316' }}
               onClick={() => {
                 setFilterStatus("rh_action");
+                setFilterCheckinOnly(false);
                 setShowConcluded(false);
                 setTimeout(() => document.getElementById("rh-listing")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
               }}
@@ -1430,7 +1511,7 @@ export default function RhControlPage() {
           </Button>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-400 hover:text-slate-600"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setFilterInvoiceStatus("all"); setSearchTerm(""); }}>
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setFilterInvoiceStatus("all"); setSearchTerm(""); setFilterCheckinOnly(false); }}>
               Limpar
             </Button>
           )}
@@ -1490,7 +1571,21 @@ export default function RhControlPage() {
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
           Mostrando apenas pendências do RH ({rhActionCount} ite{rhActionCount === 1 ? 'm' : 'ns'})
-          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => setFilterStatus("all")}>Limpar</button>
+          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
+        </div>
+      )}
+      {filterCheckinOnly && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-violet-50 border border-violet-200 text-xs text-violet-700">
+          <CircleDot className="w-3.5 h-3.5 text-violet-500" />
+          Mostrando apenas check-ins pendentes ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
+          <button className="ml-auto text-violet-600 hover:text-violet-800 font-medium" onClick={() => setFilterCheckinOnly(false)}>Limpar</button>
+        </div>
+      )}
+      {(filterStatus !== "all" && filterStatus !== "rh_action") && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-50 border border-gray-200 text-xs text-slate-500">
+          <Shield className="w-3.5 h-3.5 text-slate-400" />
+          Filtro ativo: {filterStatus === "planejamento_pendente" ? "Planejamento pendente" : filterStatus === "prestacao_recebida" ? "Comparativo recebido" : filterStatus} ({filteredItems.length} ite{filteredItems.length === 1 ? 'm' : 'ns'})
+          <button className="ml-auto text-blue-600 hover:text-blue-800 font-medium" onClick={() => { setFilterStatus("all"); setFilterCheckinOnly(false); }}>Limpar</button>
         </div>
       )}
 
@@ -1518,7 +1613,7 @@ export default function RhControlPage() {
           </p>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" className="mt-3 text-xs"
-              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); }}>
+              onClick={() => { setFilterEvent("all"); setFilterFunction("all"); setFilterCollaborator("all"); setFilterStatus("all"); setSearchTerm(""); setFilterCheckinOnly(false); }}>
               Limpar filtros
             </Button>
           )}

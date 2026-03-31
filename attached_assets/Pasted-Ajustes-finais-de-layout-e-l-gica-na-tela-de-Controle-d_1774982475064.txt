@@ -1,0 +1,84 @@
+Ajustes finais de layout e lógica na tela de 
+Controle de Prestações de Contas:
+
+═══════════════════════════════════════
+1. CARDS DE ESTATÍSTICAS — subtítulos
+═══════════════════════════════════════
+- Subtítulos internos (27 Planejamento, 
+  0 Comparativo etc): um por linha, 
+  não em linha horizontal corrida
+- Itens com valor 0: exibir em cinza claro 
+  #ccc ao invés de cor normal — 
+  destaca só o que tem pendência real
+- Exemplo de layout interno do card:
+  27 Planejamento   ← laranja se > 0
+   0 Comparativo    ← cinza se = 0
+   1 Nota Fiscal    ← laranja se > 0
+   2 Check-in       ← laranja se > 0
+
+═══════════════════════════════════════
+2. CARD EXPANDIDO — diferença zero
+═══════════════════════════════════════
+- Quando Planejado = Realizado (diferença R$ 0,00):
+  ocultar o bloco de breakdown e substituir por:
+  "✓ Sem diferença apurada — 
+   Planejado e realizado idênticos (R$ 150,00)"
+  em 12px verde #16A34A, padding 10px 14px, 
+  fundo #F0FDF4, border-radius 6px
+- Mostrar o breakdown detalhado apenas quando 
+  houver diferença real entre planejado e realizado
+
+═══════════════════════════════════════
+3. ALERTA "HÁ X DIAS" — lógica corrigida
+═══════════════════════════════════════
+- O alerta de atraso deve considerar 
+  a data do evento, não só a data de criação:
+  
+  • Evento FUTURO com planejamento pendente:
+    mostrar "⚠ Há X dias" em laranja 
+    — é urgente, o evento ainda vai acontecer
+    
+  • Evento JÁ OCORRIDO com planejamento pendente:
+    mostrar "⚠ Evento encerrado há X dias" 
+    em vermelho — atraso crítico pós-evento
+    
+  • Evento FUTURO com bastante tempo:
+    não mostrar alerta ainda, 
+    só aparecer quando faltar menos de 14 dias
+
+- Remover "Há 203 dias" em vermelho de eventos 
+  antigos do passado que estão 
+  em status de planejamento — 
+  nesses casos trocar para:
+  "⚠ Evento já realizado · pendente"
+  em vermelho, mais descritivo
+
+═══════════════════════════════════════
+4. BOTÃO CHECK-IN — mais destacado
+═══════════════════════════════════════
+- Quando a próxima ação for Check-in 
+  (badge "Ag. Check-in"), o botão de ação 
+  na linha deve ser mais chamativo:
+  [⊙ Fazer Check-in] 
+  fundo roxo #7C3AED, texto branco, 
+  ao invés do cinza/neutro atual
+- Badge "Ag. Check-in" na linha recolhida: 
+  adicionar data da NF aprovada ao lado:
+  "Ag. Check-in · NF aprovada 19/10/2026"
+  em 11px para o RH saber desde quando está pendente
+
+═══════════════════════════════════════
+5. BARRA DE PENDÊNCIAS — breakdown ao hover
+═══════════════════════════════════════
+- "29 pendências aguardando ação do RH"
+  já mostra "27 planejamentos · 2 check-ins"
+  está bom — apenas ajustar:
+  cada item clicável que filtra a lista abaixo:
+  clicar em "27 planejamentos" → 
+  filtra a lista mostrando só os de planejamento
+  clicar em "2 check-ins" → 
+  filtra só os de check-in pendente
+  indicar que é clicável: underline tracejado 
+  + cursor pointer
+
+Não alterar cálculos nem estrutura de dados.
