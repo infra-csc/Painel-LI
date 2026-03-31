@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { EventSearchSelect } from "@/components/event-select";
 import { useSearch } from "wouter";
-import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison, BudgetNote } from "@shared/schema";
+import type { Event, Function, Collaborator, BudgetActual, BudgetPlanned, BudgetComparison, BudgetNote, TeamInclusion } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -84,6 +84,7 @@ export default function BudgetComparisonPage() {
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const { data: functions } = useQuery<Function[]>({ queryKey: ["/api/functions"] });
   const { data: collaborators } = useQuery<Collaborator[]>({ queryKey: ["/api/collaborators"] });
+  const { data: allTeamInclusions = [] } = useQuery<TeamInclusion[]>({ queryKey: ["/api/team-inclusions"] });
 
   const { data: comparison } = useQuery<BudgetComparison | null>({
     queryKey: ["/api/budget-comparison", selectedEventId],
@@ -423,13 +424,28 @@ export default function BudgetComparisonPage() {
   const rhComment = comparison?.approvalObservation || comparison?.rejectionReason || comparison?.returnReason;
   const isReadOnly = false;
 
-  const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, stripColor, rows }: {
+  const countMealDays = (startDate: string | null | undefined, totalDays: number): { weekdays: number; weekends: number } => {
+    if (!startDate || totalDays <= 0) return { weekdays: 0, weekends: 0 };
+    const start = new Date(startDate + "T12:00:00");
+    if (isNaN(start.getTime())) return { weekdays: 0, weekends: 0 };
+    let weekdays = 0, weekends = 0;
+    const cur = new Date(start);
+    for (let i = 0; i < totalDays; i++) {
+      const d = cur.getDay();
+      if (d === 0 || d === 6) weekends++; else weekdays++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return { weekdays, weekends };
+  };
+
+  const CategoryBlock = ({ title, icon: Icon, iconColor, bgColor, stripColor, rows, badge }: {
     title: string;
     icon: any;
     iconColor: string;
     bgColor: string;
     stripColor: string;
     rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
+    badge?: string;
   }) => {
     const currencyRows = rows.filter(r => !r.isQuantity);
     const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
@@ -447,6 +463,11 @@ export default function BudgetComparisonPage() {
               <Icon className="w-2.5 h-2.5 text-white" />
             </div>
             <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
+            {badge && (
+              <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full leading-none">
+                {badge}
+              </span>
+            )}
             {hasAnyDiff && (
               <span className="flex items-center gap-0.5 text-[8px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
                 <AlertTriangle className="w-2 h-2" /> Divergência
@@ -1114,19 +1135,35 @@ export default function BudgetComparisonPage() {
                               ]}
                             />
 
-                            <CategoryBlock
-                              title="Alimentação"
-                              icon={Utensils}
-                              iconColor="text-orange-700"
-                              bgColor="bg-orange-50/60"
-                              stripColor="bg-orange-400"
-                              rows={[
-                                { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
-                                { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
-                                { label: "Almoço (FdS)", planned: p?.weekendLunch || 0, actual: a.weekendLunch },
-                                { label: "Jantar (FdS)", planned: p?.weekendDinner || 0, actual: a.weekendDinner },
-                              ]}
-                            />
+                            {(() => {
+                              const ti = allTeamInclusions.find(t =>
+                                t.eventId === selectedEventId &&
+                                t.collaboratorId === row.collaboratorId &&
+                                t.functionId === row.functionId
+                              );
+                              const startDate = (ti as any)?.actualStartDate || (ti as any)?.scheduleStartDate;
+                              const totalDays = a.dailyQuantity || p?.dailyQuantity || 0;
+                              const { weekdays: wkd, weekends: wke } = countMealDays(startDate, totalDays);
+                              const mealBadge = (totalDays > 0 && (wkd > 0 || wke > 0))
+                                ? [wkd > 0 ? `${wkd} dia${wkd !== 1 ? 's' : ''} útei${wkd !== 1 ? 's' : 'l'}` : null, wke > 0 ? `${wke} FdS` : null].filter(Boolean).join(' · ')
+                                : undefined;
+                              return (
+                                <CategoryBlock
+                                  title="Alimentação"
+                                  icon={Utensils}
+                                  iconColor="text-orange-700"
+                                  bgColor="bg-orange-50/60"
+                                  stripColor="bg-orange-400"
+                                  badge={mealBadge}
+                                  rows={[
+                                    { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
+                                    { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
+                                    { label: "Almoço (FdS)", planned: p?.weekendLunch || 0, actual: a.weekendLunch },
+                                    { label: "Jantar (FdS)", planned: p?.weekendDinner || 0, actual: a.weekendDinner },
+                                  ]}
+                                />
+                              );
+                            })()}
 
                             <CategoryBlock
                               title="Mobilidade"
