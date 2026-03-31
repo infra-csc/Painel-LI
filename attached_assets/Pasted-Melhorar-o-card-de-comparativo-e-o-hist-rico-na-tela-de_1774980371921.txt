@@ -1,0 +1,67 @@
+Melhorar o card de comparativo e o histórico na tela de Realizado/Comparativo:
+
+═══════════════════════════════════════
+1. CARD — compactar
+═══════════════════════════════════════
+- Reduzir espaçamento interno de todas as seções:
+  • Header da seção (Diárias, Alimentação, Mobilidade): 
+    altura 32px, padding 0 12px
+  • Linhas de item: altura 32px, padding 0 12px
+  • Linha SUBTOTAL: altura 28px, 
+    font 11px uppercase cinza
+  • Gap entre seções: 8px
+
+- Linhas com valor R$ 0,00 em ambos 
+  Planejado e Realizado: ocultar por padrão
+  com opção "Mostrar zeros" toggle pequeno 
+  no header da seção — reduz muito o tamanho
+
+- Colunas PLANEJADO / REALIZADO / DIFERENÇA:
+  largura fixa: 140px / 140px / 100px
+  labels dos headers: 10px uppercase cinza, 
+  exibir apenas 1x no topo de cada seção, 
+  não repetir em cada seção
+
+- Footer PLANEJADO/REALIZADO/DIFERENÇA:
+  altura 44px, compactar (era ~80px)
+  os 3 valores em linha única sem cards separados
+
+═══════════════════════════════════════
+2. HISTÓRICO — linguagem humana
+═══════════════════════════════════════
+- REMOVER completamente textos técnicos como em todo parte que aparece o histórico financeiro, n~]ao só no comparativo
+  "Campos alterados: itemIds, action, comment, count"
+  isso nunca deve aparecer para o usuário
+
+- Substituir por descrições legíveis por evento:
+
+  Criado:
+  "Planejamento criado com os seguintes valores:
+   · Diária: R$ 50,00/dia × 1 dia = R$ 50,00
+   · Alimentação: Almoço R$ 35,00 + Jantar R$ 40,00
+   · Mobilidade: R$ 25,00 (ida + volta)"
+
+  Editado (quando RH altera um valor):
+  "Valor da diária alterado de R$ 50,00 para R$ 60,00"
+  "Alimentação (Almoço) alterada de R$ 35,00 para R$ 40,00"
+  — uma linha por campo alterado, sem jargão técnico
+
+  Aprovado:
+  "Prestação aprovada pelo RH"
+
+  Devolvido:
+  "Devolvido para correção
+   · Motivo: [texto do motivo]"
+
+  Reenviado:
+  "Colaborador reenviou após correção"
+
+- Cada evento: 
+  • Ícone colorido 10px (igual ao padrão já definido)
+  • Label do evento: 12px peso 600
+  • Data/hora: 11px cinza
+  • Por quem: 11px cinza itálico
+  • Detalhes: 12px cinza #555, 
+    margin-left 16px, line-height 1.6
+
+Não alterar cálculos nem lógica de dados.

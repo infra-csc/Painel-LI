@@ -381,58 +381,64 @@ export default function BudgetComparisonPage() {
     stripColor: string;
     rows: Array<{ label: string; planned: number; actual: number; isQuantity?: boolean }>;
   }) => {
+    const [showZeros, setShowZeros] = useState(false);
     const currencyRows = rows.filter(r => !r.isQuantity);
     const subtotalPlanned = currencyRows.reduce((s, r) => s + r.planned, 0);
-    const subtotalActual = currencyRows.reduce((s, r) => s + r.actual, 0);
-    const subtotalDiff = subtotalActual - subtotalPlanned;
-    const hasAnyDiff = rows.some(r => r.planned !== r.actual);
+    const subtotalActual  = currencyRows.reduce((s, r) => s + r.actual,  0);
+    const subtotalDiff    = subtotalActual - subtotalPlanned;
+    const hasAnyDiff      = rows.some(r => r.planned !== r.actual);
     const fmtVal = (v: number, isQty?: boolean) => isQty ? String(v) : fmt(v);
+
+    const visibleRows = showZeros
+      ? rows
+      : rows.filter(r => r.planned !== 0 || r.actual !== 0);
+    const hiddenZeroCount = rows.length - visibleRows.length;
 
     return (
       <div className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50">
         {/* Category header */}
-        <div className={`flex items-center justify-between px-4 py-2.5 ${bgColor} border-b border-slate-100`}>
-          <div className="flex items-center gap-2">
-            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${stripColor}`}>
-              <Icon className="w-3 h-3 text-white" />
+        <div className={`flex items-center justify-between px-3 ${bgColor} border-b border-slate-100`} style={{ height: 32 }}>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-4 h-4 rounded flex items-center justify-center ${stripColor}`}>
+              <Icon className="w-2.5 h-2.5 text-white" />
             </div>
-            <span className={`text-[11px] font-semibold uppercase tracking-wide ${iconColor}`}>{title}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`text-sm font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${iconColor}`}>{title}</span>
             {hasAnyDiff && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                <AlertTriangle className="w-2.5 h-2.5" /> Divergência
+              <span className="flex items-center gap-0.5 text-[8px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
+                <AlertTriangle className="w-2 h-2" /> Divergência
               </span>
             )}
           </div>
-        </div>
-
-        {/* Column headers */}
-        <div className="grid grid-cols-4 gap-2 px-4 py-1.5 bg-white border-b border-slate-100">
-          <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider"></span>
-          <span className="text-[9px] uppercase text-blue-500 font-semibold tracking-wider text-right">Planejado</span>
-          <span className="text-[9px] uppercase text-violet-500 font-semibold tracking-wider text-right">Realizado</span>
-          <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider text-right">Diferença</span>
+          <div className="flex items-center gap-2">
+            {hiddenZeroCount > 0 && (
+              <button
+                onClick={() => setShowZeros(v => !v)}
+                className="text-[9px] font-medium text-slate-400 hover:text-slate-600 border border-slate-200 bg-white px-1.5 py-0.5 rounded leading-none"
+              >
+                {showZeros ? 'Ocultar zeros' : `+${hiddenZeroCount} zero${hiddenZeroCount !== 1 ? 's' : ''}`}
+              </button>
+            )}
+            <span className={`text-[12px] font-semibold tabular-nums ${iconColor}`}>{fmt(subtotalActual)}</span>
+          </div>
         </div>
 
         {/* Rows */}
         <div className="divide-y divide-slate-100 bg-white">
-          {rows.map((row, i) => {
-            const diff = row.actual - row.planned;
+          {visibleRows.map((row, i) => {
+            const diff  = row.actual - row.planned;
             const isDiff = diff !== 0;
             return (
-              <div key={i} className="grid grid-cols-4 gap-2 px-4 py-2.5 text-[12px] items-center">
-                <span className="text-slate-500 font-medium">{row.label}</span>
-                <span className="text-right tabular-nums text-blue-600 font-medium">{fmtVal(row.planned, row.isQuantity)}</span>
-                <span className={`text-right tabular-nums font-medium ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
+              <div key={i} className="grid grid-cols-4 gap-2 px-3 text-[12px] items-center" style={{ height: 32 }}>
+                <span className="text-slate-500 font-medium text-[11px]">{row.label}</span>
+                <span className="text-right tabular-nums text-blue-600 font-medium text-[11px]">{fmtVal(row.planned, row.isQuantity)}</span>
+                <span className={`text-right tabular-nums font-medium text-[11px] ${isDiff ? 'text-violet-700' : 'text-violet-400'}`}>
                   {fmtVal(row.actual, row.isQuantity)}
                 </span>
                 <div className="text-right">
                   {diff === 0 ? (
-                    <span className="text-slate-300 tabular-nums">—</span>
+                    <span className="text-slate-300 tabular-nums text-[11px]">—</span>
                   ) : (
-                    <span className={`tabular-nums font-semibold text-[11px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    <span className={`tabular-nums font-semibold text-[10px] ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                       {row.isQuantity ? `${diff > 0 ? '+' : ''}${diff}` : `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}`}
                     </span>
                   )}
@@ -444,7 +450,7 @@ export default function BudgetComparisonPage() {
 
         {/* Subtotal */}
         {currencyRows.length > 0 && (
-          <div className={`grid grid-cols-4 gap-2 px-4 py-2.5 text-[12px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`}>
+          <div className={`grid grid-cols-4 gap-2 px-3 text-[11px] items-center border-t border-slate-100 ${subtotalDiff > 0 ? 'bg-red-50/40' : subtotalDiff < 0 ? 'bg-emerald-50/40' : 'bg-slate-50'}`} style={{ height: 28 }}>
             <span className="text-slate-400 uppercase text-[9px] tracking-wider font-semibold">Subtotal</span>
             <span className="text-right tabular-nums text-blue-700 font-semibold">{fmt(subtotalPlanned)}</span>
             <span className={`text-right tabular-nums font-semibold ${subtotalDiff !== 0 ? 'text-violet-700' : 'text-violet-500'}`}>{fmt(subtotalActual)}</span>
@@ -452,7 +458,7 @@ export default function BudgetComparisonPage() {
               {subtotalDiff === 0 ? (
                 <span className="text-slate-300 tabular-nums">—</span>
               ) : (
-                <span className={`tabular-nums text-[11px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                <span className={`tabular-nums text-[10px] font-semibold ${subtotalDiff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                   {subtotalDiff > 0 ? '+' : '−'}{fmt(Math.abs(subtotalDiff))}
                 </span>
               )}
@@ -1038,6 +1044,13 @@ export default function BudgetComparisonPage() {
 
                             {/* ── Detail blocks (only for non-split) ── */}
                             {!row.isSplit && <>
+                            {/* Shared column headers — shown once above all sections */}
+                            <div className="grid grid-cols-4 gap-2 px-3 border border-slate-100 rounded-lg bg-slate-50/80" style={{ height: 28 }}>
+                              <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider flex items-center">Item</span>
+                              <span className="text-[9px] uppercase text-[#0033CC] font-semibold tracking-wider flex items-center justify-end">Planejado</span>
+                              <span className="text-[9px] uppercase text-[#6d28d9] font-semibold tracking-wider flex items-center justify-end">Realizado</span>
+                              <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider flex items-center justify-end">Diferença</span>
+                            </div>
                             <CategoryBlock
                               title="Diárias"
                               icon={Calendar}
@@ -1078,39 +1091,38 @@ export default function BudgetComparisonPage() {
                             />
                             </>}
 
-                            {/* Expanded card footer — totals */}
-                            <div className="rounded-xl border border-slate-100 overflow-hidden">
-                              <div className="grid grid-cols-3 divide-x divide-slate-100">
-                                {/* Planejado — referência apagada */}
-                                <div className="px-4 py-3 text-center bg-white">
-                                  <span className="text-[9px] uppercase text-slate-400 font-normal tracking-widest block mb-1.5">Planejado</span>
-                                  <span className="text-base text-slate-500 font-medium tabular-nums">{fmt(plannedTotal)}</span>
-                                </div>
-                                {/* Realizado — protagonista */}
-                                <div className="px-4 py-3 text-center" style={{background:'#F5F3FF'}}>
-                                  <span className="text-[9px] uppercase text-slate-900 font-bold tracking-widest block mb-1.5">Realizado</span>
-                                  <span className="text-xl text-purple-700 font-extrabold tabular-nums">{fmt(actualTotal)}</span>
-                                </div>
-                                {/* Diferença — alerta */}
-                                <div className={`px-4 py-3 text-center ${diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-emerald-50' : 'bg-slate-50'}`}>
-                                  <span className="text-[9px] uppercase text-slate-400 font-normal tracking-widest block mb-1.5">Diferença</span>
-                                  {diff === 0 ? (
-                                    <span className="text-base text-slate-400 font-medium tabular-nums">—</span>
-                                  ) : (
-                                    <>
-                                      <span className={`text-base font-bold tabular-nums ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                        {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
+                            {/* Expanded card footer — compact single row */}
+                            <div className={`flex items-center gap-0 rounded-xl border-2 overflow-hidden ${
+                              diff > 0 ? 'border-red-100' : diff < 0 ? 'border-emerald-100' : 'border-slate-100'
+                            }`} style={{ height: 44 }}>
+                              <div className="flex-1 flex items-center justify-center gap-2 bg-white border-r border-slate-100 h-full">
+                                <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest">Planejado</span>
+                                <span className="text-[14px] font-semibold text-slate-500 tabular-nums">{fmt(plannedTotal)}</span>
+                              </div>
+                              <div className="flex-1 flex items-center justify-center gap-2 h-full" style={{ background: '#F5F3FF' }}>
+                                <span className="text-[9px] uppercase text-violet-500 font-bold tracking-widest">Realizado</span>
+                                <span className="text-[16px] font-extrabold text-violet-700 tabular-nums">{fmt(actualTotal)}</span>
+                              </div>
+                              <div className={`flex-1 flex items-center justify-center gap-2 h-full ${
+                                diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-emerald-50' : 'bg-slate-50'
+                              }`}>
+                                <span className="text-[9px] uppercase text-slate-400 font-semibold tracking-widest">Diferença</span>
+                                {diff === 0 ? (
+                                  <span className="text-[14px] text-slate-300 tabular-nums">—</span>
+                                ) : (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-[14px] font-bold tabular-nums ${diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                      {diff > 0 ? '+' : '−'}{fmt(Math.abs(diff))}
+                                    </span>
+                                    {plannedTotal > 0 && (
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                        diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                                      }`}>
+                                        {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
                                       </span>
-                                      {plannedTotal > 0 && (
-                                        <span className={`inline-flex items-center mt-1.5 text-[9px] font-semibold px-2 py-0.5 rounded ${
-                                          diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
-                                        }`}>
-                                          {diff > 0 ? 'Estouro' : 'Economia'} {Math.abs(diff / plannedTotal * 100).toFixed(1)}%
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
 

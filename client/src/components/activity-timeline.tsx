@@ -100,14 +100,42 @@ function formatDate(iso: string | null | undefined): string {
 function buildNarrativeBullets(action: string, prev: Record<string, any> | null, next: Record<string, any> | null, details?: string): string[] {
   const bullets: string[] = [];
 
+  // ── Observação / Nota ──
   if (action === 'note') {
     if (details) bullets.push(details);
     return bullets;
   }
 
+  // ── Aprovação ──
+  if (action === 'approve' || action === 'aprovado') {
+    return ['Prestação aprovada pelo RH.'];
+  }
+
+  // ── Recusa ──
+  if (action === 'reject' || action === 'rejeitado') {
+    const comment = next?.comment || next?.rhComment;
+    const res = ['Recusada pelo RH.'];
+    if (comment) res.push(`Motivo: ${comment}`);
+    return res;
+  }
+
+  // ── Devolução ──
+  if (action === 'return' || action === 'devolvido') {
+    const comment = next?.comment || next?.rhComment;
+    const res = ['Devolvido para correção.'];
+    if (comment) res.push(`Motivo: ${comment}`);
+    return res;
+  }
+
+  // ── Enviado para revisão ──
+  if (action === 'send_review') {
+    return ['Enviado para análise do RH.'];
+  }
+
+  // ── Criação ──
   if (action === 'create' && next) {
     if (next.dailyQuantity && next.dailyValue) {
-      bullets.push(`Diária: ${fmtMoney(next.dailyValue)} por dia × ${next.dailyQuantity} diárias`);
+      bullets.push(`Diária: ${fmtMoney(next.dailyValue)}/dia × ${next.dailyQuantity} diária${next.dailyQuantity !== 1 ? 's' : ''} = ${fmtMoney(next.dailyValue * next.dailyQuantity)}`);
     }
     const hasWeekday = next.weekdayLunch || next.weekdayDinner;
     const hasWeekend = next.weekendLunch || next.weekendDinner;
@@ -115,47 +143,52 @@ function buildNarrativeBullets(action: string, prev: Record<string, any> | null,
       const parts: string[] = [];
       if (next.weekdayLunch) parts.push(`Almoço ${fmtMoney(next.weekdayLunch)}`);
       if (next.weekdayDinner) parts.push(`Jantar ${fmtMoney(next.weekdayDinner)}`);
-      bullets.push(`Alimentação (dias úteis): ${parts.join(' | ')}`);
+      bullets.push(`Alimentação (dias úteis): ${parts.join(' + ')}`);
     }
     if (hasWeekend) {
       const parts: string[] = [];
       if (next.weekendLunch) parts.push(`Almoço ${fmtMoney(next.weekendLunch)}`);
       if (next.weekendDinner) parts.push(`Jantar ${fmtMoney(next.weekendDinner)}`);
-      bullets.push(`Alimentação (fim de semana): ${parts.join(' | ')}`);
+      bullets.push(`Alimentação (fins de semana): ${parts.join(' + ')}`);
     }
     if (next.mobility) {
-      bullets.push(`Mobilidade: ${fmtMoney(next.mobility)} total`);
+      bullets.push(`Mobilidade: ${fmtMoney(next.mobility)} (ida + volta)`);
     }
-    if (next.status) {
-      bullets.push(`Status: ${next.status}`);
-    }
-    if (bullets.length === 0 && details) bullets.push(details);
     return bullets;
   }
 
+  // ── Edição / Atualização ──
   if ((action === 'update' || action === 'edit') && prev && next) {
+    // Reenvio após correção
+    if (next.resubmitted === true && prev.resubmitted !== true) {
+      return ['Colaborador reenviou após correção.'];
+    }
+    // Envio para análise
+    if (next.sentForReview === true && prev.sentForReview !== true) {
+      return ['Enviado para análise do RH.'];
+    }
+    // Campo a campo — apenas campos com label humano
     const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
     allKeys.forEach(field => {
       if (ALWAYS_SKIP_FIELDS.has(field)) return;
-      // Skip fields we don't have a human-readable label for to avoid technical codes
       if (!FIELD_LABELS[field]) return;
       const oldVal = prev[field];
       const newVal = next[field];
       if (oldVal === newVal) return;
-      const label = FIELD_LABELS[field] || field;
+      const label = FIELD_LABELS[field];
       const oldStr = fmt(field, oldVal);
       const newStr = fmt(field, newVal);
       if (oldVal !== null && oldVal !== undefined && oldVal !== '' && oldStr !== '—') {
-        bullets.push(`Alterou ${label.toLowerCase()} de ${oldStr} para ${newStr}.`);
+        bullets.push(`${label} alterado de ${oldStr} para ${newStr}.`);
       } else {
-        bullets.push(`Definiu ${label.toLowerCase()} como ${newStr}.`);
+        bullets.push(`${label} definido como ${newStr}.`);
       }
     });
-    if (bullets.length === 0 && details) bullets.push(details);
+    // Não exibir texto técnico como fallback
     return bullets;
   }
 
-  if (details) bullets.push(details);
+  // Outros actions: não mostrar texto técnico
   return bullets;
 }
 
