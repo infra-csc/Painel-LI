@@ -41,25 +41,37 @@ const MONETARY_FIELDS = new Set([
 ]);
 
 const FIELD_LABELS: Record<string, string> = {
-  dailyValue:     'Valor da diária',
-  dailyQuantity:  'Quantidade de diárias',
-  mobility:       'Mobilidade',
-  transport:      'Translado',
-  weekdayLunch:   'Almoço (dias úteis)',
-  weekdayDinner:  'Jantar (dias úteis)',
-  weekendLunch:   'Almoço (fim de semana)',
-  weekendDinner:  'Jantar (fim de semana)',
-  totalValue:     'Valor total',
-  sentForReview:  'Enviado para análise',
-  rhStatus:       'Status',
-  rhComment:      'Comentário do RH',
-  changeReason:   'Justificativa',
-  didNotAttend:   'Não participou',
-  didNotAttendReason: 'Motivo da ausência',
-  resubmitted:    'Reenviado',
-  status:         'Status',
-  collaboratorType: 'Tipo de colaborador',
+  dailyValue:           'Valor da diária',
+  dailyQuantity:        'Quantidade de diárias',
+  mobility:             'Mobilidade',
+  mobilityIda:          'Mobilidade (ida)',
+  mobilityVolta:        'Mobilidade (volta)',
+  transport:            'Translado',
+  weekdayLunch:         'Almoço (dias úteis)',
+  weekdayDinner:        'Jantar (dias úteis)',
+  weekendLunch:         'Almoço (fim de semana)',
+  weekendDinner:        'Jantar (fim de semana)',
+  totalValue:           'Valor total',
+  costAssistance:       'Ajuda de custo',
+  sentForReview:        'Enviado para análise',
+  rhStatus:             'Status de aprovação',
+  rhComment:            'Comentário do RH',
+  changeReason:         'Justificativa',
+  didNotAttend:         'Não participou',
+  didNotAttendReason:   'Motivo da ausência',
+  resubmitted:          'Reenviado',
+  status:               'Status',
+  collaboratorType:     'Tipo de colaborador',
+  observations:         'Observações',
+  paymentStatus:        'Status de pagamento',
 };
+
+// Fields that exist in the schema but should never surface in the history log
+const ALWAYS_SKIP_FIELDS = new Set([
+  'id', 'createdAt', 'updatedAt', 'eventId', 'collaboratorId', 'functionId',
+  'collaboratorType', 'splitParentId', 'workedDays', 'plannedId', 'updatedBy',
+  'actualObservations', 'ticketObservations', 'accommodationObservations',
+]);
 
 function fmtMoney(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
@@ -84,10 +96,6 @@ function formatDate(iso: string | null | undefined): string {
     ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-const SKIP_FIELDS = new Set([
-  'id', 'createdAt', 'updatedAt', 'eventId', 'collaboratorId', 'functionId',
-  'collaboratorType', 'splitParentId', 'workedDays',
-]);
 
 function buildNarrativeBullets(action: string, prev: Record<string, any> | null, next: Record<string, any> | null, details?: string): string[] {
   const bullets: string[] = [];
@@ -128,14 +136,20 @@ function buildNarrativeBullets(action: string, prev: Record<string, any> | null,
   if ((action === 'update' || action === 'edit') && prev && next) {
     const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
     allKeys.forEach(field => {
-      if (SKIP_FIELDS.has(field)) return;
+      if (ALWAYS_SKIP_FIELDS.has(field)) return;
+      // Skip fields we don't have a human-readable label for to avoid technical codes
+      if (!FIELD_LABELS[field]) return;
       const oldVal = prev[field];
       const newVal = next[field];
       if (oldVal === newVal) return;
       const label = FIELD_LABELS[field] || field;
       const oldStr = fmt(field, oldVal);
       const newStr = fmt(field, newVal);
-      bullets.push(`${label}: ${oldStr} → ${newStr}`);
+      if (oldVal !== null && oldVal !== undefined && oldVal !== '' && oldStr !== '—') {
+        bullets.push(`Alterou ${label.toLowerCase()} de ${oldStr} para ${newStr}.`);
+      } else {
+        bullets.push(`Definiu ${label.toLowerCase()} como ${newStr}.`);
+      }
     });
     if (bullets.length === 0 && details) bullets.push(details);
     return bullets;

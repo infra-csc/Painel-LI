@@ -112,6 +112,7 @@ export default function BudgetActualPage() {
   const [sortBy, setSortBy] = useState<string>("adjusted");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterFunction, setFilterFunction] = useState<string>("all");
+  const [modalActualTab, setModalActualTab] = useState<'custos' | 'observacoes' | 'historico'>('custos');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [splittingItem, setSplittingItem] = useState<BudgetActual | null>(null);
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
@@ -415,6 +416,7 @@ export default function BudgetActualPage() {
   };
 
   const openEditModal = (item: BudgetActual) => {
+    setModalActualTab('custos');
     setEditingItem(item);
     const days = getItemDayCounts(item);
     const storedSubtotalDiarias = item.totalValue - item.weekdayLunch - item.weekdayDinner - item.weekendLunch - item.weekendDinner - item.mobility;
@@ -1359,7 +1361,7 @@ export default function BudgetActualPage() {
       )}
 
       <Dialog open={!!editingItem && !!editFormData} onOpenChange={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
-        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)'}}>
+        <DialogContent className="max-w-[680px] w-[95vw] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl" style={{border:'1px solid rgba(0,0,0,0.06)', display:'flex', flexDirection:'column', maxHeight:'90vh'}}>
           <DialogHeader className="sr-only">
             <DialogTitle>Editar Prestação de Contas</DialogTitle>
           </DialogHeader>
@@ -1461,7 +1463,7 @@ export default function BudgetActualPage() {
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background: '#1d4ed8'}} className="px-6 pt-5 pb-4">
+                <div style={{background: '#1d4ed8'}} className="px-6 pt-5 pb-4 shrink-0">
                   <div className="flex items-start gap-3">
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
@@ -1500,6 +1502,11 @@ export default function BudgetActualPage() {
                             <Lock className="w-2.5 h-2.5" /> Bloqueado
                           </span>
                         )}
+                        {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === 'update') && (
+                          <span className="text-[10px] bg-amber-400/25 text-amber-200 border border-amber-300/30 px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
+                            ⚠️ Planejado alterado pelo RH
+                          </span>
+                        )}
                       </div>
                     </div>
                     {planned && statusBadge && (
@@ -1524,14 +1531,37 @@ export default function BudgetActualPage() {
 
                 {/* ── Read-only banner ── */}
                 {isReadOnly && (
-                  <div className="flex items-center gap-2.5 px-5 py-2 bg-amber-50 border-b border-amber-200">
+                  <div className="flex items-center gap-2.5 px-5 py-2 bg-amber-50 border-b border-amber-200 shrink-0">
                     <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                     <span className="text-xs font-medium text-amber-700">Valores enviados para revisão — somente leitura</span>
                   </div>
                 )}
 
-                {/* ── Body ── */}
-                <div className="max-h-[52vh] overflow-y-auto px-6 py-5 space-y-4 bg-slate-50">
+                {/* ── Barra de Abas ── */}
+                <div className="flex border-b border-slate-200 bg-white shrink-0 sticky top-0 z-10">
+                  {([
+                    { id: 'custos',      label: 'Custos' },
+                    { id: 'observacoes', label: 'Observações' },
+                    { id: 'historico',   label: 'Histórico' },
+                  ] as const).map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => setModalActualTab(id)}
+                      className={[
+                        'flex-1 py-3 text-[12px] font-semibold transition-colors',
+                        modalActualTab === id
+                          ? 'text-[#1d4ed8] border-b-2 border-[#1d4ed8] bg-blue-50/40'
+                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── Aba: Custos ── */}
+                {modalActualTab === 'custos' && (
+                <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-slate-50" style={{maxHeight:'52vh'}}>
 
                   {/* ── Diárias ── */}
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1770,22 +1800,33 @@ export default function BudgetActualPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* ── Observações (Chat) ── */}
-                {editingItem && (
-                  <BudgetChat
-                    entityType="actual"
-                    entityId={editingItem.id}
-                    linkedEntityType={editingItem.plannedId ? "planned" : undefined}
-                    linkedEntityId={editingItem.plannedId || undefined}
-                  />
                 )}
 
-                {/* ── Histórico de alterações ── */}
-                {editingItem && <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} />}
+                {/* ── Aba: Observações ── */}
+                {modalActualTab === 'observacoes' && (
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/40" style={{maxHeight:'52vh'}}>
+                    {editingItem && (
+                      <BudgetChat
+                        entityType="actual"
+                        entityId={editingItem.id}
+                        linkedEntityType={editingItem.plannedId ? "planned" : undefined}
+                        linkedEntityId={editingItem.plannedId || undefined}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* ── Aba: Histórico ── */}
+                {modalActualTab === 'historico' && (
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/40" style={{maxHeight:'52vh'}}>
+                    {editingItem && (
+                      <ActivityTimeline entityType="budget_actual" entityId={editingItem.id} defaultOpen={true} />
+                    )}
+                  </div>
+                )}
 
                 {/* ── Footer ── */}
-                <div className="border-t border-slate-100 bg-white">
+                <div className="border-t border-slate-100 bg-white shrink-0">
                   {planned ? (
                     <div className="px-5 pt-4 pb-2">
                       <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
