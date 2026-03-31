@@ -554,7 +554,8 @@ export default function RhControlPage() {
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
-  const rhActionCount = rhReceivedCount + rhPlanPendingCount + (invoiceCounts.checkinPending || 0);
+  const rhNfPendingCount = invoiceCounts.enviada;
+  const rhActionCount = rhReceivedCount + rhPlanPendingCount + rhNfPendingCount + (invoiceCounts.checkinPending || 0);
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     // step = index of the CURRENT active step (steps before it are completed ✓)
@@ -1432,6 +1433,13 @@ export default function RhControlPage() {
                     className="text-[10px] text-slate-500 hover:text-slate-700 cursor-pointer"
                     style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
                   >· {rhReceivedCount} comparativo{rhReceivedCount > 1 ? 's' : ''}</button>
+                )}
+                {rhNfPendingCount > 0 && (
+                  <button
+                    onClick={() => { setFilterInvoiceStatus("enviada"); setFilterStatus("all"); setFilterCheckinOnly(false); }}
+                    className="text-[10px] text-violet-600 hover:text-violet-800 cursor-pointer"
+                    style={{ textDecoration: 'underline', textDecorationStyle: 'dashed', background: 'none', border: 'none', padding: 0 }}
+                  >· {rhNfPendingCount} nota{rhNfPendingCount > 1 ? 's fiscais' : ' fiscal'}</button>
                 )}
                 {(invoiceCounts.checkinPending || 0) > 0 && (
                   <button
