@@ -622,7 +622,7 @@ export default function BudgetActualPage() {
   const hasAnyEditable = useMemo(() => {
     if (!budgetActual) return true;
     const eventItems = budgetActual.filter(a => a.eventId === selectedEventId);
-    return eventItems.some(item => !item.sentForReview || item.rhStatus === "devolvido" || item.rhStatus === "rejeitado");
+    return eventItems.some(item => !item.sentForReview);
   }, [budgetActual, selectedEventId]);
   const allSentForReview = sentForReview;
 
@@ -672,8 +672,8 @@ export default function BudgetActualPage() {
       }
     }
     const isSelected = selectedCards.has(cardItem.id);
-    const isItemLocked = !!(cardItem.sentForReview && !["devolvido", "rejeitado"].includes(cardItem.rhStatus || ""));
-    const isItemEditable = !cardItem.sentForReview || cardItem.rhStatus === "devolvido" || cardItem.rhStatus === "rejeitado";
+    const isItemLocked = !!cardItem.sentForReview;
+    const isItemEditable = !cardItem.sentForReview;
     const hasBeenEdited = !!(cardItem.updatedAt && cardItem.createdAt && new Date(cardItem.updatedAt).getTime() > new Date(cardItem.createdAt).getTime() + 1000);
     const fmtDT = (d: string | Date) => {
       const dt = new Date(d);
@@ -769,7 +769,7 @@ export default function BudgetActualPage() {
           <div className="h-[3px]" style={{background: stripeColor}} />
 
           {/* Card Header */}
-          <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked && !['devolvido','rejeitado'].includes(cardItem.rhStatus||'') ? 'bg-indigo-50/40' : 'bg-slate-50/60'}`}>
+          <div className={`flex items-center justify-between px-4 py-3 ${isItemLocked ? 'bg-indigo-50/40' : 'bg-slate-50/60'}`}>
             <div className="flex items-center gap-3">
               {isItemLocked ? (
                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
@@ -1406,7 +1406,7 @@ export default function BudgetActualPage() {
           </DialogHeader>
 
           {editingItem && editFormData && (() => {
-            const isReadOnly = !isRhOrAdmin && editingItem.sentForReview && !["devolvido", "rejeitado"].includes(editingItem.rhStatus || "");
+            const isReadOnly = !!editingItem.sentForReview;
             const itemDays = getItemDayCounts(editingItem);
             const activeDayEntries = editDayEntries.filter(d => d.active);
             const subtotalDiariasRaw = activeDayEntries.reduce((sum, d) => sum + d.valueCents, 0);
