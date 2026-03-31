@@ -381,12 +381,15 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
   const fileRef = useRef<HTMLInputElement>(null);
   const [clearedAttachment, setClearedAttachment] = useState(false);
   const [expanded, setExpanded] = useState(effStatus === "devolvida");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const canEdit = !invoice || invoice.status === "devolvida" || invoice.status === "pendente";
   const name = getName(actual.collaboratorId);
   const funcName = getFuncName(actual.functionId);
   const displayName = toTitleCase(name);
   const initial = displayName && displayName !== "—" ? displayName.charAt(0) : "?";
+  const history = invoice ? buildHistory(invoice, name) : [];
+  const hasReturn = !!invoice?.returnComment;
 
   const paymentText = (selectedEvent?.paymentCompanyName && actual.collaboratorId)
     ? `Este pagamento deve ser realizado de ${name} para ${selectedEvent.paymentCompanyName}${selectedEvent.paymentCompanyCnpj ? ` / CNPJ: ${selectedEvent.paymentCompanyCnpj}` : ""}.`
@@ -440,26 +443,41 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
   return (
     <div
       className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-shadow hover:shadow-md"
-      style={{ borderLeft: `3px solid ${cfg.border}` }}
+      style={{ borderLeft: `3px solid ${historyOpen ? "#3B4FE4" : cfg.border}` }}
     >
       {/* Header row */}
-      <div className="flex items-center justify-between px-5 py-4">
+      <div className={`flex items-center justify-between px-5 py-4 transition-colors ${historyOpen ? "bg-blue-50/30" : ""}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${cfg.avatarCls}`}>
             {initial}
           </div>
           <div className="min-w-0">
             <div className="text-[14px] font-semibold text-slate-800 truncate">{displayName}</div>
-            <div className="text-[11px] text-slate-400 truncate">{funcName}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="text-[11px] text-slate-400 truncate">{funcName}</div>
+              {hasReturn && <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-[18px] font-bold text-violet-600 tabular-nums font-mono">
             {formatCurrency(actual.totalValue)}
           </span>
           <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
             {cfg.label}
           </span>
+          {invoice && history.length > 0 && (
+            <button
+              onClick={() => setHistoryOpen(o => !o)}
+              title={historyOpen ? "Fechar histórico" : `${history.length} evento(s)`}
+              className={`inline-flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors ${
+                historyOpen ? "text-[#3B4FE4] bg-blue-100" : "text-slate-400 hover:text-[#3B4FE4] hover:bg-blue-50"
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              {!historyOpen && <span className="text-[9px] font-semibold leading-none tabular-nums">{history.length}</span>}
+            </button>
+          )}
           {effStatus === "devolvida" && (
             <button onClick={() => setExpanded(e => !e)} className="text-slate-400 hover:text-slate-600 transition-colors">
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -591,6 +609,13 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
           </div>
         )}
       </div>
+
+      {/* History panel */}
+      {historyOpen && history.length > 0 && (
+        <div style={{ background: "#F8FAFC", borderTop: "1px solid #DBEAFE", padding: "12px 20px 14px 48px" }}>
+          <HistoryPanel events={history} collabName={name} />
+        </div>
+      )}
     </div>
   );
 }
