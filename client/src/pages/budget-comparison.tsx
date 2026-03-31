@@ -850,6 +850,20 @@ export default function BudgetComparisonPage() {
 
                   const isNotAttended = !!(row.planned as any)?.didNotAttend;
 
+                  // Period from team inclusion
+                  const cardTi = allTeamInclusions.find(t =>
+                    t.eventId === selectedEventId &&
+                    t.collaboratorId === row.collaboratorId &&
+                    t.functionId === row.functionId
+                  );
+                  const tiStart = (cardTi as any)?.actualStartDate || (cardTi as any)?.scheduleStartDate;
+                  const tiEnd   = (cardTi as any)?.actualEndDate   || (cardTi as any)?.scheduleEndDate;
+                  const fmtPeriodDate = (d: string) => {
+                    const dt = new Date(d + "T12:00:00");
+                    return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+                  };
+                  const periodLabel = tiStart && tiEnd ? `${fmtPeriodDate(tiStart)} – ${fmtPeriodDate(tiEnd)}` : null;
+
                   return (
                     <div
                       key={idx}
@@ -942,6 +956,12 @@ export default function BudgetComparisonPage() {
                               <span className={`text-[10px] font-semibold shrink-0 ${row.collaboratorType === 'casa' ? 'text-blue-500' : 'text-orange-500'}`}>
                                 {row.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                               </span>
+                              {periodLabel && (
+                                <>
+                                  <span className="text-slate-300 shrink-0">·</span>
+                                  <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">{periodLabel}</span>
+                                </>
+                              )}
                               {row.isSplit && (
                                 <>
                                   <span className="text-slate-300 shrink-0">·</span>
@@ -1135,35 +1155,19 @@ export default function BudgetComparisonPage() {
                               ]}
                             />
 
-                            {(() => {
-                              const ti = allTeamInclusions.find(t =>
-                                t.eventId === selectedEventId &&
-                                t.collaboratorId === row.collaboratorId &&
-                                t.functionId === row.functionId
-                              );
-                              const startDate = (ti as any)?.actualStartDate || (ti as any)?.scheduleStartDate;
-                              const totalDays = a.dailyQuantity || p?.dailyQuantity || 0;
-                              const { weekdays: wkd, weekends: wke } = countMealDays(startDate, totalDays);
-                              const mealBadge = (totalDays > 0 && (wkd > 0 || wke > 0))
-                                ? [wkd > 0 ? `${wkd} dia${wkd !== 1 ? 's' : ''} útei${wkd !== 1 ? 's' : 'l'}` : null, wke > 0 ? `${wke} FdS` : null].filter(Boolean).join(' · ')
-                                : undefined;
-                              return (
-                                <CategoryBlock
-                                  title="Alimentação"
-                                  icon={Utensils}
-                                  iconColor="text-orange-700"
-                                  bgColor="bg-orange-50/60"
-                                  stripColor="bg-orange-400"
-                                  badge={mealBadge}
-                                  rows={[
-                                    { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
-                                    { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
-                                    { label: "Almoço (FdS)", planned: p?.weekendLunch || 0, actual: a.weekendLunch },
-                                    { label: "Jantar (FdS)", planned: p?.weekendDinner || 0, actual: a.weekendDinner },
-                                  ]}
-                                />
-                              );
-                            })()}
+                            <CategoryBlock
+                              title="Alimentação"
+                              icon={Utensils}
+                              iconColor="text-orange-700"
+                              bgColor="bg-orange-50/60"
+                              stripColor="bg-orange-400"
+                              rows={[
+                                { label: "Almoço (Sem.)", planned: p?.weekdayLunch || 0, actual: a.weekdayLunch },
+                                { label: "Jantar (Sem.)", planned: p?.weekdayDinner || 0, actual: a.weekdayDinner },
+                                { label: "Almoço (FdS)", planned: p?.weekendLunch || 0, actual: a.weekendLunch },
+                                { label: "Jantar (FdS)", planned: p?.weekendDinner || 0, actual: a.weekendDinner },
+                              ]}
+                            />
 
                             <CategoryBlock
                               title="Mobilidade"
