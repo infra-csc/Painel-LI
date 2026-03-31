@@ -1,0 +1,100 @@
+Melhorar a tela de Controle de Prestações de Contas do RH,
+atualizando o fluxo para incluir Check-in Financeiro como 
+etapa final obrigatória.
+
+═══════════════════════════════════════
+1. FLUXO CORRETO — atualizar em todo lugar
+═══════════════════════════════════════
+Fluxo completo da escalação:
+Escalação → Planejado → Realizado → 
+Comparativo → Nota Fiscal → Check-in Financeiro ✓
+
+- A escalação só é considerada CONCLUÍDA 
+  após o Check-in Financeiro ser realizado
+- Atualizar o stepper no header da tela:
+  mostrar as 6 etapas, não 5
+- Atualizar o subtítulo do header:
+  "Escalação — Planejado — Realizado — 
+   Aprovação — Nota Fiscal — Check-in"
+
+═══════════════════════════════════════
+2. CARDS DE ESTATÍSTICAS — atualizar
+═══════════════════════════════════════
+Substituir os 4 cards atuais por:
+
+[🔴 Aguardando RH]        número grande
+  · X Planejamento
+  · X Comparativo  
+  · X Nota Fiscal
+  · X Check-in pendente   ← novo
+
+[🟡 Aguardando Colaborador]   número grande
+  · X Realizado
+  · X NF devolvida
+
+[🔵 Em andamento]         número grande
+  · X Ag. realização
+  · X NF em análise
+  · X Ag. Check-in        ← novo
+
+[🟢 Concluídos]           número grande
+  · de X total
+  · só conta após check-in ← regra atualizada
+
+═══════════════════════════════════════
+3. BARRA DE PENDÊNCIAS
+═══════════════════════════════════════
+- Manter o banner laranja de pendências
+- Atualizar contagem para incluir 
+  check-ins pendentes
+- Barra de progresso: 
+  só avança para 100% quando check-in feito
+- Texto: "X pendências aguardando ação do RH"
+  quebrar em detalhes menores ao expandir:
+  "· X planejamentos  · X comparativos  
+   · X notas fiscais  · X check-ins"
+
+═══════════════════════════════════════
+4. CARD DO COLABORADOR — linha expandida
+═══════════════════════════════════════
+- Stepper dentro do card expandido: 
+  adicionar etapa Check-in após Nota Fiscal
+
+  ✓ Escalação   ✓ Planejado   ✓ Realizado
+  ✓ Comparativo   ✓ Nota Fiscal   ○ Check-in
+                                   ↑ pendente
+
+- Etapa Check-in pendente: ícone amarelo 
+  pulsante para chamar atenção
+- Quando check-in for a próxima ação do RH:
+  botão de ação na linha muda para:
+  [⊙ Fazer Check-in] azul/roxo
+  ao invés de "Aprovar nota fiscal"
+
+- Após check-in feito: 
+  etapa fica verde ✓ com data
+  badge do colaborador muda para "Concluído"
+  borda lateral do card muda de laranja/roxo 
+  para verde
+
+═══════════════════════════════════════
+5. RESUMO FINANCEIRO NO CARD EXPANDIDO
+═══════════════════════════════════════
+- Após check-in: adicionar no card:
+  "💳 Pagamento previsto: DD/MM/AAAA"
+  em verde, abaixo da diferença apurada
+- Se já pago: "✓ Pago em DD/MM/AAAA"
+
+═══════════════════════════════════════
+6. BADGE DE STATUS — atualizar todos
+═══════════════════════════════════════
+Adicionar novo badge ao conjunto existente:
+- "Ag. Check-in": fundo #EDE9FE, 
+  texto #7C3AED, ícone ⊙
+- "Check-in Realizado": fundo #DCFCE7, 
+  texto #16A34A, ícone ✓
+- "Concluído": só aparece APÓS check-in,
+  fundo #DCFCE7 mais escuro, 
+  texto #15803D, ícone ✓✓
+
+Não alterar lógica de cálculo nem dados existentes.

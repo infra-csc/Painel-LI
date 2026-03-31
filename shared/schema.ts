@@ -498,6 +498,8 @@ export const invoices = pgTable("invoices", {
   paymentDate: date("payment_date"),
   approvedAt: timestamp("approved_at"),
   history: text("history").default("[]"),
+  checkinAt: timestamp("checkin_at"),
+  checkinBy: varchar("checkin_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

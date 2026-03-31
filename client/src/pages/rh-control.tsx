@@ -126,6 +126,8 @@ export default function RhControlPage() {
   const [approvingInvoiceId, setApprovingInvoiceId] = useState<string | null>(null);
   const [nfApprovalDate, setNfApprovalDate] = useState("");
   const [nfApproving, setNfApproving] = useState(false);
+  const [checkinInvoiceId, setCheckinInvoiceId] = useState<string | null>(null);
+  const [doingCheckin, setDoingCheckin] = useState(false);
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
@@ -326,20 +328,32 @@ export default function RhControlPage() {
     const approvedActuals = (allActual || []).filter(a => a.rhStatus === "aprovado" && !a.splitParentId);
     const approvedIds = new Set(approvedActuals.map(a => a.id));
     const relevant = (allInvoices as any[]).filter(inv => approvedIds.has(inv.budgetActualId));
-    const enviada  = relevant.filter(inv => inv.status === "enviada").length;
+    const enviada   = relevant.filter(inv => inv.status === "enviada").length;
     const devolvida = relevant.filter(inv => inv.status === "devolvida").length;
     const aprovada  = relevant.filter(inv => inv.status === "aprovada").length;
     const sentIds   = new Set(relevant.filter(inv => inv.status !== "pendente").map(inv => inv.budgetActualId));
     const pending   = approvedActuals.filter(a => !sentIds.has(a.id)).length;
-    return { pending, enviada, devolvida, aprovada };
+    const checkinPending = relevant.filter(inv => inv.status === "aprovada" && !inv.checkinAt).length;
+    const checkinDone    = relevant.filter(inv => inv.status === "aprovada" && !!inv.checkinAt).length;
+    return { pending, enviada, devolvida, aprovada, checkinPending, checkinDone };
   }, [allActual, allInvoices]);
 
   const RH_STATUSES: PrestacaoStatus[] = ["prestacao_recebida", "planejamento_pendente"];
 
+  const isCheckinPending = (item: PrestacaoItem): boolean => {
+    if (item.status !== "aprovada_faturamento") return false;
+    const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+    return inv?.status === "aprovada" && !inv?.checkinAt;
+  };
+
   const filteredItems = useMemo(() => {
     return prestacaoItems.filter(item => {
       if (filterStatus === "rh_action") {
-        if (!RH_STATUSES.includes(item.status)) return false;
+        const needsRhCheckin = item.status === "aprovada_faturamento" && (() => {
+          const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+          return inv?.status === "aprovada" && !inv?.checkinAt;
+        })();
+        if (!RH_STATUSES.includes(item.status) && !needsRhCheckin) return false;
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
@@ -347,7 +361,7 @@ export default function RhControlPage() {
         if (filterInvoiceStatus === "all") {
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
-          const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada";
+          const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada" && !!inv?.checkinAt;
           if (showConcluded && !isConcluded) return false;
           if (!showConcluded && isConcluded) return false;
         }
@@ -534,7 +548,7 @@ export default function RhControlPage() {
   const isRhFilterActive = filterStatus === "rh_action";
   const rhReceivedCount = statusCounts.prestacao_recebida || 0;
   const rhPlanPendingCount = statusCounts.planejamento_pendente || 0;
-  const rhActionCount = rhReceivedCount + rhPlanPendingCount;
+  const rhActionCount = rhReceivedCount + rhPlanPendingCount + (invoiceCounts.checkinPending || 0);
 
   const getTimelineStep = (item: PrestacaoItem): number => {
     // step = index of the CURRENT active step (steps before it are completed ✓)
@@ -588,6 +602,7 @@ export default function RhControlPage() {
     "Valores realizados preenchidos pelo responsável da função",
     "Análise do comparativo pelo RH para liberação de pagamento",
     "Nota fiscal enviada pelo colaborador e aprovada pelo RH",
+    "Check-in financeiro realizado pelo RH — encerra o processo",
   ];
 
   const renderTimeline = (item: PrestacaoItem) => {
@@ -597,6 +612,11 @@ export default function RhControlPage() {
     const nfEligible = item.status === "aprovada_faturamento";
     const nfInv = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
     const nfStatus = nfInv?.status || "pendente";
+    const checkinDone = !!(nfInv?.checkinAt);
+    const checkinEligible = nfStatus === "aprovada";
+    const checkinDateStr = checkinDone && nfInv?.checkinAt
+      ? new Date(nfInv.checkinAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : null;
     const nfCompleted = nfStatus === "aprovada";
     const nfRecusada = nfStatus === "recusada";
     const nfEnviada = nfStatus === "enviada";
@@ -668,42 +688,79 @@ export default function RhControlPage() {
             );
           })}
 
-          {/* NF step — rendered outside the map so it always appears */}
+          {/* NF step */}
+          <div className="flex items-start flex-1 min-w-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
+                  <div className="relative flex items-center justify-center">
+                    {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
+                    <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                      nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
+                      : nfRecusada ? 'bg-red-500'
+                      : nfEnviada ? 'bg-white border-2 border-amber-400'
+                      : nfDevolvida ? 'bg-white border-2 border-orange-400'
+                      : nfAwaitingSubmission ? 'bg-white border-2 border-amber-400'
+                      : 'bg-gray-200 border border-gray-300'
+                    }`}>
+                      {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
+                      {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
+                      {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                      {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-amber-300" />}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
+                    nfCompleted ? 'text-emerald-600'
+                    : nfEnviada || nfAwaitingSubmission ? 'text-amber-600'
+                    : nfDevolvida ? 'text-orange-600'
+                    : nfRecusada ? 'text-red-600'
+                    : 'text-slate-400'
+                  }`}>Nota Fiscal</span>
+                  {nfDateStr
+                    ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
+                    : <span className="text-[9px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                <p className="font-semibold">Nota Fiscal</p>
+                <p className="text-gray-400">{nfTooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+            {/* Connector NF → Check-in */}
+            <div className={`h-px flex-1 mt-3 rounded-full mx-1 transition-all ${checkinDone ? 'bg-emerald-300' : checkinEligible ? 'bg-violet-200' : 'bg-gray-200'}`} />
+          </div>
+
+          {/* Check-in step */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex flex-col items-center flex-shrink-0 cursor-default w-14">
+              <div className="flex flex-col items-center flex-shrink-0 cursor-default w-16">
                 <div className="relative flex items-center justify-center">
-                  {(nfEnviada || nfAwaitingSubmission) && <span className="absolute w-7 h-7 rounded-full bg-amber-100 animate-ping opacity-60" />}
+                  {checkinEligible && !checkinDone && <span className="absolute w-7 h-7 rounded-full bg-violet-100 animate-ping opacity-60" />}
                   <div className={`relative w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                    nfCompleted ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
-                    : nfRecusada ? 'bg-red-500'
-                    : nfEnviada ? 'bg-white border-2 border-amber-400'
-                    : nfDevolvida ? 'bg-white border-2 border-orange-400'
-                    : nfAwaitingSubmission ? 'bg-white border-2 border-amber-400'
-                    : 'bg-gray-200 border border-gray-300'
+                    checkinDone ? 'bg-emerald-500 shadow-sm shadow-emerald-200'
+                    : checkinEligible ? 'bg-white border-2 border-violet-400'
+                    : 'bg-gray-100 border border-gray-200'
                   }`}>
-                    {nfCompleted && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                    {nfRecusada && <XCircle className="w-3 h-3 text-white" strokeWidth={2} />}
-                    {nfEnviada && <div className="w-2 h-2 rounded-full bg-amber-400" />}
-                    {nfDevolvida && <div className="w-2 h-2 rounded-full bg-orange-400" />}
-                    {nfAwaitingSubmission && <div className="w-2 h-2 rounded-full bg-amber-300" />}
+                    {checkinDone && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    {checkinEligible && !checkinDone && <div className="w-2 h-2 rounded-full bg-violet-400" />}
                   </div>
                 </div>
                 <span className={`text-[10px] font-semibold mt-1.5 whitespace-nowrap ${
-                  nfCompleted ? 'text-emerald-600'
-                  : nfEnviada || nfAwaitingSubmission ? 'text-amber-600'
-                  : nfDevolvida ? 'text-orange-600'
-                  : nfRecusada ? 'text-red-600'
-                  : 'text-slate-400'
-                }`}>Nota Fiscal</span>
-                {nfDateStr
-                  ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{nfDateStr}</span>
-                  : <span className="text-[9px] text-amber-500 italic font-medium">{nfEligible ? "Ag. envio" : "—"}</span>}
+                  checkinDone ? 'text-emerald-600'
+                  : checkinEligible ? 'text-violet-600'
+                  : 'text-slate-300'
+                }`}>Check-in</span>
+                {checkinDateStr
+                  ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{checkinDateStr}</span>
+                  : checkinEligible
+                  ? <span className="text-[9px] text-violet-500 italic font-medium">Pendente</span>
+                  : <span className="text-[9px] text-slate-300">—</span>}
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-              <p className="font-semibold">Nota Fiscal</p>
-              <p className="text-gray-400">{nfTooltip}</p>
+              <p className="font-semibold">Check-in Financeiro</p>
+              <p className="text-gray-400">{STEP_TOOLTIPS[5]}</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -743,9 +800,10 @@ export default function RhControlPage() {
       if (item.status === "aprovada_faturamento") {
         const nfInv = item.actual ? getInvoiceForActual(item.actual.id) : undefined;
         const nfSt = nfInv?.status || "pendente";
-        // Only truly green when NF is fully approved — otherwise violet (flow still ongoing)
-        if (nfSt === "aprovada") return { border: "border-l-4 border-l-emerald-400", bg: "" };
-        return { border: "border-l-4 border-l-violet-400", bg: "" };
+        // Green only after check-in; violet while NF approved but check-in pending; amber while waiting NF
+        if (nfSt === "aprovada" && nfInv?.checkinAt) return { border: "border-l-4 border-l-emerald-400", bg: "" };
+        if (nfSt === "aprovada") return { border: "border-l-4 border-l-violet-400", bg: "" };
+        return { border: "border-l-4 border-l-amber-300", bg: "" };
       }
       return { border: "border-l-4 border-l-red-400", bg: "" };
     }
@@ -768,6 +826,8 @@ export default function RhControlPage() {
     const nfEligible = item.status === "aprovada_faturamento";
     const nfInvCard = nfEligible && item.actual ? getInvoiceForActual(item.actual.id) : undefined;
     const nfStatus = nfInvCard?.status || "pendente";
+    const hasCheckin = !!nfInvCard?.checkinAt;
+    const checkinPendingCard = nfStatus === "aprovada" && !hasCheckin;
 
     return (
       <div
@@ -790,11 +850,13 @@ export default function RhControlPage() {
               <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
               {item.status === "aprovada_faturamento" ? (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-                  nfStatus === "aprovada"
+                  hasCheckin
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-violet-50 text-violet-700 border-violet-200"
+                    : checkinPendingCard
+                    ? "bg-violet-50 text-violet-700 border-violet-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
-                  {nfStatus === "aprovada" ? "Concluído" : "Ag. Nota Fiscal"}
+                  {hasCheckin ? "Concluído" : checkinPendingCard ? "Ag. Check-in" : "Ag. Nota Fiscal"}
                 </span>
               ) : (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
@@ -895,6 +957,46 @@ export default function RhControlPage() {
                   </button>
                 );
               }
+              if (nfStatus === "aprovada" && !hasCheckin) {
+                const isDoingThis = checkinInvoiceId === nfInvCard?.id;
+                if (isDoingThis) {
+                  return (
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      <button
+                        disabled={doingCheckin}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!nfInvCard?.id) return;
+                          setDoingCheckin(true);
+                          try {
+                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, {});
+                            await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+                            setCheckinInvoiceId(null);
+                          } finally { setDoingCheckin(false); }
+                        }}
+                        className="text-[11px] font-semibold h-7 px-3 rounded-md disabled:opacity-50 text-white transition-colors"
+                        style={{ background: '#059669' }}
+                      >
+                        {doingCheckin ? "..." : "Confirmar Check-in"}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(null); }}
+                        className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50"
+                      >✕</button>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors flex items-center gap-1.5"
+                    style={{ background: '#6d28d9' }}
+                    onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(nfInvCard?.id || null); }}
+                  >
+                    <CircleDot className="w-3 h-3" />
+                    Fazer Check-in
+                  </button>
+                );
+              }
               if (nfStatus === "devolvida") {
                 return <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>;
               }
@@ -947,6 +1049,31 @@ export default function RhControlPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Payment info after check-in */}
+                  {(() => {
+                    const nfInvExp = item.actual ? getInvoiceForActual(item.actual.id) : null;
+                    if (!nfInvExp) return null;
+                    if (nfInvExp.checkinAt) {
+                      const payDateStr = nfInvExp.paymentDate
+                        ? new Date(nfInvExp.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : null;
+                      return (
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 flex items-center justify-between">
+                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Check-in Financeiro Realizado
+                          </span>
+                          {payDateStr && (
+                            <span className="text-[11px] text-emerald-600 font-medium">
+                              💳 Pagamento: {payDateStr}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* Two panels */}
                   <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
@@ -1101,7 +1228,7 @@ export default function RhControlPage() {
   const concludedCount = prestacaoItems.filter(item => {
     if (item.status !== "aprovada_faturamento") return false;
     const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
-    return inv?.status === "aprovada";
+    return inv?.status === "aprovada" && !!inv?.checkinAt;
   }).length;
   const totalForProgress = prestacaoItems.filter(item => !item.planned?.didNotAttend).length;
   const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
@@ -1125,6 +1252,7 @@ export default function RhControlPage() {
                 { label: "Realizado", color: "#6d28d9" },
                 { label: "Aprovação", color: "#059669" },
                 { label: "Nota Fiscal", color: "#6d28d9" },
+                { label: "Check-in", color: "#059669" },
               ].map((step, i, arr) => (
                 <span key={step.label} className="flex items-center gap-1">
                   <span className="text-xs font-semibold" style={{ color: step.color }}>{step.label}</span>
@@ -1183,25 +1311,28 @@ export default function RhControlPage() {
 
         return (
           <div className="grid grid-cols-4 gap-4">
-            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal}>
+            <MetricCard stripColor="#ef4444" icon={AlertTriangle} iconColor="#ef4444" title="Aguardando RH" value={rhTotal + (invoiceCounts.checkinPending || 0)}>
               {metric("Planejamento", rhPlan, "font-medium text-red-500")}
               {metric("Comparativo", rhComp, "font-medium text-red-500")}
-              {metric("Nota Fiscal", rhNf, "font-medium text-red-500", true)}
+              {metric("Nota Fiscal", rhNf, "font-medium text-red-500")}
+              {metric("Check-in", invoiceCounts.checkinPending || 0, "font-medium text-red-500", true)}
             </MetricCard>
 
             <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}>
-              {metric("Realizado", colReal, "font-medium" )}
+              {metric("Realizado", colReal, "font-medium")}
               {metric("NF devolvida", colNfDev, "font-medium")}
               {metric("Ag. NF", colNfPend, "font-medium", true)}
             </MetricCard>
 
-            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={emAndamento}>
+            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={(statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada + (invoiceCounts.checkinPending || 0)}>
               {metric("Ag. realização", statusCounts.aguardando_prestacao || 0, "font-medium text-amber-600")}
-              {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600", true)}
+              {metric("NF em análise", invoiceCounts.enviada, "font-medium text-amber-600")}
+              {metric("Ag. Check-in", invoiceCounts.checkinPending || 0, "font-medium text-amber-600", true)}
             </MetricCard>
 
             <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
               <span className="whitespace-nowrap">de {totalForProgress} total</span>
+              <span className="whitespace-nowrap text-slate-400">{dot}só após check-in</span>
               {recusada > 0 && (
                 <span className="whitespace-nowrap text-red-400">{dot}{recusada} recusado{recusada !== 1 ? "s" : ""}</span>
               )}
@@ -1225,14 +1356,16 @@ export default function RhControlPage() {
               <p className="text-sm font-semibold text-slate-800">
                 {rhActionCount} pendência{rhActionCount !== 1 ? 's' : ''} aguardando ação do RH
               </p>
-              <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {rhPlanPendingCount > 0 && <span className="text-[10px] text-slate-500">· {rhPlanPendingCount} planejamento{rhPlanPendingCount > 1 ? 's' : ''}</span>}
+                {rhReceivedCount > 0 && <span className="text-[10px] text-slate-500">· {rhReceivedCount} comparativo{rhReceivedCount > 1 ? 's' : ''}</span>}
+                {(invoiceCounts.checkinPending || 0) > 0 && <span className="text-[10px] text-violet-600 font-medium">· {invoiceCounts.checkinPending} check-in{(invoiceCounts.checkinPending || 0) > 1 ? 's' : ''}</span>}
+              </div>
+              <div className="flex items-center gap-3 mt-1.5">
                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[240px]">
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${progressPct}%`,
-                      background: "#f97316",
-                    }}
+                    style={{ width: `${progressPct}%`, background: "#f97316" }}
                   />
                 </div>
                 <span className="text-xs text-slate-500 whitespace-nowrap">
@@ -1412,10 +1545,17 @@ export default function RhControlPage() {
             const isOpen = expandedEvents.has(group.event.id);
             const statuses = group.items.reduce((acc, i) => { acc[i.status] = (acc[i.status] || 0) + 1; return acc; }, {} as Record<string, number>);
             // Split aprovada_faturamento: only truly concluded when NF is approved
-            const nfApprovedCount = group.items.filter(i =>
-              i.status === "aprovada_faturamento" && i.actual && getInvoiceForActual(i.actual.id)?.status === "aprovada"
-            ).length;
-            const agNfCount = (statuses.aprovada_faturamento || 0) - nfApprovedCount;
+            const nfApprovedCount = group.items.filter(i => {
+              if (i.status !== "aprovada_faturamento" || !i.actual) return false;
+              const inv = getInvoiceForActual(i.actual.id);
+              return inv?.status === "aprovada" && !!inv?.checkinAt;
+            }).length;
+            const checkinPendingGroupCount = group.items.filter(i => {
+              if (i.status !== "aprovada_faturamento" || !i.actual) return false;
+              const inv = getInvoiceForActual(i.actual.id);
+              return inv?.status === "aprovada" && !inv?.checkinAt;
+            }).length;
+            const agNfCount = (statuses.aprovada_faturamento || 0) - nfApprovedCount - checkinPendingGroupCount;
             return (
               <div key={group.event.id} className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
                 <button
@@ -1445,6 +1585,7 @@ export default function RhControlPage() {
                           {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} dev.</span> : null}
                           {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} ag.</span> : null}
                           {agNfCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200">{agNfCount} ag.NF</span> : null}
+                          {checkinPendingGroupCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} chk.</span> : null}
                           {nfApprovedCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} conc.</span> : null}
                           {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} rec.</span> : null}
                         </div>
