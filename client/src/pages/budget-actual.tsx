@@ -1463,27 +1463,27 @@ export default function BudgetActualPage() {
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background: '#1d4ed8'}} className="px-6 pt-5 pb-4 shrink-0">
-                  <div className="flex items-start gap-3">
+                <div style={{background:'linear-gradient(135deg, #1d4ed8 0%, #3b5fe4 100%)'}} className="px-5 py-3.5 shrink-0">
+                  <div className="flex items-center gap-3">
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
                       const mInit = mName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
                       return (
-                        <div className="w-11 h-11 rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-sm font-bold">{mInit || '?'}</span>
+                        <div className="w-10 h-10 rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-[15px] font-bold">{mInit || '?'}</span>
                         </div>
                       );
                     })()}
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-sm font-bold text-white truncate leading-tight">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <h2 className="text-[16px] font-bold text-white truncate leading-tight">{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <p className="text-[12px] text-white/70">{getFunctionName(editingItem.functionId)}</p>
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-[10px] text-violet-200 bg-white/15 px-2 py-0.5 rounded-full">{getFunctionName(editingItem.functionId)}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`}>
+                        <span className={`inline-flex items-center h-[22px] text-[11px] font-bold px-2 rounded-md ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                         </span>
                         {(itemDays.startDate || itemDays.endDate) && (
-                          <span className="text-[10px] text-violet-200 bg-white/15 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Calendar className="w-2.5 h-2.5" />
+                          <span className="inline-flex items-center gap-1 h-[22px] text-[11px] text-white/70">
+                            <Calendar className="w-3 h-3" />
                             {itemDays.startDate && itemDays.endDate
                               ? `${new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → ${new Date(itemDays.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`
                               : itemDays.startDate
@@ -1493,31 +1493,31 @@ export default function BudgetActualPage() {
                           </span>
                         )}
                         {itemDays.weekdays > 0 && (
-                          <span className="text-[10px] text-indigo-200 bg-white/10 px-2 py-0.5 rounded-full">
-                            {itemDays.weekdays}u {itemDays.weekends > 0 ? `· ${itemDays.weekends}f` : ''}
+                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md" style={{background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
+                            {itemDays.weekdays}d úteis{itemDays.weekends > 0 ? ` · ${itemDays.weekends} fds` : ''}
                           </span>
                         )}
                         {isReadOnly && (
-                          <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md bg-white/15 text-white gap-1">
                             <Lock className="w-2.5 h-2.5" /> Bloqueado
                           </span>
                         )}
                         {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === 'update') && (
-                          <span className="text-[10px] bg-amber-400/25 text-amber-200 border border-amber-300/30 px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
+                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md bg-amber-400/25 text-amber-200 border border-amber-300/30 gap-1 font-semibold">
                             ⚠️ Planejado alterado pelo RH
                           </span>
                         )}
                       </div>
                     </div>
                     {planned && statusBadge && (
-                      <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white/15 text-white border border-white/25 flex-shrink-0 mr-8`}>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-white/15 text-white border border-white/25 flex-shrink-0 mr-6">
                         {statusBadge.icon}
                         {statusBadge.label}
                       </div>
                     )}
                   </div>
                   {rhComment && (
-                    <div className="mt-3 p-2.5 rounded-xl bg-white/10 border border-white/20">
+                    <div className="mt-2.5 p-2 rounded-xl bg-white/10 border border-white/20">
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-300 mt-0.5 flex-shrink-0" />
                         <div>
@@ -1538,7 +1538,7 @@ export default function BudgetActualPage() {
                 )}
 
                 {/* ── Barra de Abas ── */}
-                <div className="flex border-b border-slate-200 bg-white shrink-0 sticky top-0 z-10">
+                <div className="flex border-b border-slate-200 bg-white shrink-0">
                   {([
                     { id: 'custos',      label: 'Custos' },
                     { id: 'observacoes', label: 'Observações' },
@@ -1548,7 +1548,7 @@ export default function BudgetActualPage() {
                       key={id}
                       onClick={() => setModalActualTab(id)}
                       className={[
-                        'flex-1 py-3 text-[12px] font-semibold transition-colors',
+                        'flex-1 h-10 text-[13px] font-medium transition-colors',
                         modalActualTab === id
                           ? 'text-[#1d4ed8] border-b-2 border-[#1d4ed8] bg-blue-50/40'
                           : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50',

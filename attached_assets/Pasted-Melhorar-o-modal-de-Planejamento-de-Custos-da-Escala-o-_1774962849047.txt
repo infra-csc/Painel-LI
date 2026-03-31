@@ -1,0 +1,77 @@
+Melhorar o modal de Planejamento de Custos da Escalação 
+(modal com abas Custos / Observações / Histórico):
+
+═══════════════════════════════════════
+1. HEADER DO MODAL
+═══════════════════════════════════════
+- Reduzir altura do header azul: padding 14px 20px (era ~24px)
+- Avatar TA: 40px (era ~52px)
+- Nome: 16px peso 700 (era ~20px)
+- Função: 12px, opacidade 0.8
+- Tags (Casa, datas, dias úteis, fds): 
+  height 22px, font 11px, gap 6px entre elas
+- Botão "Restaurar": 11px, ícone 12px, 
+  posicionado mais discreto (opacidade 0.7)
+
+═══════════════════════════════════════
+2. ABA CUSTOS — layout das seções
+═══════════════════════════════════════
+- Cada seção (Diárias, Mobilidade, Alimentação) 
+  está com muito espaço — compactar:
+  • Header da seção: 36px altura, padding 0 14px
+  • Conteúdo interno: padding 10px 14px
+  • Gap entre linhas: 6px
+
+- DIÁRIAS: mostrar Dias Úteis e Fim de Semana 
+  na mesma linha horizontal:
+  [ícone] [label + qtd dias]  [R$] [input /dia] [= total]
+  sem quebrar em duas linhas separadas
+
+- MOBILIDADE: campos Ida e Volta lado a lado 
+  já estão bons — apenas reduzir padding
+
+- ALIMENTAÇÃO: se tiver breakdown por dia, 
+  mostrar em linha única também
+
+═══════════════════════════════════════
+3. FOOTER DO MODAL (TOTAL PLANEJADO)
+═══════════════════════════════════════
+- Layout atual: total à esquerda grande + 
+  breakdown à direita — está bom, manter
+- Ajuste: fundo cinza levíssimo #F8FAFC, 
+  border-top 1px #e5e7eb
+- "TOTAL PLANEJADO": 10px uppercase cinza
+- Valor R$ 150,00: 22px peso 800 azul #3B4FE4
+- Breakdown (Diárias, Alimentação, Mobilidade): 
+  11px, alinhado à direita, cinza #666
+
+═══════════════════════════════════════
+4. ABAS (Custos / Observações / Histórico)
+═══════════════════════════════════════
+- Aba inativa: cinza #888, sem fundo
+- Aba ativa: azul #3B4FE4, underline 2px, 
+  fundo branco
+- Altura das abas: 40px (era ~48px)
+- Font: 13px peso 500
+
+═══════════════════════════════════════
+5. LÓGICA — sugestões
+═══════════════════════════════════════
+- Adicionar indicador visual nos campos 
+  que foram alterados pelo RH vs padrão:
+  se o valor foi modificado manualmente, 
+  mostrar um ponto azul pequeno • ou 
+  borda azul no input alterado
+- Botão "Restaurar": ao invés de ficar no header, 
+  mostrar apenas quando houver algum campo 
+  alterado — aparece inline ao lado do campo 
+  modificado como um link "↩ restaurar" 11px azul
+- Aba "Observações" e "Histórico" bloqueadas 
+  antes de salvar: mostrar tooltip ao hover 
+  "Salve primeiro para acessar" em vez de 
+  só exibir o texto vazio na tela
+- Botão Salvar: desabilitado (cinza) se nenhum 
+  campo foi alterado em relação ao valor 
+  já salvo — evita salvar sem mudança
+
+Não alterar cálculos nem regras de negócio.
