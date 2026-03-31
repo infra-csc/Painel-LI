@@ -721,7 +721,7 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                 <>
                   <tr
                     key={inv.id}
-                    className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${isActive ? "bg-gray-50" : ""}`}
+                    className={`hover:bg-gray-50/60 transition-colors ${isActive && active?.type === "approve" ? "bg-white" : isActive ? "bg-gray-50" : "border-b border-gray-50"}`}
                     style={{ borderLeft: `3px solid ${cfg.border}` }}
                   >
                     <td className="px-4 py-3.5 overflow-hidden">
@@ -812,26 +812,46 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
                   {/* Inline action panel */}
                   {isActive && active && (
-                    <tr key={`${inv.id}-panel`} className="bg-slate-50 border-b border-slate-100">
-                      <td colSpan={6} className="px-5 py-3">
+                    <tr
+                      key={`${inv.id}-panel`}
+                      className={active.type === "approve" ? "" : "bg-slate-50 border-b border-slate-100"}
+                      style={active.type === "approve" ? { borderLeft: `3px solid ${cfg.border}` } : {}}
+                    >
+                      <td
+                        colSpan={6}
+                        className={active.type === "approve" ? "" : "px-5 py-3"}
+                        style={active.type === "approve" ? {
+                          background: "#F0FDF4",
+                          borderTop: "1px solid #86EFAC",
+                          padding: "10px 16px",
+                          borderRadius: "0 0 8px 8px",
+                        } : {}}
+                      >
 
                         {/* ── Aprovar ── */}
                         {active.type === "approve" && (
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar aprovação
-                            </span>
-                            <p className="text-xs text-slate-500 flex-1">Após aprovar, faça o Check-in Financeiro para definir a data de pagamento.</p>
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span className="text-[13px] font-semibold text-emerald-700">Confirmar aprovação</span>
+                            </div>
+                            <p className="text-xs text-emerald-700/70 flex-1">
+                              Confirmar aprovação desta nota? O RH deverá fazer o Check-in em seguida.
+                            </p>
                             <div className="flex items-center gap-2">
-                              <button onClick={closeAction} className="h-8 px-3 text-xs text-slate-500 hover:bg-slate-200 rounded-lg flex items-center gap-1">
-                                <X className="w-3 h-3" /> Cancelar
+                              <button
+                                onClick={closeAction}
+                                className="h-8 px-3 text-xs font-medium text-slate-500 hover:text-slate-700 rounded-lg transition-colors"
+                              >
+                                Cancelar
                               </button>
                               <button
                                 onClick={() => approveMutation.mutate(inv.id)}
                                 disabled={approveMutation.isPending}
-                                className="h-8 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                                className="h-8 px-4 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-50"
+                                style={{ background: "#16A34A" }}
                               >
-                                {approveMutation.isPending ? "Aprovando..." : "Confirmar"}
+                                {approveMutation.isPending ? "Aprovando..." : "✓ Confirmar"}
                               </button>
                             </div>
                           </div>
