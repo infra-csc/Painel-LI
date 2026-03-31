@@ -1457,7 +1457,7 @@ export default function RhControlPage() {
                   />
                 </div>
                 <span className="text-xs text-slate-500 whitespace-nowrap">
-                  <span className="font-semibold text-slate-700">{concludedCount}</span> de {totalForProgress} concluído{concludedCount !== 1 ? 's' : ''}
+                  Progresso geral: <span className="font-semibold text-slate-700">{concludedCount}</span> de {totalForProgress} itens
                 </span>
               </div>
             </div>
