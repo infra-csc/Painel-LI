@@ -891,6 +891,21 @@ export default function BudgetActualPage() {
                       {diffInline(totalAlimentacao, plannedAlim)}
                     </div>
                     {planned && Math.abs(totalAlimentacao - plannedAlim) > 1 && <div className="text-[9px] text-slate-400 tabular-nums mt-0.5">plan: {formatCurrency(plannedAlim)}</div>}
+                    {(() => {
+                      const semana = cardItem.weekdayLunch + cardItem.weekdayDinner;
+                      const fds = cardItem.weekendLunch + cardItem.weekendDinner;
+                      const wkd = cardDays.weekdays;
+                      const wke = cardDays.weekends;
+                      if (semana === 0 && fds === 0) return null;
+                      const perWkd = wkd > 0 && semana > 0 ? Math.round(semana / wkd) : 0;
+                      const perWke = wke > 0 && fds > 0 ? Math.round(fds / wke) : 0;
+                      return (
+                        <div className="mt-1.5 space-y-0.5">
+                          {wkd > 0 && semana > 0 && <div className="text-[10px] text-orange-600 tabular-nums">{formatDiasUteis(wkd)} × {formatCurrency(perWkd)}</div>}
+                          {wke > 0 && fds > 0 && <div className="text-[10px] text-amber-500 tabular-nums">{formatFds(wke)} × {formatCurrency(perWke)}</div>}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {/* Mobilidade */}
                   <div className="rounded-xl p-2.5 border border-violet-100 bg-violet-50/50">
