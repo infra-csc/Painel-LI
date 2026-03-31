@@ -1,0 +1,78 @@
+Melhorar o layout do modal de "Realizado" da Prestação de Contas.
+Regra principal: apenas DIÁRIAS é editável — 
+Alimentação e Mobilidade são somente leitura.
+
+═══════════════════════════════════════
+1. SEÇÃO DIÁRIAS — editável
+═══════════════════════════════════════
+- Manter input de valor editável por dia
+- Manter botão "+ Adicionar Dia Extra" 
+- Deixar visualmente claro que é editável:
+  inputs com borda #e5e7eb, fundo branco, 
+  cursor de texto, border-radius 6px
+- Ao focar: borda azul #3B4FE4
+- Badge "1 dia ativo" ao lado do título: 
+  fundo #EEF2FF, texto azul, 10px
+- Colunas PLANEJADO e REALIZADO lado a lado 
+  para cada dia — manter como está, está bom
+
+═══════════════════════════════════════
+2. SEÇÃO MOBILIDADE — somente leitura
+═══════════════════════════════════════
+- Remover inputs editáveis — exibir 
+  os valores como texto estático
+- Visual de "bloqueado": fundo #F8FAFC, 
+  texto cinza #666, sem borda nos valores
+- Adicionar ícone 🔒 pequeno (10px) 
+  ao lado do badge "Editável RH" — 
+  trocar label para "Definido pelo RH"
+  em cinza, sem a cor roxa de destaque
+- Layout: [→ Ida    R$ 12,50]
+          [← Volta  R$ 12,50]
+  em texto simples, sem campo de input
+
+═══════════════════════════════════════
+3. SEÇÃO ALIMENTAÇÃO — somente leitura
+═══════════════════════════════════════
+- Mesma abordagem da Mobilidade: 
+  valores estáticos, sem inputs
+- Trocar badge "Editável RH" por 
+  "Definido pelo RH" em cinza
+- Grid Almoço/Jantar × Dias Úteis/Fins de Sem.:
+  exibir como tabela estática simples, 
+  fundo #F8FAFC, sem bordas de input
+- Ícone 🔒 no header da seção
+
+═══════════════════════════════════════
+4. DIFERENCIAÇÃO VISUAL CLARA
+═══════════════════════════════════════
+- Seção DIÁRIAS: borda esquerda 3px azul #3B4FE4,
+  fundo levíssimo #FAFBFF — indica que é editável
+- Seções bloqueadas (Mobilidade, Alimentação): 
+  borda esquerda 3px cinza #e5e7eb,
+  fundo #F8FAFC — indica somente leitura
+- Tooltip ao passar o mouse nas seções bloqueadas:
+  "Este valor é definido pelo RH e não pode 
+  ser alterado nesta etapa"
+
+═══════════════════════════════════════
+5. FOOTER — Planejado / Realizado / Diferença
+═══════════════════════════════════════
+- Manter os 3 cards, apenas ajustar:
+  • DIFERENÇA: se positivo (acima do planejado) 
+    → texto vermelho + ícone ▲
+    se negativo (abaixo) → texto verde + ícone ▼
+    se zero → "—" cinza
+  • Labels: 10px uppercase cinza
+  • Valores: 16px peso 700
+
+═══════════════════════════════════════
+6. ABA OBSERVAÇÕES
+═══════════════════════════════════════
+- Está boa — apenas padronizar:
+  avatar 28px, nome 12px peso 600, 
+  data 11px cinza, mensagem 13px
+  fundo da mensagem #F8FAFC, 
+  border-radius 8px, padding 10px 12px
+
+Não alterar lógica nem cálculos.

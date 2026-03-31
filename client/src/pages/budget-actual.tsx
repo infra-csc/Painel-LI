@@ -1563,20 +1563,19 @@ export default function BudgetActualPage() {
                 {modalActualTab === 'custos' && (
                 <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4 bg-slate-50" style={{maxHeight:'52vh'}}>
 
-                  {/* ── Diárias ── */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-blue-600" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/50 border-b border-blue-100">
+                  {/* ── Diárias — editável ── */}
+                  <div className="rounded-xl border border-slate-200 overflow-hidden" style={{borderLeft:'3px solid #3B4FE4', background:'#FAFBFF'}}>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-blue-100" style={{background:'rgba(59,79,228,0.05)'}}>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-[#3B4FE4] flex items-center justify-center">
                           <Calendar className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">Diárias</span>
-                        <span className="text-[10px] text-blue-400 bg-blue-50 border border-blue-100 px-1.5 rounded-full">
+                        <span className="text-[11px] font-semibold text-[#3B4FE4] uppercase tracking-wide">Diárias</span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{background:'#EEF2FF', color:'#3B4FE4'}}>
                           {activeDayEntries.length} {activeDayEntries.length === 1 ? 'dia ativo' : 'dias ativos'}
                         </span>
                       </div>
-                      <span className="text-sm font-bold font-mono text-blue-700 tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
+                      <span className="text-[13px] font-bold font-mono text-[#3B4FE4] tabular-nums">{formatCurrency(subtotalDiariasRaw)}</span>
                     </div>
                     {/* Col headers */}
                     <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 bg-slate-50 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -1610,7 +1609,7 @@ export default function BudgetActualPage() {
                               disabled={isReadOnly}
                               onClick={() => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, active: !e.active } : e))}
                               className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors
-                                ${entry.active ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}
+                                ${entry.active ? 'bg-[#3B4FE4] text-white' : 'bg-slate-200 text-slate-400'}
                                 ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
                             >
                               {entry.active && <Check className="w-2.5 h-2.5" />}
@@ -1635,8 +1634,13 @@ export default function BudgetActualPage() {
                               value={entry.valueCents}
                               onChange={v => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, valueCents: v } : e))}
                               disabled={!entry.active || isReadOnly}
-                              className={`h-8 text-xs text-right w-24 border rounded-lg font-mono tabular-nums focus-visible:ring-2 focus-visible:ring-blue-300/60
-                                ${!entry.active || isReadOnly ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed' : isChanged ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}
+                              className={`h-8 text-xs text-right w-24 font-mono tabular-nums border rounded-[6px]
+                                focus:border-[#3B4FE4] focus:ring-2 focus:ring-[#3B4FE4]/15 focus:bg-white
+                                ${!entry.active || isReadOnly
+                                  ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'
+                                  : isChanged
+                                    ? 'bg-amber-50 border-amber-200'
+                                    : 'bg-white border-[#e5e7eb] cursor-text'}`}
                             />
                           </div>
                         );
@@ -1644,13 +1648,13 @@ export default function BudgetActualPage() {
                     </div>
                     {/* Add extra day */}
                     {!isReadOnly && (
-                      <div className="px-4 py-2 border-t border-slate-100">
+                      <div className="px-4 py-2 border-t border-slate-100 bg-white">
                         {showAddDay ? (
                           <div className="flex items-center gap-2">
                             <input
                               type="date"
                               autoFocus
-                              className="h-7 text-xs border border-blue-300 rounded-lg px-2 text-slate-700 bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                              className="h-7 text-xs border border-[#3B4FE4] rounded-lg px-2 text-slate-700 bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#3B4FE4]/20"
                               onChange={e => {
                                 const newDate = e.target.value;
                                 if (!newDate) return;
@@ -1675,7 +1679,7 @@ export default function BudgetActualPage() {
                           <button
                             type="button"
                             onClick={() => setShowAddDay(true)}
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors py-0.5"
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-[#3B4FE4] hover:text-[#2233cc] transition-colors py-0.5"
                           >
                             <Plus className="w-3 h-3" />
                             Adicionar Dia Extra
@@ -1694,108 +1698,94 @@ export default function BudgetActualPage() {
                     )}
                   </div>
 
-                  {/* ── Mobilidade ── */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-violet-400" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-violet-50/40 border-b border-violet-100">
+                  {/* ── Mobilidade — somente leitura ── */}
+                  <div
+                    className="rounded-xl border border-slate-200 overflow-hidden"
+                    style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
+                    title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
+                  >
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-violet-400 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
                           <Car className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">Mobilidade</span>
-                        {!isRhOrAdmin && <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>}
-                        {isRhOrAdmin && <span className="text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">Editável RH</span>}
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Mobilidade</span>
+                        <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" />
+                          Definido pelo RH
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
+                      <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(modalMobility)}</span>
                     </div>
-                    <div className="divide-y divide-slate-50">
-                      <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4">
+                    <div className="divide-y divide-slate-100">
+                      <div className="flex items-center justify-between px-4 py-2.5">
                         <div className="flex items-center gap-2">
                           <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Ida</span>
                         </div>
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.mobilityIda} onChange={v => setEditFormData(f => f ? { ...f, mobilityIda: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityIda)}</span>
-                        )}
+                        <span className="text-[13px] font-mono tabular-nums" style={{color:'#666'}}>{formatCurrency(editFormData.mobilityIda)}</span>
                       </div>
-                      <div className="grid grid-cols-[1fr_auto] items-center px-4 py-3 gap-4 bg-slate-50/30">
+                      <div className="flex items-center justify-between px-4 py-2.5" style={{background:'#F8FAFC'}}>
                         <div className="flex items-center gap-2">
                           <ArrowLeft className="w-3 h-3 text-slate-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Volta</span>
                         </div>
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.mobilityVolta} onChange={v => setEditFormData(f => f ? { ...f, mobilityVolta: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono">{formatCurrency(editFormData.mobilityVolta)}</span>
-                        )}
+                        <span className="text-[13px] font-mono tabular-nums" style={{color:'#666'}}>{formatCurrency(editFormData.mobilityVolta)}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* ── Alimentação ── */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="h-[3px] bg-orange-400" />
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-orange-50/40 border-b border-orange-100">
+                  {/* ── Alimentação — somente leitura ── */}
+                  <div
+                    className="rounded-xl border border-slate-200 overflow-hidden"
+                    style={{borderLeft:'3px solid #e5e7eb', background:'#F8FAFC'}}
+                    title="Este valor é definido pelo RH e não pode ser alterado nesta etapa"
+                  >
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md bg-orange-400 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md bg-slate-400 flex items-center justify-center">
                           <Utensils className="w-3 h-3 text-white" />
                         </div>
-                        <span className="text-[11px] font-semibold text-orange-700 uppercase tracking-wide">Alimentação</span>
-                        {!isRhOrAdmin && <span className="text-[9px] font-medium text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">Valor planejado</span>}
-                        {isRhOrAdmin && <span className="text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">Editável RH</span>}
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Alimentação</span>
+                        <span className="text-[9px] font-medium text-slate-400 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" />
+                          Definido pelo RH
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
+                      <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
                     </div>
-                    <div className="divide-y divide-slate-50">
+                    <div>
                       {/* Header row */}
-                      <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 bg-slate-50 border-b border-slate-100">
+                      <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
                         <span />
                         <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Dias Úteis</span>
                         <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Fins de Sem.</span>
                       </div>
                       {/* Almoço */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5">
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 border-b border-slate-100">
                         <div className="flex items-center gap-1.5">
                           <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Almoço</span>
                         </div>
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.weekdayLunch} onChange={v => setEditFormData(f => f ? { ...f, weekdayLunch: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
-                            {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
-                          </span>
-                        )}
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.weekendLunch} onChange={v => setEditFormData(f => f ? { ...f, weekendLunch: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
-                            {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
-                          </span>
-                        )}
+                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
+                          {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
+                        </span>
+                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
+                          {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
                       {/* Jantar */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 bg-slate-50/30">
+                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
                           <span className="text-[12px] text-slate-500">Jantar</span>
                         </div>
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.weekdayDinner} onChange={v => setEditFormData(f => f ? { ...f, weekdayDinner: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
-                            {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
-                          </span>
-                        )}
-                        {isRhOrAdmin && !isReadOnly ? (
-                          <CurrencyInput value={editFormData.weekendDinner} onChange={v => setEditFormData(f => f ? { ...f, weekendDinner: v } : f)} className="w-24 h-7 text-xs text-right" />
-                        ) : (
-                          <span className="text-[13px] font-semibold text-slate-500 tabular-nums font-mono w-24 text-right">
-                            {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
-                          </span>
-                        )}
+                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
+                          {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
+                        </span>
+                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
+                          {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1831,28 +1821,30 @@ export default function BudgetActualPage() {
                     <div className="px-5 pt-4 pb-2">
                       <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
                         <div className="grid grid-cols-3 divide-x divide-slate-200">
-                          <div className="px-4 py-3.5 text-center bg-slate-50/70">
-                            <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider mb-1.5">Planejado</div>
-                            <div className="text-sm font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</div>
+                          <div className="px-4 py-3 text-center bg-slate-50/70">
+                            <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider mb-1">Planejado</div>
+                            <div className="text-[16px] font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</div>
                           </div>
-                          <div className="px-4 py-3.5 text-center bg-violet-50/70">
-                            <div className="text-[9px] uppercase text-violet-500 font-semibold tracking-wider mb-1.5">Realizado</div>
-                            <div className="text-sm font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
+                          <div className="px-4 py-3 text-center bg-violet-50/70">
+                            <div className="text-[10px] uppercase text-violet-400 font-semibold tracking-wider mb-1">Realizado</div>
+                            <div className="text-[16px] font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
                           </div>
-                          <div className={`px-4 py-3.5 text-center ${Math.abs(difference) <= 1 ? 'bg-slate-50/70' : difference < 0 ? 'bg-emerald-50/80' : 'bg-red-50/80'}`}>
-                            <div className="text-[9px] uppercase text-slate-400 font-semibold tracking-wider mb-1.5">Diferença</div>
+                          <div className={`px-4 py-3 text-center ${Math.abs(difference) <= 1 ? 'bg-slate-50/70' : difference > 0 ? 'bg-red-50/80' : 'bg-emerald-50/80'}`}>
+                            <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider mb-1">Diferença</div>
                             {Math.abs(difference) <= 1 ? (
-                              <div className="text-sm font-bold text-slate-300 tabular-nums">—</div>
+                              <div className="text-[16px] font-bold text-slate-300 tabular-nums">—</div>
                             ) : (
                               <>
                                 <div className="flex items-center justify-center gap-1">
-                                  {difference < 0 ? <TrendingDown className="w-3.5 h-3.5 text-emerald-500" /> : <TrendingUp className="w-3.5 h-3.5 text-red-500" />}
-                                  <span className={`text-sm font-bold tabular-nums ${difference < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                                    {difference > 0 ? '+' : '−'}{formatCurrency(Math.abs(difference))}
+                                  <span className={`text-[14px] font-bold leading-none ${difference > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {difference > 0 ? '▲' : '▼'}
+                                  </span>
+                                  <span className={`text-[16px] font-bold tabular-nums ${difference > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                                    {formatCurrency(Math.abs(difference))}
                                   </span>
                                 </div>
                                 {plannedTotal > 0 && (
-                                  <div className={`text-[10px] tabular-nums font-semibold mt-0.5 ${difference < 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                                  <div className={`text-[10px] tabular-nums font-semibold mt-0.5 ${difference > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
                                     {difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%
                                   </div>
                                 )}
