@@ -350,11 +350,10 @@ export default function RhControlPage() {
   const filteredItems = useMemo(() => {
     return prestacaoItems.filter(item => {
       if (filterStatus === "rh_action") {
-        const needsRhCheckin = item.status === "aprovada_faturamento" && (() => {
-          const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
-          return inv?.status === "aprovada" && !inv?.checkinAt;
-        })();
-        if (!RH_STATUSES.includes(item.status) && !needsRhCheckin) return false;
+        const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
+        const needsRhCheckin = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
+        const needsRhNfApproval = item.status === "aprovada_faturamento" && inv?.status === "enviada";
+        if (!RH_STATUSES.includes(item.status) && !needsRhCheckin && !needsRhNfApproval) return false;
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
@@ -1467,6 +1466,11 @@ export default function RhControlPage() {
               className="text-xs font-bold px-4 py-2 rounded-lg text-white transition-colors shrink-0 shadow-sm"
               style={{ background: '#f97316' }}
               onClick={() => {
+                setFilterEvent("all");
+                setFilterFunction("all");
+                setFilterCollaborator("all");
+                setFilterInvoiceStatus("all");
+                setSearchTerm("");
                 setFilterStatus("rh_action");
                 setFilterCheckinOnly(false);
                 setShowConcluded(false);
