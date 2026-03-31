@@ -1697,23 +1697,11 @@ export default function BudgetPlannedPage() {
                               </div>
                               <div className="text-[11px] text-slate-400 mt-0.5">{funcName}</div>
                             </td>
-                            {/* Diárias qty */}
+                            {/* Diárias qty — somente leitura */}
                             <td className="px-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                {hasOvr && !disabled && (
-                                  <span className="text-[10px] text-[#3B4FE4]" title="Editado">✏</span>
-                                )}
-                                <input
-                                  type="text" inputMode="numeric"
-                                  tabIndex={rowIdx * 4 + 1}
-                                  disabled={disabled}
-                                  value={buf('qty', String(budget.qtdDiarias))}
-                                  onChange={e => setbuf('qty', e.target.value)}
-                                  onBlur={commitBlur('qtdDiarias', 'qty')}
-                                  onFocus={e => e.target.select()}
-                                  className={inputBase}
-                                />
-                              </div>
+                              <span className="text-[13px] tabular-nums" style={{color:'#555'}}>
+                                {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
+                              </span>
                             </td>
                             {/* Valor/dia */}
                             <td className="px-3 text-right">
