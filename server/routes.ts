@@ -2371,9 +2371,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "eventId é obrigatório" });
       }
       const items = await storage.getBudgetActual(eventId);
+      const canSend = (i: any) => !i.sentForReview || i.rhStatus === 'devolvido' || i.rhStatus === 'rejeitado';
       const toUpdate = itemIds?.length
-        ? items.filter((i: any) => itemIds.includes(i.id))
-        : items;
+        ? items.filter((i: any) => itemIds.includes(i.id) && canSend(i))
+        : items.filter(canSend);
 
       const actorId = req.session?.userId;
       const actor = actorId ? await storage.getUser(actorId) : null;

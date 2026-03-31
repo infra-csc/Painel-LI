@@ -612,6 +612,7 @@ export default function BudgetActualPage() {
       }, 0);
   }, [filteredItems, budgetPlanned]);
   const prestacaoCount = filteredItems.filter(item => !item.splitParentId).length;
+  const pendingCount = filteredItems.filter(item => !item.splitParentId && !item.sentForReview).length;
   const totalDifference = totalRealizado - totalPlanejado;
   const diffLabel = totalDifference === 0
     ? { text: "Dentro do planejado", color: "text-gray-500" }
@@ -1362,6 +1363,12 @@ export default function BudgetActualPage() {
               <div className="h-8 w-px bg-slate-200" />
               <div className="text-[11px] text-slate-400">
                 {prestacaoCount} {prestacaoCount === 1 ? 'prestação' : 'prestações'}
+                {pendingCount < prestacaoCount && pendingCount > 0 && (
+                  <span className="ml-1 text-amber-600 font-medium">· {pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
+                )}
+                {pendingCount === 0 && prestacaoCount > 0 && (
+                  <span className="ml-1 text-emerald-600 font-medium">· todas enviadas</span>
+                )}
                 {selectedCards.size > 0 && (
                   <span className="ml-2 font-semibold text-violet-600">· {selectedCards.size} selecionada{selectedCards.size > 1 ? 's' : ''}</span>
                 )}
