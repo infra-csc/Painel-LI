@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Upload, CheckCircle2, RotateCcw, Clock,
   ChevronDown, ChevronUp, Paperclip, Calendar, Building2,
-  FileCheck, AlertCircle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot
+  FileCheck, AlertCircle, AlertTriangle, Send, Eye, ExternalLink, Info, X, CheckCheck, CircleDot
 } from "lucide-react";
 import { Link } from "wouter";
 import type { Event, Invoice } from "@shared/schema";
@@ -49,59 +49,56 @@ const STATUS_CFG: Record<EffStatus, { label: string; pill: string; border: strin
   "checkin-realizado":{ label: "Check-in Realizado", pill: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300", border: "#059669", avatarCls: "bg-emerald-100 text-emerald-700" },
 };
 
-// ── Stepper ─────────────────────────────────────────────────────────────────
+// ── Stepper compacto ─────────────────────────────────────────────────────────
 const STEPS = [
-  { id: "lancamento", label: "Lançamento",          icon: Send },
-  { id: "aprovacao",  label: "Aprovação RH",         icon: FileCheck },
-  { id: "checkin",    label: "Check-in Financeiro",  icon: CheckCheck },
+  { id: "lancamento", label: "Lançamento" },
+  { id: "aprovacao",  label: "Aprovação RH" },
+  { id: "checkin",    label: "Check-in" },
 ];
 
 function InvoiceStepper({ currentStep }: { currentStep: "lancamento" | "aprovacao" | "checkin" }) {
   const stepIdx = STEPS.findIndex(s => s.id === currentStep);
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4">
-      <div className="flex items-center gap-0">
-        {STEPS.map((step, i) => {
-          const Icon = step.icon;
-          const done   = i < stepIdx;
-          const active = i === stepIdx;
-          return (
-            <div key={step.id} className="flex items-center flex-1 min-w-0">
-              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
-                  ${done    ? "bg-emerald-500 text-white" :
-                    active  ? "bg-[#0033CC] text-white ring-4 ring-blue-100" :
-                              "bg-slate-100 text-slate-400"}`}>
-                  {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-3.5 h-3.5" />}
-                </div>
-                <span className={`text-[11px] font-semibold whitespace-nowrap
-                  ${done ? "text-emerald-600" : active ? "text-[#0033CC]" : "text-slate-400"}`}>
-                  {step.label}
-                </span>
+    <div className="flex items-center gap-0 h-9">
+      {STEPS.map((step, i) => {
+        const done   = i < stepIdx;
+        const active = i === stepIdx;
+        const color  = done ? "#059669" : active ? "#0033CC" : "#9ca3af";
+        return (
+          <div key={step.id} className="flex items-center">
+            <div className="flex items-center gap-1.5">
+              <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 shrink-0`}
+                style={{ borderColor: color, background: done || active ? color : "white" }}>
+                {done && <CheckCircle2 className="w-2 h-2 text-white" strokeWidth={3} />}
+                {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
               </div>
-              {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-3 mb-5 rounded-full transition-colors
-                  ${i < stepIdx ? "bg-emerald-400" : "bg-slate-200"}`} />
-              )}
+              <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color }}>
+                {step.label}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            {i < STEPS.length - 1 && (
+              <div className="w-10 mx-2 border-t border-slate-300" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ── Filter Pills ─────────────────────────────────────────────────────────────
-function FilterPills({ filters, active, countFor, onChange }: {
+function FilterPills({ filters, active, countFor, onChange, alertFor }: {
   filters: { id: string; label: string; activeBg: string }[];
   active: string;
   countFor: (id: string) => number;
   onChange: (id: string) => void;
+  alertFor?: (id: string) => number;
 }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {filters.map(({ id, label, activeBg }) => {
         const cnt = countFor(id);
+        const alertCnt = alertFor ? alertFor(id) : 0;
         const isActive = active === id;
         return (
           <button
@@ -117,6 +114,12 @@ function FilterPills({ filters, active, countFor, onChange }: {
             {cnt > 0 && (
               <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
                 {cnt}
+              </span>
+            )}
+            {alertCnt > 0 && (
+              <span className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-amber-500 text-white"
+                title={`${alertCnt} aguardando há mais de 3 dias`}>
+                {alertCnt}⚠
               </span>
             )}
           </button>
@@ -184,36 +187,42 @@ export default function InvoicesPage() {
     <div className="min-h-screen bg-[#F8FAFC] p-6">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <FileText className="w-4 h-4 text-emerald-600" />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-emerald-600" />
+                </div>
+                Notas Fiscais
+                <span
+                  className="group relative cursor-default"
+                  title="Apenas eventos com empresa pagadora aparecem. Cadastre no evento para habilitar."
+                >
+                  <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
+                </span>
+              </h1>
+              <p className="text-xs text-gray-400 mt-0.5 ml-10">Envio e aprovação de notas por colaborador</p>
+            </div>
+            {/* Empresa pagadora inline */}
+            {selectedEvent?.paymentCompanyName && (
+              <div className="flex items-center gap-1.5 text-[12px] text-slate-500 whitespace-nowrap">
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="font-medium text-slate-700">{selectedEvent.paymentCompanyName}</span>
+                {selectedEvent.paymentCompanyCnpj && (
+                  <span className="text-slate-400">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
+                )}
               </div>
-              Notas Fiscais
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5 ml-10">Envio e aprovação de notas por colaborador</p>
+            )}
           </div>
           {eventsWithCnpj.length > 0 && (
             <EventSearchSelect
               value={selectedEventId}
               onValueChange={setSelectedEventId}
               events={eventsWithCnpj}
-              className="w-72"
+              className="w-72 shrink-0"
             />
           )}
-        </div>
-
-        {/* Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2">
-          <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <p className="text-xs text-blue-700">
-            Apenas eventos com empresa pagadora aparecem aqui.{" "}
-            <Link href="/events">
-              <a className="font-semibold underline underline-offset-2 hover:text-blue-800 transition-colors">Cadastre no evento</a>
-            </Link>
-            {" "}os campos de Empresa e CNPJ responsável pelo pagamento.
-          </p>
         </div>
 
         {eventsWithCnpj.length === 0 ? (
@@ -236,19 +245,6 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <>
-            {selectedEvent?.paymentCompanyName && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
-                <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <p className="text-xs text-emerald-700">
-                  <span className="font-semibold">Empresa pagadora:</span>{" "}
-                  {selectedEvent.paymentCompanyName}
-                  {selectedEvent.paymentCompanyCnpj && (
-                    <span className="text-emerald-500 ml-1">· CNPJ {selectedEvent.paymentCompanyCnpj}</span>
-                  )}
-                </p>
-              </div>
-            )}
-
             {/* Stepper */}
             <InvoiceStepper currentStep={stepperStep} />
 
@@ -831,18 +827,39 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const getActual = (id: string) => budgetActuals.find((a: any) => a.id === id);
 
+  function daysSince(inv: any) {
+    return Math.floor((Date.now() - Date.parse(inv.createdAt)) / (1000 * 60 * 60 * 24));
+  }
+
   const aprovCountFor = (id: string) => {
     if (id === "all") return invoices.length;
     return invoices.filter((i: any) => getEffectiveStatus(i) === id).length;
+  };
+  const alertFor = (id: string): number => {
+    if (id !== "enviada") return 0;
+    return invoices.filter((i: any) => i.status === "enviada" && daysSince(i) > 3).length;
   };
 
   const filteredInvoices = filterStatus === "all"
     ? invoices
     : invoices.filter((i: any) => getEffectiveStatus(i) === filterStatus);
 
+  // Totals footer
+  const approvedTotal = invoices.reduce((sum: number, inv: any) => {
+    if (inv.status !== "aprovada") return sum;
+    const actual = getActual(inv.budgetActualId);
+    return sum + (actual?.totalValue || 0);
+  }, 0);
+  const waitingTotal = invoices.reduce((sum: number, inv: any) => {
+    if (inv.status !== "enviada") return sum;
+    const actual = getActual(inv.budgetActualId);
+    return sum + (actual?.totalValue || 0);
+  }, 0);
+  const grandTotal = approvedTotal + waitingTotal;
+
   return (
     <div className="space-y-3">
-      <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} />
+      <FilterPills filters={APROV_FILTERS} active={filterStatus} countFor={aprovCountFor} onChange={setFilterStatus} alertFor={alertFor} />
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <table className="w-full" style={{ tableLayout: "fixed" }}>
@@ -902,18 +919,27 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
                     style={{ borderLeft: `3px solid ${borderColor}` }}
                   >
                     {/* Colaborador */}
-                    <td className="px-4 py-3.5 overflow-hidden">
+                    <td className="px-4 py-3.5 overflow-hidden" style={{ minWidth: "180px" }}>
                       <div className="flex items-center gap-2">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${cfg.avatarCls}`}>
                           {initial}
                         </div>
                         <div className="min-w-0">
-                          <span className="text-[13px] font-medium text-slate-800 truncate block">{toTitleCase(name)}</span>
-                          <div className="flex items-center gap-1">
+                          <span className="text-[13px] font-medium text-slate-800 truncate block" title={toTitleCase(name)}>{toTitleCase(name)}</span>
+                          <div className="flex items-center gap-1 flex-wrap">
                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>{cfg.label}</span>
                             {hasReturn && (
                               <span title="Houve devolução" className="text-[10px] text-orange-500 font-bold leading-none">↩</span>
                             )}
+                            {effSt === "enviada" && (() => {
+                              const d = daysSince(inv);
+                              const color = d <= 2 ? "#6b7280" : d <= 5 ? "#D97706" : "#DC2626";
+                              return (
+                                <span className="text-[10px] font-medium leading-none" style={{ color }}>
+                                  há {d} {d === 1 ? "dia" : "dias"}{d > 5 ? " ⚠" : ""}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1150,6 +1176,37 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
               );
             })}
           </tbody>
+          {/* Totals footer */}
+          {(approvedTotal > 0 || waitingTotal > 0) && (
+            <tfoot>
+              <tr style={{ background: "#F8FAFC", borderTop: "2px solid #e5e7eb" }}>
+                <td className="px-4 py-3" colSpan={2}>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total do Evento</span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end gap-5">
+                    {approvedTotal > 0 && (
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Aprovado</span>
+                        <span className="text-[13px] font-bold text-emerald-600 tabular-nums font-mono">{formatCurrency(approvedTotal)}</span>
+                      </div>
+                    )}
+                    {waitingTotal > 0 && (
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Aguardando</span>
+                        <span className="text-[13px] font-bold text-amber-600 tabular-nums font-mono">{formatCurrency(waitingTotal)}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-col items-end border-l border-slate-200 pl-5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</span>
+                      <span className="text-[13px] font-bold tabular-nums font-mono" style={{ color: "#3B4FE4" }}>{formatCurrency(grandTotal)}</span>
+                    </div>
+                  </div>
+                </td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
