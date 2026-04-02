@@ -1,0 +1,293 @@
+📤 REDESIGN COMPLETO — Tela de Uploads
+> Cole este prompt no **Replit Agent**
+> Corrigir lógica + redesign completo da tela de Uploads
+---
+PROBLEMAS A CORRIGIR
+```
+1. Upload de horas fica "Aguardando" e não processa
+2. Sem feedback visual durante o processamento
+3. Sem histórico de importação de colaboradores
+4. Interface não mostra progresso nem resultado
+5. Histórico de uploads sem informações úteis
+```
+---
+PARTE 1 — LAYOUT REORGANIZADO
+```
+ESTRUTURA DA PÁGINA:
+
+┌─────────────────────────────────────────────────────────────────┐
+│  📤 Gerenciamento de Uploads                                    │
+│  Importe colaboradores e registros de horas do True Safe        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  PASSO 1 — Importar Colaboradores          [✅ Concluído]       │
+│  PASSO 2 — Importar Horas                  [⏳ Aguardando]      │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  HISTÓRICO — Colaboradores    HISTÓRICO — Horas                │
+│  (lado a lado em 2 colunas)                                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+---
+PARTE 2 — CARD PASSO 1: IMPORTAR COLABORADORES
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  👥 PASSO 1 — Importar Colaboradores                           │
+│  Extraia os colaboradores do CSV antes de calcular as horas    │
+│                                                                 │
+│  [Área de drop do arquivo]                                     │
+│                                                                 │
+│  ÚLTIMO IMPORT: 17/03/2026 às 14:32                           │
+│  ✅ 406 colaboradores · 26 áreas criadas                       │
+│                                                                 │
+│  [📂 Selecionar arquivo]  [↺ Reimportar]                      │
+└─────────────────────────────────────────────────────────────────┘
+
+ESTADOS DO CARD:
+
+Estado "Nunca importado":
+  Área de drop grande com instruções
+  Badge PASSO 1 laranja pulsando
+
+Estado "Importando":
+  Barra de progresso animada
+  "Lendo arquivo... 45%"
+  "Processando colaboradores..."
+  "Criando áreas..."
+  "Concluindo..."
+
+Estado "Concluído":
+  ✅ fundo verde claro
+  "Última importação: 17/03/2026 às 14:32"
+  "406 colaboradores · 26 áreas"
+  Botão "Reimportar" (substituir)
+  Badge PASSO 1 ✅ verde
+```
+---
+PARTE 3 — CARD PASSO 2: IMPORTAR HORAS
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  🕐 PASSO 2 — Importar Horas                                   │
+│  Faça upload dos registros de catraca do True Safe              │
+│                                                                 │
+│  [Área de drop — desabilitada se Passo 1 não concluído]        │
+│  ⚠️ Complete o Passo 1 antes de importar as horas              │
+│                                                                 │
+│  [📂 Selecionar arquivo]                                       │
+└─────────────────────────────────────────────────────────────────┘
+
+ESTADOS:
+
+Estado "Aguardando Passo 1":
+  Área de drop cinza/desabilitada
+  "⚠️ Importe os colaboradores primeiro (Passo 1)"
+
+Estado "Pronto para importar":
+  Área de drop azul/ativa
+  Formatos: CSV, XLSX · Máx. 50MB
+
+Estado "Arquivo selecionado":
+  📄 relatorio (24).csv · 13.8 MB
+  Preview automático antes de importar:
+  "Analisando arquivo..."
+  Resultado:
+  • 114.988 registros encontrados
+  • Período: 01/02/2026 a 15/03/2026
+  • Colaboradores identificados: 406 de 778
+
+  [🗑️ Remover]    [▶ Iniciar Importação]
+
+Estado "Importando":
+  FASE 1: 🧹 Limpando dados anteriores...
+  ████████████████████  100%
+
+  FASE 2: ⚙️ Processando registros...
+  ████████░░░░░░░░░░░░  45%
+  51.234 de 114.988 registros
+
+  FASE 3: 🧮 Calculando turnos...
+  ████████████████████  100%
+
+  Não feche esta página durante o processamento.
+
+Estado "Concluído":
+  ✅ Importação concluída!
+  • 98.450 registros processados
+  • 847 turnos calculados
+  • 23 inconsistências geradas
+  • Período: 01/02/2026 a 15/03/2026
+  [Ver inconsistências →]  [Nova importação]
+
+Estado "Erro":
+  ❌ Falha no processamento
+  Motivo: [mensagem específica do erro]
+  [Tentar novamente]
+```
+---
+PARTE 4 — CORRIGIR O PROCESSAMENTO QUE TRAVA
+```typescript
+// PROBLEMA: upload fica "Aguardando" e não processa
+// CAUSA PROVÁVEL: processamento síncrono na request HTTP
+// que excede o timeout do servidor
+
+// SOLUÇÃO: processar em background com polling de progresso
+
+// 1. Rota de upload — apenas recebe o arquivo e inicia job:
+POST /api/uploads/horas
+→ Salva arquivo no storage temporário
+→ Cria registro na tabela uploads com status 'PROCESSANDO'
+→ Dispara processamento assíncrono (não await)
+→ Retorna imediatamente: { uploadId, status: 'PROCESSANDO' }
+
+// 2. Processamento em background:
+async function processarCSVBackground(uploadId: string, filePath: string) {
+  try {
+    // FASE 1: Limpeza
+    await atualizarProgresso(uploadId, 'limpando', 0)
+    await limparDadosAnteriores()
+    await atualizarProgresso(uploadId, 'limpando', 100)
+
+    // FASE 2: Processar registros em lotes de 1000
+    await atualizarProgresso(uploadId, 'processando', 0)
+    const linhas = await lerCSV(filePath)
+    for (let i = 0; i < linhas.length; i += 1000) {
+      await processarLote(linhas.slice(i, i + 1000), uploadId)
+      await atualizarProgresso(
+        uploadId, 'processando',
+        Math.round((i / linhas.length) * 100)
+      )
+    }
+
+    // FASE 3: Calcular turnos
+    await atualizarProgresso(uploadId, 'calculando', 0)
+    await calcularTurnos(uploadId)
+    await atualizarProgresso(uploadId, 'calculando', 100)
+
+    // Concluído
+    await db.query(
+      `UPDATE uploads SET status = 'CONCLUIDO',
+       registros = $1, periodo_inicio = $2, periodo_fim = $3
+       WHERE id = $4`,
+      [totalRegistros, periodoInicio, periodoFim, uploadId]
+    )
+  } catch (err) {
+    await db.query(
+      `UPDATE uploads SET status = 'ERRO', erro_mensagem = $1 WHERE id = $2`,
+      [err.message, uploadId]
+    )
+  }
+}
+
+// 3. Rota de progresso (frontend faz polling a cada 2s):
+GET /api/uploads/[id]/progresso
+→ {
+    fase: 'limpando' | 'processando' | 'calculando' | 'concluido' | 'erro',
+    percentual: 65,
+    registros_processados: 74832,
+    total_registros: 114988,
+    erro_mensagem: null
+  }
+
+// 4. Frontend faz polling:
+useEffect(() => {
+  if (!uploadEmAndamento) return
+  const interval = setInterval(async () => {
+    const progresso = await fetch(`/api/uploads/${uploadId}/progresso`)
+    setProgresso(progresso)
+    if (['concluido', 'erro'].includes(progresso.fase)) {
+      clearInterval(interval)
+      setUploadEmAndamento(false)
+    }
+  }, 2000) // a cada 2 segundos
+  return () => clearInterval(interval)
+}, [uploadEmAndamento, uploadId])
+```
+---
+PARTE 5 — HISTÓRICO SEPARADO POR TIPO
+```
+HISTÓRICO DE COLABORADORES:
+┌──────────────────────────────────────────────────────────────────┐
+│  👥 Histórico — Colaboradores                                   │
+├────────┬───────────────────────────┬──────────┬─────────────────┤
+│ Status │ Data                      │ Resultado│ Ações           │
+├────────┼───────────────────────────┼──────────┼─────────────────┤
+│ ✅     │ 17/03/2026 às 14:32      │ 406 col. │ [🗑️]           │
+│        │ relatorio (24).csv        │ 26 áreas │                 │
+└────────┴───────────────────────────┴──────────┴─────────────────┘
+
+HISTÓRICO DE HORAS:
+┌──────────────────────────────────────────────────────────────────┐
+│  🕐 Histórico — Horas                                           │
+├────────┬──────────────┬──────────────┬───────────┬──────────────┤
+│ Status │ Arquivo      │ Registros    │ Período   │ Data         │
+├────────┼──────────────┼──────────────┼───────────┼──────────────┤
+│ ⏳     │ rel(24).csv  │ Processando  │ —         │ 01/04 15:18  │
+│        │ 13.8 MB      │ 45%          │           │              │
+└────────┴──────────────┴──────────────┴───────────┴──────────────┘
+
+Status possíveis:
+✅ Concluído   → verde
+⏳ Processando → amarelo + barra animada
+❌ Erro        → vermelho + ícone ℹ️ clicável
+🔄 Substituído → cinza
+
+Linha "Processando": mostrar barra de progresso inline
+| ⏳ | rel(24).csv | ████████░░ 45% · 51k de 114k | — | 01/04 |
+```
+---
+PARTE 6 — TABELA uploads NO BANCO
+```sql
+-- Garantir campos necessários:
+ALTER TABLE uploads
+  ADD COLUMN IF NOT EXISTS tipo          VARCHAR(20) DEFAULT 'HORAS',
+  -- 'COLABORADORES' ou 'HORAS'
+  ADD COLUMN IF NOT EXISTS fase          VARCHAR(20),
+  -- 'limpando', 'processando', 'calculando'
+  ADD COLUMN IF NOT EXISTS percentual    INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS registros_processados INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_registros       INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS erro_mensagem TEXT,
+  ADD COLUMN IF NOT EXISTS periodo_inicio DATE,
+  ADD COLUMN IF NOT EXISTS periodo_fim    DATE,
+  ADD COLUMN IF NOT EXISTS colaboradores  INTEGER DEFAULT 0;
+
+-- Função para atualizar progresso:
+CREATE OR REPLACE FUNCTION atualizar_progresso(
+  p_id UUID, p_fase VARCHAR, p_percentual INTEGER,
+  p_processados INTEGER DEFAULT NULL
+) RETURNS void AS $$
+BEGIN
+  UPDATE uploads SET
+    fase = p_fase,
+    percentual = p_percentual,
+    registros_processados = COALESCE(p_processados, registros_processados)
+  WHERE id = p_id;
+END;
+$$ LANGUAGE plpgsql;
+```
+---
+✅ CHECKLIST
+Lógica:
+[ ] Processamento assíncrono (não trava a request)
+[ ] Rota GET /api/uploads/[id]/progresso para polling
+[ ] Frontend faz polling a cada 2s enquanto processando
+[ ] Tabela uploads com campos: tipo, fase, percentual, registros_processados
+[ ] Passo 2 desabilitado se Passo 1 nunca foi executado
+UI — Passo 1 (Colaboradores):
+[ ] Estado "nunca importado" com drop zone ativa
+[ ] Estado "importando" com progresso por fase
+[ ] Estado "concluído" com resumo e data
+[ ] Botão "Reimportar" para atualizar
+UI — Passo 2 (Horas):
+[ ] Drop zone desabilitada até Passo 1 concluído
+[ ] Preview automático ao selecionar arquivo
+[ ] Progresso em 3 fases: Limpando → Processando → Calculando
+[ ] Estado concluído com resumo completo
+[ ] Estado erro com mensagem específica e botão retry
+Histórico:
+[ ] Histórico separado: Colaboradores | Horas
+[ ] Linha "Processando" com barra de progresso inline
+[ ] Ícone ℹ️ nas linhas de erro mostra o motivo
+[ ] Status: Concluído / Processando / Erro / Substituído

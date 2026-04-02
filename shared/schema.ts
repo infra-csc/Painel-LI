@@ -591,3 +591,26 @@ export const budgetNotes = pgTable("budget_notes", {
 export const insertBudgetNoteSchema = createInsertSchema(budgetNotes).omit({ id: true, createdAt: true });
 export type BudgetNote = typeof budgetNotes.$inferSelect;
 export type InsertBudgetNote = z.infer<typeof insertBudgetNoteSchema>;
+
+// Uploads table — tracks async CSV imports (colaboradores + horas)
+export const uploads = pgTable("uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tipo: text("tipo").notNull().default("HORAS"), // COLABORADORES | HORAS
+  status: text("status").notNull().default("PROCESSANDO"), // PROCESSANDO | CONCLUIDO | ERRO | SUBSTITUIDO
+  fase: text("fase"), // limpando | processando | calculando
+  percentual: integer("percentual").default(0),
+  registrosProcessados: integer("registros_processados").default(0),
+  totalRegistros: integer("total_registros").default(0),
+  erroMensagem: text("erro_mensagem"),
+  periodoInicio: date("periodo_inicio"),
+  periodoFim: date("periodo_fim"),
+  colaboradores: integer("colaboradores").default(0),
+  filename: text("filename"),
+  filesize: integer("filesize"),
+  resultado: text("resultado"), // JSON summary string
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUploadSchema = createInsertSchema(uploads).omit({ id: true, createdAt: true });
+export type Upload = typeof uploads.$inferSelect;
+export type InsertUpload = z.infer<typeof insertUploadSchema>;

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { 
   users, events, functions, collaborators, teamInclusions, tickets, accommodations, financial, comments, systemLogs,
-  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices, paymentCompanies,
+  functionUsers, functionManagers, teamInclusionLogs, functionValues, budgetPlanned, budgetActual, budgetComparison, systemSettings, invoices, paymentCompanies, uploads,
   type User, type InsertUser,
   type Event, type InsertEvent,
   type Function, type InsertFunction,
@@ -22,7 +22,8 @@ import {
   type BudgetComparison, type InsertBudgetComparison,
   type SystemSetting,
   type Invoice, type InsertInvoice,
-  type PaymentCompany, type InsertPaymentCompany
+  type PaymentCompany, type InsertPaymentCompany,
+  type Upload, type InsertUpload
 } from "@shared/schema";
 import { eq, and, sql, isNull, ne } from "drizzle-orm";
 
