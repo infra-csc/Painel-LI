@@ -1817,7 +1817,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('vdia', e.target.value)}
                                           onBlur={commitBlur('valorDia', 'vdia')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                          className={`${inputBase} ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                         />
                                       </TooltipTrigger>
                                       {!disabled && (
@@ -1859,7 +1859,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('alim', e.target.value)}
                                           onBlur={commitBlur('alimentacao', 'alim')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                          className={`${inputBase} ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                         />
                                       </TooltipTrigger>
                                       {!disabled && (
@@ -1902,7 +1902,7 @@ export default function BudgetPlannedPage() {
                                             onChange={e => setbuf('mob', e.target.value)}
                                             onBlur={commitBlur('mobilidade', 'mob')}
                                             onFocus={e => e.target.select()}
-                                            className={`${inputBase} ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                            className={`${inputBase} ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                           />
                                         </TooltipTrigger>
                                         {!disabled && (
