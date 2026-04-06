@@ -1648,32 +1648,10 @@ export default function BudgetPlannedPage() {
                 )}
               </div>
 
-              {/* Mobilidade global — exibe acima da tabela se todos têm o mesmo valor */}
-              {(() => {
-                if (filteredBudgets.length < 2) return null;
-                const mobValues = filteredBudgets.map(b => b.mobilidade);
-                const allSameMob = mobValues.every(v => v === mobValues[0]);
-                if (!allSameMob) return null;
-                const globalMob = mobValues[0] / 100;
-                const hasGlobalMobOvr = filteredBudgets.some(b => budgetOverrides[b.inclusion.id]?.mobilidade !== undefined);
-                return (
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-[12px] text-slate-500">
-                    <span>🚗</span>
-                    <span className="font-medium">Mobilidade (todos):</span>
-                    <span className={`font-mono tabular-nums font-semibold ${hasGlobalMobOvr ? 'text-[#3B4FE4]' : 'text-[#888]'}`}>
-                      R$ {globalMob.toFixed(2).replace('.', ',')}
-                    </span>
-                    {hasGlobalMobOvr && <span style={{fontSize:9, color:'#3B4FE4'}}>✏</span>}
-                    <span className="text-[10px] text-slate-400">(coluna individual oculta)</span>
-                  </div>
-                );
-              })()}
-
               {/* Tabela */}
               {(() => {
-                const mobValues = filteredBudgets.map(b => b.mobilidade);
-                const allSameMob = filteredBudgets.length >= 2 && mobValues.every(v => v === mobValues[0]);
-                const colSpanTotal = allSameMob ? 5 : 6;
+                const allSameMob = false;
+                const colSpanTotal = 6;
 
                 return (
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1733,14 +1711,6 @@ export default function BudgetPlannedPage() {
                           const defaultAlim = ((fv?.weekdayLunch ?? systemSettings?.default_weekday_lunch ?? 3500) + (fv?.weekdayDinner ?? systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
                                             + ((fv?.weekendLunch ?? systemSettings?.default_weekend_lunch ?? 4000) + (fv?.weekendDinner ?? systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
                           const defaultMob = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
-
-                          // Discrepancy for R$/dia (>20% above or below function default)
-                          const defaultDailyRef = defaultVDia;
-                          const currentVDia = budget.valorDiariaUtil;
-                          const discrepancy = defaultDailyRef > 0
-                            ? Math.round(((currentVDia - defaultDailyRef) / defaultDailyRef) * 100)
-                            : 0;
-                          const hasDiscrepancy = Math.abs(discrepancy) > 20;
 
                           // Tipo: Casa ou Freela
                           const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
@@ -1836,18 +1806,6 @@ export default function BudgetPlannedPage() {
                               {/* Valor/dia */}
                               <td className="px-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  {hasDiscrepancy && !disabled && (
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="text-[11px] cursor-default" style={{color:'#F97316'}}>⚠</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
-                                          Valor {discrepancy > 0 ? discrepancy + '% acima' : Math.abs(discrepancy) + '% abaixo'} do padrão desta função
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
