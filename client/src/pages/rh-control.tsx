@@ -359,11 +359,11 @@ export default function RhControlPage() {
       } else if (filterStatus !== "all") {
         if (item.status !== filterStatus) return false;
       } else {
-        // "Concluído" = aprovada_faturamento + NF aprovada
+        // "Concluído" = aprovada_faturamento + NF aprovada + check-in realizado (checkinAt)
         if (filterInvoiceStatus === "all") {
           const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
           const invStatus = inv?.status ?? "pendente";
-          const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada";
+          const isConcluded = item.status === "aprovada_faturamento" && invStatus === "aprovada" && !!inv?.checkinAt;
           if (showConcluded && !isConcluded) return false;
           if (!showConcluded && isConcluded) return false;
         }
@@ -858,15 +858,18 @@ export default function RhControlPage() {
               <span className="text-sm font-semibold text-slate-800 truncate">{colName}</span>
               {item.status === "aprovada_faturamento" ? (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-                  nfStatus === "aprovada"
+                  nfStatus === "aprovada" && hasCheckin
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : nfStatus === "aprovada" && !hasCheckin
+                    ? "bg-violet-50 text-violet-700 border-violet-200"
                     : nfStatus === "enviada"
                     ? "bg-blue-50 text-blue-700 border-blue-200"
                     : nfStatus === "devolvida"
                     ? "bg-orange-50 text-orange-700 border-orange-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
-                  {nfStatus === "aprovada" ? "Concluído"
+                  {nfStatus === "aprovada" && hasCheckin ? "Concluído"
+                    : nfStatus === "aprovada" && !hasCheckin ? "Ag. Check-in"
                     : nfStatus === "enviada" ? "NF em análise"
                     : nfStatus === "devolvida" ? "NF devolvida"
                     : "Ag. Nota Fiscal"}
@@ -1310,8 +1313,8 @@ export default function RhControlPage() {
   };
 
   const totalItems = prestacaoItems.length;
-  // "Concluído" = invoice approved + check-in done (directly from invoice data)
-  const concludedCount = invoiceCounts.aprovada; // NF aprovada = fluxo concluído
+  // "Concluído" = NF aprovada + check-in físico realizado (checkinAt)
+  const concludedCount = invoiceCounts.checkinDone;
   const totalForProgress = prestacaoItems.filter(item => !item.planned?.didNotAttend).length;
   const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
 

@@ -36,7 +36,8 @@ type EffStatus = "pendente" | "enviada" | "devolvida" | "aprovada" | "checkin-pe
 function getEffectiveStatus(inv: any): EffStatus {
   if (!inv) return "pendente";
   if (inv.status === "aprovada") {
-    return inv.paymentDate ? "checkin-realizado" : "checkin-pendente";
+    // "Concluído" = checkin realizado (checkinAt set); otherwise waiting for physical check-in
+    return inv.checkinAt ? "checkin-realizado" : "checkin-pendente";
   }
   return inv.status as EffStatus;
 }
@@ -514,6 +515,43 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
   );
 }
 
+// ── Check-in Section ─────────────────────────────────────────────────────────
+function CheckinSection({ invoice, selectedEventId, qc, toast }: any) {
+  const { user } = useAuth();
+  const canCheckin = isRhOrAdmin(user);
+
+  const checkinMut = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/invoices/${invoice?.id}/checkin`, { _userId: user?.id }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Check-in realizado!", description: "Item marcado como concluído." });
+    },
+    onError: () => toast({ title: "Erro ao registrar check-in", variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
+        <Clock className="w-3.5 h-3.5" />
+        Aprovada · Aguardando Check-in Financeiro
+      </div>
+      {canCheckin && invoice && (
+        <Button
+          size="sm"
+          className="rounded-xl text-white px-4 h-8 text-xs shadow-sm shrink-0"
+          style={{ background: "#059669" }}
+          onClick={() => checkinMut.mutate()}
+          disabled={checkinMut.isPending}
+        >
+          <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+          {checkinMut.isPending ? "Salvando..." : "Fazer Check-in"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ── Invoice Card (collaborator view) ─────────────────────────────────────────
 function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
   const effStatus = getEffectiveStatus(invoice);
@@ -726,20 +764,18 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
           </div>
         )}
 
-        {/* Check-in realizado — data de pagamento */}
+        {/* Check-in realizado */}
         {effStatus === "checkin-realizado" && (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Check-in Realizado · Pagamento Previsto em {fmtDate(invoice?.paymentDate)}
+            Check-in Realizado
+            {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
           </div>
         )}
 
-        {/* Aguardando Check-in — colaborador apenas aguarda */}
+        {/* Aguardando Check-in — mostra botão para RH/admin */}
         {effStatus === "checkin-pendente" && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
-            <Clock className="w-3.5 h-3.5" />
-            Aprovada · Aguardando Check-in Financeiro pelo RH
-          </div>
+          <CheckinSection invoice={invoice} selectedEventId={selectedEventId} qc={qc} toast={toast} />
         )}
 
         {/* Devolvida — motivo */}
