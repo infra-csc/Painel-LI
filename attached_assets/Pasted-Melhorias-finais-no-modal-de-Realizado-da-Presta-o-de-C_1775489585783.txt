@@ -1,0 +1,104 @@
+Melhorias finais no modal de Realizado da Prestação de Contas.
+Regra: colaborador só pode editar valor e quantidade de DIÁRIAS.
+
+═══════════════════════════════════════
+1. HEADER — compactar
+═══════════════════════════════════════
+- Reduzir padding: 14px 20px
+- Avatar: 38px
+- Nome: 15px peso 700
+- Tags (Freela, datas, dias úteis): 
+  height 20px, font 11px, gap 4px
+- Badge "Dentro do planejado": 
+  11px, border 1px, sem fundo sólido —
+  apenas outline sutil
+
+═══════════════════════════════════════
+2. SEÇÃO DIÁRIAS — editável, destacar
+═══════════════════════════════════════
+- Borda esquerda 3px azul #3B4FE4 
+  para sinalizar que é editável
+- Fundo levíssimo #FAFBFF
+- Colunas PLANEJADO e REALIZADO:
+  labels 10px uppercase cinza, 
+  alinhados sobre os valores
+- Valor PLANEJADO: 13px cinza #999, 
+  riscado levemente — é referência, 
+  não é editável
+- Valor REALIZADO: input visível sempre,
+  borda #e5e7eb, fundo branco, 38px altura,
+  font 14px peso 600, border-radius 6px
+  ao focar: borda azul #3B4FE4
+- Checkbox do dia: 
+  quando marcado = dia ativo (já está bom)
+- "+ Adicionar Dia Extra": 
+  botão link azul 12px, ícone + 10px,
+  posicionado logo abaixo do último dia
+
+═══════════════════════════════════════
+3. SEÇÕES BLOQUEADAS (Mobilidade/Alimentação)
+═══════════════════════════════════════
+- Borda esquerda 3px cinza #e5e7eb
+- Fundo #F8FAFC
+- Valores: texto estático cinza #666, 
+  sem inputs, sem borda de campo
+- Label "Definido pelo RH": 
+  10px cinza, ícone 🔒 8px à esquerda
+- Cursor not-allowed ao hover nos valores
+- Tooltip: "Este valor é definido pelo RH"
+- Remover colunas DIAS ÚTEIS / FINS DE SEM. 
+  do header de Alimentação — 
+  mostrar apenas como sublabel do item:
+  "Almoço (dias úteis)  R$ 35,00"
+  "Jantar (dias úteis)  R$ 40,00"
+  mais limpo e compacto
+
+═══════════════════════════════════════
+4. FOOTER — Planejado/Realizado/Diferença
+═══════════════════════════════════════
+- Altura 52px, sem card separado —
+  linha única com border-top 1px #e5e7eb
+- Layout: 
+  PLANEJADO R$ 200,00  |  
+  REALIZADO R$ 200,00  |  
+  DIFERENÇA —
+- Labels: 10px uppercase cinza
+- Valores: 15px peso 700
+- REALIZADO em roxo #7C3AED 
+  (já está, manter)
+- DIFERENÇA positiva: vermelho + ▲
+  DIFERENÇA negativa: verde + ▼ (economia)
+  DIFERENÇA zero: "—" cinza
+
+═══════════════════════════════════════
+5. ABA OBSERVAÇÕES
+═══════════════════════════════════════
+- Mensagem existente: avatar 28px, 
+  nome 12px peso 600, data 11px cinza,
+  texto em balão #F1F5F9, 
+  border-radius 8px, padding 8px 12px
+- Input de nova mensagem: 
+  border-radius 8px, padding 10px 14px,
+  botão enviar: ícone avião azul, 
+  sem fundo quando vazio (desabilitado),
+  azul ao digitar
+
+═══════════════════════════════════════
+6. ABA HISTÓRICO
+═══════════════════════════════════════
+- Timeline já está boa — apenas compactar:
+  padding entre eventos: 10px (era ~16px)
+  bullets: 8px
+  font detalhes: 11px cinza #666
+  
+═══════════════════════════════════════
+7. BOTÕES DO RODAPÉ
+═══════════════════════════════════════
+- "Cancelar": texto simples cinza, sem borda
+- "Salvar Prestação": 
+  azul #3B4FE4, height 40px, 
+  font 13px peso 600, ícone ✓ à esquerda
+- Desabilitado (cinza) se nenhum 
+  campo foi alterado em relação ao salvo
+
+Não alterar lógica nem cálculos.

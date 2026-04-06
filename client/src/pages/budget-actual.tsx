@@ -1524,26 +1524,26 @@ export default function BudgetActualPage() {
             return (
               <>
                 {/* ── Header ── */}
-                <div style={{background:'linear-gradient(135deg, #1d4ed8 0%, #3b5fe4 100%)'}} className="px-5 py-3.5 shrink-0">
-                  <div className="flex items-center gap-3">
+                <div style={{background:'linear-gradient(135deg, #1d4ed8 0%, #3b5fe4 100%)'}} className="shrink-0">
+                  <div className="flex items-center gap-3" style={{padding:'14px 20px'}}>
                     {(() => {
                       const mName = getCollaboratorName(editingItem.collaboratorId);
                       const mInit = mName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
                       return (
-                        <div className="w-10 h-10 rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-[15px] font-bold">{mInit || '?'}</span>
+                        <div className="rounded-[10px] bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0" style={{width:38,height:38}}>
+                          <span className="text-white text-[14px] font-bold">{mInit || '?'}</span>
                         </div>
                       );
                     })()}
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-[16px] font-bold text-white truncate leading-tight">{getCollaboratorName(editingItem.collaboratorId)}</h2>
-                      <p className="text-[12px] text-white/70">{getFunctionName(editingItem.functionId)}</p>
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className={`inline-flex items-center h-[22px] text-[11px] font-bold px-2 rounded-md ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`}>
+                      <h2 className="font-bold text-white truncate leading-tight" style={{fontSize:15}}>{getCollaboratorName(editingItem.collaboratorId)}</h2>
+                      <p className="text-[11px] text-white/70">{getFunctionName(editingItem.functionId)}</p>
+                      <div className="flex items-center gap-1 mt-1 flex-wrap">
+                        <span className={`inline-flex items-center text-[11px] font-bold px-2 rounded-md ${editingItem.collaboratorType === 'casa' ? 'bg-blue-400/30 text-blue-100' : 'bg-orange-400/30 text-orange-100'}`} style={{height:20}}>
                           {editingItem.collaboratorType === 'casa' ? 'Casa' : 'Freela'}
                         </span>
                         {(itemDays.startDate || itemDays.endDate) && (
-                          <span className="inline-flex items-center gap-1 h-[22px] text-[11px] text-white/70">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-white/70" style={{height:20}}>
                             <Calendar className="w-3 h-3" />
                             {itemDays.startDate && itemDays.endDate
                               ? `${new Date(itemDays.startDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} → ${new Date(itemDays.endDate+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`
@@ -1554,24 +1554,24 @@ export default function BudgetActualPage() {
                           </span>
                         )}
                         {itemDays.weekdays > 0 && (
-                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md" style={{background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
+                          <span className="inline-flex items-center text-[11px] px-2 rounded-md" style={{height:20, background:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.85)'}}>
                             {itemDays.weekdays}d úteis{itemDays.weekends > 0 ? ` · ${itemDays.weekends} fds` : ''}
                           </span>
                         )}
                         {isReadOnly && (
-                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md bg-white/15 text-white gap-1">
+                          <span className="inline-flex items-center text-[11px] px-2 rounded-md bg-white/15 text-white gap-1" style={{height:20}}>
                             <Lock className="w-2.5 h-2.5" /> Bloqueado
                           </span>
                         )}
                         {editingItem.plannedId && plannedLogs.some(l => l.entity_id === editingItem.plannedId && l.action === 'update') && (
-                          <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-md bg-amber-400/25 text-amber-200 border border-amber-300/30 gap-1 font-semibold">
+                          <span className="inline-flex items-center text-[11px] px-2 rounded-md bg-amber-400/25 text-amber-200 border border-amber-300/30 gap-1 font-semibold" style={{height:20}}>
                             ⚠️ Planejado alterado pelo RH
                           </span>
                         )}
                       </div>
                     </div>
                     {planned && statusBadge && (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-white/15 text-white border border-white/25 flex-shrink-0 mr-6">
+                      <div className="flex items-center gap-1 px-2 rounded-lg text-[11px] font-semibold border flex-shrink-0 mr-6" style={{height:22, background:'transparent', color:'rgba(255,255,255,0.9)', borderColor:'rgba(255,255,255,0.35)'}}>
                         {statusBadge.icon}
                         {statusBadge.label}
                       </div>
@@ -1695,13 +1695,14 @@ export default function BudgetActualPage() {
                               value={entry.valueCents}
                               onChange={v => setEditDayEntries(prev => prev.map((e, i) => i === idx ? { ...e, valueCents: v } : e))}
                               disabled={!entry.active || isReadOnly}
-                              className={`h-8 text-xs text-right w-24 font-mono tabular-nums border rounded-[6px]
+                              className={`text-right w-24 font-mono tabular-nums border rounded-[6px] font-semibold
                                 focus:border-[#3B4FE4] focus:ring-2 focus:ring-[#3B4FE4]/15 focus:bg-white
                                 ${!entry.active || isReadOnly
                                   ? 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'
                                   : isChanged
                                     ? 'bg-amber-50 border-amber-200'
                                     : 'bg-white border-[#e5e7eb] cursor-text'}`}
+                              style={{height:38, fontSize:14}}
                             />
                           </div>
                         );
@@ -1815,39 +1816,43 @@ export default function BudgetActualPage() {
                       </div>
                       <span className="text-[13px] font-bold text-slate-500 tabular-nums font-mono">{formatCurrency(totalAlimentacao)}</span>
                     </div>
-                    <div>
-                      {/* Header row */}
-                      <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-1.5 border-b border-slate-100" style={{background:'#F1F5F9'}}>
-                        <span />
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Dias Úteis</span>
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 w-24 text-right">Fins de Sem.</span>
-                      </div>
-                      {/* Almoço */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5 border-b border-slate-100">
-                        <div className="flex items-center gap-1.5">
-                          <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                          <span className="text-[12px] text-slate-500">Almoço</span>
+                    <div className="divide-y divide-slate-100">
+                      {editFormData.weekdayLunch > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                            <span className="text-[12px] text-slate-500">Almoço <span className="text-slate-400">(dias úteis)</span></span>
+                          </div>
+                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekdayLunch)}</span>
                         </div>
-                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
-                          {editFormData.weekdayLunch > 0 ? formatCurrency(editFormData.weekdayLunch) : <span className="text-slate-300">—</span>}
-                        </span>
-                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
-                          {editFormData.weekendLunch > 0 ? formatCurrency(editFormData.weekendLunch) : <span className="text-slate-300">—</span>}
-                        </span>
-                      </div>
-                      {/* Jantar */}
-                      <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5">
-                        <div className="flex items-center gap-1.5">
-                          <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                          <span className="text-[12px] text-slate-500">Jantar</span>
+                      )}
+                      {editFormData.weekdayDinner > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Moon className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                            <span className="text-[12px] text-slate-500">Jantar <span className="text-slate-400">(dias úteis)</span></span>
+                          </div>
+                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekdayDinner)}</span>
                         </div>
-                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
-                          {editFormData.weekdayDinner > 0 ? formatCurrency(editFormData.weekdayDinner) : <span className="text-slate-300">—</span>}
-                        </span>
-                        <span className="text-[13px] font-mono tabular-nums w-24 text-right" style={{color:'#666'}}>
-                          {editFormData.weekendDinner > 0 ? formatCurrency(editFormData.weekendDinner) : <span className="text-slate-300">—</span>}
-                        </span>
-                      </div>
+                      )}
+                      {editFormData.weekendLunch > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Sun className="w-3 h-3 text-amber-300 flex-shrink-0" />
+                            <span className="text-[12px] text-slate-500">Almoço <span className="text-slate-400">(fins de semana)</span></span>
+                          </div>
+                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekendLunch)}</span>
+                        </div>
+                      )}
+                      {editFormData.weekendDinner > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Moon className="w-3 h-3 text-indigo-300 flex-shrink-0" />
+                            <span className="text-[12px] text-slate-500">Jantar <span className="text-slate-400">(fins de semana)</span></span>
+                          </div>
+                          <span className="text-[13px] font-mono tabular-nums cursor-not-allowed" style={{color:'#666'}}>{formatCurrency(editFormData.weekendDinner)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1877,69 +1882,59 @@ export default function BudgetActualPage() {
                 )}
 
                 {/* ── Footer ── */}
-                <div className="border-t border-slate-100 bg-white shrink-0">
-                  {planned ? (
-                    <div className="px-5 pt-4 pb-2">
-                      <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                        <div className="grid grid-cols-3 divide-x divide-slate-200">
-                          <div className="px-4 py-3 text-center bg-slate-50/70">
-                            <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider mb-1">Planejado</div>
-                            <div className="text-[16px] font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</div>
-                          </div>
-                          <div className="px-4 py-3 text-center bg-violet-50/70">
-                            <div className="text-[10px] uppercase text-violet-400 font-semibold tracking-wider mb-1">Realizado</div>
-                            <div className="text-[16px] font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
-                          </div>
-                          <div className={`px-4 py-3 text-center ${Math.abs(difference) <= 1 ? 'bg-slate-50/70' : difference > 0 ? 'bg-red-50/80' : 'bg-emerald-50/80'}`}>
-                            <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider mb-1">Diferença</div>
-                            {Math.abs(difference) <= 1 ? (
-                              <div className="text-[16px] font-bold text-slate-300 tabular-nums">—</div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-center gap-1">
-                                  <span className={`text-[14px] font-bold leading-none ${difference > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {difference > 0 ? '▲' : '▼'}
-                                  </span>
-                                  <span className={`text-[16px] font-bold tabular-nums ${difference > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                                    {formatCurrency(Math.abs(difference))}
-                                  </span>
-                                </div>
-                                {plannedTotal > 0 && (
-                                  <div className={`text-[10px] tabular-nums font-semibold mt-0.5 ${difference > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
-                                    {difference > 0 ? '+' : ''}{pctChange.toFixed(1)}%
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
+                <div className="border-t border-slate-200 bg-white shrink-0">
+                  {/* Linha Planejado / Realizado / Diferença */}
+                  <div className="flex items-center divide-x divide-slate-100" style={{height:52}}>
+                    {planned ? (
+                      <>
+                        <div className="flex-1 flex flex-col items-center justify-center px-3">
+                          <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Planejado</span>
+                          <span className="text-[15px] font-bold text-slate-600 tabular-nums">{formatCurrency(plannedTotal)}</span>
                         </div>
+                        <div className="flex-1 flex flex-col items-center justify-center px-3">
+                          <span className="text-[10px] uppercase font-semibold tracking-wider" style={{color:'#7C3AED'}}>Realizado</span>
+                          <span className="text-[15px] font-bold tabular-nums" style={{color:'#7C3AED'}}>{formatCurrency(modalTotal)}</span>
+                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center px-3">
+                          <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Diferença</span>
+                          {Math.abs(difference) <= 1 ? (
+                            <span className="text-[15px] font-bold text-slate-300">—</span>
+                          ) : (
+                            <span className={`text-[15px] font-bold tabular-nums ${difference > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {difference > 0 ? '▲ ' : '▼ '}{formatCurrency(Math.abs(difference))}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center px-3">
+                        <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Total da prestação</span>
+                        <span className="text-[15px] font-bold tabular-nums" style={{color:'#7C3AED'}}>{formatCurrency(modalTotal)}</span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="px-6 py-3.5 flex items-center justify-between">
-                      <div>
-                        <div className="text-[10px] uppercase text-slate-400 font-semibold tracking-wider">Total da prestação</div>
-                        <div className="text-xl font-bold text-violet-700 tabular-nums">{formatCurrency(modalTotal)}</div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="px-5 py-3.5 flex items-center justify-end gap-3">
+                    )}
+                  </div>
+                  {/* Botões */}
+                  <div className="px-5 pb-4 flex items-center justify-end gap-3">
                     {isReadOnly ? (
-                      <Button variant="ghost" className="h-9 px-6 text-sm rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
+                      <Button variant="ghost" className="h-10 px-6 text-sm rounded-xl text-slate-600 hover:text-slate-800 hover:bg-slate-100" onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
                         Fechar
                       </Button>
                     ) : (
                       <>
-                        <Button variant="ghost" className="h-9 px-4 text-sm text-slate-400 hover:text-slate-600 rounded-xl border-0" onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}>
+                        <button
+                          type="button"
+                          className="text-[13px] text-slate-400 hover:text-slate-600 transition-colors px-2"
+                          onClick={() => { setEditingItem(null); setEditFormData(null); setShowAddDay(false); }}
+                        >
                           Cancelar
-                        </Button>
+                        </button>
                         <Button
                           onClick={saveEdit}
                           disabled={updateMutation.isPending}
-                          className="h-9 px-6 text-sm rounded-xl text-white shadow-md font-medium"
-                          style={{background: '#1d4ed8'}}
+                          className="h-10 px-5 text-[13px] font-semibold rounded-xl text-white shadow-sm"
+                          style={{background: '#3B4FE4'}}
                         >
-                          <CheckCheck className="w-4 h-4 mr-2" />
+                          <Check className="w-4 h-4 mr-1.5" />
                           {updateMutation.isPending ? 'Salvando...' : 'Salvar Prestação'}
                         </Button>
                       </>
