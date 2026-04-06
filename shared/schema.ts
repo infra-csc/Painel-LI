@@ -320,6 +320,7 @@ export const budgetActual = pgTable("budget_actual", {
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
   rhAdjustedFields: text("rh_adjusted_fields"), // JSON: {field: {from, to, label}} dos campos alterados pelo RH
+  rhAdjustNote: text("rh_adjust_note"), // observação do RH ao fazer ajuste nos valores
 });
 
 // Comparativo e aprovação do RH

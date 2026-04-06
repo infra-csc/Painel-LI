@@ -205,13 +205,14 @@ export default function BudgetComparisonPage() {
       weekendLunch: (actual.weekendLunch / 100).toFixed(2),
       weekendDinner: (actual.weekendDinner / 100).toFixed(2),
       mobility: (actual.mobility / 100).toFixed(2),
+      rhAdjustNote: (actual as any).rhAdjustNote || '',
     });
   };
 
   const saveEditModal = () => {
     if (!editingActual) return;
     const toCents = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100) || 0;
-    const data: Record<string, number> = {
+    const data: Record<string, any> = {
       dailyQuantity: parseInt(editForm.dailyQuantity) || 0,
       dailyValue: toCents(editForm.dailyValue),
       weekdayLunch: toCents(editForm.weekdayLunch),
@@ -219,6 +220,7 @@ export default function BudgetComparisonPage() {
       weekendLunch: toCents(editForm.weekendLunch),
       weekendDinner: toCents(editForm.weekendDinner),
       mobility: toCents(editForm.mobility),
+      rhAdjustNote: editForm.rhAdjustNote?.trim() || null,
     };
     const dailyTotal = data.dailyQuantity * data.dailyValue;
     const mealTotal = data.weekdayLunch + data.weekdayDinner + data.weekendLunch + data.weekendDinner;
@@ -1256,6 +1258,17 @@ export default function BudgetComparisonPage() {
                               </div>
                             )}
 
+                            {/* ── Observação do ajuste do RH ── */}
+                            {(a as any).rhAdjustNote && (
+                              <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <span className="text-[9px] uppercase text-amber-600 font-bold tracking-wider">Observação do Ajuste (RH)</span>
+                                  <p className="text-xs text-amber-800 mt-0.5">{(a as any).rhAdjustNote}</p>
+                                </div>
+                              </div>
+                            )}
+
                             {/* ── Aviso: planejamento alterado pelo RH ── */}
                             {row.planned && (() => {
                               const planId = (row.planned as any).id;
@@ -1470,6 +1483,20 @@ export default function BudgetComparisonPage() {
                       className="h-8 text-sm text-right tabular-nums"
                     />
                   </div>
+                </div>
+                {/* Observação do ajuste */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Observação do Ajuste</span>
+                    <span className="text-[10px] text-slate-400">(opcional)</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder="Descreva o motivo do ajuste nos valores..."
+                    value={editForm.rhAdjustNote || ''}
+                    onChange={e => setEditForm(f => ({...f, rhAdjustNote: e.target.value}))}
+                    className="w-full text-[13px] text-slate-700 border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400 bg-white placeholder:text-slate-300"
+                  />
                 </div>
               </div>
               <div className="px-6 py-4 border-t border-slate-100 flex gap-3 shrink-0">
