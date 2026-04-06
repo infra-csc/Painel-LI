@@ -1299,8 +1299,22 @@ export default function RhControlPage() {
                         </button>
                       );
                     }
-                    // nfStatus "aprovada" — show link to invoices page (to view NF and do physical check-in)
-                    if (nfStatus === "aprovada") {
+                    // nfStatus "aprovada" + sem check-in → leva para tela de check-in
+                    if (nfStatus === "aprovada" && !hasCheckin) {
+                      return (
+                        <button
+                          onClick={() => navigate(`/invoices?event=${item.event.id}&filter=checkin-pendente`)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
+                          style={{ background: '#7C3AED' }}
+                        >
+                          <CircleDot className="w-3 h-3" />
+                          Ir para Check-in
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      );
+                    }
+                    // nfStatus "aprovada" + check-in feito → ver nota fiscal (concluído)
+                    if (nfStatus === "aprovada" && hasCheckin) {
                       return (
                         <button
                           onClick={() => navigate(`/invoices?event=${item.event.id}`)}

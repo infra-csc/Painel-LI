@@ -139,11 +139,13 @@ export default function InvoicesPage() {
 
   const [location] = useLocation();
   const urlParams = useMemo(() => new URLSearchParams(location.split("?")[1] || ""), [location]);
-  const paramEvent = urlParams.get("event") || "";
-  const paramTab   = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
+  const paramEvent  = urlParams.get("event") || "";
+  const paramTab    = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
+  const paramFilter = urlParams.get("filter") || "";
 
   const [selectedEventId, setSelectedEventId] = useState<string>(paramEvent);
   const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">(paramTab || "lancamento");
+  const [initialFilter, setInitialFilter] = useState<string>(paramFilter);
 
   // Company confirmation state (for the CNPJ blocking screen)
   const [confirmCompanyId, setConfirmCompanyId] = useState<string>("__manual__");
@@ -159,9 +161,10 @@ export default function InvoicesPage() {
 
   // Sync from URL params when navigating from another page
   useEffect(() => {
-    if (paramEvent) setSelectedEventId(paramEvent);
-    if (paramTab)   setActiveTab(paramTab);
-  }, [paramEvent, paramTab]);
+    if (paramEvent)  setSelectedEventId(paramEvent);
+    if (paramTab)    setActiveTab(paramTab);
+    if (paramFilter) setInitialFilter(paramFilter);
+  }, [paramEvent, paramTab, paramFilter]);
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
@@ -429,6 +432,7 @@ export default function InvoicesPage() {
                 selectedEventId={selectedEventId}
                 qc={qc}
                 toast={toast}
+                initialFilter={initialFilter}
               />
             )}
 
@@ -460,8 +464,13 @@ const LANC_FILTERS = [
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
 ];
 
-function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast }: any) {
-  const [filterStatus, setFilterStatus] = useState("all");
+function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter }: any) {
+  const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
+
+  // When initialFilter changes (e.g. navigating from another page), apply it
+  useEffect(() => {
+    if (initialFilter) setFilterStatus(initialFilter);
+  }, [initialFilter]);
 
   function getEffStatus(actual: any) {
     return getEffectiveStatus(getInvoice(actual.id));
