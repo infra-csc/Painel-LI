@@ -131,6 +131,10 @@ export default function RhControlPage() {
   const [checkinInvoiceId, setCheckinInvoiceId] = useState<string | null>(null);
   const [checkinPaymentDate, setCheckinPaymentDate] = useState("");
   const [doingCheckin, setDoingCheckin] = useState(false);
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
+  const toggleDetails = (id: string) => setExpandedDetails(prev => {
+    const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next;
+  });
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -678,11 +682,8 @@ export default function RhControlPage() {
                         isCompleted || isCurrent ? 'text-blue-600' : 'text-slate-300'
                       }`}>{label}</span>
                       {(isCompleted || isCurrent) && dateStr
-                        ? <span className="text-[9px] text-slate-400 whitespace-nowrap">{dateStr}</span>
-                        : isFuture ? <span className="text-[9px] text-slate-300 italic">Pendente</span>
-                        : null}
-                      {(isCompleted || isCurrent) && responsibleName
-                        ? <span className="text-[9px] text-slate-400 whitespace-nowrap mt-0.5 max-w-[56px] truncate">{responsibleName}</span>
+                        ? <span className="text-[10px] text-slate-400 whitespace-nowrap">{dateStr}</span>
+                        : isFuture ? <span className="text-[10px] text-slate-300 italic">Pendente</span>
                         : null}
                     </div>
                   </TooltipTrigger>
@@ -932,6 +933,16 @@ export default function RhControlPage() {
 
           {/* Action button + chevron */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* "Próxima ação" context label */}
+            {!isExpanded && (() => {
+              if (item.status === "aguardando_prestacao")
+                return <span className="text-[10px] text-slate-400 hidden sm:block">Ag. colaborador</span>;
+              if (item.status === "devolvida_para_ajuste")
+                return <span className="text-[10px] text-orange-400 hidden sm:block">Devolvida</span>;
+              if (nfEligible && nfStatus === "pendente")
+                return <span className="text-[10px] text-amber-500 hidden sm:block">Ag. nota fiscal</span>;
+              return null;
+            })()}
             {needsRhAction && navTarget && !isExpanded && (
               <button
                 className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors"
@@ -1060,7 +1071,7 @@ export default function RhControlPage() {
               if (nfStatus === "devolvida") {
                 return <span className="text-[10px] font-medium text-orange-500 border border-orange-200 rounded-md px-2 py-1">NF devolvida</span>;
               }
-              return <span className="text-[10px] text-slate-400 border border-dashed border-gray-200 rounded-md px-2 py-1">Aguardando NF</span>;
+              return <span className="text-[10px] font-semibold rounded-md px-2 py-1 border" style={{ background: '#FEF3C7', color: '#D97706', borderColor: '#FCD34D' }}>Ag. Nota Fiscal</span>;
             })()}
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
           </div>
@@ -1091,124 +1102,74 @@ export default function RhControlPage() {
                 ? Math.abs(diff / item.planned.totalValue * 100).toFixed(1)
                 : "0";
 
-              if (isZero) {
-                return (
-                  <div className="space-y-3">
-                    <div className="rounded-lg px-4 py-2.5 flex items-center gap-2" style={{ background: '#F0FDF4', borderRadius: 6 }}>
-                      <CheckCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#16A34A' }} />
-                      <span style={{ fontSize: 12, color: '#16A34A' }}>
-                        Sem diferença apurada — Planejado e realizado idênticos ({fmt(item.planned.totalValue)})
-                      </span>
-                    </div>
-                    {/* Payment info after check-in — zero diff */}
-                    {(() => {
-                      const nfInvZ = item.actual ? getInvoiceForActual(item.actual.id) : null;
-                      if (!nfInvZ?.checkinAt) return null;
-                      const payDateZ = nfInvZ.paymentDate
-                        ? new Date(nfInvZ.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
-                        : null;
-                      return (
-                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 flex items-center justify-between">
-                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
-                            <CheckCircle className="w-3.5 h-3.5" /> Check-in Financeiro Realizado
-                          </span>
-                          {payDateZ && <span className="text-[11px] text-emerald-600 font-medium">💳 Pagamento: {payDateZ}</span>}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              }
+              const showDetails = expandedDetails.has(item.id);
+              const nfInvFin = item.actual ? getInvoiceForActual(item.actual.id) : null;
+              const checkinPayStr = nfInvFin?.checkinAt && nfInvFin?.paymentDate
+                ? new Date(nfInvFin.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                : null;
 
               return (
-                <div className="space-y-3">
-                  {/* Diff strip */}
-                  <div className="rounded-lg bg-slate-50 px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400 font-medium">Diferença apurada</span>
-                    <div className="text-right">
-                      <span className={`text-sm font-bold tabular-nums ${
-                        isNegative ? 'text-emerald-600' : 'text-red-600'
-                      }`}>
-                        {`${isNegative ? '−' : '+'} ${fmt(Math.abs(diff))}`}
-                      </span>
-                      <p className="text-[9px] text-slate-400">
-                        {isNegative ? `economia de ${pct}%` : `+${pct}% do planejado`}
-                      </p>
+                <div className="space-y-2">
+                  {/* Compact single-line financial summary */}
+                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="uppercase text-[9px] font-semibold tracking-wide text-slate-400">Planejado</span>
+                      <span className="font-semibold text-[#0033CC] tabular-nums">{fmt(item.planned.totalValue)}</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="uppercase text-[9px] font-semibold tracking-wide text-slate-400">Realizado</span>
+                      <span className="font-semibold text-[#6d28d9] tabular-nums">{fmt(item.actual!.totalValue)}</span>
                     </div>
+                    {isZero ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#F0FDF4', color: '#16A34A' }}>
+                        <Check className="w-3 h-3" strokeWidth={3} /> Idênticos · {fmt(item.planned.totalValue)}
+                      </span>
+                    ) : (
+                      <span className={`text-[11px] font-semibold tabular-nums ${isNegative ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {isNegative ? '▼' : '▲'} {fmt(Math.abs(diff))} ({isNegative ? '−' : '+'}{pct}%)
+                      </span>
+                    )}
+                    <button
+                      className="ml-auto text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5 shrink-0"
+                      onClick={() => toggleDetails(item.id)}
+                    >
+                      {showDetails ? 'Ocultar' : 'Ver detalhes'} <ChevronRight className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-90' : ''}`} />
+                    </button>
                   </div>
+
+                  {/* Breakdown — visible only when expanded */}
+                  {showDetails && (
+                    <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="p-3">
+                        <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#0033CC' }}>Planejado</p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.planned.mobility + item.planned.transport)}</span></div>
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#6d28d9' }}>Realizado</p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex justify-between"><span className="text-slate-400">Diárias</span><span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Alimentação</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Mobilidade</span><span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span></div>
+                        </div>
+                        {item.actual!.changeReason && (
+                          <p className="text-[9px] text-slate-400 italic mt-2 pt-1.5 border-t border-gray-100">{item.actual!.changeReason}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Payment info after check-in */}
-                  {(() => {
-                    const nfInvExp = item.actual ? getInvoiceForActual(item.actual.id) : null;
-                    if (!nfInvExp) return null;
-                    if (nfInvExp.checkinAt) {
-                      const payDateStr = nfInvExp.paymentDate
-                        ? new Date(nfInvExp.paymentDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
-                        : null;
-                      return (
-                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 flex items-center justify-between">
-                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Check-in Financeiro Realizado
-                          </span>
-                          {payDateStr && (
-                            <span className="text-[11px] text-emerald-600 font-medium">
-                              💳 Pagamento: {payDateStr}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {/* Two panels */}
-                  <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
-                    {/* Planejado */}
-                    <div className="p-3">
-                      <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#0033CC' }}>Planejado</p>
-                      <p className="text-base font-bold tabular-nums text-slate-800 mb-2">{fmt(item.planned.totalValue)}</p>
-                      <div className="space-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Diárias</span>
-                          <span className="tabular-nums text-slate-600">{item.planned.dailyQuantity}× {fmt(item.planned.dailyValue)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Alimentação</span>
-                          <span className="tabular-nums text-slate-600">{fmt(item.planned.weekdayLunch + item.planned.weekdayDinner + item.planned.weekendLunch + item.planned.weekendDinner)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Mobilidade</span>
-                          <span className="tabular-nums text-slate-600">{fmt(item.planned.mobility + item.planned.transport)}</span>
-                        </div>
-                      </div>
+                  {nfInvFin?.checkinAt && (
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between">
+                      <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
+                        <CheckCircle className="w-3.5 h-3.5" /> Check-in Financeiro Realizado
+                      </span>
+                      {checkinPayStr && <span className="text-[11px] text-emerald-600 font-medium">💳 Pagamento: {checkinPayStr}</span>}
                     </div>
-
-                    {/* Realizado */}
-                    <div className="p-3">
-                      <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#6d28d9' }}>Realizado</p>
-                      <p className="text-base font-bold tabular-nums text-slate-800 mb-2">{fmt(item.actual!.totalValue)}</p>
-                      <div className="space-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Diárias</span>
-                          <span className="tabular-nums text-slate-600">{item.actual!.dailyQuantity}× {fmt(item.actual!.dailyValue)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Alimentação</span>
-                          <span className="tabular-nums text-slate-600">{fmt(item.actual!.weekdayLunch + item.actual!.weekdayDinner + item.actual!.weekendLunch + item.actual!.weekendDinner)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Mobilidade</span>
-                          <span className="tabular-nums text-slate-600">{fmt(item.actual!.mobility + item.actual!.transport)}</span>
-                        </div>
-                      </div>
-                      {item.actual!.changeReason && (
-                        <p className="text-[9px] text-slate-400 italic mt-2 pt-2 border-t border-gray-100">
-                          {item.actual!.changeReason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
@@ -1381,7 +1342,8 @@ export default function RhControlPage() {
         const rhPlan = statusCounts.planejamento_pendente || 0;
         const rhComp = statusCounts.prestacao_recebida || 0;
         const rhNf   = invoiceCounts.enviada;
-        const rhTotal = rhPlan + rhComp + rhNf;
+        const chk = invoiceCounts.checkinPending || 0;   // NF approved, RH check-in pending
+        const rhTotal = rhPlan + rhComp + rhNf + chk;
 
         const colReal = (statusCounts.aguardando_prestacao || 0) + (statusCounts.devolvida_para_ajuste || 0);
         const colNfDev = invoiceCounts.devolvida;
@@ -1394,7 +1356,6 @@ export default function RhControlPage() {
         const nfDevNf   = invoiceCounts.devolvida;       // NF returned for correction
         const emAndamento = nfAgNf + nfAnalise + nfDevNf;
         const recusada = statusCounts.recusada || 0;
-        const chk = invoiceCounts.checkinPending || 0;   // NF approved, RH check-in pending
 
         const MetricLine = ({ label, val, color }: { label: string; val: number; color: string }) => (
           <div className="flex items-center gap-1.5">
@@ -1431,6 +1392,7 @@ export default function RhControlPage() {
               <MetricLine label="Planejamento" val={rhPlan} color="#ef4444" />
               <MetricLine label="Comparativo"  val={rhComp} color="#ef4444" />
               <MetricLine label="Nota Fiscal"  val={rhNf}   color="#ef4444" />
+              {chk > 0 && <MetricLine label="Check-in" val={chk} color="#7C3AED" />}
             </MetricCard>
 
             <MetricCard stripColor="#0033CC" icon={Users} iconColor="#0033CC" title="Aguardando Colaborador" value={colTotal}>
@@ -1447,7 +1409,6 @@ export default function RhControlPage() {
 
             <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
               <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
-              {chk > 0 && <MetricLine label={`ag. check-in físico`} val={chk} color="#7C3AED" />}
               {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
             </MetricCard>
           </div>
@@ -1738,14 +1699,14 @@ export default function RhControlPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 shrink-0">
-                          {statuses.prestacao_recebida ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comp.</span> : null}
-                          {statuses.planejamento_pendente ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} plan.</span> : null}
-                          {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} dev.</span> : null}
-                          {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} ag.</span> : null}
-                          {agNfCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200">{agNfCount} ag.NF</span> : null}
-                          {checkinPendingGroupCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} chk.</span> : null}
-                          {nfApprovedCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} conc.</span> : null}
-                          {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} rec.</span> : null}
+                          {statuses.prestacao_recebida ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">{statuses.prestacao_recebida} comparativo{statuses.prestacao_recebida !== 1 ? 's' : ''}</span> : null}
+                          {statuses.planejamento_pendente ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{statuses.planejamento_pendente} planejamento{statuses.planejamento_pendente !== 1 ? 's' : ''}</span> : null}
+                          {statuses.devolvida_para_ajuste ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">{statuses.devolvida_para_ajuste} devolvido{statuses.devolvida_para_ajuste !== 1 ? 's' : ''}</span> : null}
+                          {statuses.aguardando_prestacao ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{statuses.aguardando_prestacao} aguardando</span> : null}
+                          {agNfCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">{agNfCount} ag. NF</span> : null}
+                          {checkinPendingGroupCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-300">{checkinPendingGroupCount} check-in</span> : null}
+                          {nfApprovedCount > 0 ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">{nfApprovedCount} concluído{nfApprovedCount !== 1 ? 's' : ''}</span> : null}
+                          {statuses.recusada ? <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{statuses.recusada} recusado{statuses.recusada !== 1 ? 's' : ''}</span> : null}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="left" className="text-[11px] space-y-1 p-2.5">
