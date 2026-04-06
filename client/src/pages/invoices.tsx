@@ -243,6 +243,21 @@ export default function InvoicesPage() {
             <FileText className="w-10 h-10 text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
+        ) : !selectedEvent?.paymentCompanyCnpj?.trim() ? (
+          <div className="bg-white rounded-2xl border border-amber-200 p-16 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-7 h-7 text-amber-500" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">Empresa pagadora não configurada</p>
+            <p className="text-xs text-slate-400 mt-2 max-w-xs mx-auto leading-relaxed">
+              Para lançar notas fiscais neste evento, cadastre a empresa responsável pelo pagamento (nome e CNPJ) nas configurações do evento.
+            </p>
+            <Link href="/events">
+              <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
+                <ExternalLink className="w-3.5 h-3.5" /> Configurar Empresa Pagadora
+              </a>
+            </Link>
+          </div>
         ) : (
           <>
             {/* Stepper */}
