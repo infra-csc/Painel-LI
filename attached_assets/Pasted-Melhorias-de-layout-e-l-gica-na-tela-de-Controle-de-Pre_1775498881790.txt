@@ -1,0 +1,90 @@
+Melhorias de layout e lógica na tela de 
+Controle de Prestações de Contas (visão RH):
+
+═══════════════════════════════════════
+1. CARD EXPANDIDO — resumo financeiro
+═══════════════════════════════════════
+- Bloco PLANEJADO/REALIZADO lado a lado 
+  está grande demais — compactar:
+  
+  Substituir por layout de linha única:
+  PLANEJADO R$ 645,00  →  REALIZADO R$ 415,00  
+  ECONOMIA – R$ 230,00 (35.7%)
+  
+  Todo em uma linha, separado por "→"
+  labels 10px uppercase cinza
+  valores 13px peso 600
+  economia em verde se negativo (gastou menos)
+  diferença em vermelho se positivo (gastou mais)
+
+- Mostrar breakdown (Diárias, Alimentação, 
+  Mobilidade) somente ao clicar em 
+  "Ver detalhes →", não no card da lista
+
+═══════════════════════════════════════
+2. STEPPER — mais compacto
+═══════════════════════════════════════
+- Reduzir tamanho dos ícones: 22px (era ~32px)
+- Labels abaixo: 10px, 
+  data: 10px cinza, 
+  "Admin Sist...": remover — 
+  quem fez cada etapa só aparece 
+  no histórico detalhado, não no stepper
+- Linha conectora: 1px, mais fina
+- Resultado: stepper ocupa ~50px de altura
+
+═══════════════════════════════════════
+3. BADGES DE STATUS — clareza
+═══════════════════════════════════════
+- "Aguardando NF" na linha recolhida:
+  trocar cor de cinza para amarelo/laranja 
+  com ícone — igual padrão dos outros badges
+  fundo #FEF3C7, texto #D97706
+
+- Abreviações no header do evento:
+  "14 plan." → "14 planejamentos"
+  "1 chk." → "1 check-in"
+  "2 ag." → "2 aguardando"
+  se não couber, usar tooltip ao hover
+
+═══════════════════════════════════════
+4. CARD CONCLUÍDOS — corrigir lógica
+═══════════════════════════════════════
+- REMOVER "X ag. check-in físico" do card 
+  de Concluídos — itens aguardando check-in 
+  não estão concluídos
+- Mover esses itens para o card 
+  "Aguardando RH" com label "X Check-in"
+- Card Concluídos: só exibir itens com 
+  check-in efetivamente realizado
+- Se check-in está "Pendente" no stepper: 
+  badge do colaborador deve ser 
+  "Ag. Check-in" e não "Concluído"
+
+═══════════════════════════════════════
+5. LINHA DO COLABORADOR — recolhida
+═══════════════════════════════════════
+- Informações visíveis sem expandir:
+  [Avatar] [Nome] [Badge status]
+  [função · tipo · tempo]
+  [→ próxima ação necessária]
+  
+- "Próxima ação" como texto curto 
+  à direita antes do botão:
+  Planejamento pendente → botão "Planejar"
+  Aguardando realizado → "Ag. colaborador"
+  Comparativo pendente → botão "Comparar"
+  Ag. nota fiscal → "Ag. colaborador"  
+  Check-in pendente → botão "Check-in" roxo
+
+═══════════════════════════════════════
+6. "SEM DIFERENÇA APURADA" — compactar
+═══════════════════════════════════════
+- Banner verde atual ocupa linha inteira —
+  substituir por badge inline pequeno 
+  ao lado da diferença:
+  ✓ Idênticos · R$ 375,00
+  fundo #F0FDF4, texto #16A34A, 10px
+  na mesma linha do resumo financeiro
+
+Não alterar cálculos nem lógica de dados.

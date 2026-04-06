@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -137,8 +136,8 @@ export default function InvoicesPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [location] = useLocation();
-  const urlParams = useMemo(() => new URLSearchParams(location.split("?")[1] || ""), [location]);
+  // Read URL params via window.location.search (wouter's useLocation only returns pathname)
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const paramEvent  = urlParams.get("event") || "";
   const paramTab    = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
   const paramFilter = urlParams.get("filter") || "";
@@ -486,14 +485,22 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
     }
   }, [highlightActualId]);
 
-  // Scroll to the highlighted card after render
+  // Scroll to the highlighted card — retries until element appears in DOM (data may load async)
   useEffect(() => {
     if (!highlightedId) return;
-    const el = document.querySelector(`[data-actual-id="${highlightedId}"]`);
-    if (el) {
-      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
-    }
-  }, [highlightedId, filterStatus]);
+    let attempts = 0;
+    const tryScroll = () => {
+      const el = document.querySelector(`[data-actual-id="${highlightedId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (attempts < 10) {
+        attempts++;
+        setTimeout(tryScroll, 200);
+      }
+    };
+    const t = setTimeout(tryScroll, 150);
+    return () => clearTimeout(t);
+  }, [highlightedId, filterStatus, approvedActuals?.length]);
 
   function getEffStatus(actual: any) {
     return getEffectiveStatus(getInvoice(actual.id));
