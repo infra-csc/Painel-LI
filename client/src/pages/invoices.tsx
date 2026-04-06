@@ -854,9 +854,12 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
           </div>
         )}
 
-        {/* Aguardando Check-in — mostra botão para RH/admin */}
+        {/* Aguardando Check-in — apenas badge estático no Lançamento */}
         {effStatus === "checkin-pendente" && (
-          <CheckinSection invoice={invoice} selectedEventId={selectedEventId} qc={qc} toast={toast} />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
+            <Clock className="w-3.5 h-3.5" />
+            Aprovada · Aguardando Check-in Financeiro
+          </div>
         )}
 
         {/* Devolvida — motivo */}
