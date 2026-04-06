@@ -113,6 +113,7 @@ export default function BudgetPlannedPage() {
   const [batchApplied, setBatchApplied] = useState<Set<'vdia'|'alim'|'mob'>>(new Set());
   const [batchHistory, setBatchHistory] = useState<{ fields: ('vdia'|'alim'|'mob')[]; prev: Record<string, any> } | null>(null);
   const batchPopoverRef = useRef<HTMLDivElement>(null);
+  const [restoredFeedback, setRestoredFeedback] = useState<string | null>(null);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -314,7 +315,7 @@ export default function BudgetPlannedPage() {
   }, [teamInclusions, urlCollaboratorId, urlFunctionId]);
 
   const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.round(cents) / 100);
   };
 
   const getCollaboratorName = (id?: string | null) => {
@@ -1902,7 +1903,8 @@ export default function BudgetPlannedPage() {
                                     <span style={{color:'#a5b4fc'}}>·</span>
                                     <button
                                       onClick={undoBatch}
-                                      className="underline underline-offset-2 cursor-pointer font-medium hover:text-indigo-800 transition-colors"
+                                      className="cursor-pointer font-semibold px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80"
+                                      style={{background:'#3B4FE4', color:'#fff'}}
                                     >Desfazer</button>
                                   </>
                                 )}
@@ -1961,7 +1963,7 @@ export default function BudgetPlannedPage() {
 
                           const inputBase = `h-8 text-right font-mono tabular-nums text-[12px] border rounded-md px-2 outline-none transition-all
                             ${disabled
-                              ? 'border-transparent bg-transparent text-slate-400 cursor-default'
+                              ? 'border-transparent bg-transparent text-slate-400 cursor-not-allowed'
                               : 'border-[#e5e7eb] bg-[#FAFAFA] focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
 
                           const restoreField = (field: 'valorDia'|'alimentacao'|'mobilidade') => {
@@ -1981,8 +1983,8 @@ export default function BudgetPlannedPage() {
                           return (
                             <tr
                               key={budget.inclusion.id}
-                              style={{height:'52px'}}
-                              className={`group transition-colors ${isSent ? 'bg-emerald-50/20' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
+                              style={{height:'52px', background: isSent ? '#FAFAFA' : undefined}}
+                              className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
                               {/* Colaborador */}
                               <td className="px-4" style={{minWidth:'260px'}}>
@@ -2071,19 +2073,29 @@ export default function BudgetPlannedPage() {
                                       )}
                                     </Tooltip>
                                   </TooltipProvider>
-                                  {vdiaEdited && !disabled && (
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            onClick={() => restoreField('valorDia')}
-                                            className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
-                                          >↩</button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
+                                  {vdiaEdited && !disabled && (() => {
+                                    const fbKey = `${sid}:vdia`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => {
+                                                restoreField('valorDia');
+                                                setRestoredFeedback(fbKey);
+                                                setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
+                                              }}
+                                              className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
+                                            >↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">
+                                            {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    );
+                                  })()}
                                 </div>
                               </td>
 
@@ -2113,19 +2125,29 @@ export default function BudgetPlannedPage() {
                                       )}
                                     </Tooltip>
                                   </TooltipProvider>
-                                  {alimEdited && !disabled && (
-                                    <TooltipProvider delayDuration={150}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <button
-                                            onClick={() => restoreField('alimentacao')}
-                                            className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
-                                          >↩</button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
+                                  {alimEdited && !disabled && (() => {
+                                    const fbKey = `${sid}:alim`;
+                                    const restored = restoredFeedback === fbKey;
+                                    return (
+                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                        <Tooltip open={restored ? true : undefined}>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => {
+                                                restoreField('alimentacao');
+                                                setRestoredFeedback(fbKey);
+                                                setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
+                                              }}
+                                              className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
+                                            >↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">
+                                            {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    );
+                                  })()}
                                 </div>
                               </td>
 
@@ -2156,19 +2178,29 @@ export default function BudgetPlannedPage() {
                                         )}
                                       </Tooltip>
                                     </TooltipProvider>
-                                    {mobEdited && !disabled && (
-                                      <TooltipProvider delayDuration={150}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              onClick={() => restoreField('mobilidade')}
-                                              className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
-                                            >↩</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    )}
+                                    {mobEdited && !disabled && (() => {
+                                      const fbKey = `${sid}:mob`;
+                                      const restored = restoredFeedback === fbKey;
+                                      return (
+                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                          <Tooltip open={restored ? true : undefined}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                onClick={() => {
+                                                  restoreField('mobilidade');
+                                                  setRestoredFeedback(fbKey);
+                                                  setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
+                                                }}
+                                                className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
+                                              >↩</button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="text-xs">
+                                              {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      );
+                                    })()}
                                   </div>
                                 </td>
                               )}
