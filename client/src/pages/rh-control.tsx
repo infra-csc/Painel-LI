@@ -481,9 +481,9 @@ export default function RhControlPage() {
       cardBorder: "border-amber-200",
     },
     aguardando_prestacao: {
-      label: "Aguardando realizado",
-      shortLabel: "Realizado",
-      description: "Planejado criado — aguardando o responsável da função preencher o realizado",
+      label: "Aguardando envio do realizado",
+      shortLabel: "Ag. Realizado",
+      description: "Planejado criado — aguardando o responsável da função preencher e enviar o realizado",
       icon: Clock,
       color: "text-slate-600",
       bg: "bg-slate-50",
@@ -797,6 +797,10 @@ export default function RhControlPage() {
       return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
     }
     if (item.status === "aguardando_prestacao") {
+      // If actual already has data (filled but not sent), go to budget-actual so RH can see it
+      if (item.actual) {
+        return { label: "Ver realizado", path: buildNavPath("/budget-actual", item), icon: ExternalLink };
+      }
       return { label: "Ver planejado", path: buildNavPath("/budget-planned", item), icon: ExternalLink };
     }
     if (item.status === "aprovada_faturamento" || item.status === "recusada") {
