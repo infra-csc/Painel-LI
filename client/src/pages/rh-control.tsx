@@ -1265,7 +1265,7 @@ export default function RhControlPage() {
                       const actualId = item.actual?.id || "";
                       return (
                         <button
-                          onClick={() => navigate(`/invoices?event=${item.event.id}&filter=checkin-pendente&actual=${actualId}`)}
+                          onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao&filter=checkin-pendente&actual=${actualId}`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
                           style={{ background: '#7C3AED' }}
                         >

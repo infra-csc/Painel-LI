@@ -448,6 +448,7 @@ export default function InvoicesPage() {
                 selectedEventId={selectedEventId}
                 qc={qc}
                 toast={toast}
+                initialFilter={initialFilter}
               />
             )}
           </>
@@ -1028,12 +1029,12 @@ function HistoryPanel({ events, collabName }: { events: HistEvent[]; collabName:
 type AprovAction = "approve" | "return" | "checkin";
 type ActiveAprovAction = { invId: string; type: AprovAction } | null;
 
-function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast }: any) {
+function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedEventId, qc, toast, initialFilter }: any) {
   const [active, setActive]             = useState<ActiveAprovAction>(null);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [comment, setComment]           = useState("");
   const [checkinDate, setCheckinDate]   = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
 
   function openAction(invId: string, type: AprovAction) {
     setHistoryOpenId(null);
@@ -1075,9 +1076,12 @@ function AprovacaoTab({ invoices, getName, getFuncName, budgetActuals, selectedE
 
   const checkinMutation = useMutation({
     mutationFn: (id: string) =>
-      apiRequest("PATCH", `/api/invoices/${id}`, { paymentDate: checkinDate }).then(r => r.json()),
+      apiRequest("POST", `/api/invoices/${id}/checkin`, {
+        ...(checkinDate ? { paymentDate: checkinDate } : {}),
+      }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
       closeAction();
       toast({ title: "Check-in realizado!", description: `Data de pagamento: ${fmtDate(checkinDate)}` });
     },
