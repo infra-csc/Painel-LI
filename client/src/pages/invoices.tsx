@@ -160,7 +160,7 @@ export default function InvoicesPage() {
   // Pre-select the first registered company as default when companies load
   useEffect(() => {
     if ((paymentCompanies as any[]).length > 0 && confirmCompanyId === "__manual__") {
-      setConfirmCompanyId((paymentCompanies as any[])[0].id);
+      setConfirmCompanyId(String((paymentCompanies as any[])[0].id));
     }
   }, [(paymentCompanies as any[]).length]);
 
@@ -285,7 +285,7 @@ export default function InvoicesPage() {
         ) : !selectedEvent?.paymentCompanyCnpj?.trim() ? (
           (() => {
             const pcs = paymentCompanies as any[];
-            const selectedPc = pcs.find(c => c.id === confirmCompanyId);
+            const selectedPc = pcs.find(c => String(c.id) === confirmCompanyId);
             const isManual = confirmCompanyId === "__manual__";
             const canConfirm = isManual
               ? confirmCustomName.trim() && confirmCustomCnpj.trim()
