@@ -1648,187 +1648,392 @@ export default function BudgetPlannedPage() {
                 )}
               </div>
 
+              {/* Mobilidade global — exibe acima da tabela se todos têm o mesmo valor */}
+              {(() => {
+                if (filteredBudgets.length < 2) return null;
+                const mobValues = filteredBudgets.map(b => b.mobilidade);
+                const allSameMob = mobValues.every(v => v === mobValues[0]);
+                if (!allSameMob) return null;
+                const globalMob = mobValues[0] / 100;
+                const hasGlobalMobOvr = filteredBudgets.some(b => budgetOverrides[b.inclusion.id]?.mobilidade !== undefined);
+                return (
+                  <div className="flex items-center gap-2 px-1 py-1.5 text-[12px] text-slate-500">
+                    <span>🚗</span>
+                    <span className="font-medium">Mobilidade (todos):</span>
+                    <span className={`font-mono tabular-nums font-semibold ${hasGlobalMobOvr ? 'text-[#3B4FE4]' : 'text-[#888]'}`}>
+                      R$ {globalMob.toFixed(2).replace('.', ',')}
+                    </span>
+                    {hasGlobalMobOvr && <span style={{fontSize:9, color:'#3B4FE4'}}>✏</span>}
+                    <span className="text-[10px] text-slate-400">(coluna individual oculta)</span>
+                  </div>
+                );
+              })()}
+
               {/* Tabela */}
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80">
-                        <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px]" style={{color:'#888'}}>Colaborador</th>
-                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>Diárias</th>
-                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>R$ / dia</th>
-                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Alimentação</th>
-                        <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Mobilidade</th>
-                        <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredBudgets.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
+              {(() => {
+                const mobValues = filteredBudgets.map(b => b.mobilidade);
+                const allSameMob = filteredBudgets.length >= 2 && mobValues.every(v => v === mobValues[0]);
+                const colSpanTotal = allSameMob ? 5 : 6;
+
+                return (
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/80">
+                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px]" style={{color:'#888'}}>Colaborador</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>Diárias</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>R$ / dia</th>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Alimentação</th>
+                          {!allSameMob && (
+                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Mobilidade</th>
+                          )}
+                          <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
                         </tr>
-                      ) : filteredBudgets.map((budget, rowIdx) => {
-                        const isSent = sentToActual.has(budget.inclusion.id);
-                        const isNotAttended = isCardNotAttended(budget);
-                        const hasOvr = budget.hasOverride;
-                        const name = getCollaboratorName(budget.inclusion.collaboratorId);
-                        const funcName = getFunctionName(budget.inclusion.functionId);
-                        const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
-                        const disabled = isSent || isNotAttended;
-                        const matchingActual = existingActuals?.find((a: any) =>
-                          a.collaboratorId === budget.inclusion.collaboratorId &&
-                          a.functionId === budget.inclusion.functionId &&
-                          !a.splitParentId
-                        );
-                        const sid = budget.inclusion.id;
-                        const buf = (field: string, fallback: string) =>
-                          sheetInputValues[`${sid}:${field}`] ?? fallback;
-                        const setbuf = (field: string, val: string) =>
-                          setSheetInputValues(prev => ({ ...prev, [`${sid}:${field}`]: val }));
-                        const clearbuf = (field: string) =>
-                          setSheetInputValues(prev => { const n = {...prev}; delete n[`${sid}:${field}`]; return n; });
-                        const commitBlur = (field: 'qtdDiarias'|'valorDia'|'alimentacao'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
-                          handleSheetEdit(budget, field, e.target.value);
-                          clearbuf(key);
-                        };
-                        const inputBase = `h-8 w-[76px] text-right font-mono tabular-nums text-[12px] border rounded px-2 outline-none transition-all
-                          ${disabled
-                            ? 'border-transparent bg-transparent text-slate-400 cursor-default'
-                            : 'border-[#e5e7eb] bg-[#FAFAFA] text-slate-700 hover:border-slate-300 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
-                        return (
-                          <tr
-                            key={budget.inclusion.id}
-                            style={{height:'52px'}}
-                            className={`group transition-colors ${isSent ? 'bg-emerald-50/20' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
-                          >
-                            {/* Colaborador */}
-                            <td className="px-4" style={{minWidth:'260px'}}>
-                              <div className="flex items-center gap-2 leading-tight flex-wrap">
-                                <span className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-900'}`}>{name}</span>
-                                {matchingActual?.rhAdjusted && (
-                                  <TooltipProvider delayDuration={200}>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredBudgets.length === 0 ? (
+                          <tr>
+                            <td colSpan={colSpanTotal} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
+                          </tr>
+                        ) : filteredBudgets.map((budget, rowIdx) => {
+                          const isSent = sentToActual.has(budget.inclusion.id);
+                          const isNotAttended = isCardNotAttended(budget);
+                          const hasOvr = budget.hasOverride;
+                          const name = getCollaboratorName(budget.inclusion.collaboratorId);
+                          const funcName = getFunctionName(budget.inclusion.functionId);
+                          const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
+                          const disabled = isSent || isNotAttended;
+                          const matchingActual = existingActuals?.find((a: any) =>
+                            a.collaboratorId === budget.inclusion.collaboratorId &&
+                            a.functionId === budget.inclusion.functionId &&
+                            !a.splitParentId
+                          );
+                          const sid = budget.inclusion.id;
+                          const buf = (field: string, fallback: string) =>
+                            sheetInputValues[`${sid}:${field}`] ?? fallback;
+                          const setbuf = (field: string, val: string) =>
+                            setSheetInputValues(prev => ({ ...prev, [`${sid}:${field}`]: val }));
+                          const clearbuf = (field: string) =>
+                            setSheetInputValues(prev => { const n = {...prev}; delete n[`${sid}:${field}`]; return n; });
+                          const commitBlur = (field: 'qtdDiarias'|'valorDia'|'alimentacao'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+                            handleSheetEdit(budget, field, e.target.value);
+                            clearbuf(key);
+                          };
+
+                          // Per-field override detection
+                          const ovr = budgetOverrides[sid];
+                          const vdiaEdited = ovr?.valorDiariaUtil !== undefined;
+                          const alimEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
+                          const mobEdited = ovr?.mobilidade !== undefined;
+
+                          // Default values for tooltips
+                          const fv = budget.functionValue;
+                          const defaultVDia = fv?.dailyValue ?? (systemSettings?.default_daily_value ?? 5000);
+                          const defaultAlim = ((fv?.weekdayLunch ?? systemSettings?.default_weekday_lunch ?? 3500) + (fv?.weekdayDinner ?? systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
+                                            + ((fv?.weekendLunch ?? systemSettings?.default_weekend_lunch ?? 4000) + (fv?.weekendDinner ?? systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
+                          const defaultMob = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+
+                          // Discrepancy for R$/dia (>20% above or below function default)
+                          const defaultDailyRef = defaultVDia;
+                          const currentVDia = budget.valorDiariaUtil;
+                          const discrepancy = defaultDailyRef > 0
+                            ? Math.round(((currentVDia - defaultDailyRef) / defaultDailyRef) * 100)
+                            : 0;
+                          const hasDiscrepancy = Math.abs(discrepancy) > 20;
+
+                          // Tipo: Casa ou Freela
+                          const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
+                          const tipoLabel = isCasaType ? 'Casa' : 'Freela';
+                          const tipoIcon = isCasaType ? '🏠' : '⚡';
+
+                          const inputBase = `h-8 w-[76px] text-right font-mono tabular-nums text-[12px] border rounded px-2 outline-none transition-all
+                            ${disabled
+                              ? 'border-transparent bg-transparent text-slate-400 cursor-default'
+                              : 'border-[#e5e7eb] bg-[#FAFAFA] hover:border-slate-300 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
+
+                          const restoreField = (field: 'valorDia'|'alimentacao'|'mobilidade') => {
+                            if (!ovr) return;
+                            const updated = { ...ovr };
+                            if (field === 'valorDia') { delete (updated as any).valorDiariaUtil; delete (updated as any).valorDiariaFds; }
+                            else if (field === 'alimentacao') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
+                            else if (field === 'mobilidade') { delete (updated as any).mobilidade; delete (updated as any).mobilidadeIda; delete (updated as any).mobilidadeVolta; }
+                            const hasAny = Object.keys(updated).filter(k => k !== 'inclusionId' && k !== 'qtdDiarias').length > 0;
+                            if (!hasAny && !updated.qtdDiarias) {
+                              setBudgetOverrides(prev => { const n = {...prev}; delete n[sid]; return n; });
+                            } else {
+                              setBudgetOverrides(prev => ({ ...prev, [sid]: updated }));
+                            }
+                          };
+
+                          return (
+                            <tr
+                              key={budget.inclusion.id}
+                              style={{height:'52px'}}
+                              className={`group transition-colors ${isSent ? 'bg-emerald-50/20' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
+                            >
+                              {/* Colaborador */}
+                              <td className="px-4" style={{minWidth:'260px'}}>
+                                <div className="flex items-center gap-1.5 leading-tight">
+                                  <span
+                                    className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`}
+                                    style={{color: isNotAttended ? undefined : '#1a1a2e', textTransform:'none'}}
+                                  >
+                                    {name}
+                                  </span>
+                                  {matchingActual?.rhAdjusted && (
+                                    <TooltipProvider delayDuration={200}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {isSent ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:'#DCFCE7', color:'#16A34A'}}>
+                                      <Check className="w-2.5 h-2.5" />Enviado
+                                    </span>
+                                  ) : !isNotAttended ? (
+                                    <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:'#FEF3C7', color:'#D97706'}}>
+                                      Pendente
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[11px]" style={{color:'#888'}}>{funcName}</span>
+                                  <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>
-                                          ✏
-                                        </span>
+                                        <span className="text-[10px] cursor-default" style={{color:'#aaa'}}>{tipoIcon}</span>
                                       </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                                      <TooltipContent side="right" className="text-xs">{tipoLabel}</TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
-                                )}
-                                {isSent ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:'#DCFCE7', color:'#16A34A'}}>
-                                    <Check className="w-2.5 h-2.5" />Enviado
-                                  </span>
-                                ) : !isNotAttended ? (
-                                  <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:'#FEF3C7', color:'#D97706'}}>
-                                    Pendente
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="text-[11px] text-slate-400 mt-0.5">{funcName}</div>
-                            </td>
-                            {/* Diárias qty — somente leitura */}
-                            <td className="px-3 text-right">
-                              <span className="text-[13px] tabular-nums" style={{color:'#555'}}>
-                                {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
-                              </span>
-                            </td>
-                            {/* Valor/dia */}
-                            <td className="px-3 text-right">
-                              <input
-                                type="text" inputMode="decimal"
-                                tabIndex={rowIdx * 4 + 2}
-                                disabled={disabled}
-                                value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
-                                onChange={e => setbuf('vdia', e.target.value)}
-                                onBlur={commitBlur('valorDia', 'vdia')}
-                                onFocus={e => e.target.select()}
-                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
-                              />
-                            </td>
-                            {/* Alimentação */}
-                            <td className="px-3 text-right">
-                              <input
-                                type="text" inputMode="decimal"
-                                tabIndex={rowIdx * 4 + 3}
-                                disabled={disabled}
-                                value={buf('alim', foodTotal.toFixed(2))}
-                                onChange={e => setbuf('alim', e.target.value)}
-                                onBlur={commitBlur('alimentacao', 'alim')}
-                                onFocus={e => e.target.select()}
-                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
-                              />
-                            </td>
-                            {/* Mobilidade */}
-                            <td className="px-3 text-right">
-                              <input
-                                type="text" inputMode="decimal"
-                                tabIndex={rowIdx * 4 + 4}
-                                disabled={disabled}
-                                value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
-                                onChange={e => setbuf('mob', e.target.value)}
-                                onBlur={commitBlur('mobilidade', 'mob')}
-                                onFocus={e => e.target.select()}
-                                className={`${inputBase} ${!disabled && hasOvr ? 'text-[#3B4FE4] font-semibold' : ''}`}
-                              />
-                            </td>
-                            {/* Subtotal */}
-                            <td className="px-4 text-right bg-blue-50/20">
-                              <span className={`text-[13px] font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-[#3B4FE4]'}`}>
-                                {formatCurrency(budget.totalFinal)}
-                              </span>
-                              {matchingActual?.rhAdjusted && isSent && (
-                                <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
-                                  {formatCurrency(matchingActual.totalValue)} ✏
                                 </div>
+                              </td>
+
+                              {/* Diárias qty — somente leitura */}
+                              <td className="px-3 text-right">
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className="text-[13px] tabular-nums cursor-not-allowed select-none"
+                                        style={{color:'#888'}}
+                                      >
+                                        {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
+                                      Calculado automaticamente pelas datas da escalação
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </td>
+
+                              {/* Valor/dia */}
+                              <td className="px-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {hasDiscrepancy && !disabled && (
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-[11px] cursor-default" style={{color:'#F97316'}}>⚠</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
+                                          Valor {discrepancy > 0 ? discrepancy + '% acima' : Math.abs(discrepancy) + '% abaixo'} do padrão desta função
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 3 + 2}
+                                          disabled={disabled}
+                                          value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                                          onChange={e => setbuf('vdia', e.target.value)}
+                                          onBlur={commitBlur('valorDia', 'vdia')}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {vdiaEdited
+                                            ? `Editado manualmente · padrão era R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}`
+                                            : `Valor padrão da função ${funcName}`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {vdiaEdited && !disabled && (
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            onClick={() => restoreField('valorDia')}
+                                            className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
+                                          >↩</button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Alimentação */}
+                              <td className="px-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <input
+                                          type="text" inputMode="decimal"
+                                          tabIndex={rowIdx * 3 + 3}
+                                          disabled={disabled}
+                                          value={buf('alim', foodTotal.toFixed(2))}
+                                          onChange={e => setbuf('alim', e.target.value)}
+                                          onBlur={commitBlur('alimentacao', 'alim')}
+                                          onFocus={e => e.target.select()}
+                                          className={`${inputBase} ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                        />
+                                      </TooltipTrigger>
+                                      {!disabled && (
+                                        <TooltipContent side="top" className="text-xs">
+                                          {alimEdited
+                                            ? `Editado manualmente · padrão era R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')}`
+                                            : `Valor padrão da função ${funcName}`}
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {alimEdited && !disabled && (
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            onClick={() => restoreField('alimentacao')}
+                                            className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
+                                          >↩</button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Mobilidade — coluna individual (só quando não é global) */}
+                              {!allSameMob && (
+                                <td className="px-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text" inputMode="decimal"
+                                            tabIndex={rowIdx * 3 + 4}
+                                            disabled={disabled}
+                                            value={buf('mob', (budget.mobilidade / 100).toFixed(2))}
+                                            onChange={e => setbuf('mob', e.target.value)}
+                                            onBlur={commitBlur('mobilidade', 'mob')}
+                                            onFocus={e => e.target.select()}
+                                            className={`${inputBase} ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-[#888]' : ''}`}
+                                          />
+                                        </TooltipTrigger>
+                                        {!disabled && (
+                                          <TooltipContent side="top" className="text-xs">
+                                            {mobEdited
+                                              ? `Editado manualmente · padrão era R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')}`
+                                              : `Valor padrão da função ${funcName}`}
+                                          </TooltipContent>
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    {mobEdited && !disabled && (
+                                      <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => restoreField('mobilidade')}
+                                              className="text-[10px] text-slate-400 hover:text-[#3B4FE4] transition-colors cursor-pointer shrink-0"
+                                            >↩</button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">Restaurar padrão</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+                                  </div>
+                                </td>
                               )}
-                            </td>
-                          </tr>
+
+                              {/* Subtotal */}
+                              <td className="px-4 text-right bg-blue-50/20">
+                                <span className={`text-[13px] font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-[#3B4FE4]'}`}>
+                                  {formatCurrency(budget.totalFinal)}
+                                </span>
+                                {matchingActual?.rhAdjusted && isSent && (
+                                  <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
+                                    {formatCurrency(matchingActual.totalValue)} ✏
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {filteredBudgets.length > 0 && (() => {
+                        const totalDiariasCols = filteredBudgets.reduce((s, b) => s + b.subtotalDiarias, 0);
+                        const totalAlimCols = filteredBudgets.reduce((s, b) => s + b.almocoSemana + b.jantarSemana + b.almocoFds + b.jantarFds, 0);
+                        const totalMobCols = filteredBudgets.reduce((s, b) => s + b.mobilidade, 0);
+                        return (
+                          <tfoot>
+                            <tr style={{background:'#F0F4FF', borderTop:'2px solid #3B4FE4'}}>
+                              <td className="px-4 py-2.5">
+                                <span className="text-[11px] font-semibold uppercase tracking-wider" style={{color:'#888'}}>
+                                  TOTAL ({filteredBudgets.length})
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                  {filteredBudgets.reduce((s, b) => s + b.qtdDiarias, 0)} dias
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                  {formatCurrency(totalDiariasCols)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                  {formatCurrency(totalAlimCols)}
+                                </span>
+                              </td>
+                              {!allSameMob && (
+                                <td className="px-3 py-2.5 text-right">
+                                  <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
+                                    {formatCurrency(totalMobCols)}
+                                  </span>
+                                </td>
+                              )}
+                              <td className="px-4 py-2.5 text-right">
+                                <span className="text-[15px] font-extrabold font-mono tabular-nums" style={{color:'#3B4FE4'}}>{formatCurrency(totalGeral)}</span>
+                              </td>
+                            </tr>
+                          </tfoot>
                         );
-                      })}
-                    </tbody>
-                    {filteredBudgets.length > 0 && (() => {
-                      const totalDiariasCols = filteredBudgets.reduce((s, b) => s + b.subtotalDiarias, 0);
-                      const totalAlimCols = filteredBudgets.reduce((s, b) => s + b.almocoSemana + b.jantarSemana + b.almocoFds + b.jantarFds, 0);
-                      const totalMobCols = filteredBudgets.reduce((s, b) => s + b.mobilidade, 0);
-                      return (
-                        <tfoot>
-                          <tr style={{background:'#F8FAFC', borderTop:'2px solid #3B4FE4'}}>
-                            <td className="px-4 py-2.5">
-                              <span className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider">Total ({filteredBudgets.length})</span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
-                                {filteredBudgets.reduce((s, b) => s + b.qtdDiarias, 0)} dias
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
-                                {formatCurrency(totalDiariasCols)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
-                                {formatCurrency(totalAlimCols)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-[12px] font-mono font-semibold text-slate-500 tabular-nums">
-                                {formatCurrency(totalMobCols)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2.5 text-right">
-                              <span className="text-[16px] font-bold font-mono tabular-nums" style={{color:'#3B4FE4'}}>{formatCurrency(totalGeral)}</span>
-                            </td>
-                          </tr>
-                        </tfoot>
-                      );
-                    })()}
-                  </table>
+                      })()}
+                    </table>
+                  </div>
                 </div>
-              </div>
+                );
+              })()}
 
               {/* ── Rodapé de Ações da Planilha ── */}
               {(() => {

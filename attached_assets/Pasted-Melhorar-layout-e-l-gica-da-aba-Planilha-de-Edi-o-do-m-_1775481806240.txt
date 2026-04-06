@@ -1,0 +1,86 @@
+Melhorar layout e lógica da aba "Planilha de Edição" 
+do módulo de Planejamento:
+
+═══════════════════════════════════════
+1. NOMES DOS COLABORADORES
+═══════════════════════════════════════
+- Remover caixa alta (uppercase) dos nomes —
+  usar Title Case normal: 
+  "Adailton de Almeida Cardoso"
+- Nome: 13px peso 600 #1a1a2e
+- Função abaixo: 11px cinza #888
+- Badge Pendente/Enviado: inline ao lado 
+  do nome, mesma linha, 
+  não quebrar em linha separada
+
+═══════════════════════════════════════
+2. INDICADOR DE TIPO (Casa / Freela)
+═══════════════════════════════════════
+- Adicionar ícone pequeno ao lado da função
+  indicando o tipo de escalação:
+  🏠 Casa  ou  ⚡ Freela
+  10px, cinza, tooltip com o tipo completo
+- Isso é relevante pois impacta 
+  o valor da diária esperado
+
+═══════════════════════════════════════
+3. DIFERENCIAÇÃO — valor padrão vs editado
+═══════════════════════════════════════
+- Campos com valor PADRÃO da função:
+  número em cinza #888, sem destaque
+  tooltip ao hover: 
+  "Valor padrão da função [nome]"
+  
+- Campos EDITADOS manualmente:
+  número em azul #3B4FE4 peso 700
+  ícone ✏ 9px ao lado
+  tooltip: "Editado manualmente · 
+  valor padrão era R$ X,00"
+  + ícone ↩ para restaurar o padrão
+
+═══════════════════════════════════════
+4. MOBILIDADE — campo global quando igual
+═══════════════════════════════════════
+- Se todos os colaboradores têm o mesmo 
+  valor de mobilidade: 
+  ocultar a coluna individual e mostrar 
+  acima da tabela um campo único:
+  "🚗 Mobilidade (todos):  R$ [25,00]  ✏"
+  em linha compacta, 12px
+  
+- Se algum colaborador tiver valor diferente:
+  mostrar a coluna individual normalmente
+  com o valor diferente em azul
+
+═══════════════════════════════════════
+5. COLUNA DIÁRIAS
+═══════════════════════════════════════
+- "4 dias" e "3 dias": alinhar à direita 
+  como as outras colunas numéricas
+- Adicionar tooltip: 
+  "Calculado automaticamente pelas 
+  datas da escalação"
+- Cursor not-allowed para deixar claro 
+  que não é editável
+
+═══════════════════════════════════════
+6. LINHA DE TOTAL
+═══════════════════════════════════════
+- Fundo #F0F4FF, border-top 2px #3B4FE4
+- "TOTAL (3)": 11px uppercase cinza
+- Cada total de coluna alinhado 
+  exatamente abaixo dos valores
+- Total SUBTOTAL: 15px peso 800 azul
+
+═══════════════════════════════════════
+7. LÓGICA — alerta de discrepância
+═══════════════════════════════════════
+- Se o valor de R$/DIA de uma linha 
+  estiver muito acima ou abaixo do padrão 
+  da função (>20% de diferença):
+  mostrar ⚠ laranja ao lado do valor
+  tooltip: "Valor X% acima/abaixo 
+  do padrão desta função"
+  — ajuda o RH a identificar erros de digitação
+
+Não alterar cálculos nem lógica de envio.
