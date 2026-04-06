@@ -318,6 +318,13 @@ export default function BudgetPlannedPage() {
     return fixEncoding(collaborators?.find(c => c.id === id)?.fullName) || "Não definido";
   };
 
+  const toTitleCase = (str: string) => {
+    const lower = new Set(['de', 'da', 'das', 'do', 'dos', 'e', 'em', 'a', 'o', 'ao', 'aos']);
+    return str.toLowerCase().split(' ').map((word, i) =>
+      i === 0 || !lower.has(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word
+    ).join(' ');
+  };
+
   const getFunctionName = (id?: string | null) => {
     if (!id) return "-";
     return functions?.find(f => f.id === id)?.name || "-";
@@ -1717,10 +1724,10 @@ export default function BudgetPlannedPage() {
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
-                          const inputBase = `h-8 w-[76px] text-right font-mono tabular-nums text-[12px] border rounded px-2 outline-none transition-all
+                          const inputBase = `h-8 text-right font-mono tabular-nums text-[12px] border rounded-md px-2 outline-none transition-all
                             ${disabled
                               ? 'border-transparent bg-transparent text-slate-400 cursor-default'
-                              : 'border-[#e5e7eb] bg-[#FAFAFA] hover:border-slate-300 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
+                              : 'border-[#e5e7eb] bg-[#FAFAFA] focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
 
                           const restoreField = (field: 'valorDia'|'alimentacao'|'mobilidade') => {
                             if (!ovr) return;
@@ -1749,7 +1756,7 @@ export default function BudgetPlannedPage() {
                                     className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`}
                                     style={{color: isNotAttended ? undefined : '#1a1a2e', textTransform:'none'}}
                                   >
-                                    {name}
+                                    {toTitleCase(name)}
                                   </span>
                                   {matchingActual?.rhAdjusted && (
                                     <TooltipProvider delayDuration={200}>
@@ -1791,7 +1798,7 @@ export default function BudgetPlannedPage() {
                                     <TooltipTrigger asChild>
                                       <span
                                         className="text-[13px] tabular-nums cursor-not-allowed select-none"
-                                        style={{color:'#888'}}
+                                        style={{color:'#666'}}
                                       >
                                         {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
                                       </span>
@@ -1817,7 +1824,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('vdia', e.target.value)}
                                           onBlur={commitBlur('valorDia', 'vdia')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
+                                          className={`${inputBase} w-[90px] ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                         />
                                       </TooltipTrigger>
                                       {!disabled && (
@@ -1859,7 +1866,7 @@ export default function BudgetPlannedPage() {
                                           onChange={e => setbuf('alim', e.target.value)}
                                           onBlur={commitBlur('alimentacao', 'alim')}
                                           onFocus={e => e.target.select()}
-                                          className={`${inputBase} ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
+                                          className={`${inputBase} w-[90px] ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                         />
                                       </TooltipTrigger>
                                       {!disabled && (
@@ -1902,7 +1909,7 @@ export default function BudgetPlannedPage() {
                                             onChange={e => setbuf('mob', e.target.value)}
                                             onBlur={commitBlur('mobilidade', 'mob')}
                                             onFocus={e => e.target.select()}
-                                            className={`${inputBase} ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
+                                            className={`${inputBase} w-[80px] ${!disabled && mobEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-700' : ''}`}
                                           />
                                         </TooltipTrigger>
                                         {!disabled && (
