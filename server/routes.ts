@@ -711,6 +711,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dedicated endpoint for updating payment company (accessible to admin + financial roles)
+  app.patch("/api/events/:id/payment-company", async (req, res) => {
+    try {
+      const actorId = req.session?.userId || req.body?._userId;
+      const actor = actorId ? await storage.getUser(actorId) : null;
+      if (!actor || !['admin', 'financial'].includes(actor.role)) {
+        return res.status(403).json({ message: "Sem permissão para configurar empresa pagadora" });
+      }
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ message: "Evento não encontrado" });
+      const { paymentCompanyName, paymentCompanyCnpj } = req.body;
+      if (!paymentCompanyName?.trim() || !paymentCompanyCnpj?.trim()) {
+        return res.status(400).json({ message: "Nome e CNPJ são obrigatórios" });
+      }
+      const updated = await storage.updateEvent(req.params.id, { paymentCompanyName, paymentCompanyCnpj });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating payment company:", error);
+      res.status(500).json({ message: "Erro ao atualizar empresa pagadora" });
+    }
+  });
+
   app.put("/api/events/:id", async (req, res) => {
     try {
       const userId = req.session.userId || 'system';

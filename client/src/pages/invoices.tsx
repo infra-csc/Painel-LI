@@ -138,10 +138,17 @@ export default function InvoicesPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">("lancamento");
 
+  // Company confirmation state (for the CNPJ blocking screen)
+  const [confirmCompanyId, setConfirmCompanyId] = useState<string>("__manual__");
+  const [confirmCustomName, setConfirmCustomName] = useState("");
+  const [confirmCustomCnpj, setConfirmCustomCnpj] = useState("");
+
   const canRH = isRhOrAdmin(user);
 
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
+
+  const { data: paymentCompanies = [] } = useQuery<any[]>({ queryKey: ["/api/payment-companies"] });
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
@@ -149,8 +156,33 @@ export default function InvoicesPage() {
       setSelectedEventId(activeEvents[0].id);
     }
   }, [activeEvents.length]);
+
+  // Pre-select the first registered company as default when companies load
+  useEffect(() => {
+    if ((paymentCompanies as any[]).length > 0 && confirmCompanyId === "__manual__") {
+      setConfirmCompanyId((paymentCompanies as any[])[0].id);
+    }
+  }, [(paymentCompanies as any[]).length]);
+
   const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
   const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
+
+  const setEventCompanyMutation = useMutation({
+    mutationFn: async ({ name, cnpj }: { name: string; cnpj: string }) => {
+      const res = await apiRequest("PATCH", `/api/events/${selectedEventId}/payment-company`, {
+        paymentCompanyName: name,
+        paymentCompanyCnpj: cnpj,
+        _userId: (user as any)?.id,
+      });
+      if (!res.ok) throw new Error("Erro ao salvar empresa pagadora");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/events"] });
+      toast({ title: "Empresa pagadora configurada com sucesso" });
+    },
+    onError: () => toast({ title: "Erro ao salvar empresa pagadora", variant: "destructive" }),
+  });
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", selectedEventId],
@@ -251,20 +283,102 @@ export default function InvoicesPage() {
             <p className="text-sm text-gray-400">Selecione um evento para gerenciar as notas fiscais</p>
           </div>
         ) : !selectedEvent?.paymentCompanyCnpj?.trim() ? (
-          <div className="bg-white rounded-2xl border border-amber-200 p-16 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
-              <Building2 className="w-7 h-7 text-amber-500" />
-            </div>
-            <p className="text-sm font-semibold text-slate-700">Empresa pagadora não configurada</p>
-            <p className="text-xs text-slate-400 mt-2 max-w-xs mx-auto leading-relaxed">
-              Para lançar notas fiscais neste evento, cadastre a empresa responsável pelo pagamento (nome e CNPJ) nas configurações do evento.
-            </p>
-            <Link href="/events">
-              <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
-                <ExternalLink className="w-3.5 h-3.5" /> Configurar Empresa Pagadora
-              </a>
-            </Link>
-          </div>
+          (() => {
+            const pcs = paymentCompanies as any[];
+            const selectedPc = pcs.find(c => c.id === confirmCompanyId);
+            const isManual = confirmCompanyId === "__manual__";
+            const canConfirm = isManual
+              ? confirmCustomName.trim() && confirmCustomCnpj.trim()
+              : !!selectedPc;
+            const handleConfirm = () => {
+              const name = isManual ? confirmCustomName.trim() : selectedPc.name;
+              const cnpj = isManual ? confirmCustomCnpj.trim() : selectedPc.cnpj;
+              setEventCompanyMutation.mutate({ name, cnpj });
+            };
+            return (
+              <div className="bg-white rounded-2xl border border-amber-200 p-8 max-w-md mx-auto">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <Building2 className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Confirme a empresa pagadora</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Necessária para emissão das notas fiscais</p>
+                  </div>
+                </div>
+
+                {/* Company selector */}
+                <div className="space-y-3">
+                  {pcs.length > 0 && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
+                        Empresa cadastrada
+                      </label>
+                      <select
+                        value={confirmCompanyId}
+                        onChange={e => setConfirmCompanyId(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                      >
+                        {pcs.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} — {c.cnpj}
+                          </option>
+                        ))}
+                        <option value="__manual__">Inserir manualmente...</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Manual entry (when no companies registered or "manual" selected) */}
+                  {(isManual || pcs.length === 0) && (
+                    <div className="space-y-2 pt-1">
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                          Nome da empresa
+                        </label>
+                        <input
+                          type="text"
+                          value={confirmCustomName}
+                          onChange={e => setConfirmCustomName(e.target.value)}
+                          placeholder="Ex.: Produtora XYZ Ltda"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                          CNPJ
+                        </label>
+                        <input
+                          type="text"
+                          value={confirmCustomCnpj}
+                          onChange={e => setConfirmCustomCnpj(e.target.value)}
+                          placeholder="00.000.000/0000-00"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview when company selected from list */}
+                  {!isManual && selectedPc && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                      <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span className="text-xs text-amber-800 font-medium">{selectedPc.name}</span>
+                      <span className="text-xs text-amber-500 ml-auto">{selectedPc.cnpj}</span>
+                    </div>
+                  )}
+
+                  <button
+                    disabled={!canConfirm || setEventCompanyMutation.isPending}
+                    onClick={handleConfirm}
+                    className="w-full h-10 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold transition-colors mt-1"
+                  >
+                    {setEventCompanyMutation.isPending ? 'Salvando...' : 'Confirmar e Continuar'}
+                  </button>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <>
             {/* Stepper */}
