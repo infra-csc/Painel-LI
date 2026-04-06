@@ -109,6 +109,10 @@ export default function BudgetPlannedPage() {
   const [modalViewMode, setModalViewMode] = useState(false);
   const [sheetInputValues, setSheetInputValues] = useState<Record<string, string>>({});
   const [confirmReset, setConfirmReset] = useState(false);
+  const [batchPopover, setBatchPopover] = useState<{ field: 'vdia'|'alim'|'mob'; value: string; onlyPending: boolean } | null>(null);
+  const [batchApplied, setBatchApplied] = useState<Set<'vdia'|'alim'|'mob'>>(new Set());
+  const [batchHistory, setBatchHistory] = useState<{ fields: ('vdia'|'alim'|'mob')[]; prev: Record<string, any> } | null>(null);
+  const batchPopoverRef = useRef<HTMLDivElement>(null);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -838,6 +842,46 @@ export default function BudgetPlannedPage() {
     }
     setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: updated }));
   };
+
+  const applyBatchEdit = (field: 'vdia'|'alim'|'mob', rawValue: string, onlyPending: boolean) => {
+    const val = parseFloat(rawValue) || 0;
+    if (val <= 0) return;
+    const domainField = field === 'vdia' ? 'valorDia' : field === 'alim' ? 'alimentacao' : 'mobilidade';
+    const prevOverrides = { ...budgetOverrides };
+    const targets = filteredBudgets.filter(b => {
+      const isSent = sentToActual.has(b.inclusion.id);
+      const isNotAttended = isCardNotAttended(b);
+      if (isNotAttended) return false;
+      if (onlyPending && isSent) return false;
+      return true;
+    });
+    targets.forEach(b => handleSheetEdit(b, domainField as any, rawValue));
+    setBatchApplied(prev => { const next = new Set(prev); next.add(field); return next; });
+    setBatchHistory({ fields: [field], prev: prevOverrides });
+  };
+
+  const undoBatch = () => {
+    if (!batchHistory) return;
+    setBudgetOverrides(batchHistory.prev);
+    setBatchApplied(prev => {
+      const next = new Set(prev);
+      batchHistory.fields.forEach(f => next.delete(f));
+      return next;
+    });
+    setBatchHistory(null);
+  };
+
+  // Close batch popover on outside click
+  useEffect(() => {
+    if (!batchPopover) return;
+    const handler = (e: MouseEvent) => {
+      if (batchPopoverRef.current && !batchPopoverRef.current.contains(e.target as Node)) {
+        setBatchPopover(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [batchPopover]);
 
   // Avatar color based on first letter
   const avatarColor = (name: string) => {
@@ -1673,13 +1717,22 @@ export default function BudgetPlannedPage() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setConfirmReset(true)}
-                    className="text-[11px] px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
-                  >
-                    <Zap className="w-3 h-3" />
-                    Aplicar Valor Padrão em Todos
-                  </button>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setConfirmReset(true)}
+                          className="text-[11px] px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Restaurar Padrão em Todos
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs max-w-[220px] text-center">
+                        Substitui todos os valores pelos padrões cadastrados em cada função
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
 
@@ -1689,20 +1742,174 @@ export default function BudgetPlannedPage() {
                 const colSpanTotal = 6;
 
                 return (
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div ref={batchPopoverRef} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/80">
                           <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px]" style={{color:'#888'}}>Colaborador</th>
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>Diárias</th>
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>R$ / dia</th>
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Alimentação</th>
+
+                          {/* Diárias — tooltip only, no edit */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>Diárias</span>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-default text-slate-300 hover:text-slate-400 transition-colors text-[10px]">✏</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
+                                    Quantidade de dias calculada automaticamente pelas datas da escalação
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          </th>
+
+                          {/* R$/dia — batch edit */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>R$ / dia</span>
+                              <button
+                                onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
+                                className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                title="Editar em lote"
+                              >✏</button>
+                            </div>
+                            {batchPopover?.field === 'vdia' && (
+                              <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
+                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar R$/dia para todos</div>
+                                <input
+                                  type="text" inputMode="decimal" placeholder="0,00"
+                                  value={batchPopover.value}
+                                  onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
+                                  autoFocus
+                                  className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
+                                />
+                                <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
+                                  <Checkbox
+                                    checked={batchPopover.onlyPending}
+                                    onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  Apenas Pendentes
+                                </label>
+                                <div className="flex gap-2">
+                                  <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                                  <button
+                                    onClick={() => { applyBatchEdit('vdia', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                                    className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
+                                    style={{background:'#3B4FE4'}}
+                                  >Aplicar</button>
+                                </div>
+                              </div>
+                            )}
+                          </th>
+
+                          {/* Alimentação — batch edit */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                            <div className="flex items-center justify-end gap-1">
+                              <span>Alimentação</span>
+                              <button
+                                onClick={() => setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '', onlyPending: true })}
+                                className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('alim') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                title="Editar em lote"
+                              >✏</button>
+                            </div>
+                            {batchPopover?.field === 'alim' && (
+                              <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
+                                <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar Alimentação para todos</div>
+                                <input
+                                  type="text" inputMode="decimal" placeholder="0,00"
+                                  value={batchPopover.value}
+                                  onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
+                                  autoFocus
+                                  className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
+                                />
+                                <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
+                                  <Checkbox
+                                    checked={batchPopover.onlyPending}
+                                    onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
+                                    className="w-3.5 h-3.5"
+                                  />
+                                  Apenas Pendentes
+                                </label>
+                                <div className="flex gap-2">
+                                  <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                                  <button
+                                    onClick={() => { applyBatchEdit('alim', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                                    className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
+                                    style={{background:'#3B4FE4'}}
+                                  >Aplicar</button>
+                                </div>
+                              </div>
+                            )}
+                          </th>
+
+                          {/* Mobilidade — batch edit */}
                           {!allSameMob && (
-                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{color:'#888'}}>Mobilidade</th>
+                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                              <div className="flex items-center justify-end gap-1">
+                                <span>Mobilidade</span>
+                                <button
+                                  onClick={() => setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '', onlyPending: true })}
+                                  className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
+                                  title="Editar em lote"
+                                >✏</button>
+                              </div>
+                              {batchPopover?.field === 'mob' && (
+                                <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-xl p-3 w-56 text-left" style={{minWidth:'220px'}}>
+                                  <div className="text-[11px] font-semibold text-slate-600 mb-2">Aplicar Mobilidade para todos</div>
+                                  <input
+                                    type="text" inputMode="decimal" placeholder="0,00"
+                                    value={batchPopover.value}
+                                    onChange={e => setBatchPopover(p => p ? {...p, value: e.target.value} : p)}
+                                    autoFocus
+                                    className="w-full h-8 border border-slate-200 rounded-md px-2 text-right text-[12px] font-mono outline-none focus:border-[#3B4FE4] focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)] mb-2"
+                                  />
+                                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-3 cursor-pointer">
+                                    <Checkbox
+                                      checked={batchPopover.onlyPending}
+                                      onCheckedChange={v => setBatchPopover(p => p ? {...p, onlyPending: !!v} : p)}
+                                      className="w-3.5 h-3.5"
+                                    />
+                                    Apenas Pendentes
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => setBatchPopover(null)} className="flex-1 h-7 text-[11px] border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                                    <button
+                                      onClick={() => { applyBatchEdit('mob', batchPopover.value, batchPopover.onlyPending); setBatchPopover(null); }}
+                                      className="flex-1 h-7 text-[11px] rounded-md text-white font-semibold transition-colors"
+                                      style={{background:'#3B4FE4'}}
+                                    >Aplicar</button>
+                                  </div>
+                                </div>
+                              )}
+                            </th>
                           )}
+
                           <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 bg-blue-50/60 text-[#3B4FE4]">Subtotal</th>
                         </tr>
+
+                        {/* Banner de edição em lote */}
+                        {batchApplied.size > 0 && (
+                          <tr>
+                            <td colSpan={colSpanTotal} style={{background:'#EEF2FF', padding:'4px 16px'}}>
+                              <div className="flex items-center gap-2 text-[11px]" style={{color:'#3B4FE4'}}>
+                                <span>✏ {[...batchApplied].map(f => f === 'vdia' ? 'R$/dia' : f === 'alim' ? 'Alimentação' : 'Mobilidade').join(' e ')} editado{batchApplied.size > 1 ? 's' : ''} em lote</span>
+                                {batchHistory && (
+                                  <>
+                                    <span style={{color:'#a5b4fc'}}>·</span>
+                                    <button
+                                      onClick={undoBatch}
+                                      className="underline underline-offset-2 cursor-pointer font-medium hover:text-indigo-800 transition-colors"
+                                    >Desfazer</button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {filteredBudgets.length === 0 ? (
