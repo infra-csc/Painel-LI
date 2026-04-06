@@ -1299,11 +1299,12 @@ export default function RhControlPage() {
                         </button>
                       );
                     }
-                    // nfStatus "aprovada" + sem check-in → leva para tela de check-in
+                    // nfStatus "aprovada" + sem check-in → leva para tela de check-in (card específico)
                     if (nfStatus === "aprovada" && !hasCheckin) {
+                      const actualId = item.actual?.id || "";
                       return (
                         <button
-                          onClick={() => navigate(`/invoices?event=${item.event.id}&filter=checkin-pendente`)}
+                          onClick={() => navigate(`/invoices?event=${item.event.id}&filter=checkin-pendente&actual=${actualId}`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
                           style={{ background: '#7C3AED' }}
                         >

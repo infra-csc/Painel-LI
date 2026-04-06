@@ -142,10 +142,12 @@ export default function InvoicesPage() {
   const paramEvent  = urlParams.get("event") || "";
   const paramTab    = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
   const paramFilter = urlParams.get("filter") || "";
+  const paramActual = urlParams.get("actual") || "";
 
   const [selectedEventId, setSelectedEventId] = useState<string>(paramEvent);
   const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">(paramTab || "lancamento");
   const [initialFilter, setInitialFilter] = useState<string>(paramFilter);
+  const [highlightActualId, setHighlightActualId] = useState<string>(paramActual);
 
   // Company confirmation state (for the CNPJ blocking screen)
   const [confirmCompanyId, setConfirmCompanyId] = useState<string>("__manual__");
@@ -164,7 +166,8 @@ export default function InvoicesPage() {
     if (paramEvent)  setSelectedEventId(paramEvent);
     if (paramTab)    setActiveTab(paramTab);
     if (paramFilter) setInitialFilter(paramFilter);
-  }, [paramEvent, paramTab, paramFilter]);
+    if (paramActual) setHighlightActualId(paramActual);
+  }, [paramEvent, paramTab, paramFilter, paramActual]);
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {
@@ -433,6 +436,7 @@ export default function InvoicesPage() {
                 qc={qc}
                 toast={toast}
                 initialFilter={initialFilter}
+                highlightActualId={highlightActualId}
               />
             )}
 
@@ -464,13 +468,32 @@ const LANC_FILTERS = [
   { id: "checkin-realizado", label: "Check-in Realizado", activeBg: "bg-emerald-600 text-white" },
 ];
 
-function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter }: any) {
+function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, selectedEvent, selectedEventId, qc, toast, initialFilter, highlightActualId }: any) {
   const [filterStatus, setFilterStatus] = useState(initialFilter || "all");
+  const [highlightedId, setHighlightedId] = useState<string>(highlightActualId || "");
 
   // When initialFilter changes (e.g. navigating from another page), apply it
   useEffect(() => {
     if (initialFilter) setFilterStatus(initialFilter);
   }, [initialFilter]);
+
+  // When highlightActualId arrives, update and clear after animation
+  useEffect(() => {
+    if (highlightActualId) {
+      setHighlightedId(highlightActualId);
+      const timer = setTimeout(() => setHighlightedId(""), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightActualId]);
+
+  // Scroll to the highlighted card after render
+  useEffect(() => {
+    if (!highlightedId) return;
+    const el = document.querySelector(`[data-actual-id="${highlightedId}"]`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+    }
+  }, [highlightedId, filterStatus]);
 
   function getEffStatus(actual: any) {
     return getEffectiveStatus(getInvoice(actual.id));
@@ -505,19 +528,27 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map((actual: any) => (
-            <InvoiceCard
-              key={actual.id}
-              actual={actual}
-              invoice={getInvoice(actual.id)}
-              getName={getName}
-              getFuncName={getFuncName}
-              selectedEvent={selectedEvent}
-              selectedEventId={selectedEventId}
-              qc={qc}
-              toast={toast}
-            />
-          ))}
+          {filtered.map((actual: any) => {
+            const isTarget = actual.id === highlightedId;
+            return (
+              <div
+                key={actual.id}
+                data-actual-id={actual.id}
+                className={`rounded-2xl transition-all duration-700 ${isTarget ? "ring-2 ring-violet-400 ring-offset-2 shadow-lg shadow-violet-100" : ""}`}
+              >
+                <InvoiceCard
+                  actual={actual}
+                  invoice={getInvoice(actual.id)}
+                  getName={getName}
+                  getFuncName={getFuncName}
+                  selectedEvent={selectedEvent}
+                  selectedEventId={selectedEventId}
+                  qc={qc}
+                  toast={toast}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
