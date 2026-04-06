@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -135,8 +136,13 @@ export default function InvoicesPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">("lancamento");
+  const [location] = useLocation();
+  const urlParams = useMemo(() => new URLSearchParams(location.split("?")[1] || ""), [location]);
+  const paramEvent = urlParams.get("event") || "";
+  const paramTab   = urlParams.get("tab") as "lancamento" | "aprovacao" | null;
+
+  const [selectedEventId, setSelectedEventId] = useState<string>(paramEvent);
+  const [activeTab, setActiveTab] = useState<"lancamento" | "aprovacao">(paramTab || "lancamento");
 
   // Company confirmation state (for the CNPJ blocking screen)
   const [confirmCompanyId, setConfirmCompanyId] = useState<string>("__manual__");
@@ -149,6 +155,12 @@ export default function InvoicesPage() {
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
 
   const { data: paymentCompanies = [] } = useQuery<any[]>({ queryKey: ["/api/payment-companies"] });
+
+  // Sync from URL params when navigating from another page
+  useEffect(() => {
+    if (paramEvent) setSelectedEventId(paramEvent);
+    if (paramTab)   setActiveTab(paramTab);
+  }, [paramEvent, paramTab]);
 
   // Auto-select the first active event when the list loads (if nothing is selected yet)
   useEffect(() => {

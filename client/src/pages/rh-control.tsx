@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
-  FileText, ChevronDown, ChevronUp, MessageSquare,
+  FileText, FileCheck, ChevronDown, ChevronUp, MessageSquare,
   AlertTriangle, Users, Calendar, Filter,
   ChevronRight, Eye, ArrowRight, ClipboardList,
   Send, CircleDot, Ban, ExternalLink, TrendingDown, TrendingUp, Check
@@ -1263,7 +1263,7 @@ export default function RhControlPage() {
                     if (nfStatus === "enviada") {
                       return (
                         <button
-                          onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                          onClick={() => navigate(`/invoices?event=${item.event.id}&tab=aprovacao`)}
                           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-colors"
                           style={{ background: '#6d28d9' }}
                         >
@@ -1284,7 +1284,20 @@ export default function RhControlPage() {
                         </button>
                       );
                     }
-                    // nfStatus "pendente" or "aprovada" — navTarget block already renders "Ver detalhes"
+                    // nfStatus "aprovada" — show link to invoices page (to view NF and do physical check-in)
+                    if (nfStatus === "aprovada") {
+                      return (
+                        <button
+                          onClick={() => navigate(`/invoices?event=${item.event.id}`)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                        >
+                          <FileCheck className="w-3 h-3" />
+                          Ver nota fiscal
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      );
+                    }
+                    // nfStatus "pendente" — navTarget block renders "Ver detalhes"
                     return null;
                   })()}
                 </div>
