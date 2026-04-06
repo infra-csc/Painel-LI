@@ -143,7 +143,7 @@ export default function InvoicesPage() {
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
   const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
-  const selectedEvent = eventsWithCnpj.find((e: any) => e.id === selectedEventId);
+  const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", selectedEventId],
@@ -197,7 +197,7 @@ export default function InvoicesPage() {
                 Notas Fiscais
                 <span
                   className="group relative cursor-default"
-                  title="Apenas eventos com empresa pagadora aparecem. Cadastre no evento para habilitar."
+                  title="Todos os eventos com itens aprovados no Comparativo aparecem aqui. Para geração automática do texto de pagamento, cadastre a empresa pagadora no evento."
                 >
                   <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition-colors" />
                 </span>
@@ -215,23 +215,23 @@ export default function InvoicesPage() {
               </div>
             )}
           </div>
-          {eventsWithCnpj.length > 0 && (
+          {activeEvents.length > 0 && (
             <EventSearchSelect
               value={selectedEventId}
               onValueChange={setSelectedEventId}
-              events={eventsWithCnpj}
+              events={activeEvents}
               className="w-72 shrink-0"
             />
           )}
         </div>
 
-        {eventsWithCnpj.length === 0 ? (
+        {activeEvents.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <FileText className="w-7 h-7 text-gray-300" />
             </div>
-            <p className="text-sm font-semibold text-gray-600">Nenhum evento com empresa pagadora cadastrada</p>
-            <p className="text-xs text-gray-400 mt-1.5 max-w-xs mx-auto">Para usar Notas Fiscais, cadastre a empresa responsável pelo pagamento no evento desejado.</p>
+            <p className="text-sm font-semibold text-gray-600">Nenhum evento ativo encontrado</p>
+            <p className="text-xs text-gray-400 mt-1.5 max-w-xs mx-auto">Crie ou reative um evento para gerenciar as notas fiscais.</p>
             <Link href="/events">
               <a className="inline-flex items-center gap-1.5 mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors">
                 <ExternalLink className="w-3.5 h-3.5" /> Ir para Eventos
