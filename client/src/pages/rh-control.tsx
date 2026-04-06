@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, XCircle, RotateCcw, Clock,
@@ -130,6 +131,7 @@ export default function RhControlPage() {
   const [checkinInvoiceId, setCheckinInvoiceId] = useState<string | null>(null);
   const [doingCheckin, setDoingCheckin] = useState(false);
   const { user } = useAuth();
+  const { toast } = useToast();
   const [, navigate] = useLocation();
 
   const { data: events } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -1006,9 +1008,12 @@ export default function RhControlPage() {
                           if (!nfInvCard?.id) return;
                           setDoingCheckin(true);
                           try {
-                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, {});
+                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, { _userId: (user as any)?.id });
                             await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
                             setCheckinInvoiceId(null);
+                            toast({ title: "Check-in registrado com sucesso" });
+                          } catch (err: any) {
+                            toast({ title: "Erro ao registrar check-in", description: err?.message || "Tente novamente", variant: "destructive" });
                           } finally { setDoingCheckin(false); }
                         }}
                         className="text-[11px] font-semibold h-7 px-3 rounded-md disabled:opacity-50 text-white transition-colors"

@@ -2786,15 +2786,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/invoices/:id/checkin", async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: "Não autenticado" });
-    const user = await storage.getUser(req.session.userId);
+    const actorId = req.session?.userId || req.body?._userId;
+    if (!actorId) return res.status(401).json({ message: "Não autenticado" });
+    const user = await storage.getUser(actorId);
     if (!user || (user.role !== "admin" && user.role !== "financial")) {
       return res.status(403).json({ message: "Sem permissão" });
     }
     try {
       const invoice = await storage.updateInvoice(req.params.id, {
         checkinAt: new Date(),
-        checkinBy: req.session.userId,
+        checkinBy: actorId,
       });
       res.json(invoice);
     } catch (error) {
