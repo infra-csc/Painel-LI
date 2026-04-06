@@ -774,7 +774,35 @@ export default function BudgetPlannedPage() {
   const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'alimentacao' | 'mobilidade', rawValue: string) => {
     const val = parseFloat(rawValue) || 0;
     const valCents = Math.round(val * 100);
-    const base: BudgetEdit = budgetOverrides[budget.inclusion.id] || {
+    const existingOvr = budgetOverrides[budget.inclusion.id];
+
+    // Calcula o valor atual padrão (sem override) para comparar
+    const foodDefault = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
+    const isUnchanged =
+      (field === 'valorDia'    && valCents === budget.valorDiariaUtil) ||
+      (field === 'alimentacao' && valCents === foodDefault) ||
+      (field === 'mobilidade'  && valCents === budget.mobilidade) ||
+      (field === 'qtdDiarias'  && val === budget.qtdDiarias);
+
+    if (isUnchanged) {
+      // Valor não mudou — se havia override só nesse campo, limpa
+      if (existingOvr) {
+        const cleaned = { ...existingOvr };
+        if (field === 'valorDia') { delete (cleaned as any).valorDiariaUtil; delete (cleaned as any).valorDiariaFds; }
+        else if (field === 'alimentacao') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
+        else if (field === 'mobilidade') { delete (cleaned as any).mobilidade; delete (cleaned as any).mobilidadeIda; delete (cleaned as any).mobilidadeVolta; }
+        else if (field === 'qtdDiarias') { delete (cleaned as any).qtdDiarias; }
+        const remainingKeys = Object.keys(cleaned).filter(k => k !== 'inclusionId');
+        if (remainingKeys.length === 0) {
+          setBudgetOverrides(prev => { const n = { ...prev }; delete n[budget.inclusion.id]; return n; });
+        } else {
+          setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: cleaned }));
+        }
+      }
+      return;
+    }
+
+    const base: BudgetEdit = existingOvr || {
       inclusionId: budget.inclusion.id,
       qtdDiarias: budget.qtdDiarias,
       valorDiaria: budget.valorDiaria,
