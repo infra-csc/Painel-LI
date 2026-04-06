@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -142,6 +142,13 @@ export default function InvoicesPage() {
 
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   const activeEvents = (events as any[]).filter(e => e.status !== "excluído");
+
+  // Auto-select the first active event when the list loads (if nothing is selected yet)
+  useEffect(() => {
+    if (!selectedEventId && activeEvents.length > 0) {
+      setSelectedEventId(activeEvents[0].id);
+    }
+  }, [activeEvents.length]);
   const eventsWithCnpj = activeEvents.filter((e: any) => e.paymentCompanyCnpj?.trim());
   const selectedEvent = activeEvents.find((e: any) => e.id === selectedEventId);
 
