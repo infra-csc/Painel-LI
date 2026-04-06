@@ -862,11 +862,17 @@ export default function RhControlPage() {
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : checkinPendingCard
                     ? "bg-violet-50 text-violet-700 border-violet-200"
+                    : nfStatus === "enviada"
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : nfStatus === "devolvida"
+                    ? "bg-orange-50 text-orange-700 border-orange-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
-                  {hasCheckin ? "Concluído" : checkinPendingCard ? (
-                    <>Ag. Check-in{nfInvCard?.approvedAt ? ` · NF aprovada ${new Date(nfInvCard.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}` : ""}</>
-                  ) : "Ag. Nota Fiscal"}
+                  {hasCheckin ? "Concluído"
+                    : checkinPendingCard ? <>Ag. Check-in{nfInvCard?.approvedAt ? ` · ${new Date(nfInvCard.approvedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : ""}</>
+                    : nfStatus === "enviada" ? "NF em análise"
+                    : nfStatus === "devolvida" ? "NF devolvida"
+                    : "Ag. Nota Fiscal"}
                 </span>
               ) : (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${config.badgeCls}`}>
@@ -1294,11 +1300,8 @@ export default function RhControlPage() {
   };
 
   const totalItems = prestacaoItems.length;
-  const concludedCount = prestacaoItems.filter(item => {
-    if (item.status !== "aprovada_faturamento") return false;
-    const inv = item.actual ? getInvoiceForActual(item.actual.id) : null;
-    return inv?.status === "aprovada" && !!inv?.checkinAt;
-  }).length;
+  // "Concluído" = invoice approved + check-in done (directly from invoice data)
+  const concludedCount = invoiceCounts.checkinDone;
   const totalForProgress = prestacaoItems.filter(item => !item.planned?.didNotAttend).length;
   const progressPct = totalForProgress > 0 ? Math.round(concludedCount / totalForProgress * 100) : 0;
 
@@ -1345,9 +1348,13 @@ export default function RhControlPage() {
         const colNfPend = invoiceCounts.pending;
         const colTotal = colReal + colNfDev + colNfPend;
 
-        const emAndamento = (statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada;
+        // "Em andamento" = approved actuals in NF/invoicing stage (excluding check-in which is in Aguardando RH)
+        const nfAgNf    = invoiceCounts.pending;         // NF not yet submitted
+        const nfAnalise = invoiceCounts.enviada;         // NF under RH review
+        const nfDevNf   = invoiceCounts.devolvida;       // NF returned for correction
+        const emAndamento = nfAgNf + nfAnalise + nfDevNf;
         const recusada = statusCounts.recusada || 0;
-        const chk = invoiceCounts.checkinPending || 0;
+        const chk = invoiceCounts.checkinPending || 0;   // NF approved, RH check-in pending
 
         const MetricLine = ({ label, val, color }: { label: string; val: number; color: string }) => (
           <div className="flex items-center gap-1.5">
@@ -1393,16 +1400,16 @@ export default function RhControlPage() {
               <MetricLine label="Ag. NF"       val={colNfPend} color="#0033CC" />
             </MetricCard>
 
-            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Em andamento" value={(statusCounts.aguardando_prestacao || 0) + invoiceCounts.enviada + chk}>
-              <MetricLine label="Ag. realização" val={statusCounts.aguardando_prestacao || 0} color="#d97706" />
-              <MetricLine label="NF em análise"  val={invoiceCounts.enviada} color="#d97706" />
-              <MetricLine label="Ag. Check-in"   val={chk} color="#d97706" />
+            <MetricCard stripColor="#d97706" icon={Clock} iconColor="#d97706" title="Nota Fiscal" value={emAndamento}>
+              <MetricLine label="Ag. envio"    val={nfAgNf}    color="#d97706" />
+              <MetricLine label="Em análise"   val={nfAnalise} color="#d97706" />
+              <MetricLine label="NF devolvida" val={nfDevNf}   color="#d97706" />
             </MetricCard>
 
             <MetricCard stripColor="#059669" icon={CheckCircle} iconColor="#059669" title="Concluídos" value={concludedCount}>
               <MetricLine label={`de ${totalForProgress} total`} val={concludedCount} color="#059669" />
               {recusada > 0 && <MetricLine label={`recusado${recusada !== 1 ? 's' : ''}`} val={recusada} color="#ef4444" />}
-              <div className="text-[10px] text-slate-300 mt-0.5">só conta após check-in</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Nota Fiscal aprovada + check-in</div>
             </MetricCard>
           </div>
         );
