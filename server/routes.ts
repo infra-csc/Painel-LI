@@ -2793,9 +2793,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Sem permissão" });
     }
     try {
+      const { paymentDate } = req.body;
       const invoice = await storage.updateInvoice(req.params.id, {
         checkinAt: new Date(),
         checkinBy: actorId,
+        ...(paymentDate ? { paymentDate } : {}),
       });
       res.json(invoice);
     } catch (error) {

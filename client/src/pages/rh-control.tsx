@@ -129,6 +129,7 @@ export default function RhControlPage() {
   const [nfApprovalDate, setNfApprovalDate] = useState("");
   const [nfApproving, setNfApproving] = useState(false);
   const [checkinInvoiceId, setCheckinInvoiceId] = useState<string | null>(null);
+  const [checkinPaymentDate, setCheckinPaymentDate] = useState("");
   const [doingCheckin, setDoingCheckin] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1007,6 +1008,13 @@ export default function RhControlPage() {
                 if (isDoingThis) {
                   return (
                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="date"
+                        value={checkinPaymentDate}
+                        onChange={e => setCheckinPaymentDate(e.target.value)}
+                        className="text-[11px] h-7 px-2 rounded-md border border-slate-200 text-slate-700 focus:outline-none focus:border-emerald-400 bg-white"
+                        placeholder="Data pgto."
+                      />
                       <button
                         disabled={doingCheckin}
                         onClick={async (e) => {
@@ -1014,9 +1022,13 @@ export default function RhControlPage() {
                           if (!nfInvCard?.id) return;
                           setDoingCheckin(true);
                           try {
-                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, { _userId: (user as any)?.id });
+                            await apiRequest("POST", `/api/invoices/${nfInvCard.id}/checkin`, {
+                              _userId: (user as any)?.id,
+                              ...(checkinPaymentDate ? { paymentDate: checkinPaymentDate } : {}),
+                            });
                             await queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
                             setCheckinInvoiceId(null);
+                            setCheckinPaymentDate("");
                             toast({ title: "Check-in registrado com sucesso" });
                           } catch (err: any) {
                             toast({ title: "Erro ao registrar check-in", description: err?.message || "Tente novamente", variant: "destructive" });
@@ -1025,10 +1037,10 @@ export default function RhControlPage() {
                         className="text-[11px] font-semibold h-7 px-3 rounded-md disabled:opacity-50 text-white transition-colors"
                         style={{ background: '#059669' }}
                       >
-                        {doingCheckin ? "..." : "Confirmar Check-in"}
+                        {doingCheckin ? "..." : "Confirmar"}
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(null); }}
+                        onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(null); setCheckinPaymentDate(""); }}
                         className="text-[11px] h-7 px-2 rounded-md border border-gray-200 text-slate-500 hover:bg-gray-50"
                       >✕</button>
                     </div>
@@ -1038,7 +1050,7 @@ export default function RhControlPage() {
                   <button
                     className="text-[11px] font-semibold h-7 px-3 rounded-md text-white transition-colors flex items-center gap-1.5 shadow-sm"
                     style={{ background: '#7C3AED' }}
-                    onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(nfInvCard?.id || null); }}
+                    onClick={(e) => { e.stopPropagation(); setCheckinInvoiceId(nfInvCard?.id || null); setCheckinPaymentDate(""); }}
                   >
                     <CircleDot className="w-3 h-3" />
                     Fazer Check-in

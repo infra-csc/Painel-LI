@@ -519,34 +519,63 @@ function LancamentoTab({ approvedActuals, getInvoice, getName, getFuncName, sele
 function CheckinSection({ invoice, selectedEventId, qc, toast }: any) {
   const { user } = useAuth();
   const canCheckin = isRhOrAdmin(user);
+  const [payDate, setPayDate] = useState("");
+  const [open, setOpen] = useState(false);
 
   const checkinMut = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/invoices/${invoice?.id}/checkin`, { _userId: user?.id }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", `/api/invoices/${invoice?.id}/checkin`, {
+      _userId: user?.id,
+      ...(payDate ? { paymentDate: payDate } : {}),
+    }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/invoices", selectedEventId] });
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      setOpen(false);
+      setPayDate("");
       toast({ title: "Check-in realizado!", description: "Item marcado como concluído." });
     },
     onError: () => toast({ title: "Erro ao registrar check-in", variant: "destructive" }),
   });
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 flex-wrap">
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-blue-50 text-[#0033CC] border border-blue-200">
         <Clock className="w-3.5 h-3.5" />
         Aprovada · Aguardando Check-in Financeiro
       </div>
-      {canCheckin && invoice && (
+      {canCheckin && invoice && !open && (
         <Button
           size="sm"
           className="rounded-xl text-white px-4 h-8 text-xs shadow-sm shrink-0"
           style={{ background: "#059669" }}
-          onClick={() => checkinMut.mutate()}
-          disabled={checkinMut.isPending}
+          onClick={() => setOpen(true)}
         >
           <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
-          {checkinMut.isPending ? "Salvando..." : "Fazer Check-in"}
+          Fazer Check-in
         </Button>
+      )}
+      {canCheckin && invoice && open && (
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={payDate}
+            onChange={e => setPayDate(e.target.value)}
+            className="text-xs h-8 px-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-none focus:border-emerald-400 bg-white"
+          />
+          <Button
+            size="sm"
+            className="rounded-lg text-white px-3 h-8 text-xs shadow-sm shrink-0"
+            style={{ background: "#059669" }}
+            onClick={() => checkinMut.mutate()}
+            disabled={checkinMut.isPending}
+          >
+            {checkinMut.isPending ? "..." : "Confirmar"}
+          </Button>
+          <button
+            onClick={() => { setOpen(false); setPayDate(""); }}
+            className="text-xs h-8 px-2 rounded-lg border border-gray-200 text-slate-500 hover:bg-gray-50"
+          >✕</button>
+        </div>
       )}
     </div>
   );
@@ -770,6 +799,11 @@ function InvoiceCard({ actual, invoice, getName, getFuncName, selectedEvent, sel
             <CheckCircle2 className="w-3.5 h-3.5" />
             Check-in Realizado
             {invoice?.checkinAt && <span className="font-normal opacity-75">· {fmtDate(invoice.checkinAt)}</span>}
+            {invoice?.paymentDate && (
+              <span className="font-normal opacity-75 ml-1">
+                · Pgto: {fmtDate(invoice.paymentDate)}
+              </span>
+            )}
           </div>
         )}
 
