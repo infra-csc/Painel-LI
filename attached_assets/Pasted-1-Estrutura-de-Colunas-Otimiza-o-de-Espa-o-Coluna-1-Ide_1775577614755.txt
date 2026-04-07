@@ -1,0 +1,35 @@
+1. Estrutura de Colunas (Otimização de Espaço)
+Coluna 1: Identificação (Rich Cell): Agrupar Nome, Função e Período em uma única célula vertical para liberar espaço horizontal.
+
+Linha 1: Nome em Negrito (Fonte maior) + Badge arredondado CASA ou FREELA.
+
+Linha 2: Função | 10/10 a 15/10 (Texto em cinza, fonte menor).
+
+Colunas de Valores (Diária e Alimentação): Devem possuir sub-cabeçalhos no topo: ÚTIL e FDS.
+
+NA CÉLULA: Apenas dois inputs numéricos empilhados. Proibido repetir as palavras "Útil" e "Fds" dentro das células das linhas. O usuário se orienta pelo cabeçalho.
+
+Coluna Subtotal: Alinhamento total à DIREITA. Fonte em negrito para destaque do valor final.
+
+2. Design de Interface (UI Minimalista)
+Inputs "Ghost": Remover bordas pretas ou grossas. Os campos de edição devem ter apenas um fundo cinza muito claro (#F9FAFB) e bordas arredondadas sutis. A borda colorida só aparece quando o campo ganha foco.
+
+Hierarquia de Cores: * Fundo da linha de Fim de Semana (FDS): Usar um tom levemente amarelado ou alaranjado claríssimo para diferenciar do Dia Útil.
+
+Linha do Colaborador: Adicionar um border-bottom sutil entre colaboradores diferentes para criar separação visual clara.
+
+Respiro (Padding): Aumentar o espaçamento interno das células. A tabela não deve parecer "apertada".
+
+3. Lógica de Cálculo e Lote (UX)
+Cálculo Automático: O Subtotal deve ser atualizado em tempo real: (Qtd Útil * Valor Útil) + (Qtd FDS * Valor FDS) + Mobilidade.
+
+Edição em Lote Avançada: O botão de lote deve permitir filtrar por Vínculo (Casa/Freela) e por Tipo de Dia (Útil/FDS).
+
+Exemplo: "Alterar Alimentação FDS de todos os FREELAS para R$ 120,00".
+
+Trava de Segurança: A quantidade de diárias (nº de dias) permanece travada (read-only), vinda da escalação oficial. O RH edita apenas os valores em R$.
+
+4. Auditoria e Feedback
+Tooltip de Memória de Cálculo: Ao passar o mouse no Subtotal, exibir o detalhamento da conta (ex: 3 dias úteis + 2 fds).
+
+Badge de Alteração: Se o valor for alterado manualmente pelo RH após o preenchimento automático, exibir um pequeno ponto laranja de sinalização.

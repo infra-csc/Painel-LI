@@ -2247,6 +2247,16 @@ export default function BudgetPlannedPage() {
                                     {isNewCollab && (
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <span style={{fontSize:13, fontWeight:600, color:'#111827', letterSpacing:'-0.01em'}}>{toTitleCase(name)}</span>
+                                        {hasOvr && !isSent && (
+                                          <TooltipProvider delayDuration={150}>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{background:'#F97316', boxShadow:'0 0 0 2px #FFF'}} />
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="text-xs">Valores editados manualmente pelo RH</TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        )}
                                         <span className="inline-flex items-center justify-center text-[10px] font-semibold rounded-full"
                                           style={{
                                             ...(isCasaTypeHdr ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}),
@@ -2355,7 +2365,7 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center justify-end gap-1">
+                                <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2441,7 +2451,7 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center justify-end gap-1">
+                                <div className="flex items-center justify-end gap-1 rounded-md px-1 -mx-1" style={{background:'#FFF8F2'}}>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
