@@ -927,7 +927,13 @@ export default function SystemSettingsPage() {
                                   </TooltipContent>
                                 </Tooltip>
                               ) : null}
-                              <span className={`text-sm font-medium truncate ${isCoord ? 'text-blue-700' : isDirty ? 'text-amber-700 font-semibold' : 'text-slate-700'}`}>
+                              <span
+                                className={`text-sm font-medium truncate ${isCoord ? 'text-blue-700' : isDirty ? 'font-semibold' : ''}`}
+                                style={isCoord ? {} : isDirty
+                                  ? { color: activeTab === 'freela' ? '#78350F' : '#B45309' }
+                                  : { color: activeTab === 'freela' ? '#B45309' : '#374151' }
+                                }
+                              >
                                 {toTitleCase(fn.name)}
                               </span>
                             </div>
