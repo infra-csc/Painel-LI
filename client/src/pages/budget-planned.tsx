@@ -117,6 +117,12 @@ export default function BudgetPlannedPage() {
   const [restoredFeedback, setRestoredFeedback] = useState<string | null>(null);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
   const [subtotalOpenId, setSubtotalOpenId] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [advancedBatch, setAdvancedBatch] = useState<{
+    target: 'all'|'casa'|'freela'|'selected';
+    field: 'vdiaUtil'|'vdiaFds'|'alimUtil'|'alimFds'|'mob';
+    value: string;
+  } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -953,6 +959,34 @@ export default function BudgetPlannedPage() {
       return next;
     });
     setBatchHistory(null);
+  };
+
+  const applyAdvancedBatch = () => {
+    if (!advancedBatch) return;
+    const { target, field, value } = advancedBatch;
+    const val = parseFloat(value) || 0;
+    if (val <= 0) return;
+    const domainField =
+      field === 'vdiaUtil' ? 'valorDia' :
+      field === 'vdiaFds' ? 'valorDiaFds' :
+      field === 'alimUtil' ? 'alimentacaoUtil' :
+      field === 'alimFds' ? 'alimentacaoFds' : 'mobilidade';
+    const targets = filteredBudgets.filter(b => {
+      if (isCardNotAttended(b)) return false;
+      if (sentToActual.has(b.inclusion.id)) return false;
+      const isCasa = b.collaborator?.type === 'casa' || b.collaborator?.type === 'local';
+      if (target === 'casa' && !isCasa) return false;
+      if (target === 'freela' && isCasa) return false;
+      if (target === 'selected' && !selectedRows.has(b.inclusion.id)) return false;
+      return true;
+    });
+    if (targets.length === 0) return;
+    const prevOverrides = { ...budgetOverrides };
+    targets.forEach(b => handleSheetEdit(b, domainField as any, value));
+    setBatchApplied(prev => { const next = new Set(prev); next.add('vdia'); return next; });
+    setBatchHistory({ fields: ['vdia'], prev: prevOverrides });
+    setAdvancedBatch(null);
+    toast({ title: `Lote aplicado`, description: `${targets.length} colaborador${targets.length !== 1 ? 'es' : ''} atualizados` });
   };
 
   // Close batch popover on outside click
@@ -1826,29 +1860,103 @@ export default function BudgetPlannedPage() {
                     </button>
                   </div>
                 ) : (
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setConfirmReset(true)}
-                          className="text-[11px] px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          Restaurar Padrão em Todos
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs max-w-[240px] text-center">
-                        Limpa todos os ajustes manuais e recalcula automaticamente: identifica se o colaborador é Casa ou Freela, usa os valores da função (Útil/FDS) e os defaults do sistema
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAdvancedBatch({ target: 'all', field: 'vdiaUtil', value: '' })}
+                      className="text-[11px] px-3 py-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-colors flex items-center gap-1.5 font-medium"
+                    >
+                      ✏ Edição em Lote
+                    </button>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setConfirmReset(true)}
+                            className="text-[11px] px-3 py-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1.5 font-medium"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Restaurar Padrão em Todos
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[240px] text-center">
+                          Limpa todos os ajustes manuais e recalcula automaticamente: identifica se o colaborador é Casa ou Freela, usa os valores da função (Útil/FDS) e os defaults do sistema
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 )}
               </div>
+
+              {/* Advanced Batch Modal */}
+              {advancedBatch && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,0.35)'}}>
+                  <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-[420px] max-w-[95vw]">
+                    <div className="flex items-center justify-between mb-5">
+                      <span className="text-[15px] font-bold text-slate-800">Edição em Lote</span>
+                      <button onClick={() => setAdvancedBatch(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+                    </div>
+                    {/* Target */}
+                    <div className="mb-4">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Quem será afetado</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['all','casa','freela','selected'] as const).map(t => (
+                          <button key={t} onClick={() => setAdvancedBatch(p => p ? {...p, target: t} : p)}
+                            className={`text-[12px] px-3 py-2 rounded-lg border font-medium transition-colors ${advancedBatch.target === t ? 'border-[#0033CC] bg-blue-50 text-[#0033CC]' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                            {t === 'all' ? 'Todos' : t === 'casa' ? 'Somente CASA' : t === 'freela' ? 'Somente FREELA' : `Selecionados (${selectedRows.size})`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Field */}
+                    <div className="mb-4">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">O que alterar</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          ['vdiaUtil','Diária Útil','#2563EB'],
+                          ['vdiaFds','Diária FDS','#F97316'],
+                          ['alimUtil','Alimentação Útil','#2563EB'],
+                          ['alimFds','Alimentação FDS','#F97316'],
+                          ['mob','Mobilidade','#6D28D9'],
+                        ] as const).map(([f, label, color]) => (
+                          <button key={f} onClick={() => setAdvancedBatch(p => p ? {...p, field: f} : p)}
+                            className={`text-[12px] px-3 py-2 rounded-lg border font-medium transition-colors text-left ${advancedBatch.field === f ? 'border-current' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                            style={advancedBatch.field === f ? {borderColor: color, background:'#F8FAFC', color} : {}}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Value */}
+                    <div className="mb-5">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Novo valor (R$/dia)</div>
+                      <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 focus-within:border-[#0033CC] focus-within:shadow-[0_0_0_2px_rgba(0,51,204,0.1)]">
+                        <span className="text-slate-400 text-sm font-medium">R$</span>
+                        <input
+                          type="text" inputMode="decimal" placeholder="0,00"
+                          value={advancedBatch.value}
+                          onChange={e => setAdvancedBatch(p => p ? {...p, value: e.target.value} : p)}
+                          onKeyDown={e => { if (e.key === 'Enter') applyAdvancedBatch(); }}
+                          autoFocus
+                          className="flex-1 text-right text-[14px] font-mono font-semibold outline-none bg-transparent text-slate-800"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setAdvancedBatch(null)} className="flex-1 h-10 text-[13px] border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 font-medium transition-colors">Cancelar</button>
+                      <button onClick={applyAdvancedBatch}
+                        className="flex-1 h-10 text-[13px] rounded-xl text-white font-bold transition-colors"
+                        style={{background:'#0033CC'}}>
+                        Aplicar Ajuste
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Tabela */}
               {(() => {
                 const allSameMob = false;
-                const colSpanTotal = 6;
+                const colSpanTotal = 7;
 
                 return (
                 <div ref={batchPopoverRef} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1856,7 +1964,20 @@ export default function BudgetPlannedPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-slate-200">
-                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-slate-50/80" style={{color:'#888'}}>Colaborador</th>
+                          {/* Checkbox select-all */}
+                          <th className="w-10 px-3 py-2.5 bg-slate-50/80">
+                            <Checkbox
+                              checked={filteredBudgets.length > 0 && filteredBudgets.every(b => selectedRows.has(b.inclusion.id))}
+                              onCheckedChange={v => {
+                                setSelectedRows(v
+                                  ? new Set(filteredBudgets.filter(b => !sentToActual.has(b.inclusion.id)).map(b => b.inclusion.id))
+                                  : new Set()
+                                );
+                              }}
+                              className="w-3.5 h-3.5"
+                            />
+                          </th>
+                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[220px] bg-slate-50/80" style={{color:'#888'}}>Função / Período</th>
 
                           {/* Diárias — read-only, lock icon */}
                           <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{background:'#F1F5F9', color:'#94A3B8'}}>
@@ -2033,12 +2154,15 @@ export default function BudgetPlannedPage() {
                           <tr>
                             <td colSpan={colSpanTotal} className="px-4 py-12 text-center text-sm text-slate-400">Nenhum colaborador encontrado</td>
                           </tr>
-                        ) : filteredBudgets.map((budget, rowIdx) => {
+                        ) : filteredBudgets.flatMap((budget, rowIdx) => {
                           const isSent = sentToActual.has(budget.inclusion.id);
                           const isNotAttended = isCardNotAttended(budget);
                           const hasOvr = budget.hasOverride;
                           const name = getCollaboratorName(budget.inclusion.collaboratorId);
                           const funcName = getFunctionName(budget.inclusion.functionId);
+                          const prevBudgetCollab = rowIdx > 0 ? filteredBudgets[rowIdx - 1].inclusion.collaboratorId : null;
+                          const isNewCollab = prevBudgetCollab !== budget.inclusion.collaboratorId;
+                          const isCasaTypeHdr = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                           const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
                           const foodPerDay = foodTotal / Math.max(1, budget.qtdDiarias);
                           const mobPerDay = budget.mobilidade / Math.max(1, budget.qtdDiarias) / 100;
@@ -2112,36 +2236,61 @@ export default function BudgetPlannedPage() {
                             }
                           };
 
-                          return (
+                          const headerRow = isNewCollab ? (
+                            <tr key={`hdr-${budget.inclusion.collaboratorId}-${rowIdx}`} style={{
+                              background: '#F1F5F9',
+                              borderTop: rowIdx > 0 ? '3px solid #CBD5E1' : undefined,
+                            }}>
+                              <td style={{width:40, paddingLeft:12, paddingTop:8, paddingBottom:8, verticalAlign:'middle'}}>
+                                <Checkbox
+                                  checked={selectedRows.has(budget.inclusion.collaboratorId + '_all') || filteredBudgets.filter(b => b.inclusion.collaboratorId === budget.inclusion.collaboratorId).every(b => selectedRows.has(b.inclusion.id))}
+                                  onCheckedChange={v => {
+                                    const groupBudgets = filteredBudgets.filter(b => b.inclusion.collaboratorId === budget.inclusion.collaboratorId);
+                                    setSelectedRows(prev => {
+                                      const next = new Set(prev);
+                                      groupBudgets.forEach(b => v ? next.add(b.inclusion.id) : next.delete(b.inclusion.id));
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-3.5 h-3.5"
+                                />
+                              </td>
+                              <td colSpan={colSpanTotal - 1} style={{paddingLeft:8, paddingTop:8, paddingBottom:8}}>
+                                <div className="flex items-center gap-2">
+                                  <span style={{fontSize:13, fontWeight:700, color:'#1a1a2e'}}>{toTitleCase(name)}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                                    style={isCasaTypeHdr ? {background:'#DBEAFE', color:'#1D4ED8'} : {background:'#FEE2E2', color:'#B91C1C'}}>
+                                    {isCasaTypeHdr ? 'Casa' : 'Freela'}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null;
+
+                          const dataRow = (
                             <tr
                               key={budget.inclusion.id}
                               style={{
-                                height: isSameCollab ? '52px' : '60px',
+                                height: '52px',
                                 background: isSent ? '#FAFAFA' : undefined,
-                                borderTop: rowIdx === 0 ? undefined : isSameCollab ? '1px dashed #E2E8F0' : '2px solid #CBD5E1',
                               }}
                               className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
-                              {/* Colaborador */}
-                              <td className="px-4" style={{minWidth:'260px'}}>
-                                <div className="flex items-center gap-1.5 leading-tight flex-wrap">
-                                  {isSameCollab && (
-                                    <span className="text-[11px] text-slate-300 select-none shrink-0" style={{lineHeight:1}}>↳</span>
-                                  )}
-                                  <span
-                                    className={`text-[13px] ${isSameCollab ? 'font-medium' : 'font-semibold'} ${isNotAttended ? 'line-through text-slate-400' : ''}`}
-                                    style={{color: isNotAttended ? undefined : isSameCollab ? '#64748B' : '#1a1a2e', textTransform:'none'}}
-                                  >
-                                    {toTitleCase(name)}
-                                  </span>
-                                  {/* CASA / FREELA badge */}
-                                  <span
-                                    className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wide"
-                                    style={isCasaType
-                                      ? {background:'#DBEAFE', color:'#1D4ED8'}
-                                      : {background:'#FEE2E2', color:'#B91C1C'}}
-                                  >
-                                    {tipoLabel}
+                              {/* Checkbox */}
+                              <td style={{width:40, paddingLeft:12, verticalAlign:'middle'}}>
+                                <Checkbox
+                                  checked={selectedRows.has(sid)}
+                                  onCheckedChange={v => setSelectedRows(prev => { const next = new Set(prev); v ? next.add(sid) : next.delete(sid); return next; })}
+                                  className="w-3.5 h-3.5"
+                                  disabled={isSent}
+                                />
+                              </td>
+
+                              {/* Função + período */}
+                              <td className="pl-5 pr-3" style={{minWidth:'200px'}}>
+                                <div className="flex items-center gap-1.5 flex-wrap leading-tight">
+                                  <span className={`text-[12px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`} style={{color: isNotAttended ? undefined : '#374151'}}>
+                                    {funcName}
                                   </span>
                                   {matchingActual?.rhAdjusted && (
                                     <TooltipProvider delayDuration={200}>
@@ -2163,17 +2312,14 @@ export default function BudgetPlannedPage() {
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[11px]" style={{color:'#888'}}>{funcName}</span>
-                                  {budget.inclusion.startDate && budget.inclusion.endDate && (
-                                    <span className="text-[10px]" style={{color:'#B0B7C3'}}>
-                                      {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
-                                      {budget.inclusion.startDate !== budget.inclusion.endDate && (
-                                        <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
-                                      )}
-                                    </span>
-                                  )}
-                                </div>
+                                {budget.inclusion.startDate && budget.inclusion.endDate && (
+                                  <div className="text-[10px] mt-0.5" style={{color:'#B0B7C3'}}>
+                                    {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                                    {budget.inclusion.startDate !== budget.inclusion.endDate && (
+                                      <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
+                                    )}
+                                  </div>
+                                )}
                               </td>
 
                               {/* Diárias qty — somente leitura */}
@@ -2286,71 +2432,68 @@ export default function BudgetPlannedPage() {
                               {/* Alimentação — Útil/FDS separados */}
                               <td className="px-3 py-1" style={{minWidth:'160px'}}>
                                 <div className="flex flex-col gap-1">
-                                  {/* Dia Útil — só exibe se há dias úteis */}
-                                  {budget.weekdays > 0 && (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#2563EB'}}>Útil</span>
-                                      <TooltipProvider delayDuration={150}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <input
-                                              type="text" inputMode="decimal"
-                                              tabIndex={rowIdx * 4 + 4}
-                                              disabled={disabled}
-                                              value={buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
-                                              onChange={e => setbuf('alimUtil', e.target.value)}
-                                              onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
-                                              onFocus={e => e.target.select()}
-                                              className={`${inputBase} w-[82px] ${!disabled && alimUtilEdited ? 'font-bold' : ''}`}
-                                              style={!disabled && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e3a8a'} : {}}
-                                            />
-                                          </TooltipTrigger>
-                                          {!disabled && (
-                                            <TooltipContent side="top" className="text-xs">
-                                              {alimUtilEdited
-                                                ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
-                                                : `Almoço + Jantar por dia útil`}
-                                            </TooltipContent>
-                                          )}
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                      {alimUtilEdited && !disabled && (() => {
-                                        const fbKey = `${sid}:alimUtil`;
-                                        const restored = restoredFeedback === fbKey;
-                                        return (
-                                          <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                            <Tooltip open={restored ? true : undefined}>
-                                              <TooltipTrigger asChild>
-                                                <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
-                                                  className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
-                                              </TooltipTrigger>
-                                              <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        );
-                                      })()}
-                                    </div>
-                                  )}
-                                  {/* Fim de Semana — só exibe se há dias de FDS */}
-                                  {budget.weekends > 0 && (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#F97316'}}>FDS</span>
-                                      <TooltipProvider delayDuration={150}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <input
-                                              type="text" inputMode="decimal"
-                                              tabIndex={rowIdx * 4 + 5}
-                                              disabled={disabled}
-                                              value={buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
-                                              onChange={e => setbuf('alimFds', e.target.value)}
-                                              onBlur={commitBlur('alimentacaoFds', 'alimFds')}
-                                              onFocus={e => e.target.select()}
-                                              className={`${inputBase} w-[82px] ${!disabled && alimFdsEdited ? 'font-bold' : ''}`}
-                                              style={!disabled && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled ? {color:'#92400e'} : {}}
-                                            />
-                                          </TooltipTrigger>
-                                          {!disabled && (
+                                  {/* Dia Útil — sempre visível; disabled se não há dias úteis */}
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color: budget.weekdays > 0 ? '#2563EB' : '#CBD5E1'}}>Útil</span>
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text" inputMode="decimal"
+                                            tabIndex={rowIdx * 4 + 4}
+                                            disabled={disabled || budget.weekdays === 0}
+                                            value={budget.weekdays === 0 ? '—' : buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
+                                            onChange={e => setbuf('alimUtil', e.target.value)}
+                                            onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
+                                            onFocus={e => e.target.select()}
+                                            className={`${inputBase} w-[82px] ${!disabled && budget.weekdays > 0 && alimUtilEdited ? 'font-bold' : ''}`}
+                                            style={!disabled && budget.weekdays > 0 && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled && budget.weekdays > 0 ? {color:'#1e3a8a'} : {color:'#CBD5E1'}}
+                                          />
+                                        </TooltipTrigger>
+                                        {!disabled && budget.weekdays > 0 && (
+                                          <TooltipContent side="top" className="text-xs">
+                                            {alimUtilEdited
+                                              ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
+                                              : `Almoço + Jantar por dia útil`}
+                                          </TooltipContent>
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    {alimUtilEdited && !disabled && budget.weekdays > 0 && (() => {
+                                      const fbKey = `${sid}:alimUtil`;
+                                      const restored = restoredFeedback === fbKey;
+                                      return (
+                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                          <Tooltip open={restored ? true : undefined}>
+                                            <TooltipTrigger asChild>
+                                              <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      );
+                                    })()}
+                                  </div>
+                                  {/* Fim de Semana — sempre visível; disabled se não há fins de semana */}
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color: budget.weekends > 0 ? '#F97316' : '#CBD5E1'}}>FDS</span>
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text" inputMode="decimal"
+                                            tabIndex={rowIdx * 4 + 5}
+                                            disabled={disabled || budget.weekends === 0}
+                                            value={budget.weekends === 0 ? '—' : buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
+                                            onChange={e => setbuf('alimFds', e.target.value)}
+                                            onBlur={commitBlur('alimentacaoFds', 'alimFds')}
+                                            onFocus={e => e.target.select()}
+                                            className={`${inputBase} w-[82px] ${!disabled && budget.weekends > 0 && alimFdsEdited ? 'font-bold' : ''}`}
+                                            style={!disabled && budget.weekends > 0 && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled && budget.weekends > 0 ? {color:'#92400e'} : {color:'#CBD5E1'}}
+                                          />
+                                        </TooltipTrigger>
+                                          {!disabled && budget.weekends > 0 && (
                                             <TooltipContent side="top" className="text-xs">
                                               {alimFdsEdited
                                                 ? `Editado · padrão: R$ ${((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia FDS`
@@ -2359,7 +2502,7 @@ export default function BudgetPlannedPage() {
                                           )}
                                         </Tooltip>
                                       </TooltipProvider>
-                                      {alimFdsEdited && !disabled && (() => {
+                                      {alimFdsEdited && !disabled && budget.weekends > 0 && (() => {
                                         const fbKey = `${sid}:alimFds`;
                                         const restored = restoredFeedback === fbKey;
                                         return (
@@ -2374,21 +2517,7 @@ export default function BudgetPlannedPage() {
                                           </TooltipProvider>
                                         );
                                       })()}
-                                    </div>
-                                  )}
-                                  {/* Se só tem um tipo de dia, mostrar placeholder para o outro tipo */}
-                                  {budget.weekdays === 0 && budget.weekends > 0 && (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#CBD5E1'}}>Útil</span>
-                                      <span className="text-[12px] text-slate-300 font-mono" style={{width:82, textAlign:'right'}}>—</span>
-                                    </div>
-                                  )}
-                                  {budget.weekends === 0 && budget.weekdays > 0 && (
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#CBD5E1'}}>FDS</span>
-                                      <span className="text-[12px] text-slate-300 font-mono" style={{width:82, textAlign:'right'}}>—</span>
-                                    </div>
-                                  )}
+                                  </div>
                                 </div>
                               </td>
 
@@ -2537,6 +2666,7 @@ export default function BudgetPlannedPage() {
                               </td>
                             </tr>
                           );
+                          return [headerRow, dataRow].filter(Boolean) as JSX.Element[];
                         })}
                       </tbody>
                       {filteredBudgets.length > 0 && (() => {
@@ -2546,6 +2676,7 @@ export default function BudgetPlannedPage() {
                         return (
                           <tfoot>
                             <tr style={{background:'#F0F4FF', borderTop:'2px solid #3B4FE4'}}>
+                              <td style={{width:40}} />
                               <td className="px-4 py-2.5">
                                 <span className="text-[11px] font-semibold uppercase tracking-wider" style={{color:'#888'}}>
                                   TOTAL ({filteredBudgets.length})

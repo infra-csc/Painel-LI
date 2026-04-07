@@ -1,0 +1,58 @@
+O Gemini disse
+Com base na sua observação de que o layout ainda está confuso e que a lógica de lote precisa ser mais específica (separando Casa/Freela e Útil/FDS), aqui estão os ajustes finais para a Planilha de Edição:
+
+1. Novo Layout de Separação de Escalações
+Para acabar com a confusão visual entre diferentes colaboradores e suas funções, a tabela deve deixar de ser uma "lista infinita" e passar a ter agrupamentos visuais claros:
+
+Linha de Cabeçalho por Colaborador: Em vez de repetir o nome do colaborador em todas as linhas, use uma linha de divisão com o nome dele em destaque (negrito e fundo levemente cinza).
+
+Sub-linhas de Função: As funções e períodos (ex: "cenotecnica local | 10/10 a 14/10") aparecem logo abaixo, com um pequeno recuo para a direita.
+
+Espaçamento (Padding): Aumentar o espaço entre o fim das atividades de um colaborador e o início do próximo para que o RH identifique blocos de trabalho.
+
+2. Alimentação e Diária: Visibilidade Total
+Atendendo ao pedido de remover o ícone de informação e mostrar tudo:
+
+Célula Dupla Vertical: As colunas de Diária e Alimentação devem obrigatoriamente exibir as duas linhas internas (ÚTIL e FDS) de forma fixa.
+
+Alinhamento de Inputs: Os campos de texto para digitar os valores devem estar perfeitamente alinhados verticalmente, permitindo que o RH use a tecla Tab para navegar rapidamente entre "Útil" e "FDS" de cada coluna.
+
+3. Lógica de Edição em Massa (Lote Inteligente)
+O botão atual de "Aplicar para todos" é muito limitado. A nova lógica deve permitir que o RH abra um painel de Edição Avançada com os seguintes filtros:
+
+Filtro de Destino (Quem será afetado):
+
+[ ] Todos os Colaboradores
+
+[ ] Somente CASA
+
+[ ] Somente FREELA
+
+[ ] Apenas os selecionados (checkbox na linha)
+
+Filtro de Campo (O que mudar):
+
+Diária: [ ] Valor Útil | [ ] Valor FDS
+
+Alimentação: [ ] Valor Útil | [ ] Valor FDS
+
+Mobilidade: [ ] Valor Fixo
+
+Ação:
+
+Campo para inserir o novo valor (ex: R$ 85,00).
+
+Botão [Aplicar Ajuste].
+
+Exemplo de uso: O RH seleciona "Somente FREELA" + "Alimentação FDS" + valor "R$ 110,00". O sistema percorre a planilha e só altera os campos de FDS de quem tem o badge laranja FREELA.
+
+4. Resumo de Cálculo no Subtotal
+Como agora temos valores diferentes para dias úteis e finais de semana, o Subtotal pode gerar dúvidas.
+
+Sugestão: Ao clicar ou passar o mouse sobre o valor do Subtotal (ex: R$ 2.480,00), abrir um pequeno balão (tooltip) explicando a conta:
+
+2 Dias Úteis (R$ 250 + R$ 90) = R$ 680,00
+
+2 Dias FDS (R$ 800 + R$ 100) = R$ 1.800,00
+
+Subtotal: R$ 2.480,00
