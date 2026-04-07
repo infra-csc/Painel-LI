@@ -204,8 +204,10 @@ export default function SystemSettingsPage() {
         const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
         mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
         mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-        mapFreelaWd[fn.id] = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
-        mapFreelaWe[fn.id] = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
+        const freelaWd = fv?.dailyValueFreela ?? 0;
+        const freelaWe = fv?.dailyValueFreelaWeekend ?? 0;
+        mapFreelaWd[fn.id] = fv ? centavosToReais(freelaWd !== 0 ? freelaWd : (fv.dailyValue ?? 0)) : "0.00";
+        mapFreelaWe[fn.id] = fv ? centavosToReais(freelaWe !== 0 ? freelaWe : (fv.dailyValueWeekend ?? 0)) : "0.00";
       }
       setFunctionDailyValues(mapCasaWd);
       setFnWeekendValues(mapCasaWe);
