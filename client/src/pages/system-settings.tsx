@@ -852,7 +852,7 @@ export default function SystemSettingsPage() {
                             <div className="flex items-center justify-end gap-1.5 group/cell" onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}>
                               {isEditing ? (
                                 <div className="flex items-center gap-1">
-                                  <div className="flex items-center gap-0.5 bg-indigo-50 ring-1 ring-indigo-300 rounded-md px-1.5 py-0.5">
+                                  <div className="flex items-center gap-0.5 border border-slate-300 rounded px-1.5 py-0.5 bg-white shadow-sm">
                                     <span className="text-[10px] text-slate-400 font-medium select-none">R$</span>
                                     <input
                                       ref={editInputRef}
@@ -865,14 +865,12 @@ export default function SystemSettingsPage() {
                                         if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
                                         if (e.key === 'Escape') cancelEditFunction();
                                       }}
-                                      className="w-16 text-sm font-mono text-right bg-transparent border-none outline-none focus:outline-none tabular-nums text-indigo-600 font-semibold"
+                                      onBlur={() => confirmEditFunction(fn.id)}
+                                      className="w-16 text-sm font-mono text-right bg-transparent border-none outline-none focus:outline-none tabular-nums text-slate-700 font-semibold"
                                     />
                                   </div>
-                                  <button type="button" onClick={() => confirmEditFunction(fn.id)} className="w-5 h-5 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-white">
-                                    <Check className="w-2.5 h-2.5" />
-                                  </button>
-                                  <button type="button" onClick={cancelEditFunction} className="w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600">
-                                    <X className="w-2.5 h-2.5" />
+                                  <button type="button" onClick={cancelEditFunction} className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex items-center justify-center text-slate-400 hover:text-slate-600">
+                                    <X className="w-3 h-3" />
                                   </button>
                                 </div>
                               ) : (

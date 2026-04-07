@@ -1,0 +1,29 @@
+1. Detalhamento de Alimentação na Planilha (Sem Ícone)
+Conforme solicitado, a coluna de Alimentação deve seguir o mesmo padrão visual da coluna de Diária.
+
+Layout da Célula: A coluna "ALIM. R$/DIA" deve ser dividida em duas sub-linhas identificadas como ÚTIL e FDS.
+
+Visibilidade Direta: Os valores (ex: R$ 90,00 e R$ 110,00) devem aparecer um abaixo do outro, eliminando a necessidade do ícone de informação para ver a distinção de dias.
+
+2. Melhoria na Separação de Escalações
+A confusão atual ocorre porque colaboradores com múltiplas funções ou períodos aparecem em linhas seguidas com o mesmo peso visual.
+
+Agrupamento por Colaborador: Use uma linha de cabeçalho sutil ou um recuo (indentação) quando o mesmo nome se repetir. Isso deixa claro que são duas "atividades" diferentes para a mesma pessoa.
+
+Divisores mais Fortes: Adicione uma linha divisória mais escura ou um espaço (padding) maior entre colaboradores diferentes para que o olho do RH identifique imediatamente onde termina um registro e começa o outro.
+
+Data de Referência: Incluir o período (ex: 10/10 a 12/10) logo abaixo da função ajuda a separar visualmente por que o mesmo colaborador tem duas linhas na planilha.
+
+3. Correção do Módulo de Edição "Estranho"
+O editor atual na tabela de "Diária por Função" é muito intrusivo e desalinha a tabela.
+
+Edição Inline Discreta: O campo de edição deve ser um retângulo simples com bordas finas que substitui o valor apenas quando clicado, sem abrir caixas azuis flutuantes que "saltam" da linha.
+
+Controles de Confirmação: Substitua os botões grandes de "Check" e "X" por ícones menores e cinzas que aparecem apenas no hover (passar o mouse), ou permita salvar automaticamente ao pressionar Enter.
+
+4. Valores Padrão: Simetria Útil/FDS
+Para que o sistema preencha a planilha corretamente, a tela de Valores Padrão precisa ser ajustada para refletir o que o RH verá depois:
+
+Alimentação por Categoria: No card de "Alimentação", os campos de Almoço e Jantar já estão separados por Dia Útil e FDS.
+
+Hierarquia: Certifique-se de que se o RH alterar o valor na planilha de edição, esse valor tenha prioridade sobre o padrão configurado aqui, gerando o alerta de alteração que discutimos anteriormente.

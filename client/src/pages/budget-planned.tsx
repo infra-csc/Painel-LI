@@ -818,7 +818,7 @@ export default function BudgetPlannedPage() {
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)).length;
 
   // Handler para edição inline na planilha
-  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'mobilidade', rawValue: string) => {
+  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'alimentacaoUtil' | 'alimentacaoFds' | 'mobilidade', rawValue: string) => {
     const val = parseFloat(rawValue) || 0;
     const valCents = Math.round(val * 100);
     const existingOvr = budgetOverrides[budget.inclusion.id];
@@ -829,12 +829,16 @@ export default function BudgetPlannedPage() {
     const dias = Math.max(1, budget.qtdDiarias);
     const foodDefaultPerDay = Math.round(foodDefault / dias);
     const mobDefaultPerDay = Math.round(budget.mobilidade / dias);
+    const wdFoodDefault = Math.round((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays));
+    const weFoodDefault = Math.round((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends));
     const isUnchanged =
-      (field === 'valorDia'    && valCents === budget.valorDiariaUtil) ||
-      (field === 'valorDiaFds' && valCents === budget.valorDiariaFds) ||
-      (field === 'alimentacao' && valCents === foodDefaultPerDay) ||
-      (field === 'mobilidade'  && valCents === mobDefaultPerDay) ||
-      (field === 'qtdDiarias'  && val === budget.qtdDiarias);
+      (field === 'valorDia'       && valCents === budget.valorDiariaUtil) ||
+      (field === 'valorDiaFds'    && valCents === budget.valorDiariaFds) ||
+      (field === 'alimentacao'    && valCents === foodDefaultPerDay) ||
+      (field === 'alimentacaoUtil'&& valCents === wdFoodDefault) ||
+      (field === 'alimentacaoFds' && valCents === weFoodDefault) ||
+      (field === 'mobilidade'     && valCents === mobDefaultPerDay) ||
+      (field === 'qtdDiarias'     && val === budget.qtdDiarias);
 
     if (isUnchanged) {
       // Valor não mudou — se havia override só nesse campo, limpa
@@ -843,6 +847,8 @@ export default function BudgetPlannedPage() {
         if (field === 'valorDia') { delete (cleaned as any).valorDiariaUtil; delete (cleaned as any).valorDiariaFds; }
         else if (field === 'valorDiaFds') { delete (cleaned as any).valorDiariaFds; }
         else if (field === 'alimentacao') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
+        else if (field === 'alimentacaoUtil') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; }
+        else if (field === 'alimentacaoFds') { delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
         else if (field === 'mobilidade') { delete (cleaned as any).mobilidade; delete (cleaned as any).mobilidadeIda; delete (cleaned as any).mobilidadeVolta; }
         else if (field === 'qtdDiarias') { delete (cleaned as any).qtdDiarias; }
         const remainingKeys = Object.keys(cleaned).filter(k => k !== 'inclusionId');
@@ -886,6 +892,30 @@ export default function BudgetPlannedPage() {
         updated.jantarSemana = Math.round(budget.jantarSemana * f);
         updated.almocoFds = Math.round(budget.almocoFds * f);
         updated.jantarFds = Math.round(budget.jantarFds * f);
+      }
+    } else if (field === 'alimentacaoUtil') {
+      // valCents é por dia útil → propaga sobre almocoSemana + jantarSemana
+      const totalCents = valCents * Math.max(1, budget.weekdays);
+      const existingWd = budget.almocoSemana + budget.jantarSemana;
+      if (existingWd === 0) {
+        updated.almocoSemana = Math.round(totalCents / 2);
+        updated.jantarSemana = totalCents - Math.round(totalCents / 2);
+      } else {
+        const f = totalCents / existingWd;
+        updated.almocoSemana = Math.round(budget.almocoSemana * f);
+        updated.jantarSemana = totalCents - Math.round(budget.almocoSemana * f);
+      }
+    } else if (field === 'alimentacaoFds') {
+      // valCents é por dia de fim de semana → propaga sobre almocoFds + jantarFds
+      const totalCents = valCents * Math.max(1, budget.weekends);
+      const existingWe = budget.almocoFds + budget.jantarFds;
+      if (existingWe === 0) {
+        updated.almocoFds = Math.round(totalCents / 2);
+        updated.jantarFds = totalCents - Math.round(totalCents / 2);
+      } else {
+        const f = totalCents / existingWe;
+        updated.almocoFds = Math.round(budget.almocoFds * f);
+        updated.jantarFds = totalCents - Math.round(budget.almocoFds * f);
       }
     } else if (field === 'mobilidade') {
       // valCents é por dia → converter para total do período
@@ -2019,13 +2049,15 @@ export default function BudgetPlannedPage() {
                             !a.splitParentId
                           );
                           const sid = budget.inclusion.id;
+                          const prevBudget = rowIdx > 0 ? filteredBudgets[rowIdx - 1] : null;
+                          const isSameCollab = prevBudget?.inclusion.collaboratorId === budget.inclusion.collaboratorId;
                           const buf = (field: string, fallback: string) =>
                             sheetInputValues[`${sid}:${field}`] ?? fallback;
                           const setbuf = (field: string, val: string) =>
                             setSheetInputValues(prev => ({ ...prev, [`${sid}:${field}`]: val }));
                           const clearbuf = (field: string) =>
                             setSheetInputValues(prev => { const n = {...prev}; delete n[`${sid}:${field}`]; return n; });
-                          const commitBlur = (field: 'qtdDiarias'|'valorDia'|'alimentacao'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+                          const commitBlur = (field: 'qtdDiarias'|'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade', key: string) => (e: React.FocusEvent<HTMLInputElement>) => {
                             handleSheetEdit(budget, field, e.target.value);
                             clearbuf(key);
                           };
@@ -2034,7 +2066,9 @@ export default function BudgetPlannedPage() {
                           const ovr = budgetOverrides[sid];
                           const vdiaEdited = ovr?.valorDiariaUtil !== undefined;
                           const vdiaFdsEdited = ovr?.valorDiariaFds !== undefined;
-                          const alimEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
+                          const alimUtilEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
+                          const alimFdsEdited = ovr?.almocoFds !== undefined || ovr?.jantarFds !== undefined;
+                          const alimEdited = alimUtilEdited || alimFdsEdited;
                           const mobEdited = ovr?.mobilidade !== undefined;
 
                           // Tipo: Casa ou Freela
@@ -2061,12 +2095,14 @@ export default function BudgetPlannedPage() {
                               ? 'border-transparent bg-transparent text-slate-400 cursor-not-allowed'
                               : 'border-[#e5e7eb] bg-[#FAFAFA] focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
 
-                          const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'mobilidade') => {
+                          const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade') => {
                             if (!ovr) return;
                             const updated = { ...ovr };
                             if (field === 'valorDia') { delete (updated as any).valorDiariaUtil; }
                             else if (field === 'valorDiaFds') { delete (updated as any).valorDiariaFds; }
                             else if (field === 'alimentacao') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
+                            else if (field === 'alimentacaoUtil') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; }
+                            else if (field === 'alimentacaoFds') { delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
                             else if (field === 'mobilidade') { delete (updated as any).mobilidade; delete (updated as any).mobilidadeIda; delete (updated as any).mobilidadeVolta; }
                             const hasAny = Object.keys(updated).filter(k => k !== 'inclusionId' && k !== 'qtdDiarias').length > 0;
                             if (!hasAny && !updated.qtdDiarias) {
@@ -2079,15 +2115,22 @@ export default function BudgetPlannedPage() {
                           return (
                             <tr
                               key={budget.inclusion.id}
-                              style={{height:'60px', background: isSent ? '#FAFAFA' : undefined}}
+                              style={{
+                                height: isSameCollab ? '52px' : '60px',
+                                background: isSent ? '#FAFAFA' : undefined,
+                                borderTop: rowIdx === 0 ? undefined : isSameCollab ? '1px dashed #E2E8F0' : '2px solid #CBD5E1',
+                              }}
                               className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
                               {/* Colaborador */}
                               <td className="px-4" style={{minWidth:'260px'}}>
                                 <div className="flex items-center gap-1.5 leading-tight flex-wrap">
+                                  {isSameCollab && (
+                                    <span className="text-[11px] text-slate-300 select-none shrink-0" style={{lineHeight:1}}>↳</span>
+                                  )}
                                   <span
-                                    className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`}
-                                    style={{color: isNotAttended ? undefined : '#1a1a2e', textTransform:'none'}}
+                                    className={`text-[13px] ${isSameCollab ? 'font-medium' : 'font-semibold'} ${isNotAttended ? 'line-through text-slate-400' : ''}`}
+                                    style={{color: isNotAttended ? undefined : isSameCollab ? '#64748B' : '#1a1a2e', textTransform:'none'}}
                                   >
                                     {toTitleCase(name)}
                                   </span>
@@ -2240,76 +2283,112 @@ export default function BudgetPlannedPage() {
                                 </div>
                               </td>
 
-                              {/* Alimentação */}
-                              <td className="px-3 text-right">
-                                <div className="flex flex-col items-end gap-0.5">
-                                <div className="flex items-center justify-end gap-1">
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 4 + 4}
-                                          disabled={disabled}
-                                          value={buf('alim', foodPerDay.toFixed(2))}
-                                          onChange={e => setbuf('alim', e.target.value)}
-                                          onBlur={commitBlur('alimentacao', 'alim')}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-[90px] ${!disabled && alimEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-900' : ''}`}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && (
-                                        <TooltipContent side="top" className="text-xs max-w-[220px]">
-                                          {alimEdited
-                                            ? `Editado · padrão era R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia`
-                                            : `R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia (padrão da função)`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {/* (i) icon mostrando composição Útil | FDS */}
-                                  <TooltipProvider delayDuration={100}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="text-[10px] text-slate-300 hover:text-slate-500 cursor-default select-none shrink-0">ⓘ</span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="text-xs max-w-[200px]">
-                                        <div className="space-y-1">
-                                          <div className="font-semibold text-slate-600 mb-1">Composição da Alimentação</div>
-                                          {budget.weekdays > 0 && (
-                                            <div><span style={{color:'#2563EB'}}>Útil:</span> R$ {((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia × {budget.weekdays}d</div>
-                                          )}
-                                          {budget.weekends > 0 && (
-                                            <div><span style={{color:'#F97316'}}>FDS:</span> R$ {((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia × {budget.weekends}d</div>
-                                          )}
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {alimEdited && !disabled && (() => {
-                                    const fbKey = `${sid}:alim`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
+                              {/* Alimentação — Útil/FDS separados */}
+                              <td className="px-3 py-1" style={{minWidth:'160px'}}>
+                                <div className="flex flex-col gap-1">
+                                  {/* Dia Útil — só exibe se há dias úteis */}
+                                  {budget.weekdays > 0 && (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#2563EB'}}>Útil</span>
+                                      <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
                                           <TooltipTrigger asChild>
-                                            <button
-                                              onClick={() => {
-                                                restoreField('alimentacao');
-                                                setRestoredFeedback(fbKey);
-                                                setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
-                                              }}
-                                              className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
-                                            >↩</button>
+                                            <input
+                                              type="text" inputMode="decimal"
+                                              tabIndex={rowIdx * 4 + 4}
+                                              disabled={disabled}
+                                              value={buf('alimUtil', ((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) / 100).toFixed(2))}
+                                              onChange={e => setbuf('alimUtil', e.target.value)}
+                                              onBlur={commitBlur('alimentacaoUtil', 'alimUtil')}
+                                              onFocus={e => e.target.select()}
+                                              className={`${inputBase} w-[82px] ${!disabled && alimUtilEdited ? 'font-bold' : ''}`}
+                                              style={!disabled && alimUtilEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e3a8a'} : {}}
+                                            />
                                           </TooltipTrigger>
-                                          <TooltipContent side="top" className="text-xs">
-                                            {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
-                                          </TooltipContent>
+                                          {!disabled && (
+                                            <TooltipContent side="top" className="text-xs">
+                                              {alimUtilEdited
+                                                ? `Editado · padrão: R$ ${((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia útil`
+                                                : `Almoço + Jantar por dia útil`}
+                                            </TooltipContent>
+                                          )}
                                         </Tooltip>
                                       </TooltipProvider>
-                                    );
-                                  })()}
-                                </div>
+                                      {alimUtilEdited && !disabled && (() => {
+                                        const fbKey = `${sid}:alimUtil`;
+                                        const restored = restoredFeedback === fbKey;
+                                        return (
+                                          <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                            <Tooltip open={restored ? true : undefined}>
+                                              <TooltipTrigger asChild>
+                                                <button onClick={() => { restoreField('alimentacaoUtil'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                                  className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                  {/* Fim de Semana — só exibe se há dias de FDS */}
+                                  {budget.weekends > 0 && (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#F97316'}}>FDS</span>
+                                      <TooltipProvider delayDuration={150}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <input
+                                              type="text" inputMode="decimal"
+                                              tabIndex={rowIdx * 4 + 5}
+                                              disabled={disabled}
+                                              value={buf('alimFds', ((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) / 100).toFixed(2))}
+                                              onChange={e => setbuf('alimFds', e.target.value)}
+                                              onBlur={commitBlur('alimentacaoFds', 'alimFds')}
+                                              onFocus={e => e.target.select()}
+                                              className={`${inputBase} w-[82px] ${!disabled && alimFdsEdited ? 'font-bold' : ''}`}
+                                              style={!disabled && alimFdsEdited ? {color:'#F97316', borderColor:'#FDBA74'} : !disabled ? {color:'#92400e'} : {}}
+                                            />
+                                          </TooltipTrigger>
+                                          {!disabled && (
+                                            <TooltipContent side="top" className="text-xs">
+                                              {alimFdsEdited
+                                                ? `Editado · padrão: R$ ${((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia FDS`
+                                                : `Almoço + Jantar por dia de fim de semana`}
+                                            </TooltipContent>
+                                          )}
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                      {alimFdsEdited && !disabled && (() => {
+                                        const fbKey = `${sid}:alimFds`;
+                                        const restored = restoredFeedback === fbKey;
+                                        return (
+                                          <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                            <Tooltip open={restored ? true : undefined}>
+                                              <TooltipTrigger asChild>
+                                                <button onClick={() => { restoreField('alimentacaoFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                                  className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                  {/* Se só tem um tipo de dia, mostrar placeholder para o outro tipo */}
+                                  {budget.weekdays === 0 && budget.weekends > 0 && (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#CBD5E1'}}>Útil</span>
+                                      <span className="text-[12px] text-slate-300 font-mono" style={{width:82, textAlign:'right'}}>—</span>
+                                    </div>
+                                  )}
+                                  {budget.weekends === 0 && budget.weekdays > 0 && (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#CBD5E1'}}>FDS</span>
+                                      <span className="text-[12px] text-slate-300 font-mono" style={{width:82, textAlign:'right'}}>—</span>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
 
