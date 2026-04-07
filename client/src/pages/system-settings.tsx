@@ -846,8 +846,9 @@ export default function SystemSettingsPage() {
                         const hasWd = fv && (activeTab === 'casa' ? fv.dailyValue > 0 : (fv.dailyValueFreela ?? 0) > 0);
                         const hasWe = fv && (activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) > 0 : (fv.dailyValueFreelaWeekend ?? 0) > 0);
 
-                        const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean) => {
+                        const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
                           const isZero = parseFloat(currentVal) === 0;
+                          const hasFallback = isZero && fallbackVal && parseFloat(fallbackVal) > 0;
                           return (
                             <div className="flex items-center justify-end gap-1.5 group/cell" onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}>
                               {isEditing ? (
@@ -876,7 +877,22 @@ export default function SystemSettingsPage() {
                               ) : (
                                 <div className="flex items-center gap-1.5 cursor-pointer">
                                   {isZero ? (
-                                    <span className="text-sm text-slate-300 italic">—</span>
+                                    hasFallback ? (
+                                      <TooltipProvider delayDuration={200}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="text-sm tabular-nums font-medium" style={{color:'#94A3B8'}}>
+                                              R$ {parseFloat(fallbackVal!).toFixed(2).replace('.', ',')}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="top" className="text-xs">
+                                            Usa o valor do Dia Útil (sem FDS específico)
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ) : (
+                                      <span className="text-sm text-slate-300 italic">—</span>
+                                    )
                                   ) : (
                                     <span className={`text-sm font-semibold tabular-nums ${hasCustom ? '' : 'text-slate-400'}`} style={hasCustom ? { color: activeTab === 'casa' ? '#3B4FE4' : '#7C3AED' } : {}}>
                                       {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
@@ -917,8 +933,8 @@ export default function SystemSettingsPage() {
 
                             {/* Dia Útil */}
                             {renderCell('wd', isEditingWd, wdVal, !!hasWd)}
-                            {/* Fim de Semana */}
-                            {renderCell('we', isEditingWe, weVal, !!hasWe)}
+                            {/* Fim de Semana — passa wdVal como fallback quando FDS não está configurado */}
+                            {renderCell('we', isEditingWe, weVal, !!hasWe, wdVal)}
                           </div>
                         );
                       })}
