@@ -1,0 +1,34 @@
+Aplique as seguintes diretrizes de UI e UX:
+
+1. Estética Geral (Clean UI & Espaçamento)
+Remoção de Bordas (Grid Invisível): Elimine todas as bordas verticais que separam as colunas. Use apenas uma linha horizontal muito sutil (cinza claríssimo) para separar as linhas dos colaboradores.
+
+Respiro (Padding): Aumente significativamente o padding (espaçamento interno) das linhas (cerca de 16px a 24px). A tabela precisa "respirar".
+
+Tipografia e Cores: Use uma fonte sans-serif moderna. Textos principais (Nomes, Valores Totais) devem ter alto contraste (quase preto, peso semi-bold), enquanto informações secundárias (função, período) devem usar um cinza médio (text-gray-500).
+
+2. A Coluna "Card do Colaborador" (Merge de Informações)
+Para limpar o excesso de colunas, condense as informações de identificação em uma única coluna rica, alinhada à esquerda:
+
+Avatar / Ícone: Adicione um avatar circular (foto do usuário ou iniciais) ao lado esquerdo do nome para humanizar e quebrar a monotonia do texto.
+
+Nome e Tag: O Nome do colaborador fica em cima, em negrito. Ao lado do nome, o badge de Vínculo (CASA ou FREELA) deve ter formato de "Pílula" (arredondado) com cor de fundo super suave (ex: fundo azul claríssimo com texto azul escuro).
+
+Subtexto (Função e Período): Logo abaixo do nome, em texto menor e cinza: Cenotecnia local | 10/10/2026 a 12/10/2026.
+
+Ação: Remova as colunas antigas de "Função" e "Período".
+
+3. Alinhamento de Inputs (O Fim da Confusão Útil/FDS)
+Se os campos (inputs) estão dispostos na vertical (um em cima do outro), os rótulos de Útil e FDS devem refletir isso de forma clara, preferencialmente dentro da mesma célula.
+
+Exemplo de Layout da Célula de Valor:
+<span class="text-gray-400 text-xs">Útil:</span> [ R$ 90,00 ]
+<span class="text-gray-400 text-xs">FDS:</span> [ R$ 110,00 ]
+
+4. O Valor da Diária e Inputs Fantasmas (Ghost Inputs)
+Cadê o valor? A coluna de Diária não pode exibir apenas "1 útil". Ela precisa exibir o multiplicador base para que a conta faça sentido para o usuário (ex: 1x R$ 800,00).
+
+Design do Input (Ghost): Remova as bordas grossas e escuras de todos os campos editáveis. O campo deve ter um fundo transparente ou levemente acinzentado. A borda de destaque (highlight) ou contorno só deve aparecer no estado de :hover (passar o mouse) ou :focus (clique para digitar).
+
+5. Alinhamento de Subtotais
+Contabilidade Limpa: Todos os valores da coluna SUBTOTAL devem ser alinhados estritamente à direita (Right-align). Isso garante que as vírgulas e os centavos fiquem perfeitamente alinhados de cima a baixo, facilitando a leitura rápida e a conferência de valores.

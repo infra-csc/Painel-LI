@@ -2237,72 +2237,90 @@ export default function BudgetPlannedPage() {
                                 />
                               </td>
 
-                              {/* Colaborador + Função + Período — coluna rica */}
-                              <td className="pl-4 pr-3 py-2" style={{minWidth:'260px', verticalAlign:'middle'}}>
-                                {isNewCollab && (
-                                  <div className="flex items-center gap-1.5 mb-0.5">
-                                    <span style={{fontSize:11, fontWeight:700, color:'#1a1a2e', letterSpacing:'0.01em'}}>{toTitleCase(name)}</span>
-                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide"
-                                      style={isCasaTypeHdr ? {background:'#DBEAFE', color:'#1D4ED8'} : {background:'#FEE2E2', color:'#B91C1C'}}>
-                                      {isCasaTypeHdr ? 'Casa' : 'Freela'}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-1.5 flex-wrap leading-tight">
-                                  <span className={`text-[12px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`} style={{color: isNotAttended ? undefined : '#374151'}}>
-                                    {funcName}
-                                  </span>
-                                  {budget.inclusion.startDate && budget.inclusion.endDate && (
-                                    <span className="text-[10px]" style={{color:'#B0B7C3'}}>
-                                      · {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
-                                      {budget.inclusion.startDate !== budget.inclusion.endDate && (
-                                        <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
+                              {/* Colaborador + Função + Período — coluna rica com avatar */}
+                              <td className="pl-4 pr-4 py-3" style={{minWidth:'280px', verticalAlign:'middle'}}>
+                                <div className="flex items-start gap-3">
+                                  {/* Avatar com iniciais */}
+                                  {isNewCollab && (() => {
+                                    const initials = name.split(' ').filter(Boolean).slice(0,2).map((w:string) => w[0]).join('').toUpperCase();
+                                    return (
+                                      <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5"
+                                        style={isCasaTypeHdr
+                                          ? {background:'#DBEAFE', color:'#1D4ED8'}
+                                          : {background:'#FEE2E2', color:'#B91C1C'}}>
+                                        {initials}
+                                      </div>
+                                    );
+                                  })()}
+                                  {!isNewCollab && <div className="shrink-0 w-8" />}
+
+                                  <div className="flex-1 min-w-0">
+                                    {isNewCollab && (
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <span style={{fontSize:13, fontWeight:600, color:'#111827', letterSpacing:'-0.01em'}}>{toTitleCase(name)}</span>
+                                        <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                                          style={isCasaTypeHdr ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}}>
+                                          {isCasaTypeHdr ? 'Casa' : 'Freela'}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`text-[12px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
+                                        {funcName}
+                                      </span>
+                                      {budget.inclusion.startDate && budget.inclusion.endDate && (
+                                        <span className="text-[11px] text-slate-400">
+                                          · {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'2-digit'})}
+                                          {budget.inclusion.startDate !== budget.inclusion.endDate && (
+                                            <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'2-digit'})}</>
+                                          )}
+                                        </span>
                                       )}
-                                    </span>
-                                  )}
-                                  {matchingActual?.rhAdjusted && (
-                                    <TooltipProvider delayDuration={200}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                  {isSent ? (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:'#DCFCE7', color:'#16A34A'}}>
-                                      <Check className="w-2.5 h-2.5" />Enviado
-                                    </span>
-                                  ) : !isNotAttended ? (
-                                    <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:'#FEF3C7', color:'#D97706'}}>
-                                      Pendente
-                                    </span>
-                                  ) : null}
+                                      {matchingActual?.rhAdjusted && (
+                                        <TooltipProvider delayDuration={200}>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="inline-flex items-center shrink-0 cursor-default" style={{color:'#D97706'}}>✏</span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="text-xs">RH ajustou o realizado deste colaborador</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {isSent ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:'#DCFCE7', color:'#16A34A'}}>
+                                          <Check className="w-2.5 h-2.5" />Enviado
+                                        </span>
+                                      ) : !isNotAttended ? (
+                                        <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{background:'#FEF3C7', color:'#B45309'}}>
+                                          Pendente
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
 
                               {/* Diárias qty — somente leitura */}
-                              <td className="px-3 py-2 text-right" style={{background:'#F8FAFC'}}>
+                              <td className="px-4 py-3 text-right" style={{background:'#F8FAFC', verticalAlign:'middle'}}>
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="flex flex-col items-end gap-0.5 cursor-not-allowed select-none">
-                                        <div className="flex items-center gap-1">
-                                          <Lock style={{width:8, height:8, color:'#CBD5E1', flexShrink:0}} />
-                                          {budget.weekdays > 0 && (
-                                            <span className="text-[11px] tabular-nums" style={{color:'#94A3B8'}}>
-                                              <span className="text-[9px] font-semibold" style={{color:'#2563EB'}}>útil</span> {budget.weekdays} · <span className="text-[9px] font-mono" style={{color:'#64748B'}}>R$ {(budget.valorDiariaUtil / 100).toFixed(2).replace('.', ',')}</span>
-                                            </span>
-                                          )}
-                                        </div>
-                                        {budget.weekends > 0 && (
+                                      <div className="flex flex-col items-end gap-1 cursor-not-allowed select-none">
+                                        {budget.weekdays > 0 && (
                                           <div className="flex items-center gap-1">
-                                            <span className="text-[11px] tabular-nums" style={{color:'#94A3B8'}}>
-                                              <span className="text-[9px] font-semibold" style={{color:'#F97316'}}>fds</span> {budget.weekends} · <span className="text-[9px] font-mono" style={{color:'#64748B'}}>R$ {(budget.valorDiariaFds / 100).toFixed(2).replace('.', ',')}</span>
-                                            </span>
+                                            <span className="text-[9px] font-semibold" style={{color:'#2563EB'}}>útil</span>
+                                            <span className="text-[11px] tabular-nums font-mono" style={{color:'#374151'}}>{budget.weekdays}×</span>
+                                            <span className="text-[11px] tabular-nums font-mono text-slate-500">R$ {(budget.valorDiariaUtil / 100).toFixed(2).replace('.', ',')}</span>
                                           </div>
                                         )}
+                                        {budget.weekends > 0 && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] font-semibold" style={{color:'#F97316'}}>fds</span>
+                                            <span className="text-[11px] tabular-nums font-mono" style={{color:'#374151'}}>{budget.weekends}×</span>
+                                            <span className="text-[11px] tabular-nums font-mono text-slate-500">R$ {(budget.valorDiariaFds / 100).toFixed(2).replace('.', ',')}</span>
+                                          </div>
+                                        )}
+                                        <Lock style={{width:8, height:8, color:'#CBD5E1', position:'absolute', opacity:0}} />
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
@@ -2313,7 +2331,7 @@ export default function BudgetPlannedPage() {
                               </td>
 
                               {/* Diária R$/dia — Útil + FDS empilhados com labels inline */}
-                              <td className="px-3 py-2" style={{background:'#EFF6FF', minWidth:'130px', verticalAlign:'middle'}}>
+                              <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
                                 {/* Útil */}
                                 <div className="flex items-center gap-1 mb-1">
                                   <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
@@ -2399,7 +2417,7 @@ export default function BudgetPlannedPage() {
                               </td>
 
                               {/* Alim. R$/dia — Útil + FDS empilhados com labels inline */}
-                              <td className="px-3 py-2" style={{background:'#FFF7ED', minWidth:'130px', verticalAlign:'middle'}}>
+                              <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
                                 {/* Útil */}
                                 <div className="flex items-center gap-1 mb-1">
                                   <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
@@ -2490,7 +2508,7 @@ export default function BudgetPlannedPage() {
 
                               {/* Mobilidade — coluna individual (só quando não é global) */}
                               {!allSameMob && (
-                                <td className="px-3 text-right">
+                                <td className="px-4 py-3 text-right" style={{verticalAlign:'middle'}}>
                                   <div className="flex items-center justify-end gap-1">
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
@@ -2543,7 +2561,7 @@ export default function BudgetPlannedPage() {
                               )}
 
                               {/* Subtotal — clicável → Memória de Cálculo */}
-                              <td className="px-4 text-right bg-blue-50/20" style={{position:'relative'}}>
+                              <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
                                 <button
                                   onClick={() => setSubtotalOpenId(subtotalOpenId === sid ? null : sid)}
                                   className={`text-[13px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'text-[#3B4FE4] hover:text-[#0033CC] cursor-pointer underline decoration-dotted underline-offset-2'}`}
