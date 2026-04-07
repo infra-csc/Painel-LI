@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -65,6 +66,8 @@ const BASE_INPUT = "h-11 text-sm border-gray-200 rounded-lg transition-all focus
 export default function UserEditModal({ isOpen, onClose, user }: UserEditModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const isCurrentAdmin = currentUser?.role === "admin";
 
   const form = useForm<UserEditFormData>({
     resolver: zodResolver(userEditSchema),

@@ -220,7 +220,7 @@ export default function UserRegistration() {
                 extra={errors.role && <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 600 }}>{errors.role.message}</span>}
               />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {ROLES.map(role => {
+                {ROLES.filter(r => r.value !== "admin" || user?.role === "admin").map(role => {
                   const isSelected = roleVal === role.value;
                   return (
                     <button key={role.value} type="button"
