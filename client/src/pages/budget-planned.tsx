@@ -2000,13 +2000,14 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Diária R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#F8FAFC', color:'#374151'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <div className="flex flex-col items-end leading-tight">
-                                <span>Diária R$/dia</span>
-                                <span className="text-[8px] normal-case tracking-normal" style={{color:'#94A3B8'}}>
-                                  <span style={{color:'#2563EB'}}>●</span> Útil  <span style={{color:'#F97316'}}>●</span> FDS
-                                </span>
+                              <div className="flex flex-col items-end leading-tight gap-0.5">
+                                <span className="text-[11px] font-semibold text-slate-600">Diária R$/dia</span>
+                                <div className="flex items-center gap-2 text-[9px] font-medium" style={{color:'#94A3B8'}}>
+                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#2563EB', verticalAlign:'middle'}} />Útil</span>
+                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#F97316', verticalAlign:'middle'}} />FDS</span>
+                                </div>
                               </div>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
@@ -2037,13 +2038,14 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Alim. R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#FFF7ED', color:'#C2410C'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-36 relative" style={{background:'#F8FAFC', color:'#374151'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <div className="flex flex-col items-end leading-tight">
-                                <span>Alim. R$/dia</span>
-                                <span className="text-[8px] normal-case tracking-normal" style={{color:'#94A3B8'}}>
-                                  <span style={{color:'#2563EB'}}>●</span> Útil  <span style={{color:'#F97316'}}>●</span> FDS
-                                </span>
+                              <div className="flex flex-col items-end leading-tight gap-0.5">
+                                <span className="text-[11px] font-semibold text-slate-600">Alim. R$/dia</span>
+                                <div className="flex items-center gap-2 text-[9px] font-medium" style={{color:'#94A3B8'}}>
+                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#2563EB', verticalAlign:'middle'}} />Útil</span>
+                                  <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5" style={{background:'#F97316', verticalAlign:'middle'}} />FDS</span>
+                                </div>
                               </div>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'alim' ? null : { field: 'alim', value: '', onlyPending: true })}
@@ -2075,9 +2077,9 @@ export default function BudgetPlannedPage() {
 
                           {/* Mobilidade — batch edit */}
                           {!allSameMob && (
-                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
+                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F8FAFC', color:'#374151'}}>
                               <div className="flex items-center justify-end gap-1">
-                                <span>Mob. R$ total</span>
+                                <span className="text-slate-600">Mob. R$ total</span>
                                 <button
                                   onClick={() => setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '', onlyPending: true })}
                                   className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2190,10 +2192,10 @@ export default function BudgetPlannedPage() {
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
-                          const inputBase = `h-8 text-right font-mono tabular-nums text-[12px] rounded-md px-2 outline-none transition-all
+                          const inputBase = `h-7 text-right font-mono tabular-nums text-[12px] rounded px-2 outline-none transition-all
                             ${disabled
-                              ? 'border border-transparent bg-transparent text-slate-400 cursor-not-allowed'
-                              : 'border border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50/80 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
+                              ? 'bg-transparent text-slate-300 cursor-not-allowed'
+                              : 'bg-[#F4F5F7] border border-transparent text-slate-700 hover:bg-[#EAECEF] focus:bg-white focus:border-[#2563EB] focus:shadow-[0_0_0_2px_rgba(37,99,235,0.12)]'}`;
 
                           const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade') => {
                             if (!ovr) return;
@@ -2219,7 +2221,7 @@ export default function BudgetPlannedPage() {
                               key={budget.inclusion.id}
                               style={{
                                 background: isSent ? '#FAFAFA' : undefined,
-                                borderTop: isNewCollab && rowIdx > 0 ? '3px solid #E2E8F0' : undefined,
+                                borderTop: isNewCollab && rowIdx > 0 ? '2px solid #CBD5E1' : undefined,
                               }}
                               className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
@@ -2326,11 +2328,10 @@ export default function BudgetPlannedPage() {
                                 </TooltipProvider>
                               </td>
 
-                              {/* Diária R$/dia — Útil + FDS empilhados (dot indicator) */}
-                              <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
+                              {/* Diária R$/dia — Útil + FDS empilhados */}
+                              <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <span className="text-[8px] shrink-0" style={{color:'#2563EB', lineHeight:1}}>●</span>
+                                <div className="flex items-center justify-end gap-1 mb-2">
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2370,8 +2371,7 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[8px] shrink-0" style={{color:'#F97316', lineHeight:1}}>●</span>
+                                <div className="flex items-center justify-end gap-1">
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2412,11 +2412,10 @@ export default function BudgetPlannedPage() {
                                 </div>
                               </td>
 
-                              {/* Alim. R$/dia — Útil + FDS empilhados com labels inline */}
-                              <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
+                              {/* Alim. R$/dia — Útil + FDS empilhados */}
+                              <td className="px-4 py-3" style={{minWidth:'120px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <span className="text-[8px] shrink-0" style={{color:'#2563EB', lineHeight:1}}>●</span>
+                                <div className="flex items-center justify-end gap-1 mb-2">
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2458,8 +2457,7 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[8px] shrink-0" style={{color:'#F97316', lineHeight:1}}>●</span>
+                                <div className="flex items-center justify-end gap-1">
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2560,7 +2558,7 @@ export default function BudgetPlannedPage() {
                               <td className="px-4 py-3 text-right bg-blue-50/20" style={{position:'relative', verticalAlign:'middle'}}>
                                 <button
                                   onClick={() => setSubtotalOpenId(subtotalOpenId === sid ? null : sid)}
-                                  className={`text-[13px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'text-[#3B4FE4] hover:text-[#0033CC] cursor-pointer underline decoration-dotted underline-offset-2'}`}
+                                  className={`text-[13px] font-mono font-semibold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'text-slate-900 hover:text-[#2563EB] cursor-pointer'}`}
                                   disabled={isNotAttended}
                                 >
                                   {formatCurrency(budget.totalFinal)}
