@@ -1,0 +1,40 @@
+Com essa correção na lógica, a tela de Planejamento se torna a "origem da verdade" controlada pelo RH. Como é aqui que o custo nasce, o layout precisa ser impecável para evitar erros, já que a quantidade de diárias é a única coisa travada (pois vem da escalação oficial).
+
+Aqui está a consolidação do layout e lógica para a Planilha de Planejamento:
+
+1. Lógica de Campos (O que pode ou não ser editado)
+Nesta tela, o RH tem o controle total, exceto pela base da escalação:
+
+Bloqueado (Read-only): Coluna DIÁRIAS (Quantidade). O número de dias é imutável aqui porque deve respeitar o que foi definido na escalação/agenda do colaborador.
+
+Editável (Full Control): * R$ / DIA (Diária): Valor unitário da diária.
+
+ALIMENTAÇÃO (Valor/Dia): Novo campo onde o RH define quanto será pago por dia.
+
+MOBILIDADE (Valor/Dia): Novo campo onde o RH define o valor diário de transporte.
+
+Cálculo Automático: O SUBTOTAL deve ser a soma das três colunas de "Valor/Dia" multiplicada pela coluna "Diárias".
+
+2. Melhorias de Layout na Planilha (Imagem 10)
+Para transformar essa planilha em uma ferramenta de alta performance para o RH:
+
+Identificação Visual de Bloqueio: A coluna de Diárias (Qtde) deve ter um fundo levemente cinza ou um ícone de cadeado 🔒 discreto ao lado do número, indicando que o RH não altera aquele volume ali.
+
+Agrupamento de Custos: Use cores sutis nos cabeçalhos para separar o que é cada categoria:
+
+Azul claro para Diária.
+
+Laranja claro para Alimentação.
+
+Roxo claro para Mobilidade.
+
+Badges de Contexto: Como você pediu, cada linha de colaborador deve exibir:
+
+CASA ou FREELA (Badge colorido).
+
+Período: (ex: 10/10 a 12/10) logo abaixo do nome. Isso ajuda o RH a saber se o valor por dia que ele está inserindo faz sentido para aquele período/vínculo.
+
+3. Nova Experiência de Edição em Massa
+Como o RH edita tudo nesta tela:
+
+Multi-Seleção: Permitir selecionar vários colaboradores (checkbox na esquerda) e abrir um pequeno painel flutuante: "Definir R$ 80,00 de Alimentação para os 5 selecionados".

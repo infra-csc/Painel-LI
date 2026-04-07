@@ -1760,28 +1760,28 @@ export default function BudgetPlannedPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50/80">
-                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px]" style={{color:'#888'}}>Colaborador</th>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-slate-50/80" style={{color:'#888'}}>Colaborador</th>
 
-                          {/* Diárias — tooltip only, no edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{color:'#888'}}>
-                            <div className="flex items-center justify-end gap-1">
-                              <span>Diárias</span>
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-default text-slate-300 hover:text-slate-400 transition-colors text-[10px]">✏</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
-                                    Quantidade de dias calculada automaticamente pelas datas da escalação
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
+                          {/* Diárias — read-only, lock icon */}
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-24" style={{background:'#F1F5F9', color:'#94A3B8'}}>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-default">
+                                    <Lock style={{width:10, height:10, color:'#CBD5E1', flexShrink:0}} />
+                                    <span>Diárias</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
+                                  Quantidade bloqueada — calculada automaticamente pelas datas da escalação
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </th>
 
                           {/* R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
                             <div className="flex items-center justify-end gap-1">
                               <span>R$ / dia</span>
                               <button
@@ -1821,7 +1821,7 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* Alimentação — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#FFF7ED', color:'#C2410C'}}>
                             <div className="flex items-center justify-end gap-1">
                               <span>Alimentação</span>
                               <button
@@ -1862,7 +1862,7 @@ export default function BudgetPlannedPage() {
 
                           {/* Mobilidade — batch edit */}
                           {!allSameMob && (
-                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{color:'#888'}}>
+                            <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
                               <div className="flex items-center justify-end gap-1">
                                 <span>Mobilidade</span>
                                 <button
@@ -1996,17 +1996,26 @@ export default function BudgetPlannedPage() {
                           return (
                             <tr
                               key={budget.inclusion.id}
-                              style={{height:'52px', background: isSent ? '#FAFAFA' : undefined}}
+                              style={{height:'60px', background: isSent ? '#FAFAFA' : undefined}}
                               className={`group transition-colors ${isSent ? '' : isNotAttended ? 'opacity-40' : 'hover:bg-blue-50/20'} ${hasOvr && !isSent ? 'bg-amber-50/20' : ''}`}
                             >
                               {/* Colaborador */}
                               <td className="px-4" style={{minWidth:'260px'}}>
-                                <div className="flex items-center gap-1.5 leading-tight">
+                                <div className="flex items-center gap-1.5 leading-tight flex-wrap">
                                   <span
                                     className={`text-[13px] font-semibold ${isNotAttended ? 'line-through text-slate-400' : ''}`}
                                     style={{color: isNotAttended ? undefined : '#1a1a2e', textTransform:'none'}}
                                   >
                                     {toTitleCase(name)}
+                                  </span>
+                                  {/* CASA / FREELA badge */}
+                                  <span
+                                    className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wide"
+                                    style={isCasaType
+                                      ? {background:'#DBEAFE', color:'#1D4ED8'}
+                                      : {background:'#FEE2E2', color:'#B91C1C'}}
+                                  >
+                                    {tipoLabel}
                                   </span>
                                   {matchingActual?.rhAdjusted && (
                                     <TooltipProvider delayDuration={200}>
@@ -2028,30 +2037,30 @@ export default function BudgetPlannedPage() {
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="flex items-center gap-1 mt-0.5">
+                                <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[11px]" style={{color:'#888'}}>{funcName}</span>
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="text-[10px] cursor-default" style={{color:'#aaa'}}>{tipoIcon}</span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-xs">{tipoLabel}</TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  {budget.inclusion.startDate && budget.inclusion.endDate && (
+                                    <span className="text-[10px]" style={{color:'#B0B7C3'}}>
+                                      {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                                      {budget.inclusion.startDate !== budget.inclusion.endDate && (
+                                        <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
+                                      )}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
 
                               {/* Diárias qty — somente leitura */}
-                              <td className="px-3 text-right">
+                              <td className="px-3 text-right" style={{background:'#F8FAFC'}}>
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span
-                                        className="text-[13px] tabular-nums cursor-not-allowed select-none"
-                                        style={{color:'#666'}}
-                                      >
-                                        {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
-                                      </span>
+                                      <div className="flex items-center justify-end gap-1 cursor-not-allowed select-none">
+                                        <Lock style={{width:9, height:9, color:'#CBD5E1', flexShrink:0}} />
+                                        <span className="text-[13px] tabular-nums" style={{color:'#94A3B8'}}>
+                                          {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
+                                        </span>
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
                                       Calculado automaticamente pelas datas da escalação
