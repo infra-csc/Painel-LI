@@ -410,10 +410,6 @@ export default function BudgetPlannedPage() {
       const fv = getFunctionValue(inclusion.functionId);
       const collab = collaborators?.find(c => c.id === inclusion.collaboratorId);
       const override = budgetOverrides[inclusion.id];
-      // DB record for this inclusion (used as fallback when no manual override)
-      const dbPlanned = (allBudgetPlanned as any[])?.find((p: any) =>
-        p.collaboratorId === inclusion.collaboratorId && p.functionId === inclusion.functionId
-      );
       
       // Calcular dias reais a partir do intervalo de datas (igual ao que a escalação mostra)
       let weekdays = 0;
@@ -443,16 +439,17 @@ export default function BudgetPlannedPage() {
       const defaultDailyValueWeekday = systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000;
       const defaultDailyValueWeekend = systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 5000;
       const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValueWeekday;
+      // Daily rate: override > function-specific > inclusion-specific > system default
       const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? inclusionDailyValue ?? defaultDailyValueWeekday;
-      const valorDiariaFds = override?.valorDiariaFds ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
+      const valorDiariaUtil = override?.valorDiariaUtil ?? fv?.dailyValue ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+      const valorDiariaFds = override?.valorDiariaFds ?? fv?.dailyValue ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;
       const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
       
-      // System defaults for food/mobility (always used as the base — function-specific values
-      // only apply if the user has a saved DB record with those values)
+      // Food/mobility: always computed from current system defaults for pending records.
+      // Manual override (user edit in planilha) is the only exception.
       const sysAlmSem = systemSettings?.default_weekday_lunch ?? 3500;
       const sysJanSem = systemSettings?.default_weekday_dinner ?? 4000;
       const sysAlmFds = systemSettings?.default_weekend_lunch ?? 4000;
@@ -460,20 +457,18 @@ export default function BudgetPlannedPage() {
       const sysMob    = systemSettings?.default_mobility ?? 2500;
       const sysMobIda = (systemSettings as any)?.default_mobility_ida ?? Math.ceil(sysMob / 2);
       const sysMobVolta = (systemSettings as any)?.default_mobility_volta ?? Math.floor(sysMob / 2);
-      // Fallback chain: manual override > saved DB record > system default
-      // (function-specific food/mobility intentionally skipped so system defaults propagate)
-      const mobilidade = override?.mobilidade ?? dbPlanned?.mobility ?? sysMob;
-      const mobilidadeIda = override?.mobilidadeIda ?? dbPlanned?.mobilityIda ?? sysMobIda;
-      const mobilidadeVolta = override?.mobilidadeVolta ?? dbPlanned?.mobilityVolta ?? sysMobVolta;
-      const almocoSemana = override?.almocoSemana ?? dbPlanned?.weekdayLunch ?? (sysAlmSem * weekdays);
-      const jantarSemana = override?.jantarSemana ?? dbPlanned?.weekdayDinner ?? (sysJanSem * weekdays);
-      const almocoFds = override?.almocoFds ?? dbPlanned?.weekendLunch ?? (sysAlmFds * weekends);
-      const jantarFds = override?.jantarFds ?? dbPlanned?.weekendDinner ?? (sysJanFds * weekends);
-      // Keep fv reference for tooltip/display context only
-      const unitAlmocoSemana = fv?.weekdayLunch || sysAlmSem;
-      const unitJantarSemana = fv?.weekdayDinner || sysJanSem;
-      const unitAlmocoFds = fv?.weekendLunch || sysAlmFds;
-      const unitJantarFds = fv?.weekendDinner || sysJanFds;
+      const mobilidade = override?.mobilidade ?? sysMob;
+      const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
+      const mobilidadeVolta = override?.mobilidadeVolta ?? sysMobVolta;
+      const almocoSemana = override?.almocoSemana ?? (sysAlmSem * weekdays);
+      const jantarSemana = override?.jantarSemana ?? (sysJanSem * weekdays);
+      const almocoFds = override?.almocoFds ?? (sysAlmFds * weekends);
+      const jantarFds = override?.jantarFds ?? (sysJanFds * weekends);
+      // unit values for tooltip display
+      const unitAlmocoSemana = sysAlmSem;
+      const unitJantarSemana = sysJanSem;
+      const unitAlmocoFds = sysAlmFds;
+      const unitJantarFds = sysJanFds;
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -507,7 +502,7 @@ export default function BudgetPlannedPage() {
         hasOverride: !!override,
       };
     });
-  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings, allBudgetPlanned]);
+  }, [confirmedInclusions, functionValues, collaborators, budgetOverrides, systemSettings]);
 
   // Set de chaves "collaboratorId|functionId" para cards marcados como "não participou"
   const notAttendedKeys = useMemo(() => {
