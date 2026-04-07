@@ -116,6 +116,7 @@ export default function BudgetPlannedPage() {
   const batchPopoverRef = useRef<HTMLDivElement>(null);
   const [restoredFeedback, setRestoredFeedback] = useState<string | null>(null);
   const [restoreModal, setRestoreModal] = useState<{ id: string; name: string; functionName: string; startDate?: string; endDate?: string } | null>(null);
+  const [subtotalOpenId, setSubtotalOpenId] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -817,7 +818,7 @@ export default function BudgetPlannedPage() {
   const pendingCount = calculatedBudgets.filter(b => !sentToActual.has(b.inclusion.id) && !notAttendedKeys.has(`${b.inclusion.collaboratorId}|${b.inclusion.functionId}`)).length;
 
   // Handler para edição inline na planilha
-  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'alimentacao' | 'mobilidade', rawValue: string) => {
+  const handleSheetEdit = (budget: CalculatedBudget, field: 'qtdDiarias' | 'valorDia' | 'valorDiaFds' | 'alimentacao' | 'mobilidade', rawValue: string) => {
     const val = parseFloat(rawValue) || 0;
     const valCents = Math.round(val * 100);
     const existingOvr = budgetOverrides[budget.inclusion.id];
@@ -830,6 +831,7 @@ export default function BudgetPlannedPage() {
     const mobDefaultPerDay = Math.round(budget.mobilidade / dias);
     const isUnchanged =
       (field === 'valorDia'    && valCents === budget.valorDiariaUtil) ||
+      (field === 'valorDiaFds' && valCents === budget.valorDiariaFds) ||
       (field === 'alimentacao' && valCents === foodDefaultPerDay) ||
       (field === 'mobilidade'  && valCents === mobDefaultPerDay) ||
       (field === 'qtdDiarias'  && val === budget.qtdDiarias);
@@ -839,6 +841,7 @@ export default function BudgetPlannedPage() {
       if (existingOvr) {
         const cleaned = { ...existingOvr };
         if (field === 'valorDia') { delete (cleaned as any).valorDiariaUtil; delete (cleaned as any).valorDiariaFds; }
+        else if (field === 'valorDiaFds') { delete (cleaned as any).valorDiariaFds; }
         else if (field === 'alimentacao') { delete (cleaned as any).almocoSemana; delete (cleaned as any).jantarSemana; delete (cleaned as any).almocoFds; delete (cleaned as any).jantarFds; }
         else if (field === 'mobilidade') { delete (cleaned as any).mobilidade; delete (cleaned as any).mobilidadeIda; delete (cleaned as any).mobilidadeVolta; }
         else if (field === 'qtdDiarias') { delete (cleaned as any).qtdDiarias; }
@@ -868,7 +871,8 @@ export default function BudgetPlannedPage() {
     };
     const updated = { ...base };
     if (field === 'qtdDiarias') { updated.qtdDiarias = val; }
-    else if (field === 'valorDia') { updated.valorDiariaUtil = valCents; updated.valorDiariaFds = valCents; }
+    else if (field === 'valorDia') { updated.valorDiariaUtil = valCents; }
+    else if (field === 'valorDiaFds') { updated.valorDiariaFds = valCents; }
     else if (field === 'alimentacao') {
       // valCents é por dia → converter para total do período
       const totalCents = valCents * dias;
@@ -932,6 +936,19 @@ export default function BudgetPlannedPage() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [batchPopover]);
+
+  useEffect(() => {
+    if (!subtotalOpenId) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const popover = document.getElementById(`subtotal-popover-${subtotalOpenId}`);
+      if (popover && !popover.contains(target)) {
+        setSubtotalOpenId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [subtotalOpenId]);
 
   // Avatar color based on first letter
   const avatarColor = (name: string) => {
@@ -1790,8 +1807,8 @@ export default function BudgetPlannedPage() {
                           Restaurar Padrão em Todos
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs max-w-[220px] text-center">
-                        Substitui todos os valores pelos padrões cadastrados em cada função
+                      <TooltipContent side="left" className="text-xs max-w-[240px] text-center">
+                        Limpa todos os ajustes manuais e recalcula automaticamente: identifica se o colaborador é Casa ou Freela, usa os valores da função (Útil/FDS) e os defaults do sistema
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -1829,9 +1846,16 @@ export default function BudgetPlannedPage() {
                           </th>
 
                           {/* R$/dia — batch edit */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
+                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-40 relative" style={{background:'#EFF6FF', color:'#2563EB'}}>
                             <div className="flex items-center justify-end gap-1">
-                              <span>R$ / dia</span>
+                              <div className="flex flex-col items-end">
+                                <span>Diária (R$/dia)</span>
+                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#64748B'}}>
+                                  <span style={{color:'#2563EB'}}>Útil</span>
+                                  <span className="mx-1 text-slate-300">|</span>
+                                  <span style={{color:'#F97316'}}>FDS</span>
+                                </span>
+                              </div>
                               <button
                                 onClick={() => setBatchPopover(batchPopover?.field === 'vdia' ? null : { field: 'vdia', value: '', onlyPending: true })}
                                 className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('vdia') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2009,20 +2033,26 @@ export default function BudgetPlannedPage() {
                           // Per-field override detection
                           const ovr = budgetOverrides[sid];
                           const vdiaEdited = ovr?.valorDiariaUtil !== undefined;
+                          const vdiaFdsEdited = ovr?.valorDiariaFds !== undefined;
                           const alimEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
                           const mobEdited = ovr?.mobilidade !== undefined;
 
+                          // Tipo: Casa ou Freela
+                          const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
+
                           // Default values for tooltips (use system defaults — same as what pending records show)
                           const fv = budget.functionValue;
-                          const defaultVDia = fv?.dailyValue ?? (systemSettings?.default_daily_value ?? 5000);
+                          const defaultVDia = isCasaType
+                            ? (fv?.dailyValue ?? systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000)
+                            : (fv?.dailyValueFreela ?? systemSettings?.default_daily_value_weekday_freela ?? systemSettings?.default_daily_value ?? 5000);
+                          const defaultVDiaFds = isCasaType
+                            ? (fv?.dailyValueWeekend ?? systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 5000)
+                            : (fv?.dailyValueFreelaWeekend ?? systemSettings?.default_daily_value_weekend_freela ?? systemSettings?.default_daily_value ?? 5000);
                           const defaultAlimTotal = ((systemSettings?.default_weekday_lunch ?? 3500) + (systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
                                             + ((systemSettings?.default_weekend_lunch ?? 4000) + (systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
                           const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
                           const defaultMobTotal = systemSettings?.default_mobility ?? 2500;
                           const defaultMob = Math.round(defaultMobTotal / Math.max(1, budget.qtdDiarias));
-
-                          // Tipo: Casa ou Freela
-                          const isCasaType = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
@@ -2031,10 +2061,11 @@ export default function BudgetPlannedPage() {
                               ? 'border-transparent bg-transparent text-slate-400 cursor-not-allowed'
                               : 'border-[#e5e7eb] bg-[#FAFAFA] focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
 
-                          const restoreField = (field: 'valorDia'|'alimentacao'|'mobilidade') => {
+                          const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'mobilidade') => {
                             if (!ovr) return;
                             const updated = { ...ovr };
-                            if (field === 'valorDia') { delete (updated as any).valorDiariaUtil; delete (updated as any).valorDiariaFds; }
+                            if (field === 'valorDia') { delete (updated as any).valorDiariaUtil; }
+                            else if (field === 'valorDiaFds') { delete (updated as any).valorDiariaFds; }
                             else if (field === 'alimentacao') { delete (updated as any).almocoSemana; delete (updated as any).jantarSemana; delete (updated as any).almocoFds; delete (updated as any).jantarFds; }
                             else if (field === 'mobilidade') { delete (updated as any).mobilidade; delete (updated as any).mobilidadeIda; delete (updated as any).mobilidadeVolta; }
                             const hasAny = Object.keys(updated).filter(k => k !== 'inclusionId' && k !== 'qtdDiarias').length > 0;
@@ -2121,67 +2152,104 @@ export default function BudgetPlannedPage() {
                                 </TooltipProvider>
                               </td>
 
-                              {/* Valor/dia */}
-                              <td className="px-3 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <TooltipProvider delayDuration={150}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <input
-                                          type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 3 + 2}
-                                          disabled={disabled}
-                                          value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
-                                          onChange={e => setbuf('vdia', e.target.value)}
-                                          onBlur={commitBlur('valorDia', 'vdia')}
-                                          onFocus={e => e.target.select()}
-                                          className={`${inputBase} w-[90px] ${!disabled && vdiaEdited ? 'text-[#3B4FE4] font-bold' : !disabled ? 'text-slate-900' : ''}`}
-                                        />
-                                      </TooltipTrigger>
-                                      {!disabled && (
-                                        <TooltipContent side="top" className="text-xs">
-                                          {vdiaEdited
-                                            ? `Editado manualmente · padrão era R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}`
-                                            : `Valor padrão da função ${funcName}`}
-                                        </TooltipContent>
-                                      )}
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  {vdiaEdited && !disabled && (() => {
-                                    const fbKey = `${sid}:vdia`;
-                                    const restored = restoredFeedback === fbKey;
-                                    return (
-                                      <TooltipProvider delayDuration={restored ? 0 : 150}>
-                                        <Tooltip open={restored ? true : undefined}>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              onClick={() => {
-                                                restoreField('valorDia');
-                                                setRestoredFeedback(fbKey);
-                                                setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000);
-                                              }}
-                                              className={`text-[10px] transition-colors cursor-pointer shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#3B4FE4]'}`}
-                                            >↩</button>
-                                          </TooltipTrigger>
+                              {/* Valor/dia — Útil + FDS separados */}
+                              <td className="px-3 py-1" style={{minWidth:'160px'}}>
+                                <div className="flex flex-col gap-1">
+                                  {/* Dia Útil */}
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#2563EB'}}>Útil</span>
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text" inputMode="decimal"
+                                            tabIndex={rowIdx * 4 + 2}
+                                            disabled={disabled}
+                                            value={buf('vdia', (budget.valorDiariaUtil / 100).toFixed(2))}
+                                            onChange={e => setbuf('vdia', e.target.value)}
+                                            onBlur={commitBlur('valorDia', 'vdia')}
+                                            onFocus={e => e.target.select()}
+                                            className={`${inputBase} w-[82px] ${!disabled && vdiaEdited ? 'font-bold' : ''}`}
+                                            style={!disabled && vdiaEdited ? {color:'#2563EB', borderColor:'#93C5FD'} : !disabled ? {color:'#1e40af'} : {}}
+                                          />
+                                        </TooltipTrigger>
+                                        {!disabled && (
                                           <TooltipContent side="top" className="text-xs">
-                                            {restored ? 'Restaurado ✓' : 'Restaurar valor padrão da função'}
+                                            {vdiaEdited ? `Editado · padrão: R$ ${(defaultVDia / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (dia útil)`}
                                           </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    );
-                                  })()}
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    {vdiaEdited && !disabled && (() => {
+                                      const fbKey = `${sid}:vdia`;
+                                      const restored = restoredFeedback === fbKey;
+                                      return (
+                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                          <Tooltip open={restored ? true : undefined}>
+                                            <TooltipTrigger asChild>
+                                              <button onClick={() => { restoreField('valorDia'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#2563EB]'}`}>↩</button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      );
+                                    })()}
+                                  </div>
+                                  {/* Fim de Semana */}
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#F97316'}}>FDS</span>
+                                    <TooltipProvider delayDuration={150}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <input
+                                            type="text" inputMode="decimal"
+                                            tabIndex={rowIdx * 4 + 3}
+                                            disabled={disabled}
+                                            value={buf('vdiaFds', (budget.valorDiariaFds / 100).toFixed(2))}
+                                            onChange={e => setbuf('vdiaFds', e.target.value)}
+                                            onBlur={(e) => { handleSheetEdit(budget, 'valorDiaFds', e.target.value); clearbuf('vdiaFds'); }}
+                                            onFocus={e => e.target.select()}
+                                            className={`${inputBase} w-[82px] ${!disabled && vdiaFdsEdited ? 'font-bold' : ''}`}
+                                            style={!disabled && vdiaFdsEdited ? {color:'#F97316', borderColor:'#FED7AA'} : !disabled ? {color:'#C2410C'} : {}}
+                                          />
+                                        </TooltipTrigger>
+                                        {!disabled && (
+                                          <TooltipContent side="top" className="text-xs">
+                                            {vdiaFdsEdited ? `Editado · padrão: R$ ${(defaultVDiaFds / 100).toFixed(2).replace('.', ',')}` : `Padrão da função ${funcName} (fim de semana)`}
+                                          </TooltipContent>
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    {vdiaFdsEdited && !disabled && (() => {
+                                      const fbKey = `${sid}:vdiaFds`;
+                                      const restored = restoredFeedback === fbKey;
+                                      return (
+                                        <TooltipProvider delayDuration={restored ? 0 : 150}>
+                                          <Tooltip open={restored ? true : undefined}>
+                                            <TooltipTrigger asChild>
+                                              <button onClick={() => { restoreField('valorDiaFds'); setRestoredFeedback(fbKey); setTimeout(() => setRestoredFeedback(r => r === fbKey ? null : r), 2000); }}
+                                                className={`text-[10px] shrink-0 ${restored ? 'text-emerald-500' : 'text-slate-400 hover:text-[#F97316]'}`}>↩</button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="text-xs">{restored ? 'Restaurado ✓' : 'Restaurar padrão'}</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
                               </td>
 
                               {/* Alimentação */}
                               <td className="px-3 text-right">
+                                <div className="flex flex-col items-end gap-0.5">
                                 <div className="flex items-center justify-end gap-1">
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <input
                                           type="text" inputMode="decimal"
-                                          tabIndex={rowIdx * 3 + 3}
+                                          tabIndex={rowIdx * 4 + 4}
                                           disabled={disabled}
                                           value={buf('alim', foodPerDay.toFixed(2))}
                                           onChange={e => setbuf('alim', e.target.value)}
@@ -2191,12 +2259,31 @@ export default function BudgetPlannedPage() {
                                         />
                                       </TooltipTrigger>
                                       {!disabled && (
-                                        <TooltipContent side="top" className="text-xs">
+                                        <TooltipContent side="top" className="text-xs max-w-[220px]">
                                           {alimEdited
                                             ? `Editado · padrão era R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia`
                                             : `R$ ${(defaultAlim / 100).toFixed(2).replace('.', ',')} /dia (padrão da função)`}
                                         </TooltipContent>
                                       )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {/* (i) icon mostrando composição Útil | FDS */}
+                                  <TooltipProvider delayDuration={100}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-[10px] text-slate-300 hover:text-slate-500 cursor-default select-none shrink-0">ⓘ</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="text-xs max-w-[200px]">
+                                        <div className="space-y-1">
+                                          <div className="font-semibold text-slate-600 mb-1">Composição da Alimentação</div>
+                                          {budget.weekdays > 0 && (
+                                            <div><span style={{color:'#2563EB'}}>Útil:</span> R$ {((budget.unitAlmocoSemana + budget.unitJantarSemana) / 100).toFixed(2).replace('.', ',')} /dia × {budget.weekdays}d</div>
+                                          )}
+                                          {budget.weekends > 0 && (
+                                            <div><span style={{color:'#F97316'}}>FDS:</span> R$ {((budget.unitAlmocoFds + budget.unitJantarFds) / 100).toFixed(2).replace('.', ',')} /dia × {budget.weekends}d</div>
+                                          )}
+                                        </div>
+                                      </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
                                   {alimEdited && !disabled && (() => {
@@ -2222,6 +2309,7 @@ export default function BudgetPlannedPage() {
                                       </TooltipProvider>
                                     );
                                   })()}
+                                </div>
                                 </div>
                               </td>
 
@@ -2279,16 +2367,94 @@ export default function BudgetPlannedPage() {
                                 </td>
                               )}
 
-                              {/* Subtotal */}
-                              <td className="px-4 text-right bg-blue-50/20">
-                                <span className={`text-[13px] font-mono font-bold tabular-nums ${isNotAttended ? 'text-slate-300 line-through' : 'text-[#3B4FE4]'}`}>
+                              {/* Subtotal — clicável → Memória de Cálculo */}
+                              <td className="px-4 text-right bg-blue-50/20" style={{position:'relative'}}>
+                                <button
+                                  onClick={() => setSubtotalOpenId(subtotalOpenId === sid ? null : sid)}
+                                  className={`text-[13px] font-mono font-bold tabular-nums transition-colors ${isNotAttended ? 'text-slate-300 line-through cursor-default' : 'text-[#3B4FE4] hover:text-[#0033CC] cursor-pointer underline decoration-dotted underline-offset-2'}`}
+                                  disabled={isNotAttended}
+                                >
                                   {formatCurrency(budget.totalFinal)}
-                                </span>
+                                </button>
                                 {matchingActual?.rhAdjusted && isSent && (
                                   <div className="text-[11px] font-mono font-semibold tabular-nums mt-0.5" style={{color:'#D97706'}}>
                                     {formatCurrency(matchingActual.totalValue)} ✏
                                   </div>
                                 )}
+                                {/* Popover de Memória de Cálculo */}
+                                {subtotalOpenId === sid && !isNotAttended && (() => {
+                                  const wdFood = budget.weekdays > 0 ? (budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays) : 0;
+                                  const weFood = budget.weekends > 0 ? (budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends) : 0;
+                                  const wdTotal = budget.weekdays * (budget.valorDiariaUtil + Math.round(wdFood));
+                                  const weTotal = budget.weekends * (budget.valorDiariaFds + Math.round(weFood));
+                                  const fmt = (v: number) => (v / 100).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+                                  return (
+                                    <div
+                                      id={`subtotal-popover-${sid}`}
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        position:'absolute', right:0, top:'100%', zIndex:60,
+                                        background:'#fff', border:'1px solid #E2E8F0',
+                                        borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
+                                        padding:'14px 16px', minWidth:270, textAlign:'left',
+                                      }}
+                                    >
+                                      <div style={{fontSize:11, fontWeight:700, color:'#0033CC', marginBottom:10, letterSpacing:'0.05em', textTransform:'uppercase'}}>
+                                        Memória de Cálculo · {toTitleCase(name)}
+                                      </div>
+                                      <div style={{fontSize:11, color:'#64748B', marginBottom:8}}>
+                                        {budget.qtdDiarias} {budget.qtdDiarias === 1 ? 'dia' : 'dias'}
+                                        {budget.inclusion.startDate && budget.inclusion.endDate && ` · ${new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})} → ${new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}`}
+                                      </div>
+                                      <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
+                                        <tbody>
+                                          {budget.weekdays > 0 && (
+                                            <tr>
+                                              <td style={{paddingBottom:4, color:'#2563EB', fontWeight:600}}>{budget.weekdays} Dia{budget.weekdays > 1 ? 's' : ''} Útil{budget.weekdays > 1 ? 'eis' : ''}</td>
+                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(wdTotal)}</td>
+                                            </tr>
+                                          )}
+                                          {budget.weekdays > 0 && (
+                                            <tr>
+                                              <td colSpan={2} style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
+                                                Diária {fmt(budget.valorDiariaUtil)} + Alim. {fmt(Math.round(wdFood))} por dia
+                                              </td>
+                                            </tr>
+                                          )}
+                                          {budget.weekends > 0 && (
+                                            <tr>
+                                              <td style={{paddingBottom:4, color:'#F97316', fontWeight:600}}>{budget.weekends} Fim{budget.weekends > 1 ? 's' : ''} de Semana</td>
+                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(weTotal)}</td>
+                                            </tr>
+                                          )}
+                                          {budget.weekends > 0 && (
+                                            <tr>
+                                              <td colSpan={2} style={{paddingBottom:8, color:'#9CA3AF', fontSize:10, paddingLeft:8}}>
+                                                Diária {fmt(budget.valorDiariaFds)} + Alim. {fmt(Math.round(weFood))} por dia
+                                              </td>
+                                            </tr>
+                                          )}
+                                          {budget.mobilidade > 0 && (
+                                            <tr>
+                                              <td style={{paddingBottom:4, color:'#6D28D9', fontWeight:600}}>Mobilidade (total)</td>
+                                              <td style={{paddingBottom:4, textAlign:'right', color:'#374151', fontFamily:'monospace'}}>{fmt(budget.mobilidade)}</td>
+                                            </tr>
+                                          )}
+                                        </tbody>
+                                        <tfoot>
+                                          <tr style={{borderTop:'2px solid #E2E8F0'}}>
+                                            <td style={{paddingTop:8, fontWeight:700, color:'#0033CC', fontSize:13}}>Total</td>
+                                            <td style={{paddingTop:8, textAlign:'right', fontWeight:700, color:'#0033CC', fontFamily:'monospace', fontSize:13}}>{fmt(budget.totalFinal)}</td>
+                                          </tr>
+                                        </tfoot>
+                                      </table>
+                                      <button
+                                        onClick={() => setSubtotalOpenId(null)}
+                                        style={{marginTop:10, fontSize:10, color:'#94A3B8', cursor:'pointer', background:'none', border:'none', display:'block', textAlign:'center', width:'100%'}}
+                                      >fechar</button>
+                                    </div>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           );
