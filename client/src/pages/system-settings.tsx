@@ -320,6 +320,10 @@ export default function SystemSettingsPage() {
   const mobilityVolta = parseFloat(form.watch("default_mobility_volta") || "0");
   const mobilityTotal = isNaN(mobilityIda + mobilityVolta) ? 0 : mobilityIda + mobilityVolta;
 
+  const mobilityIdaFreela = parseFloat(form.watch("default_mobility_ida_freela") || "0");
+  const mobilityVoltaFreela = parseFloat(form.watch("default_mobility_volta_freela") || "0");
+  const mobilityTotalFreela = isNaN(mobilityIdaFreela + mobilityVoltaFreela) ? 0 : mobilityIdaFreela + mobilityVoltaFreela;
+
   const dirtyFormFields = Object.keys(form.formState.dirtyFields).length;
   const dirtyFunctionCount = allFunctions.filter(fn => {
     const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
@@ -664,12 +668,7 @@ export default function SystemSettingsPage() {
                 <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, color: '#888' }}>Total mobilidade</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#F97316' }}>
-                    {(() => {
-                      const ida = parseFloat(form.watch(activeTab === 'casa' ? 'default_mobility_ida' : 'default_mobility_ida_freela') || "0");
-                      const volta = parseFloat(form.watch(activeTab === 'casa' ? 'default_mobility_volta' : 'default_mobility_volta_freela') || "0");
-                      const total = ida + volta;
-                      return isNaN(total) ? '—' : `R$ ${total.toFixed(2).replace('.', ',')}`;
-                    })()}
+                    {`R$ ${(activeTab === 'casa' ? mobilityTotal : mobilityTotalFreela).toFixed(2).replace('.', ',')}`}
                   </span>
                 </div>
               </div>
