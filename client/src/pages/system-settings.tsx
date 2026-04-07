@@ -841,15 +841,21 @@ export default function SystemSettingsPage() {
                         const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
                         const wdVal = getCurrentValue(fn.id, 'wd');
                         const weVal = getCurrentValue(fn.id, 'we');
-                        const savedWd = activeTab === 'casa' ? (fv ? centavosToReais(fv.dailyValue) : "0.00") : (fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00");
-                        const savedWe = activeTab === 'casa' ? (fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00") : (fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00");
+                        const freeWdRow = fv?.dailyValueFreela ?? 0;
+                        const freeWeRow = fv?.dailyValueFreelaWeekend ?? 0;
+                        const savedWd = activeTab === 'casa'
+                          ? (fv ? centavosToReais(fv.dailyValue) : "0.00")
+                          : (fv ? centavosToReais(freeWdRow !== 0 ? freeWdRow : (fv.dailyValue ?? 0)) : "0.00");
+                        const savedWe = activeTab === 'casa'
+                          ? (fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00")
+                          : (fv ? centavosToReais(freeWeRow !== 0 ? freeWeRow : (fv.dailyValueWeekend ?? 0)) : "0.00");
                         const isDirtyWd = parseFloat(wdVal) !== parseFloat(savedWd);
                         const isDirtyWe = parseFloat(weVal) !== parseFloat(savedWe);
                         const isDirty = isDirtyWd || isDirtyWe;
                         const isEditingWd = editingFunctionId === fn.id && editingField === 'wd';
                         const isEditingWe = editingFunctionId === fn.id && editingField === 'we';
-                        const hasWd = fv && (activeTab === 'casa' ? fv.dailyValue > 0 : (fv.dailyValueFreela ?? 0) > 0);
-                        const hasWe = fv && (activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) > 0 : (fv.dailyValueFreelaWeekend ?? 0) > 0);
+                        const hasWd = fv && (activeTab === 'casa' ? fv.dailyValue > 0 : (freeWdRow !== 0 ? freeWdRow : (fv.dailyValue ?? 0)) > 0);
+                        const hasWe = fv && (activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) > 0 : (freeWeRow !== 0 ? freeWeRow : (fv.dailyValueWeekend ?? 0)) > 0);
 
                         const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean, fallbackVal?: string) => {
                           const isZero = parseFloat(currentVal) === 0;
