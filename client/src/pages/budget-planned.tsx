@@ -834,7 +834,6 @@ export default function BudgetPlannedPage() {
     const foodDefault = budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds;
     const dias = Math.max(1, budget.qtdDiarias);
     const foodDefaultPerDay = Math.round(foodDefault / dias);
-    const mobDefaultPerDay = Math.round(budget.mobilidade / dias);
     const wdFoodDefault = Math.round((budget.almocoSemana + budget.jantarSemana) / Math.max(1, budget.weekdays));
     const weFoodDefault = Math.round((budget.almocoFds + budget.jantarFds) / Math.max(1, budget.weekends));
     const isUnchanged =
@@ -843,7 +842,7 @@ export default function BudgetPlannedPage() {
       (field === 'alimentacao'    && valCents === foodDefaultPerDay) ||
       (field === 'alimentacaoUtil'&& valCents === wdFoodDefault) ||
       (field === 'alimentacaoFds' && valCents === weFoodDefault) ||
-      (field === 'mobilidade'     && valCents === mobDefaultPerDay) ||
+      (field === 'mobilidade'     && valCents === budget.mobilidade) ||
       (field === 'qtdDiarias'     && val === budget.qtdDiarias);
 
     if (isUnchanged) {
@@ -924,11 +923,10 @@ export default function BudgetPlannedPage() {
         updated.jantarFds = totalCents - Math.round(budget.almocoFds * f);
       }
     } else if (field === 'mobilidade') {
-      // valCents é por dia → converter para total do período
-      const totalCents = valCents * dias;
-      updated.mobilidade = totalCents;
-      updated.mobilidadeIda = Math.round(totalCents / 2);
-      updated.mobilidadeVolta = totalCents - Math.round(totalCents / 2);
+      // valCents é o total (Ida + Volta) — não multiplica por dias
+      updated.mobilidade = valCents;
+      updated.mobilidadeIda = Math.round(valCents / 2);
+      updated.mobilidadeVolta = valCents - Math.round(valCents / 2);
     }
     setBudgetOverrides(prev => ({ ...prev, [budget.inclusion.id]: updated }));
   };
@@ -2087,7 +2085,7 @@ export default function BudgetPlannedPage() {
                           {!allSameMob && (
                             <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28 relative" style={{background:'#F5F3FF', color:'#6D28D9'}}>
                               <div className="flex items-center justify-end gap-1">
-                                <span>Mob. R$/dia</span>
+                                <span>Mob. R$ total</span>
                                 <button
                                   onClick={() => setBatchPopover(batchPopover?.field === 'mob' ? null : { field: 'mob', value: '', onlyPending: true })}
                                   className={`text-[10px] transition-colors cursor-pointer ${batchApplied.has('mob') ? 'text-[#3B4FE4]' : 'text-slate-300 hover:text-slate-500'}`}
@@ -2165,7 +2163,7 @@ export default function BudgetPlannedPage() {
                           const isCasaTypeHdr = budget.collaborator?.type === 'casa' || budget.collaborator?.type === 'local';
                           const foodTotal = (budget.almocoSemana + budget.jantarSemana + budget.almocoFds + budget.jantarFds) / 100;
                           const foodPerDay = foodTotal / Math.max(1, budget.qtdDiarias);
-                          const mobPerDay = budget.mobilidade / Math.max(1, budget.qtdDiarias) / 100;
+                          const mobTotal = budget.mobilidade / 100;
                           const disabled = isSent || isNotAttended;
                           const matchingActual = existingActuals?.find((a: any) =>
                             a.collaboratorId === budget.inclusion.collaboratorId &&
@@ -2209,8 +2207,7 @@ export default function BudgetPlannedPage() {
                           const defaultAlimTotal = ((systemSettings?.default_weekday_lunch ?? 3500) + (systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
                                             + ((systemSettings?.default_weekend_lunch ?? 4000) + (systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
                           const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
-                          const defaultMobTotal = systemSettings?.default_mobility ?? 2500;
-                          const defaultMob = Math.round(defaultMobTotal / Math.max(1, budget.qtdDiarias));
+                          const defaultMob = systemSettings?.default_mobility ?? 2500;
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
@@ -2532,7 +2529,7 @@ export default function BudgetPlannedPage() {
                                             type="text" inputMode="decimal"
                                             tabIndex={rowIdx * 3 + 4}
                                             disabled={disabled}
-                                            value={buf('mob', mobPerDay.toFixed(2))}
+                                            value={buf('mob', mobTotal.toFixed(2))}
                                             onChange={e => setbuf('mob', e.target.value)}
                                             onBlur={commitBlur('mobilidade', 'mob')}
                                             onFocus={e => e.target.select()}
@@ -2542,8 +2539,8 @@ export default function BudgetPlannedPage() {
                                         {!disabled && (
                                           <TooltipContent side="top" className="text-xs">
                                             {mobEdited
-                                              ? `Editado · padrão era R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} /dia`
-                                              : `R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} /dia (padrão da função)`}
+                                              ? `Editado · padrão: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')} (total Ida+Volta)`
+                                              : `Total Ida+Volta · padrão: R$ ${(defaultMob / 100).toFixed(2).replace('.', ',')}`}
                                           </TooltipContent>
                                         )}
                                       </Tooltip>
