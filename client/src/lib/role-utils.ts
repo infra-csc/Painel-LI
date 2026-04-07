@@ -130,14 +130,14 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessScreen3: true,
         canRegisterTickets: false,
         canAccessScreen4: true,
-        canEditScreen4: true,
+        canEditScreen4: false,
         canAccessScreen5: true,
         canApproveFinancial: true,
         canAccessFinanceiro: true,
-        canAccessScreen6: false,
-        canAccessAdminUsers: false,
+        canAccessScreen6: true,
+        canAccessAdminUsers: true,
         canAccessCollaborators: true,
-        canEditCollaborators: true,
+        canEditCollaborators: false,
         canAccessCalendar: true,
       };
 

@@ -109,12 +109,13 @@ export default function AdminUsers() {
   const [, setLocation] = useLocation();
 
   const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.role === "administrator";
-  if (!user || !isAdmin) {
+  const isRh    = user?.role === "financial";
+  if (!user || (!isAdmin && !isRh)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <h2 className="text-lg font-bold text-slate-800 mb-1">Acesso Negado</h2>
-          <p className="text-sm text-slate-500">Você precisa ser administrador para acessar esta página.</p>
+          <p className="text-sm text-slate-500">Você não tem permissão para acessar esta página.</p>
         </div>
       </div>
     );
