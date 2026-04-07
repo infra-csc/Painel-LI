@@ -342,6 +342,64 @@ export default function SystemSettingsPage() {
     <TooltipProvider>
     <div className="p-6 max-w-6xl space-y-6">
 
+      {/* ── Barra flutuante de salvamento ── */}
+      {hasAnyChanges && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: '#1E293B',
+            borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            padding: '10px 16px 10px 20px',
+            minWidth: 340,
+            animation: 'fadeIn 0.18s ease',
+          }}
+        >
+          <span style={{ fontSize: 13, color: '#CBD5E1', flex: 1 }}>
+            <span style={{ fontWeight: 700, color: '#F8FAFC' }}>{totalUnsaved}</span>{' '}
+            alteraç{totalUnsaved === 1 ? 'ão' : 'ões'} não salva{totalUnsaved === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleSaveAll()}
+            disabled={isSavingAny || saveMutation.isPending}
+            style={{
+              background: (isSavingAny || saveMutation.isPending) ? '#475569' : '#3B4FE4',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 9,
+              padding: '7px 18px',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              boxShadow: '0 2px 10px rgba(59,79,228,0.35)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Save style={{ width: 14, height: 14 }} />
+            {(isSavingAny || saveMutation.isPending) ? 'Salvando...' : 'Salvar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { form.reset(); }}
+            style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontSize: 12 }}
+            title="Descartar alterações"
+          >
+            <X style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+      )}
+
       {/* ── Cabeçalho ── */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
