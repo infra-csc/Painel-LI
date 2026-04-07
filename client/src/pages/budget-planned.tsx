@@ -451,19 +451,29 @@ export default function BudgetPlannedPage() {
       const subtotalDiariasFds = weekends * valorDiariaFds;
       const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
       
-      const unitAlmocoSemana = fv?.weekdayLunch || (systemSettings?.default_weekday_lunch ?? 3500);
-      const unitJantarSemana = fv?.weekdayDinner || (systemSettings?.default_weekday_dinner ?? 4000);
-      const unitAlmocoFds = fv?.weekendLunch || (systemSettings?.default_weekend_lunch ?? 4000);
-      const unitJantarFds = fv?.weekendDinner || (systemSettings?.default_weekend_dinner ?? 4500);
-      const defaultMob = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
-      // Fallback chain: manual override > saved DB record > computed from settings/fv
-      const mobilidade = override?.mobilidade ?? dbPlanned?.mobility ?? defaultMob;
-      const mobilidadeIda = override?.mobilidadeIda ?? dbPlanned?.mobilityIda ?? (fv as any)?.mobilityIda ?? Math.ceil(mobilidade / 2);
-      const mobilidadeVolta = override?.mobilidadeVolta ?? dbPlanned?.mobilityVolta ?? (fv as any)?.mobilityVolta ?? Math.floor(mobilidade / 2);
-      const almocoSemana = override?.almocoSemana ?? dbPlanned?.weekdayLunch ?? (unitAlmocoSemana * weekdays);
-      const jantarSemana = override?.jantarSemana ?? dbPlanned?.weekdayDinner ?? (unitJantarSemana * weekdays);
-      const almocoFds = override?.almocoFds ?? dbPlanned?.weekendLunch ?? (unitAlmocoFds * weekends);
-      const jantarFds = override?.jantarFds ?? dbPlanned?.weekendDinner ?? (unitJantarFds * weekends);
+      // System defaults for food/mobility (always used as the base — function-specific values
+      // only apply if the user has a saved DB record with those values)
+      const sysAlmSem = systemSettings?.default_weekday_lunch ?? 3500;
+      const sysJanSem = systemSettings?.default_weekday_dinner ?? 4000;
+      const sysAlmFds = systemSettings?.default_weekend_lunch ?? 4000;
+      const sysJanFds = systemSettings?.default_weekend_dinner ?? 4500;
+      const sysMob    = systemSettings?.default_mobility ?? 2500;
+      const sysMobIda = (systemSettings as any)?.default_mobility_ida ?? Math.ceil(sysMob / 2);
+      const sysMobVolta = (systemSettings as any)?.default_mobility_volta ?? Math.floor(sysMob / 2);
+      // Fallback chain: manual override > saved DB record > system default
+      // (function-specific food/mobility intentionally skipped so system defaults propagate)
+      const mobilidade = override?.mobilidade ?? dbPlanned?.mobility ?? sysMob;
+      const mobilidadeIda = override?.mobilidadeIda ?? dbPlanned?.mobilityIda ?? sysMobIda;
+      const mobilidadeVolta = override?.mobilidadeVolta ?? dbPlanned?.mobilityVolta ?? sysMobVolta;
+      const almocoSemana = override?.almocoSemana ?? dbPlanned?.weekdayLunch ?? (sysAlmSem * weekdays);
+      const jantarSemana = override?.jantarSemana ?? dbPlanned?.weekdayDinner ?? (sysJanSem * weekdays);
+      const almocoFds = override?.almocoFds ?? dbPlanned?.weekendLunch ?? (sysAlmFds * weekends);
+      const jantarFds = override?.jantarFds ?? dbPlanned?.weekendDinner ?? (sysJanFds * weekends);
+      // Keep fv reference for tooltip/display context only
+      const unitAlmocoSemana = fv?.weekdayLunch || sysAlmSem;
+      const unitJantarSemana = fv?.weekdayDinner || sysJanSem;
+      const unitAlmocoFds = fv?.weekendLunch || sysAlmFds;
+      const unitJantarFds = fv?.weekendDinner || sysJanFds;
       
       const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
       const totalFinal = subtotalDiarias + ajudaCusto;
@@ -1978,13 +1988,13 @@ export default function BudgetPlannedPage() {
                           const alimEdited = ovr?.almocoSemana !== undefined || ovr?.jantarSemana !== undefined;
                           const mobEdited = ovr?.mobilidade !== undefined;
 
-                          // Default values for tooltips
+                          // Default values for tooltips (use system defaults — same as what pending records show)
                           const fv = budget.functionValue;
                           const defaultVDia = fv?.dailyValue ?? (systemSettings?.default_daily_value ?? 5000);
-                          const defaultAlimTotal = ((fv?.weekdayLunch ?? systemSettings?.default_weekday_lunch ?? 3500) + (fv?.weekdayDinner ?? systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
-                                            + ((fv?.weekendLunch ?? systemSettings?.default_weekend_lunch ?? 4000) + (fv?.weekendDinner ?? systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
+                          const defaultAlimTotal = ((systemSettings?.default_weekday_lunch ?? 3500) + (systemSettings?.default_weekday_dinner ?? 4000)) * budget.weekdays
+                                            + ((systemSettings?.default_weekend_lunch ?? 4000) + (systemSettings?.default_weekend_dinner ?? 4500)) * budget.weekends;
                           const defaultAlim = Math.round(defaultAlimTotal / Math.max(1, budget.qtdDiarias));
-                          const defaultMobTotal = fv?.mobility ?? (systemSettings?.default_mobility ?? 2500);
+                          const defaultMobTotal = systemSettings?.default_mobility ?? 2500;
                           const defaultMob = Math.round(defaultMobTotal / Math.max(1, budget.qtdDiarias));
 
                           // Tipo: Casa ou Freela
