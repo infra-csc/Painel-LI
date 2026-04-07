@@ -436,27 +436,56 @@ export default function BudgetPlannedPage() {
         weekends = result.weekends;
       }
 
-      const defaultDailyValueWeekday = systemSettings?.default_daily_value_weekday ?? systemSettings?.default_daily_value ?? 5000;
-      const defaultDailyValueWeekend = systemSettings?.default_daily_value_weekend ?? systemSettings?.default_daily_value ?? 5000;
+      const ss = systemSettings as Record<string, number> | undefined;
+      const collabIsCasa = collab?.type === 'casa' || collab?.type === 'local';
+      
+      // Daily rates: use type-specific function values for weekday/weekend
+      // fv.dailyValue = casa weekday, fv.dailyValueWeekend = casa weekend
+      // fv.dailyValueFreela = freela weekday, fv.dailyValueFreelaWeekend = freela weekend
+      const fvAny = fv as any;
+      const fvDailyWd = collabIsCasa ? (fvAny?.dailyValue ?? 0) : (fvAny?.dailyValueFreela ?? 0);
+      const fvDailyWe = collabIsCasa ? (fvAny?.dailyValueWeekend ?? fvAny?.dailyValue ?? 0) : (fvAny?.dailyValueFreelaWeekend ?? fvAny?.dailyValueFreela ?? 0);
+
+      const defaultDailyValueWeekday = collabIsCasa
+        ? (ss?.default_daily_value_weekday ?? ss?.default_daily_value ?? 5000)
+        : (ss?.default_daily_value_weekday_freela ?? ss?.default_daily_value_weekday ?? ss?.default_daily_value ?? 5000);
+      const defaultDailyValueWeekend = collabIsCasa
+        ? (ss?.default_daily_value_weekend ?? ss?.default_daily_value ?? 5000)
+        : (ss?.default_daily_value_weekend_freela ?? ss?.default_daily_value_weekend ?? ss?.default_daily_value ?? 5000);
+
       const inclusionDailyValue = inclusion.dailyValue ?? defaultDailyValueWeekday;
-      // Daily rate: override > function-specific > inclusion-specific > system default
-      const valorDiaria = override?.valorDiaria ?? fv?.dailyValue ?? inclusionDailyValue;
-      const valorDiariaUtil = override?.valorDiariaUtil ?? fv?.dailyValue ?? inclusionDailyValue ?? defaultDailyValueWeekday;
-      const valorDiariaFds = override?.valorDiariaFds ?? fv?.dailyValue ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
+      // Daily rate: override > function-specific (per type+weekday/weekend) > inclusion-specific > system default
+      const valorDiariaUtil = override?.valorDiariaUtil ?? (fvDailyWd > 0 ? fvDailyWd : null) ?? inclusionDailyValue ?? defaultDailyValueWeekday;
+      const valorDiariaFds = override?.valorDiariaFds ?? (fvDailyWe > 0 ? fvDailyWe : null) ?? (inclusion.dailyValue ?? defaultDailyValueWeekend);
+      const valorDiaria = override?.valorDiaria ?? valorDiariaUtil;
       
       const subtotalDiariasUtil = weekdays * valorDiariaUtil;
       const subtotalDiariasFds = weekends * valorDiariaFds;
       const subtotalDiarias = subtotalDiariasUtil + subtotalDiariasFds;
       
-      // Food/mobility: always computed from current system defaults for pending records.
-      // Manual override (user edit in planilha) is the only exception.
-      const sysAlmSem = systemSettings?.default_weekday_lunch ?? 3500;
-      const sysJanSem = systemSettings?.default_weekday_dinner ?? 4000;
-      const sysAlmFds = systemSettings?.default_weekend_lunch ?? 4000;
-      const sysJanFds = systemSettings?.default_weekend_dinner ?? 4500;
-      const sysMob    = systemSettings?.default_mobility ?? 2500;
-      const sysMobIda = (systemSettings as any)?.default_mobility_ida ?? Math.ceil(sysMob / 2);
-      const sysMobVolta = (systemSettings as any)?.default_mobility_volta ?? Math.floor(sysMob / 2);
+      // Food/mobility: use type-specific system defaults (casa or freela keys)
+      const sysAlmSem = collabIsCasa
+        ? (ss?.default_weekday_lunch ?? 3500)
+        : (ss?.default_weekday_lunch_freela ?? ss?.default_weekday_lunch ?? 3500);
+      const sysJanSem = collabIsCasa
+        ? (ss?.default_weekday_dinner ?? 4000)
+        : (ss?.default_weekday_dinner_freela ?? ss?.default_weekday_dinner ?? 4000);
+      const sysAlmFds = collabIsCasa
+        ? (ss?.default_weekend_lunch ?? 4000)
+        : (ss?.default_weekend_lunch_freela ?? ss?.default_weekend_lunch ?? 4000);
+      const sysJanFds = collabIsCasa
+        ? (ss?.default_weekend_dinner ?? 4500)
+        : (ss?.default_weekend_dinner_freela ?? ss?.default_weekend_dinner ?? 4500);
+      const sysMobTotal = collabIsCasa
+        ? (ss?.default_mobility ?? 2500)
+        : ((ss?.default_mobility_ida_freela ?? 0) + (ss?.default_mobility_volta_freela ?? 0));
+      const sysMobIda = collabIsCasa
+        ? (ss?.default_mobility_ida ?? Math.ceil((ss?.default_mobility ?? 2500) / 2))
+        : (ss?.default_mobility_ida_freela ?? 0);
+      const sysMobVolta = collabIsCasa
+        ? (ss?.default_mobility_volta ?? Math.floor((ss?.default_mobility ?? 2500) / 2))
+        : (ss?.default_mobility_volta_freela ?? 0);
+      const sysMob = sysMobTotal;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
       const mobilidadeVolta = override?.mobilidadeVolta ?? sysMobVolta;

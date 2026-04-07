@@ -21,6 +21,7 @@ import type { Function as FunctionType, FunctionValue, PaymentCompany } from "@s
 import { CnpjInput, validateCnpj } from "@/components/ui/cnpj-input";
 
 const formSchema = z.object({
+  // Casa
   default_daily_value_weekday: z.string().min(1, "Obrigatório"),
   default_daily_value_weekend: z.string().min(1, "Obrigatório"),
   default_mobility_ida: z.string().min(1, "Obrigatório"),
@@ -29,18 +30,35 @@ const formSchema = z.object({
   default_weekday_dinner: z.string().min(1, "Obrigatório"),
   default_weekend_lunch: z.string().min(1, "Obrigatório"),
   default_weekend_dinner: z.string().min(1, "Obrigatório"),
+  // Freela
+  default_daily_value_weekday_freela: z.string().min(1, "Obrigatório"),
+  default_daily_value_weekend_freela: z.string().min(1, "Obrigatório"),
+  default_mobility_ida_freela: z.string().min(1, "Obrigatório"),
+  default_mobility_volta_freela: z.string().min(1, "Obrigatório"),
+  default_weekday_lunch_freela: z.string().min(1, "Obrigatório"),
+  default_weekday_dinner_freela: z.string().min(1, "Obrigatório"),
+  default_weekend_lunch_freela: z.string().min(1, "Obrigatório"),
+  default_weekend_dinner_freela: z.string().min(1, "Obrigatório"),
 });
 type FormValues = z.infer<typeof formSchema>;
 
 const FIELD_LABELS: Record<string, string> = {
-  default_daily_value_weekday: "Diária — Dia Útil",
-  default_daily_value_weekend: "Diária — Fim de Semana",
-  default_mobility_ida: "Mobilidade — Ida",
-  default_mobility_volta: "Mobilidade — Volta",
-  default_weekday_lunch: "Almoço — Dia Útil",
-  default_weekday_dinner: "Jantar — Dia Útil",
-  default_weekend_lunch: "Almoço — Fim de Semana",
-  default_weekend_dinner: "Jantar — Fim de Semana",
+  default_daily_value_weekday: "Diária Casa — Dia Útil",
+  default_daily_value_weekend: "Diária Casa — Fim de Semana",
+  default_mobility_ida: "Mobilidade Casa — Ida",
+  default_mobility_volta: "Mobilidade Casa — Volta",
+  default_weekday_lunch: "Almoço Casa — Dia Útil",
+  default_weekday_dinner: "Jantar Casa — Dia Útil",
+  default_weekend_lunch: "Almoço Casa — Fim de Semana",
+  default_weekend_dinner: "Jantar Casa — Fim de Semana",
+  default_daily_value_weekday_freela: "Diária Freela — Dia Útil",
+  default_daily_value_weekend_freela: "Diária Freela — Fim de Semana",
+  default_mobility_ida_freela: "Mobilidade Freela — Ida",
+  default_mobility_volta_freela: "Mobilidade Freela — Volta",
+  default_weekday_lunch_freela: "Almoço Freela — Dia Útil",
+  default_weekday_dinner_freela: "Jantar Freela — Dia Útil",
+  default_weekend_lunch_freela: "Almoço Freela — Fim de Semana",
+  default_weekend_dinner_freela: "Jantar Freela — Fim de Semana",
 };
 
 const HISTORY_KEY = "system_settings_history";
@@ -101,9 +119,16 @@ export default function SystemSettingsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [lastSaved, setLastSaved] = useState<{ timestamp: string; user: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'casa' | 'freela'>('casa');
+  // functionDailyValues: casaWeekday value per function (legacy, kept for compatibility)
   const [functionDailyValues, setFunctionDailyValues] = useState<Record<string, string>>({});
+  // Extended function values: weekend + freela variants
+  const [fnWeekendValues, setFnWeekendValues] = useState<Record<string, string>>({});
+  const [fnFreelaValues, setFnFreelaValues] = useState<Record<string, string>>({});
+  const [fnFreelaWeekendValues, setFnFreelaWeekendValues] = useState<Record<string, string>>({});
   const [functionSearch, setFunctionSearch] = useState("");
   const [editingFunctionId, setEditingFunctionId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'wd' | 'we'>('wd');
   const [editingFunctionValue, setEditingFunctionValue] = useState<string>("");
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
@@ -171,12 +196,21 @@ export default function SystemSettingsPage() {
 
   useEffect(() => {
     if (allFunctions.length > 0) {
-      const map: Record<string, string> = {};
+      const mapCasaWd: Record<string, string> = {};
+      const mapCasaWe: Record<string, string> = {};
+      const mapFreelaWd: Record<string, string> = {};
+      const mapFreelaWe: Record<string, string> = {};
       for (const fn of allFunctions) {
-        const fv = allFunctionValues.find(v => v.functionId === fn.id);
-        map[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
+        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+        mapCasaWd[fn.id] = fv ? centavosToReais(fv.dailyValue) : "0.00";
+        mapCasaWe[fn.id] = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
+        mapFreelaWd[fn.id] = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
+        mapFreelaWe[fn.id] = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
       }
-      setFunctionDailyValues(map);
+      setFunctionDailyValues(mapCasaWd);
+      setFnWeekendValues(mapCasaWe);
+      setFnFreelaValues(mapFreelaWd);
+      setFnFreelaWeekendValues(mapFreelaWe);
     }
   }, [allFunctions, allFunctionValues]);
 
@@ -190,18 +224,39 @@ export default function SystemSettingsPage() {
   const saveFunctionValuesMutation = useMutation({
     mutationFn: async () => {
       const dirtyFns = allFunctions.filter(fn => {
-        const fv = allFunctionValues.find(v => v.functionId === fn.id);
-        const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
-        return parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedVal);
+        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+        const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
+        const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
+        const savedFreelaWd = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
+        const savedFreelaWe = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
+        return (
+          parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
+          parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
+          parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
+          parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
+        );
       });
       const promises = dirtyFns.map(async fn => {
         const fv = allFunctionValues.find(v => v.functionId === fn.id);
-        const newVal = Math.round(parseFloat(functionDailyValues[fn.id] || "0") * 100);
+        const casaWd = Math.round(parseFloat(functionDailyValues[fn.id] || "0") * 100);
+        const casaWe = Math.round(parseFloat(fnWeekendValues[fn.id] || "0") * 100);
+        const freelaWd = Math.round(parseFloat(fnFreelaValues[fn.id] || "0") * 100);
+        const freelaWe = Math.round(parseFloat(fnFreelaWeekendValues[fn.id] || "0") * 100);
         if (fv) {
-          return apiRequest("PATCH", `/api/function-values/${fv.id}`, { dailyValue: newVal });
+          return apiRequest("PATCH", `/api/function-values/${fv.id}`, {
+            dailyValue: casaWd,
+            dailyValueWeekend: casaWe,
+            dailyValueFreela: freelaWd,
+            dailyValueFreelaWeekend: freelaWe,
+          });
         } else {
           return apiRequest("POST", "/api/function-values", {
-            functionId: fn.id, dailyValue: newVal, costAssistance: 0, mobility: 0,
+            functionId: fn.id,
+            dailyValue: casaWd,
+            dailyValueWeekend: casaWe,
+            dailyValueFreela: freelaWd,
+            dailyValueFreelaWeekend: freelaWe,
+            costAssistance: 0, mobility: 0,
             transport: 0, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0,
           });
         }
@@ -224,6 +279,14 @@ export default function SystemSettingsPage() {
       default_weekday_dinner: "40.00",
       default_weekend_lunch: "40.00",
       default_weekend_dinner: "45.00",
+      default_daily_value_weekday_freela: "50.00",
+      default_daily_value_weekend_freela: "50.00",
+      default_mobility_ida_freela: "0.00",
+      default_mobility_volta_freela: "0.00",
+      default_weekday_lunch_freela: "35.00",
+      default_weekday_dinner_freela: "40.00",
+      default_weekend_lunch_freela: "40.00",
+      default_weekend_dinner_freela: "45.00",
     },
   });
 
@@ -231,15 +294,24 @@ export default function SystemSettingsPage() {
     if (settings) {
       const legacyTotal = settings.default_mobility ?? 2500;
       const half = Math.round(legacyTotal / 2);
+      const s = settings as Record<string, number>;
       form.reset({
-        default_daily_value_weekday: centavosToReais(settings.default_daily_value_weekday ?? settings.default_daily_value ?? 5000),
-        default_daily_value_weekend: centavosToReais(settings.default_daily_value_weekend ?? settings.default_daily_value ?? 5000),
-        default_mobility_ida: centavosToReais(settings.default_mobility_ida ?? Math.ceil(half)),
-        default_mobility_volta: centavosToReais(settings.default_mobility_volta ?? Math.floor(half)),
-        default_weekday_lunch: centavosToReais(settings.default_weekday_lunch ?? 3500),
-        default_weekday_dinner: centavosToReais(settings.default_weekday_dinner ?? 4000),
-        default_weekend_lunch: centavosToReais(settings.default_weekend_lunch ?? 4000),
-        default_weekend_dinner: centavosToReais(settings.default_weekend_dinner ?? 4500),
+        default_daily_value_weekday: centavosToReais(s.default_daily_value_weekday ?? s.default_daily_value ?? 5000),
+        default_daily_value_weekend: centavosToReais(s.default_daily_value_weekend ?? s.default_daily_value ?? 5000),
+        default_mobility_ida: centavosToReais(s.default_mobility_ida ?? Math.ceil(half)),
+        default_mobility_volta: centavosToReais(s.default_mobility_volta ?? Math.floor(half)),
+        default_weekday_lunch: centavosToReais(s.default_weekday_lunch ?? 3500),
+        default_weekday_dinner: centavosToReais(s.default_weekday_dinner ?? 4000),
+        default_weekend_lunch: centavosToReais(s.default_weekend_lunch ?? 4000),
+        default_weekend_dinner: centavosToReais(s.default_weekend_dinner ?? 4500),
+        default_daily_value_weekday_freela: centavosToReais(s.default_daily_value_weekday_freela ?? s.default_daily_value_weekday ?? s.default_daily_value ?? 5000),
+        default_daily_value_weekend_freela: centavosToReais(s.default_daily_value_weekend_freela ?? s.default_daily_value_weekend ?? s.default_daily_value ?? 5000),
+        default_mobility_ida_freela: centavosToReais(s.default_mobility_ida_freela ?? 0),
+        default_mobility_volta_freela: centavosToReais(s.default_mobility_volta_freela ?? 0),
+        default_weekday_lunch_freela: centavosToReais(s.default_weekday_lunch_freela ?? s.default_weekday_lunch ?? 3500),
+        default_weekday_dinner_freela: centavosToReais(s.default_weekday_dinner_freela ?? s.default_weekday_dinner ?? 4000),
+        default_weekend_lunch_freela: centavosToReais(s.default_weekend_lunch_freela ?? s.default_weekend_lunch ?? 4000),
+        default_weekend_dinner_freela: centavosToReais(s.default_weekend_dinner_freela ?? s.default_weekend_dinner ?? 4500),
       });
     }
   }, [settings]);
@@ -250,9 +322,17 @@ export default function SystemSettingsPage() {
 
   const dirtyFormFields = Object.keys(form.formState.dirtyFields).length;
   const dirtyFunctionCount = allFunctions.filter(fn => {
-    const fv = allFunctionValues.find(v => v.functionId === fn.id);
-    const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
-    return parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedVal);
+    const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+    const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
+    const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
+    const savedFreelaWd = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
+    const savedFreelaWe = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
+    return (
+      parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
+      parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
+      parseFloat(fnFreelaValues[fn.id] ?? "0") !== parseFloat(savedFreelaWd) ||
+      parseFloat(fnFreelaWeekendValues[fn.id] ?? "0") !== parseFloat(savedFreelaWe)
+    );
   }).length;
   const totalUnsaved = dirtyFormFields + dirtyFunctionCount;
   const hasAnyChanges = totalUnsaved > 0;
@@ -319,12 +399,27 @@ export default function SystemSettingsPage() {
     }
   });
 
-  function startEditFunction(fn: FunctionType) {
+  function getCurrentValue(fnId: string, field: 'wd' | 'we'): string {
+    if (activeTab === 'casa') {
+      return field === 'wd' ? (functionDailyValues[fnId] ?? "0.00") : (fnWeekendValues[fnId] ?? "0.00");
+    } else {
+      return field === 'wd' ? (fnFreelaValues[fnId] ?? "0.00") : (fnFreelaWeekendValues[fnId] ?? "0.00");
+    }
+  }
+  function startEditFunction(fn: FunctionType, field: 'wd' | 'we' = 'wd') {
     setEditingFunctionId(fn.id);
-    setEditingFunctionValue(functionDailyValues[fn.id] ?? "0.00");
+    setEditingField(field);
+    setEditingFunctionValue(getCurrentValue(fn.id, field));
   }
   function confirmEditFunction(fnId: string) {
-    setFunctionDailyValues(prev => ({ ...prev, [fnId]: editingFunctionValue }));
+    const val = editingFunctionValue;
+    if (activeTab === 'casa') {
+      if (editingField === 'wd') setFunctionDailyValues(prev => ({ ...prev, [fnId]: val }));
+      else setFnWeekendValues(prev => ({ ...prev, [fnId]: val }));
+    } else {
+      if (editingField === 'wd') setFnFreelaValues(prev => ({ ...prev, [fnId]: val }));
+      else setFnFreelaWeekendValues(prev => ({ ...prev, [fnId]: val }));
+    }
     setEditingFunctionId(null);
   }
   function cancelEditFunction() {
@@ -416,13 +511,54 @@ export default function SystemSettingsPage() {
       )}
 
       {/* ── Cabeçalho ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
-          <Calculator className="w-5 h-5 text-white" />
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
+            <Calculator className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
+            <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
-          <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
+        {/* Casa / Freela toggle */}
+        <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('casa')}
+            style={{
+              padding: '7px 18px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all .18s',
+              background: activeTab === 'casa' ? '#fff' : 'transparent',
+              color: activeTab === 'casa' ? '#1E40AF' : '#94A3B8',
+              boxShadow: activeTab === 'casa' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+            }}
+          >
+            🏢 Casa
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('freela')}
+            style={{
+              padding: '7px 18px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all .18s',
+              background: activeTab === 'freela' ? '#fff' : 'transparent',
+              color: activeTab === 'freela' ? '#7C3AED' : '#94A3B8',
+              boxShadow: activeTab === 'freela' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+            }}
+          >
+            🧑‍💻 Freela
+          </button>
         </div>
       </div>
 
@@ -434,30 +570,47 @@ export default function SystemSettingsPage() {
 
             {/* Diárias */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', borderBottom: '1px solid #BFDBFE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(59,130,246,0.3)', flexShrink: 0 }}>
+              <div style={{ background: activeTab === 'casa' ? 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)' : 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', borderBottom: activeTab === 'casa' ? '1px solid #BFDBFE' : '1px solid #DDD6FE', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: activeTab === 'casa' ? '#3B82F6' : '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <DollarSign style={{ width: 18, height: 18, color: '#fff' }} />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#1E40AF', margin: 0 }}>Diárias</p>
-                  <p style={{ fontSize: 11, color: '#3B82F6', margin: 0 }}>Valor pago por dia trabalhado</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: activeTab === 'casa' ? '#1E40AF' : '#5B21B6', margin: 0 }}>Diárias {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
+                  <p style={{ fontSize: 11, color: activeTab === 'casa' ? '#3B82F6' : '#7C3AED', margin: 0 }}>Valor pago por dia trabalhado</p>
                 </div>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <FormField control={form.control} name="default_daily_value_weekday" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="default_daily_value_weekend" render={({ field }) => (
-                  <FormItem>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
-                    <FormControl><CurrencyInput field={field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                {activeTab === 'casa' ? (<>
+                  <FormField control={form.control} name="default_daily_value_weekday" render={({ field }) => (
+                    <FormItem>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
+                      <FormControl><CurrencyInput field={field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="default_daily_value_weekend" render={({ field }) => (
+                    <FormItem>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
+                      <FormControl><CurrencyInput field={field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>) : (<>
+                  <FormField control={form.control} name="default_daily_value_weekday_freela" render={({ field }) => (
+                    <FormItem>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Dia Útil</p>
+                      <FormControl><CurrencyInput field={field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="default_daily_value_weekend_freela" render={({ field }) => (
+                    <FormItem>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Fim de Semana</p>
+                      <FormControl><CurrencyInput field={field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </>)}
               </div>
             </div>
 
@@ -468,31 +621,55 @@ export default function SystemSettingsPage() {
                   <Car style={{ width: 18, height: 18, color: '#fff' }} />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#9A3412', margin: 0 }}>Mobilidade</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: '#9A3412', margin: 0 }}>Mobilidade {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
                   <p style={{ fontSize: 11, color: '#F97316', margin: 0 }}>Ajuda de custo de deslocamento</p>
                 </div>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={form.control} name="default_mobility_ida" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Ida</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="default_mobility_volta" render={({ field }) => (
-                    <FormItem>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Volta</p>
-                      <FormControl><CurrencyInput field={field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
+                {activeTab === 'casa' ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField control={form.control} name="default_mobility_ida" render={({ field }) => (
+                      <FormItem>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Ida</p>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="default_mobility_volta" render={({ field }) => (
+                      <FormItem>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Volta</p>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField control={form.control} name="default_mobility_ida_freela" render={({ field }) => (
+                      <FormItem>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Ida</p>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="default_mobility_volta_freela" render={({ field }) => (
+                      <FormItem>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Volta</p>
+                        <FormControl><CurrencyInput field={field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                )}
                 <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, color: '#888' }}>Total mobilidade</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#F97316' }}>
-                    {isNaN(mobilityTotal) ? '—' : `R$ ${mobilityTotal.toFixed(2).replace('.', ',')}`}
+                    {(() => {
+                      const ida = parseFloat(form.watch(activeTab === 'casa' ? 'default_mobility_ida' : 'default_mobility_ida_freela') || "0");
+                      const volta = parseFloat(form.watch(activeTab === 'casa' ? 'default_mobility_volta' : 'default_mobility_volta_freela') || "0");
+                      const total = ida + volta;
+                      return isNaN(total) ? '—' : `R$ ${total.toFixed(2).replace('.', ',')}`;
+                    })()}
                   </span>
                 </div>
               </div>
@@ -505,7 +682,7 @@ export default function SystemSettingsPage() {
                   <Utensils style={{ width: 18, height: 18, color: '#fff' }} />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#065F46', margin: 0 }}>Alimentação</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: '#065F46', margin: 0 }}>Alimentação {activeTab === 'casa' ? 'Casa' : 'Freela'}</p>
                   <p style={{ fontSize: 11, color: '#10B981', margin: 0 }}>Almoço e jantar por dia</p>
                 </div>
               </div>
@@ -513,39 +690,73 @@ export default function SystemSettingsPage() {
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Dias Úteis</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="default_weekday_lunch" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="default_weekday_dinner" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    {activeTab === 'casa' ? (<>
+                      <FormField control={form.control} name="default_weekday_lunch" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="default_weekday_dinner" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </>) : (<>
+                      <FormField control={form.control} name="default_weekday_lunch_freela" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="default_weekday_dinner_freela" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </>)}
                   </div>
                 </div>
                 <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 14 }}>
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Fim de Semana</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="default_weekend_lunch" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="default_weekend_dinner" render={({ field }) => (
-                      <FormItem>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
-                        <FormControl><CurrencyInput field={field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    {activeTab === 'casa' ? (<>
+                      <FormField control={form.control} name="default_weekend_lunch" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="default_weekend_dinner" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </>) : (<>
+                      <FormField control={form.control} name="default_weekend_lunch_freela" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Almoço</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="default_weekend_dinner_freela" render={({ field }) => (
+                        <FormItem>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 4 }}>Jantar</p>
+                          <FormControl><CurrencyInput field={field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </>)}
                   </div>
                 </div>
               </div>
@@ -614,30 +825,80 @@ export default function SystemSettingsPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 px-5 py-2 bg-slate-50 border-b border-slate-100">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Função</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Valor (Diária)</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Dia Útil</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Fim de Semana</span>
                     </div>
                     <div className="divide-y divide-slate-100">
                       {visibleFns.map((fn) => {
                         const isCoord = fn.responsibleArea === '__system__';
-                        const fv = allFunctionValues.find(v => v.functionId === fn.id);
-                        const currentVal = functionDailyValues[fn.id] ?? "0.00";
-                        const savedVal = fv ? centavosToReais(fv.dailyValue) : "0.00";
-                        const isDirty = parseFloat(currentVal) !== parseFloat(savedVal);
-                        const isEditing = editingFunctionId === fn.id;
-                        const hasCustomValue = fv && fv.dailyValue > 0;
-                        const isZero = parseFloat(currentVal) === 0;
+                        const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
+                        const wdVal = getCurrentValue(fn.id, 'wd');
+                        const weVal = getCurrentValue(fn.id, 'we');
+                        const savedWd = activeTab === 'casa' ? (fv ? centavosToReais(fv.dailyValue) : "0.00") : (fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00");
+                        const savedWe = activeTab === 'casa' ? (fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00") : (fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00");
+                        const isDirtyWd = parseFloat(wdVal) !== parseFloat(savedWd);
+                        const isDirtyWe = parseFloat(weVal) !== parseFloat(savedWe);
+                        const isDirty = isDirtyWd || isDirtyWe;
+                        const isEditingWd = editingFunctionId === fn.id && editingField === 'wd';
+                        const isEditingWe = editingFunctionId === fn.id && editingField === 'we';
+                        const hasWd = fv && (activeTab === 'casa' ? fv.dailyValue > 0 : (fv.dailyValueFreela ?? 0) > 0);
+                        const hasWe = fv && (activeTab === 'casa' ? (fv.dailyValueWeekend ?? 0) > 0 : (fv.dailyValueFreelaWeekend ?? 0) > 0);
+
+                        const renderCell = (field: 'wd' | 'we', isEditing: boolean, currentVal: string, hasCustom: boolean) => {
+                          const isZero = parseFloat(currentVal) === 0;
+                          return (
+                            <div className="flex items-center justify-end gap-1.5 group/cell" onClick={e => { e.stopPropagation(); if (!isEditing) startEditFunction(fn, field); }}>
+                              {isEditing ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-0.5 bg-indigo-50 ring-1 ring-indigo-300 rounded-md px-1.5 py-0.5">
+                                    <span className="text-[10px] text-slate-400 font-medium select-none">R$</span>
+                                    <input
+                                      ref={editInputRef}
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={editingFunctionValue}
+                                      onChange={e => setEditingFunctionValue(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
+                                        if (e.key === 'Escape') cancelEditFunction();
+                                      }}
+                                      className="w-16 text-sm font-mono text-right bg-transparent border-none outline-none focus:outline-none tabular-nums text-indigo-600 font-semibold"
+                                    />
+                                  </div>
+                                  <button type="button" onClick={() => confirmEditFunction(fn.id)} className="w-5 h-5 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-white">
+                                    <Check className="w-2.5 h-2.5" />
+                                  </button>
+                                  <button type="button" onClick={cancelEditFunction} className="w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600">
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 cursor-pointer">
+                                  {isZero ? (
+                                    <span className="text-sm text-slate-300 italic">—</span>
+                                  ) : (
+                                    <span className={`text-sm font-semibold tabular-nums ${hasCustom ? '' : 'text-slate-400'}`} style={hasCustom ? { color: activeTab === 'casa' ? '#3B4FE4' : '#7C3AED' } : {}}>
+                                      {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
+                                    </span>
+                                  )}
+                                  <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover/cell:opacity-100 transition-opacity" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        };
 
                         return (
                           <div
                             key={fn.id}
-                            style={{ height: 44, display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'center', padding: '0 20px' }}
-                            className={`transition-colors group cursor-pointer
+                            style={{ minHeight: 44, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', padding: '6px 20px', gap: 8 }}
+                            className={`transition-colors group
                               ${isCoord ? 'bg-blue-50/40' : 'bg-white hover:bg-slate-50/70'}
                               ${isDirty ? 'ring-1 ring-inset ring-amber-200' : ''}
                             `}
-                            onClick={() => { if (!isEditing) startEditFunction(fn); }}
                           >
                             {/* Nome + badges */}
                             <div className="flex items-center gap-2 min-w-0">
@@ -656,66 +917,10 @@ export default function SystemSettingsPage() {
                               </span>
                             </div>
 
-                            {/* Valor / input inline */}
-                            <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                              {isEditing ? (
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex items-center gap-1 bg-indigo-50 ring-1 ring-indigo-300 rounded-md px-2 py-1">
-                                    <span className="text-[11px] text-slate-400 font-medium select-none">R$</span>
-                                    <input
-                                      ref={editInputRef}
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={editingFunctionValue}
-                                      onChange={e => setEditingFunctionValue(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') { e.preventDefault(); confirmEditFunction(fn.id); }
-                                        if (e.key === 'Escape') cancelEditFunction();
-                                      }}
-                                      className="w-20 text-sm font-mono text-right bg-transparent border-none outline-none focus:outline-none tabular-nums text-indigo-600 font-semibold"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => confirmEditFunction(fn.id)}
-                                    className="w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-white"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={cancelEditFunction}
-                                    className="w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  {isZero ? (
-                                    <span className="text-sm text-slate-300 italic">Não definido</span>
-                                  ) : hasCustomValue ? (
-                                    <span className="text-sm font-semibold tabular-nums" style={{ color: '#3B4FE4' }}>
-                                      {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm tabular-nums" style={{ color: '#888' }}>
-                                      {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
-                                    </span>
-                                  )}
-                                  {!isZero && (
-                                    hasCustomValue ? (
-                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#EEF0FF', color: '#3B4FE4' }}>✎ Personalizado</span>
-                                    ) : (
-                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">Padrão</span>
-                                    )
-                                  )}
-                                  {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                                  <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                              )}
-                            </div>
+                            {/* Dia Útil */}
+                            {renderCell('wd', isEditingWd, wdVal, !!hasWd)}
+                            {/* Fim de Semana */}
+                            {renderCell('we', isEditingWe, weVal, !!hasWe)}
                           </div>
                         );
                       })}

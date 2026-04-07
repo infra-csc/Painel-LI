@@ -68,10 +68,18 @@ Preferred communication style: Simple, everyday language.
 
 ## System Settings (Configurações)
 - **Table**: `system_settings` — key-value store for global default values
-- **Keys**: `default_daily_value`, `default_mobility`, `default_weekday_lunch`, `default_weekday_dinner`, `default_weekend_lunch`, `default_weekend_dinner`
+- **Casa keys**: `default_daily_value_weekday`, `default_daily_value_weekend`, `default_mobility_ida`, `default_mobility_volta`, `default_weekday_lunch`, `default_weekday_dinner`, `default_weekend_lunch`, `default_weekend_dinner`
+- **Freela keys**: same with `_freela` suffix (e.g. `default_daily_value_weekday_freela`, `default_mobility_ida_freela`, etc.)
 - **Values stored in centavos** (integers): e.g. `2500` = R$25,00
 - **API**: `GET /api/system-settings` returns object with defaults; `PUT /api/system-settings` updates (admin only, receives values in reais, stores in centavos)
 - **Architecture**: Global defaults → used as fallback in budget-planned.tsx calculations → `budget_planned` stores its own independent copy → existing events unaffected
+- **Casa/Freela toggle**: UI tab in `/system-settings` to configure separate values for each collaborator type
+
+## Function Values (Diária por Função)
+- **Table**: `function_values` — daily rate overrides per function
+- **Daily rate columns**: `dailyValue` (casa weekday), `dailyValueWeekend` (casa weekend), `dailyValueFreela` (freela weekday), `dailyValueFreelaWeekend` (freela weekend) — all in centavos
+- **UI**: Two columns in the function table (Dia Útil + Fim de Semana), tabs switch between Casa and Freela values
+- **Calculation priority**: override → function-specific (type+weekday/weekend) → inclusion daily value → system default
 - **Access**: Admin-only page at `/system-settings`, shown in sidebar under "Sistema"
 
 ## "Não Participou" Feature (Did Not Attend)

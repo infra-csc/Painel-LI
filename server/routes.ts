@@ -2725,6 +2725,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         default_daily_value: 5000,
         default_daily_value_weekday: 5000,
         default_daily_value_weekend: 5000,
+        // Freela defaults (same as casa defaults when not set)
+        default_daily_value_weekday_freela: 5000,
+        default_daily_value_weekend_freela: 5000,
+        default_mobility_ida_freela: 0,
+        default_mobility_volta_freela: 0,
+        default_weekday_lunch_freela: 3500,
+        default_weekday_dinner_freela: 4000,
+        default_weekend_lunch_freela: 4000,
+        default_weekend_dinner_freela: 4500,
       };
       const result: Record<string, number> = { ...defaults };
       for (const s of settings) {
@@ -2743,7 +2752,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user || user.role !== "admin") return res.status(403).json({ message: "Apenas administradores podem alterar configurações" });
 
     try {
-      const allowed = ["default_mobility", "default_mobility_ida", "default_mobility_volta", "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner", "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend"];
+      const allowed = [
+        "default_mobility", "default_mobility_ida", "default_mobility_volta",
+        "default_weekday_lunch", "default_weekday_dinner", "default_weekend_lunch", "default_weekend_dinner",
+        "default_daily_value", "default_daily_value_weekday", "default_daily_value_weekend",
+        // Freela-specific keys
+        "default_daily_value_weekday_freela", "default_daily_value_weekend_freela",
+        "default_mobility_ida_freela", "default_mobility_volta_freela",
+        "default_weekday_lunch_freela", "default_weekday_dinner_freela",
+        "default_weekend_lunch_freela", "default_weekend_dinner_freela",
+      ];
       for (const key of allowed) {
         if (req.body[key] !== undefined) {
           const val = Math.round(parseFloat(req.body[key]) * 100);

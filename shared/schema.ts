@@ -237,7 +237,10 @@ export const systemLogs = pgTable("system_logs", {
 export const functionValues = pgTable("function_values", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   functionId: varchar("function_id").notNull().references(() => functions.id, { onDelete: 'cascade' }),
-  dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
+  dailyValue: integer("daily_value").notNull().default(0), // diária casa - dia útil (centavos)
+  dailyValueWeekend: integer("daily_value_weekend").notNull().default(0), // diária casa - fim de semana (centavos)
+  dailyValueFreela: integer("daily_value_freela").notNull().default(0), // diária freela - dia útil (centavos)
+  dailyValueFreelaWeekend: integer("daily_value_freela_weekend").notNull().default(0), // diária freela - fim de semana (centavos)
   costAssistance: integer("cost_assistance").notNull().default(0), // ajuda de custo em centavos
   weekdayLunch: integer("weekday_lunch").notNull().default(0), // almoço semana em centavos
   weekdayDinner: integer("weekday_dinner").notNull().default(0), // jantar semana em centavos
