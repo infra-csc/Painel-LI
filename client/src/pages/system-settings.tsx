@@ -881,7 +881,7 @@ export default function SystemSettingsPage() {
                                       <TooltipProvider delayDuration={200}>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
-                                            <span className="text-sm tabular-nums font-medium" style={{color:'#94A3B8'}}>
+                                            <span className="text-sm tabular-nums font-medium" style={{color:'#F97316'}}>
                                               R$ {parseFloat(fallbackVal!).toFixed(2).replace('.', ',')}
                                             </span>
                                           </TooltipTrigger>
