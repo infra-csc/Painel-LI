@@ -2215,10 +2215,10 @@ export default function BudgetPlannedPage() {
                           const tipoLabel = isCasaType ? 'Casa' : 'Freela';
                           const tipoIcon = isCasaType ? '🏠' : '⚡';
 
-                          const inputBase = `h-8 text-right font-mono tabular-nums text-[12px] border rounded-md px-2 outline-none transition-all
+                          const inputBase = `h-8 text-right font-mono tabular-nums text-[12px] rounded-md px-2 outline-none transition-all
                             ${disabled
-                              ? 'border-transparent bg-transparent text-slate-400 cursor-not-allowed'
-                              : 'border-[#e5e7eb] bg-[#FAFAFA] focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
+                              ? 'border border-transparent bg-transparent text-slate-400 cursor-not-allowed'
+                              : 'border border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50/80 focus:border-[#3B4FE4] focus:bg-white focus:shadow-[0_0_0_2px_rgba(59,79,228,0.12)]'}`;
 
                           const restoreField = (field: 'valorDia'|'valorDiaFds'|'alimentacao'|'alimentacaoUtil'|'alimentacaoFds'|'mobilidade') => {
                             if (!ovr) return;
@@ -2347,7 +2347,6 @@ export default function BudgetPlannedPage() {
                                 <div className="flex flex-col gap-1">
                                   {/* Dia Útil */}
                                   <div className="flex items-center justify-end gap-1">
-                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#2563EB'}}>Útil</span>
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -2387,8 +2386,7 @@ export default function BudgetPlannedPage() {
                                     })()}
                                   </div>
                                   {/* Fim de Semana */}
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:'#F97316'}}>FDS</span>
+                                  <div className="flex items-center justify-end gap-1" style={{background:'rgba(249,115,22,0.05)', borderRadius:4, marginRight:-4, paddingRight:4}}>
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -2435,7 +2433,6 @@ export default function BudgetPlannedPage() {
                                 <div className="flex flex-col gap-1">
                                   {/* Dia Útil — sempre visível; disabled se não há dias úteis */}
                                   <div className="flex items-center justify-end gap-1">
-                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color: budget.weekdays > 0 ? '#2563EB' : '#CBD5E1'}}>Útil</span>
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -2477,8 +2474,7 @@ export default function BudgetPlannedPage() {
                                     })()}
                                   </div>
                                   {/* Fim de Semana — sempre visível; disabled se não há fins de semana */}
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color: budget.weekends > 0 ? '#F97316' : '#CBD5E1'}}>FDS</span>
+                                  <div className="flex items-center justify-end gap-1" style={{background:'rgba(249,115,22,0.05)', borderRadius:4, marginRight:-4, paddingRight:4}}>
                                     <TooltipProvider delayDuration={150}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>

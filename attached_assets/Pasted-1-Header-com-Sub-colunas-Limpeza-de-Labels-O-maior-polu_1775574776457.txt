@@ -1,0 +1,46 @@
+1. Header com Sub-colunas (Limpeza de Labels)
+O maior poluidor visual hoje é a repetição das palavras "ÚTIL" e "FDS" em cada célula da planilha.
+
+A Solução: Mova esses labels para o Cabeçalho (Header).
+
+Como fica: A coluna principal se chama "DIÁRIA (R$)" e, logo abaixo dela, no próprio cabeçalho, criamos duas divisões: "Útil" e "FDS".
+
+Resultado: Dentro da planilha, você terá apenas os campos de valor, um sobre o outro, sem o texto "ÚTIL/FDS" se repetindo 50 vezes.
+
+2. Agrupamento por "Cards" de Colaborador
+Atualmente, as linhas parecem soltas. Vamos criar blocos de respiro:
+
+Divisão por Colaborador: Use um fundo cinza bem claro ou uma borda lateral mais grossa para agrupar tudo o que pertence ao "Adailton", por exemplo.
+
+Espaçamento (Padding): Aumente o espaço entre o fim das funções de um colaborador e o início do próximo. O "vazio" ajuda o cérebro a separar as informações.
+
+3. Inputs "Fantasma" (Ghost Inputs)
+Muitas bordas de campos de digitação criam um visual de "grade" pesada.
+
+A Solução: Deixe os campos de valor sem bordas (apenas o número). A borda do campo de digitação só deve aparecer quando o usuário passar o mouse (hover) ou clicar para editar.
+
+Destaque de Cor: Use cores sutis para diferenciar os períodos: o valor de Fim de Semana pode ter um tom levemente diferente (ex: um laranja bem suave ao fundo) para o RH bater o olho e já saber que aquele é o valor diferenciado.
+
+4. Edição em Lote Contextual
+O botão de "Edição em Lote" deve ser o único elemento de destaque no topo.
+
+Checkboxes Inteligentes: Mantenha os checkboxes apenas na linha do nome do colaborador. Se o RH selecionar o colaborador, ele automaticamente seleciona todas as funções/períodos abaixo dele, reduzindo o número de "quadradinhos" na tela.
+
+Resumo do Novo Layout Sugerido:
+| COLABORADOR | FUNÇÃO / PERÍODO | DIÁRIAS (Útil | FDS) | ALIM. (Útil | FDS) | MOBILIDADE | SUBTOTAL |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| João Silva [CASA] | Produtor (10/10 - 15/10) | 250,00
+
+
+350,00 | 70,00
+
+
+90,00 | 25,00 | R$ 1.850,00 |
+| | --- Espaço de Respiro --- | | | | |
+| Maria Oliveira [FREELA] | Técnica (11/10 - 12/10) | 200,00
+
+
+300,00 | 70,00
+
+
+90,00 | 20,00 | R$ 680,00 |
