@@ -2004,10 +2004,8 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center justify-end gap-1">
                               <div className="flex flex-col items-end leading-tight">
                                 <span>Diária R$/dia</span>
-                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#94A3B8'}}>
-                                  <span style={{color:'#2563EB'}}>Útil</span>
-                                  <span className="mx-1 opacity-40">|</span>
-                                  <span style={{color:'#F97316'}}>FDS</span>
+                                <span className="text-[8px] normal-case tracking-normal" style={{color:'#94A3B8'}}>
+                                  <span style={{color:'#2563EB'}}>●</span> Útil  <span style={{color:'#F97316'}}>●</span> FDS
                                 </span>
                               </div>
                               <button
@@ -2043,10 +2041,8 @@ export default function BudgetPlannedPage() {
                             <div className="flex items-center justify-end gap-1">
                               <div className="flex flex-col items-end leading-tight">
                                 <span>Alim. R$/dia</span>
-                                <span className="text-[8px] font-semibold normal-case tracking-normal" style={{color:'#94A3B8'}}>
-                                  <span style={{color:'#2563EB'}}>Útil</span>
-                                  <span className="mx-1 opacity-40">|</span>
-                                  <span style={{color:'#F97316'}}>FDS</span>
+                                <span className="text-[8px] normal-case tracking-normal" style={{color:'#94A3B8'}}>
+                                  <span style={{color:'#2563EB'}}>●</span> Útil  <span style={{color:'#F97316'}}>●</span> FDS
                                 </span>
                               </div>
                               <button
@@ -2330,11 +2326,11 @@ export default function BudgetPlannedPage() {
                                 </TooltipProvider>
                               </td>
 
-                              {/* Diária R$/dia — Útil + FDS empilhados com labels inline */}
+                              {/* Diária R$/dia — Útil + FDS empilhados (dot indicator) */}
                               <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center gap-1 mb-1">
-                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <span className="text-[8px] shrink-0" style={{color:'#2563EB', lineHeight:1}}>●</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2374,8 +2370,8 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#F97316'}}>FDS</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[8px] shrink-0" style={{color:'#F97316', lineHeight:1}}>●</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2419,8 +2415,8 @@ export default function BudgetPlannedPage() {
                               {/* Alim. R$/dia — Útil + FDS empilhados com labels inline */}
                               <td className="px-4 py-3" style={{minWidth:'130px', verticalAlign:'middle'}}>
                                 {/* Útil */}
-                                <div className="flex items-center gap-1 mb-1">
-                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#2563EB'}}>Útil</span>
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <span className="text-[8px] shrink-0" style={{color:'#2563EB', lineHeight:1}}>●</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2462,8 +2458,8 @@ export default function BudgetPlannedPage() {
                                   })()}
                                 </div>
                                 {/* FDS */}
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] font-bold w-6 text-right shrink-0" style={{color:'#F97316'}}>FDS</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[8px] shrink-0" style={{color:'#F97316', lineHeight:1}}>●</span>
                                   <TooltipProvider delayDuration={150}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
