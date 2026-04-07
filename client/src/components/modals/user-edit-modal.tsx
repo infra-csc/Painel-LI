@@ -227,7 +227,9 @@ export default function UserEditModal({ isOpen, onClose, user }: UserEditModalPr
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="rounded-xl">
-                        {Object.entries(ROLE_CFG).map(([val, cfg]) => {
+                        {Object.entries(ROLE_CFG)
+                          .filter(([val]) => val !== "admin" || isCurrentAdmin)
+                          .map(([val, cfg]) => {
                           const Icon = cfg.icon;
                           return (
                             <SelectItem key={val} value={val} className="py-2">

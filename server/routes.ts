@@ -350,6 +350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userData = insertUserSchema.parse(req.body);
+
+      // Only true admins can create admin users
+      if (userData.role === 'admin' && !isAdmin) {
+        return res.status(403).json({ message: "Apenas administradores podem criar outro Administrador." });
+      }
       
       // Check if email already exists
       const existingByEmail = await storage.getUserByEmail(userData.email);
@@ -497,6 +502,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Additional validation for admin-only fields
       if (!isAdmin && (filteredData.role !== undefined || filteredData.status !== undefined)) {
         return res.status(403).json({ message: "Sem permissão para alterar role ou status. Apenas administradores podem modificar esses campos." });
+      }
+
+      // Only true admins can assign the 'admin' role
+      if (filteredData.role === 'admin' && !isAdmin) {
+        return res.status(403).json({ message: "Apenas administradores podem atribuir o papel de Administrador." });
       }
       
       if (filteredData.email) {
