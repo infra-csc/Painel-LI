@@ -2247,8 +2247,12 @@ export default function BudgetPlannedPage() {
                                     {isNewCollab && (
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <span style={{fontSize:13, fontWeight:600, color:'#111827', letterSpacing:'-0.01em'}}>{toTitleCase(name)}</span>
-                                        <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                                          style={isCasaTypeHdr ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}}>
+                                        <span className="inline-flex items-center justify-center text-[10px] font-semibold rounded-full"
+                                          style={{
+                                            ...(isCasaTypeHdr ? {background:'#EFF6FF', color:'#1D4ED8'} : {background:'#FFF1F2', color:'#BE123C'}),
+                                            padding: '2px 8px',
+                                            minWidth: 44,
+                                          }}>
                                           {isCasaTypeHdr ? 'Casa' : 'Freela'}
                                         </span>
                                       </div>
@@ -2257,11 +2261,11 @@ export default function BudgetPlannedPage() {
                                       <span className={`text-[12px] ${isNotAttended ? 'line-through text-slate-400' : 'text-slate-500'}`}>
                                         {funcName}
                                       </span>
-                                      {budget.inclusion.startDate && budget.inclusion.endDate && (
+                                      {budget.inclusion.scheduleStartDate && (
                                         <span className="text-[11px] text-slate-400">
-                                          · {new Date(budget.inclusion.startDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'2-digit'})}
-                                          {budget.inclusion.startDate !== budget.inclusion.endDate && (
-                                            <> → {new Date(budget.inclusion.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'2-digit'})}</>
+                                          · {new Date(budget.inclusion.scheduleStartDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                                          {budget.inclusion.scheduleEndDate && budget.inclusion.scheduleStartDate !== budget.inclusion.scheduleEndDate && (
+                                            <> → {new Date(budget.inclusion.scheduleEndDate + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</>
                                           )}
                                         </span>
                                       )}
