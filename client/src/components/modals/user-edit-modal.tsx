@@ -38,7 +38,7 @@ const ROLE_CFG: Record<string, { label: string; badgeCls: string; icon: typeof S
   production:    { label: "Logística Interna",        badgeCls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",       icon: Layers,         iconCls: "text-blue-500" },
   function_area: { label: "Área de Função",           badgeCls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200", icon: Briefcase,   iconCls: "text-emerald-500" },
   purchasing:    { label: "Área de Compras/Viagem",   badgeCls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",    icon: ShoppingCart,   iconCls: "text-amber-500" },
-  financial:     { label: "Área Financeira",          badgeCls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200",       icon: BarChart2,      iconCls: "text-teal-500" },
+  financial:     { label: "RH",                        badgeCls: "bg-teal-50 text-teal-700 ring-1 ring-teal-200",       icon: BarChart2,      iconCls: "text-teal-500" },
 };
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
