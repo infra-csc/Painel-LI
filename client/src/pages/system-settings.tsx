@@ -894,7 +894,7 @@ export default function SystemSettingsPage() {
                                       <span className="text-sm text-slate-300 italic">—</span>
                                     )
                                   ) : (
-                                    <span className={`text-sm font-semibold tabular-nums ${hasCustom ? '' : 'text-slate-400'}`} style={hasCustom ? { color: activeTab === 'casa' ? '#3B4FE4' : '#7C3AED' } : {}}>
+                                    <span className={`text-sm font-semibold tabular-nums ${hasCustom ? '' : 'text-slate-400'}`} style={hasCustom ? { color: field === 'we' ? '#F97316' : (activeTab === 'casa' ? '#3B4FE4' : '#7C3AED') } : {}}>
                                       {`R$ ${parseFloat(currentVal).toFixed(2).replace('.', ',')}`}
                                     </span>
                                   )}
