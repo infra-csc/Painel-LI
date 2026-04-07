@@ -45,7 +45,7 @@ function EventItems({ events, checkedClass }: { events: Event[]; checkedClass: s
                   value={event.id}
                   className={`py-2.5 px-3 pl-8 text-[14px] rounded-md cursor-pointer ${checkedClass} data-[state=checked]:font-semibold focus:bg-gray-50 dark:focus:bg-gray-800`}
                 >
-                  <span className="truncate block max-w-[260px]">{event.name}</span>
+                  <span className="break-words">{event.name}</span>
                 </SelectItem>
               </div>
             </TooltipTrigger>

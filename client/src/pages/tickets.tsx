@@ -1562,7 +1562,7 @@ export default function Tickets() {
                         </td>
 
                         {/* Evento / Função */}
-                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)} style={{maxWidth:160}}>
+                        <td className={`px-4 py-3 cursor-pointer ${inclusion.status === 'cancelado' ? 'opacity-60' : ''}`} onClick={() => handleViewTicketDetails(inclusion)}>
                           {(() => {
                             const eventName = getEventName(inclusion.eventId);
                             const notFound = eventName === 'Evento não encontrado';
@@ -1573,9 +1573,9 @@ export default function Tickets() {
                                     ⚠ Não encontrado
                                   </span>
                                 ) : (
-                                  <p style={{fontSize:14,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:152}}>{eventName}</p>
+                                  <p style={{fontSize:14,fontWeight:600,color:'#1a1a2e'}}>{eventName}</p>
                                 )}
-                                <p style={{fontSize:12,color:'#999',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:152}}>{getFunctionName(inclusion.functionId)}</p>
+                                <p style={{fontSize:12,color:'#999',marginTop:2}}>{getFunctionName(inclusion.functionId)}</p>
                               </>
                             );
                           })()}

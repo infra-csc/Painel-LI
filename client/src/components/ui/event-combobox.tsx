@@ -150,7 +150,7 @@ export default function EventCombobox({
                 >
                   <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? "text-violet-500" : "text-slate-400"}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm truncate ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
+                    <div className={`text-sm whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
                       <div className={`text-[11px] mt-0.5 ${isSelected ? "text-violet-400" : "text-slate-400"}`}>{dateLabel}</div>
                     )}

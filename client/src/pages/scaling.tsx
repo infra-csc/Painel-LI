@@ -1209,9 +1209,9 @@ export default function Scaling() {
                                   <div className="text-[14px] font-semibold text-[#111827] leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold max-w-full">
+                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold">
                                     <CalendarDays className="w-3 h-3 shrink-0" />
-                                    <span className="truncate">{getEventName(inclusion.eventId)}</span>
+                                    <span className="break-words">{getEventName(inclusion.eventId)}</span>
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
@@ -1338,9 +1338,9 @@ export default function Scaling() {
                                   <div className="text-[14px] font-semibold text-[#111827] leading-tight">
                                     {getFunctionName(inclusion.functionId)}
                                   </div>
-                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold max-w-full">
+                                  <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold">
                                     <CalendarDays className="w-3 h-3 shrink-0" />
-                                    <span className="truncate">{getEventName(inclusion.eventId)}</span>
+                                    <span className="break-words">{getEventName(inclusion.eventId)}</span>
                                   </span>
                                 </td>
                                 <td className="px-6 py-4">
