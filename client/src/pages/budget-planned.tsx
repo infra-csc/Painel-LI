@@ -97,6 +97,7 @@ export default function BudgetPlannedPage() {
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [confirmSendSingle, setConfirmSendSingle] = useState<CalculatedBudget | null>(null);
+  const [inlineSendConfirm, setInlineSendConfirm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFunction, setFilterFunction] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -1132,92 +1133,104 @@ export default function BudgetPlannedPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
               {/* Casa */}
-              <div className="rounded-2xl bg-white" style={{
-                borderTop: '3px solid #3B82F6',
-                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-              }}>
-                <div className="px-5 py-4 pb-4">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
-                      <Home style={{width:13, height:13, color:'#2563EB'}} />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="rounded-2xl bg-white cursor-default" style={{borderTop:'3px solid #3B82F6', boxShadow:'0 1px 8px rgba(0,0,0,0.05)'}}>
+                      <div className="px-5 py-4 pb-4">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(37,99,235,0.08)'}}>
+                            <Home style={{width:13, height:13, color:'#2563EB'}} />
+                          </div>
+                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
+                        </div>
+                        <div style={{fontSize:17, fontWeight:500, color:'#2563EB', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                          {formatCurrency(stats.valorCasa)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>{stats.totalCasa} colaborador{stats.totalCasa !== 1 ? 'es' : ''}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Casa</span>
-                  </div>
-                  <div style={{fontSize:17, fontWeight:500, color:'#1E293B', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
-                    {formatCurrency(stats.valorCasa)}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2">
-                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>
-                      {stats.totalCasa} colaborador{stats.totalCasa !== 1 ? 'es' : ''}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[180px] text-center">Colaboradores que trabalham no próprio estado</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* Freela */}
-              <div className="rounded-2xl bg-white" style={{
-                borderTop: '3px solid #F97316',
-                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-              }}>
-                <div className="px-5 py-4 pb-4">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(234,88,12,0.08)'}}>
-                      <UserCheck style={{width:13, height:13, color:'#EA580C'}} />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="rounded-2xl bg-white cursor-default" style={{borderTop:'3px solid #F97316', boxShadow:'0 1px 8px rgba(0,0,0,0.05)'}}>
+                      <div className="px-5 py-4 pb-4">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(234,88,12,0.08)'}}>
+                            <UserCheck style={{width:13, height:13, color:'#EA580C'}} />
+                          </div>
+                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Freela</span>
+                        </div>
+                        <div style={{fontSize:17, fontWeight:500, color:'#EA580C', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                          {formatCurrency(stats.valorFreela)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>{stats.totalFreela} colaborador{stats.totalFreela !== 1 ? 'es' : ''}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Freela</span>
-                  </div>
-                  <div style={{fontSize:17, fontWeight:500, color:'#1E293B', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
-                    {formatCurrency(stats.valorFreela)}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2">
-                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>
-                      {stats.totalFreela} colaborador{stats.totalFreela !== 1 ? 'es' : ''}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[180px] text-center">Colaboradores contratados por evento</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* Médio / Pessoa */}
-              <div className="rounded-2xl bg-white" style={{
-                borderTop: '3px solid #7C3AED',
-                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-              }}>
-                <div className="px-5 py-4 pb-4">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(124,58,237,0.08)'}}>
-                      <Users style={{width:13, height:13, color:'#7C3AED'}} />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="rounded-2xl bg-white cursor-default" style={{borderTop:'3px solid #7C3AED', boxShadow:'0 1px 8px rgba(0,0,0,0.05)'}}>
+                      <div className="px-5 py-4 pb-4">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(124,58,237,0.08)'}}>
+                            <Users style={{width:13, height:13, color:'#7C3AED'}} />
+                          </div>
+                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Pessoa</span>
+                        </div>
+                        <div style={{fontSize:17, fontWeight:500, color:'#7C3AED', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                          {formatCurrency(stats.media)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por colaborador</span>
+                        </div>
+                      </div>
                     </div>
-                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Pessoa</span>
-                  </div>
-                  <div style={{fontSize:17, fontWeight:500, color:'#7C3AED', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
-                    {formatCurrency(stats.media)}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2">
-                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por colaborador</span>
-                  </div>
-                </div>
-              </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[180px] text-center">Média de custo por colaborador neste evento</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* Médio / Dia */}
-              <div className="rounded-2xl bg-white" style={{
-                borderTop: '3px solid #0D9488',
-                boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-              }}>
-                <div className="px-5 py-4 pb-4">
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(13,148,136,0.08)'}}>
-                      <BarChart3 style={{width:13, height:13, color:'#0D9488'}} />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="rounded-2xl bg-white cursor-default" style={{borderTop:'3px solid #0D9488', boxShadow:'0 1px 8px rgba(0,0,0,0.05)'}}>
+                      <div className="px-5 py-4 pb-4">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:'rgba(13,148,136,0.08)'}}>
+                            <BarChart3 style={{width:13, height:13, color:'#0D9488'}} />
+                          </div>
+                          <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Dia</span>
+                        </div>
+                        <div style={{fontSize:17, fontWeight:500, color:'#0D9488', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
+                          {formatCurrency(stats.mediaPorDia)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2">
+                          <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por dia trabalhado</span>
+                        </div>
+                      </div>
                     </div>
-                    <span style={{fontSize:9, fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'#94A3B8'}}>Médio / Dia</span>
-                  </div>
-                  <div style={{fontSize:17, fontWeight:500, color:'#0D9488', letterSpacing:'-0.02em', fontVariantNumeric:'tabular-nums', lineHeight:1}}>
-                    {formatCurrency(stats.mediaPorDia)}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2">
-                    <span style={{fontSize:10, color:'#94A3B8', fontWeight:400}}>por dia trabalhado</span>
-                  </div>
-                </div>
-              </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[180px] text-center">Média de custo por dia trabalhado neste evento</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
             </div>
 
@@ -2290,7 +2303,7 @@ export default function BudgetPlannedPage() {
                     </div>
                     {isAdmin && (
                       <div className="flex items-center gap-3">
-                        {hasEdits && (
+                        {hasEdits && !inlineSendConfirm && (
                           <button
                             onClick={() => setBudgetOverrides(prev => {
                               const updated = { ...prev };
@@ -2302,27 +2315,56 @@ export default function BudgetPlannedPage() {
                             Descartar Alterações
                           </button>
                         )}
-                        <button
-                          disabled={!hasPending}
-                          onClick={() => {
-                            if (!hasPending) return;
-                            setSelectedCards(new Set(pendingSheet.map(b => b.inclusion.id)));
-                            setConfirmSendOpen(true);
-                          }}
-                          className={`h-10 flex items-center gap-2 text-[13px] font-semibold text-white px-5 rounded-lg shadow-md transition-all
-                            ${hasPending
-                              ? `bg-[#059669] hover:bg-[#047857] ${hasEdits ? 'shadow-emerald-200 ring-2 ring-emerald-400 ring-offset-1' : 'shadow-emerald-100'}`
-                              : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
-                          `}
-                        >
-                          <Send className="w-4 h-4" />
-                          Enviar Planejamento
-                          {hasPending && (
-                            <span className="ml-1 w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold leading-none">
-                              {pendingSheet.length}
+                        {inlineSendConfirm ? (
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50" style={{animation:'fadeIn 0.15s ease'}}>
+                            <span className="text-[12px] font-medium text-slate-700 whitespace-nowrap">
+                              Enviar para {pendingSheet.length} colaborador{pendingSheet.length !== 1 ? 'es' : ''}?
                             </span>
-                          )}
-                        </button>
+                            <button
+                              onClick={() => setInlineSendConfirm(false)}
+                              className="text-[12px] font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              disabled={sendSelectedToActualMutation.isPending}
+                              onClick={() => {
+                                sendSelectedToActualMutation.mutate();
+                                setInlineSendConfirm(false);
+                              }}
+                              className="h-8 flex items-center gap-1.5 text-[12px] font-semibold text-white px-3 rounded-lg bg-[#059669] hover:bg-[#047857] transition-colors shadow-sm"
+                            >
+                              {sendSelectedToActualMutation.isPending ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Send className="w-3 h-3" />
+                              )}
+                              Confirmar envio
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            disabled={!hasPending}
+                            onClick={() => {
+                              if (!hasPending) return;
+                              setSelectedCards(new Set(pendingSheet.map(b => b.inclusion.id)));
+                              setInlineSendConfirm(true);
+                            }}
+                            className={`h-10 flex items-center gap-2 text-[13px] font-semibold text-white px-5 rounded-lg shadow-md transition-all
+                              ${hasPending
+                                ? `bg-[#059669] hover:bg-[#047857] ${hasEdits ? 'shadow-emerald-200 ring-2 ring-emerald-400 ring-offset-1' : 'shadow-emerald-100'}`
+                                : 'bg-slate-300 cursor-not-allowed opacity-50 shadow-none'}
+                            `}
+                          >
+                            <Send className="w-4 h-4" />
+                            Enviar Planejamento
+                            {hasPending && (
+                              <span className="ml-1 w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold leading-none">
+                                {pendingSheet.length}
+                              </span>
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
