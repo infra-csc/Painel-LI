@@ -1983,20 +1983,11 @@ export default function BudgetPlannedPage() {
                           <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] min-w-[260px] bg-slate-50/80" style={{color:'#888'}}>Colaborador · Função · Período</th>
 
                           {/* Diárias (qty) — read-only */}
-                          <th className="text-right px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-28" style={{background:'#F1F5F9', color:'#94A3B8'}}>
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center justify-end gap-1 cursor-default">
-                                    <Lock style={{width:10, height:10, color:'#CBD5E1', flexShrink:0}} />
-                                    <span>Diárias</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
-                                  Quantidade bloqueada — calculada automaticamente pelas datas da escalação
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                          <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] w-20" style={{background:'#F1F5F9', color:'#94A3B8'}}>
+                            <div className="flex items-center justify-center gap-1">
+                              <Lock style={{width:10, height:10, color:'#CBD5E1', flexShrink:0}} />
+                              <span>Dias</span>
+                            </div>
                           </th>
 
                           {/* Diária R$/dia — batch edit */}
@@ -2299,30 +2290,19 @@ export default function BudgetPlannedPage() {
                               </td>
 
                               {/* Diárias qty — somente leitura */}
-                              <td className="px-4 py-3 text-right" style={{background:'#F8FAFC', verticalAlign:'middle'}}>
+                              <td className="px-3 py-3 text-center" style={{background:'#F8FAFC', verticalAlign:'middle'}}>
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="flex flex-col items-end gap-1 cursor-not-allowed select-none">
-                                        {budget.weekdays > 0 && (
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-[9px] font-semibold" style={{color:'#2563EB'}}>útil</span>
-                                            <span className="text-[11px] tabular-nums font-mono" style={{color:'#374151'}}>{budget.weekdays}×</span>
-                                            <span className="text-[11px] tabular-nums font-mono text-slate-500">R$ {(budget.valorDiariaUtil / 100).toFixed(2).replace('.', ',')}</span>
-                                          </div>
-                                        )}
-                                        {budget.weekends > 0 && (
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-[9px] font-semibold" style={{color:'#F97316'}}>fds</span>
-                                            <span className="text-[11px] tabular-nums font-mono" style={{color:'#374151'}}>{budget.weekends}×</span>
-                                            <span className="text-[11px] tabular-nums font-mono text-slate-500">R$ {(budget.valorDiariaFds / 100).toFixed(2).replace('.', ',')}</span>
-                                          </div>
-                                        )}
-                                        <Lock style={{width:8, height:8, color:'#CBD5E1', position:'absolute', opacity:0}} />
-                                      </div>
+                                      <span className="text-[13px] font-semibold tabular-nums font-mono text-slate-600 cursor-default select-none">
+                                        {budget.weekdays + budget.weekends}
+                                      </span>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs max-w-[200px] text-center">
-                                      Calculado automaticamente pelas datas da escalação
+                                    <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                      <div className="flex flex-col gap-0.5">
+                                        {budget.weekdays > 0 && <span><span style={{color:'#2563EB'}}>●</span> Útil: {budget.weekdays}×</span>}
+                                        {budget.weekends > 0 && <span><span style={{color:'#F97316'}}>●</span> FDS: {budget.weekends}×</span>}
+                                      </div>
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
