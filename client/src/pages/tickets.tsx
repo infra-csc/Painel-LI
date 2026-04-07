@@ -1381,91 +1381,98 @@ export default function Tickets() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
             {/* ── Barra de filtros ── */}
-            <div className="px-5 py-3 border-b border-gray-100 bg-[#FAFBFF] flex flex-wrap items-center gap-2.5">
-              {/* Buscar por ID */}
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
-                <input
-                  type="text"
-                  placeholder="Nome ou número..."
-                  value={filters.searchId ?? ""}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
-                  className="h-8 pl-8 pr-3 w-44 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
-                  data-testid="input-search-id"
-                />
+            <div className="px-5 py-3 border-b border-gray-100 bg-[#FAFBFF] flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
+
+              {/* ── Lado Esquerdo: Busca + Filtros de contexto ── */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Buscar por nome/número */}
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style={{fontSize:14}}>search</span>
+                  <input
+                    type="text"
+                    placeholder="Nome ou número..."
+                    value={filters.searchId ?? ""}
+                    onChange={(e) => setFilters(prev => ({ ...prev, searchId: e.target.value }))}
+                    className="h-8 pl-8 pr-3 w-44 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                    data-testid="input-search-id"
+                  />
+                </div>
+
+                {/* Evento */}
+                <div className="w-44">
+                  <EventCombobox
+                    events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
+                    value={filters.eventId}
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value }))}
+                    placeholder="Evento"
+                    testId="filter-event"
+                  />
+                </div>
+
+                {/* Funções */}
+                <div className="w-44">
+                  <FunctionMultiSelect
+                    functions={functions}
+                    selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
+                    onSelectedChange={(selectedIds) => setFilters(prev => ({ ...prev, functionId: selectedIds }))}
+                    placeholder="Funções"
+                    testId="filter-function"
+                  />
+                </div>
+
+                {/* Colaborador */}
+                <div className="w-44">
+                  <CollaboratorCombobox
+                    collaborators={collaborators}
+                    value={filters.collaboratorId}
+                    onValueChange={(value) => setFilters(prev => ({ ...prev, collaboratorId: value }))}
+                    placeholder="Colaborador"
+                    testId="filter-collaborator"
+                  />
+                </div>
               </div>
 
-              {/* Evento */}
-              <div className="w-44">
-                <EventCombobox
-                  events={events?.filter(e => e.status !== 'excluido' && e.status !== 'excluído')}
-                  value={filters.eventId}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, eventId: value }))}
-                  placeholder="Evento"
-                  testId="filter-event"
-                />
+              {/* ── Lado Direito: Status + Contagem + Limpar ── */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Status Passagem */}
+                <select
+                  value={filters.ticketStatus}
+                  onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
+                  className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                  data-testid="filter-ticket-status"
+                >
+                  <option value="all">Todos os status</option>
+                  <option value="pending">Pendentes</option>
+                  <option value="processed">Compradas</option>
+                </select>
+
+                {/* Status Inclusão */}
+                <select
+                  value={filters.inclusionStatus}
+                  onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
+                  className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
+                  data-testid="filter-inclusion-status"
+                >
+                  <option value="active">Inclusões ativas</option>
+                  <option value="all">Todas</option>
+                  <option value="cancelado">Canceladas</option>
+                </select>
+
+                {/* Contagem */}
+                <span className="text-[11px] text-slate-400 font-medium bg-white border border-gray-200 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                  {filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}
+                </span>
+
+                {/* Limpar */}
+                <button
+                  onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", ticketStatus: "all", inclusionStatus: "active" })}
+                  className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors whitespace-nowrap"
+                  data-testid="button-clear-filters"
+                >
+                  <span className="material-symbols-outlined" style={{fontSize:13}}>close</span>
+                  Limpar
+                </button>
               </div>
-
-              {/* Funções */}
-              <div className="w-44">
-                <FunctionMultiSelect
-                  functions={functions}
-                  selectedIds={Array.isArray(filters.functionId) ? filters.functionId : []}
-                  onSelectedChange={(selectedIds) => setFilters(prev => ({ ...prev, functionId: selectedIds }))}
-                  placeholder="Funções"
-                  testId="filter-function"
-                />
-              </div>
-
-              {/* Colaborador */}
-              <div className="w-44">
-                <CollaboratorCombobox
-                  collaborators={collaborators}
-                  value={filters.collaboratorId}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, collaboratorId: value }))}
-                  placeholder="Colaborador"
-                  testId="filter-collaborator"
-                />
-              </div>
-
-              {/* Status Passagem */}
-              <select
-                value={filters.ticketStatus}
-                onChange={(e) => setFilters(prev => ({ ...prev, ticketStatus: e.target.value }))}
-                className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
-                data-testid="filter-ticket-status"
-              >
-                <option value="all">Todos os status</option>
-                <option value="pending">Pendentes</option>
-                <option value="processed">Compradas</option>
-              </select>
-
-              {/* Status Inclusão */}
-              <select
-                value={filters.inclusionStatus}
-                onChange={(e) => setFilters(prev => ({ ...prev, inclusionStatus: e.target.value }))}
-                className="h-8 px-2 pr-7 bg-white border border-gray-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-all"
-                data-testid="filter-inclusion-status"
-              >
-                <option value="active">Inclusões ativas</option>
-                <option value="all">Todas</option>
-                <option value="cancelado">Canceladas</option>
-              </select>
-
-              <div className="flex-1" />
-
-              {/* Contagem + Limpar */}
-              <span className="text-[11px] text-slate-400 font-medium bg-white border border-gray-200 px-2.5 py-1 rounded-lg">
-                {filteredTicketInclusions.length} registro{filteredTicketInclusions.length !== 1 ? 's' : ''}
-              </span>
-              <button
-                onClick={() => setFilters({ eventId: "all", functionId: [], collaboratorId: "all", searchId: "", ticketStatus: "all", inclusionStatus: "active" })}
-                className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 border border-gray-200 hover:border-red-200 hover:text-red-500 hover:bg-red-50 rounded-lg bg-white transition-colors"
-                data-testid="button-clear-filters"
-              >
-                <span className="material-symbols-outlined" style={{fontSize:13}}>close</span>
-                Limpar
-              </button>
             </div>
           {filteredTicketInclusions.length === 0 ? (
             <div className="p-12 text-center">
