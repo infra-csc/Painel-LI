@@ -11,7 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import {
   Calculator, Save, DollarSign, Car, Utensils, ShieldAlert,
-  Lock, ChevronDown, ChevronUp, Clock, Info, BadgeCheck, ExternalLink,
+  Lock, ChevronDown, ChevronUp, Clock, BadgeCheck, ExternalLink,
   Search, Building2, Plus, Trash2, Pencil, Check, X, AlertCircle
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -424,15 +424,6 @@ export default function SystemSettingsPage() {
           <h1 className="text-xl font-bold text-gray-900">Valores Padrão</h1>
           <p className="text-xs text-gray-500">Defina os valores base utilizados no cálculo de novos eventos</p>
         </div>
-      </div>
-
-      {/* ── Banner informativo ── */}
-      <div style={{ display: 'flex', gap: 10, padding: '12px 16px', borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', alignItems: 'flex-start' }}>
-        <Info style={{ width: 16, height: 16, color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
-        <p style={{ fontSize: 13, color: '#1E40AF', margin: 0, lineHeight: 1.55 }}>
-          Estes valores são utilizados como base no momento em que um novo evento é criado.
-          <strong> Eventos já cadastrados no sistema não são afetados</strong> por alterações aqui.
-        </p>
       </div>
 
       <Form {...form}>

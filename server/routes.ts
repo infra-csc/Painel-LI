@@ -2071,15 +2071,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         const fv = allFunctionValues.find(f => f.functionId === planned.functionId);
+        // Daily rate: keep function-specific if set; otherwise use system default
         const dailyWd = fv?.dailyValue || D.dailyWd;
         const dailyWe = fv?.dailyValue || D.dailyWe;
-        const mobIda   = (fv as any)?.mobilityIda   ?? D.mobIda;
-        const mobVolta  = (fv as any)?.mobilityVolta  ?? D.mobVolta;
+        // Mobility & food: always use system defaults (user is updating global values)
+        const mobIda   = D.mobIda;
+        const mobVolta  = D.mobVolta;
         const mob       = mobIda + mobVolta;
-        const almSem    = fv?.weekdayLunch  || D.almSem;
-        const janSem    = fv?.weekdayDinner || D.janSem;
-        const almFds    = fv?.weekendLunch  || D.almFds;
-        const janFds    = fv?.weekendDinner || D.janFds;
+        const almSem    = D.almSem;
+        const janSem    = D.janSem;
+        const almFds    = D.almFds;
+        const janFds    = D.janFds;
 
         const wdLunch   = almSem * weekdays;
         const wdDinner  = janSem * weekdays;
