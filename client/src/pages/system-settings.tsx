@@ -229,8 +229,10 @@ export default function SystemSettingsPage() {
         const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
         const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
         const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-        const savedFreelaWd = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
-        const savedFreelaWe = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
+        const freeWdDb = fv?.dailyValueFreela ?? 0;
+        const freeWeDb = fv?.dailyValueFreelaWeekend ?? 0;
+        const savedFreelaWd = fv ? centavosToReais(freeWdDb !== 0 ? freeWdDb : (fv.dailyValue ?? 0)) : "0.00";
+        const savedFreelaWe = fv ? centavosToReais(freeWeDb !== 0 ? freeWeDb : (fv.dailyValueWeekend ?? 0)) : "0.00";
         return (
           parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
           parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
@@ -331,8 +333,10 @@ export default function SystemSettingsPage() {
     const fv = allFunctionValues.find(v => v.functionId === fn.id) as any;
     const savedCasaWd = fv ? centavosToReais(fv.dailyValue) : "0.00";
     const savedCasaWe = fv ? centavosToReais(fv.dailyValueWeekend ?? 0) : "0.00";
-    const savedFreelaWd = fv ? centavosToReais(fv.dailyValueFreela ?? 0) : "0.00";
-    const savedFreelaWe = fv ? centavosToReais(fv.dailyValueFreelaWeekend ?? 0) : "0.00";
+    const freeWdDb2 = fv?.dailyValueFreela ?? 0;
+    const freeWeDb2 = fv?.dailyValueFreelaWeekend ?? 0;
+    const savedFreelaWd = fv ? centavosToReais(freeWdDb2 !== 0 ? freeWdDb2 : (fv.dailyValue ?? 0)) : "0.00";
+    const savedFreelaWe = fv ? centavosToReais(freeWeDb2 !== 0 ? freeWeDb2 : (fv.dailyValueWeekend ?? 0)) : "0.00";
     return (
       parseFloat(functionDailyValues[fn.id] ?? "0") !== parseFloat(savedCasaWd) ||
       parseFloat(fnWeekendValues[fn.id] ?? "0") !== parseFloat(savedCasaWe) ||
@@ -930,8 +934,8 @@ export default function SystemSettingsPage() {
                               <span
                                 className={`text-sm font-medium truncate ${isCoord ? 'text-blue-700' : isDirty ? 'font-semibold' : ''}`}
                                 style={isCoord ? {} : isDirty
-                                  ? { color: activeTab === 'freela' ? '#78350F' : '#B45309' }
-                                  : { color: activeTab === 'freela' ? '#B45309' : '#374151' }
+                                  ? { color: '#B45309' }
+                                  : { color: activeTab === 'freela' ? '#D97706' : '#374151' }
                                 }
                               >
                                 {toTitleCase(fn.name)}
