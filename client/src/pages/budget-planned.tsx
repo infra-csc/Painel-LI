@@ -483,15 +483,19 @@ export default function BudgetPlannedPage() {
       const sysJanFds = collabIsCasa
         ? (ss?.default_weekend_dinner ?? 4500)
         : (ss?.default_weekend_dinner_freela ?? ss?.default_weekend_dinner ?? 4500);
+      const freelaMobIda = ss?.default_mobility_ida_freela ?? null;
+      const freelaMobVolta = ss?.default_mobility_volta_freela ?? null;
+      const freeHasOwnMob = freelaMobIda !== null && freelaMobVolta !== null && (freelaMobIda + freelaMobVolta) > 0;
+      const defaultMobFallback = ss?.default_mobility ?? 2500;
       const sysMobTotal = collabIsCasa
-        ? (ss?.default_mobility ?? 2500)
-        : ((ss?.default_mobility_ida_freela ?? 0) + (ss?.default_mobility_volta_freela ?? 0));
+        ? (ss?.default_mobility_ida ?? 0) + (ss?.default_mobility_volta ?? 0) || (ss?.default_mobility ?? 2500)
+        : freeHasOwnMob ? (freelaMobIda! + freelaMobVolta!) : defaultMobFallback;
       const sysMobIda = collabIsCasa
         ? (ss?.default_mobility_ida ?? Math.ceil((ss?.default_mobility ?? 2500) / 2))
-        : (ss?.default_mobility_ida_freela ?? 0);
+        : freeHasOwnMob ? freelaMobIda! : Math.ceil(defaultMobFallback / 2);
       const sysMobVolta = collabIsCasa
         ? (ss?.default_mobility_volta ?? Math.floor((ss?.default_mobility ?? 2500) / 2))
-        : (ss?.default_mobility_volta_freela ?? 0);
+        : freeHasOwnMob ? freelaMobVolta! : Math.floor(defaultMobFallback / 2);
       const sysMob = sysMobTotal;
       const mobilidade = override?.mobilidade ?? sysMob;
       const mobilidadeIda = override?.mobilidadeIda ?? sysMobIda;
